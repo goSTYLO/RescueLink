@@ -1,0 +1,21 @@
+{
+  "name": "rescue-link-backend",
+  "version": "0.1.0",
+  "private": true,
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js"
+  },
+  "dependencies": {
+    "bcrypt": "^5.1.0",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "firebase-admin": "^11.11.1",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.11.2"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.22"
+  }
+}

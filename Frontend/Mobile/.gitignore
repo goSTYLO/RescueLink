@@ -1,0 +1,39 @@
+# React Native
+node_modules/
+build/
+.expo/
+.expo-shared/
+*.log
+*.tmp
+*.swp
+.env
+.env.*
+# OS
+.DS_Store
+Thumbs.db
+# IDE
+.vscode/
+.idea/
+# Android
+android/app/build/
+android/build/
+*.keystore
+# iOS
+ios/Pods/
+ios/build/
+*.xcuserstate
+*.xcworkspace
+*.xcodeproj
+# Test coverage
+coverage/
+# Misc
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+# Metro
+.cache/
+# Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/
+fastlane/test_output/
