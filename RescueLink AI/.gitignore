@@ -1,0 +1,71 @@
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+
+# =========================
+# Virtual Environment
+# =========================
+venv/
+.env/
+
+# =========================
+# OS / Editor
+# =========================
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# =========================
+# Logs
+# =========================
+*.log
+
+# =========================
+# Jupyter / Experiments
+# =========================
+.ipynb_checkpoints/
+
+# =========================
+# ML / AI Artifacts
+# =========================
+models/*.pt
+models/*.bin
+models/*.onnx
+
+utils/*.pkl
+utils/*.joblib
+
+# =========================
+# Generated / Synthetic Data
+# =========================
+data/emergency_dataset.csv
+data/*.generated.csv
+
+# =========================
+# HuggingFace Cache
+# =========================
+.cache/
+.huggingface/
+transformers_cache/
+
+# =========================
+# FastAPI / Uvicorn
+# =========================
+*.pid
+
+# =========================
+# Packaging
+# =========================
+build/
+dist/
+*.egg-info/
+
+# =========================
+# Misc
+# =========================
+*.tmp
+*.bak
