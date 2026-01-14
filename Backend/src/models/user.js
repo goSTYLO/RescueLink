@@ -23,6 +23,14 @@ const User = {
       [email, phone_number, password, phone_verified, first_name, last_name]
     );
     return res.rows[0];
+  },
+
+  async updatePhoneVerified(phone_number, verified = true) {
+    const res = await pool.query(
+      'UPDATE users SET phone_verified = $1, updated_at = CURRENT_TIMESTAMP WHERE phone_number = $2 RETURNING id, email, phone_number, phone_verified, first_name, last_name, created_at',
+      [verified, phone_number]
+    );
+    return res.rows[0];
   }
 };
 

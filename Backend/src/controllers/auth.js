@@ -51,8 +51,8 @@ exports.login = async (req, res) => {
 // Firebase Admin SDK, extract the phone number, and create the local user with phone_verified=true.
 exports.onboardPhone = async (req, res) => {
   try {
-    const { idToken, password, firstName, lastName } = req.body;
-    if (!idToken || !password) return res.status(400).json({ message: 'idToken and password required' });
+    const { idToken } = req.body;
+    if (!idToken) return res.status(400).json({ message: 'idToken required' });
 
     // Verify the Firebase ID token
     const decoded = await firebaseAdmin.auth().verifyIdToken(idToken);
@@ -60,15 +60,15 @@ exports.onboardPhone = async (req, res) => {
     const phone = decoded.phone_number;
     if (!phone) return res.status(400).json({ message: 'ID token does not contain a phone number' });
 
-    // Check if user already exists with that phone
+    // Check if user exists with that phone
     const existing = await User.findByPhone(phone);
-    if (existing) return res.status(409).json({ message: 'User with this phone already exists' });
+    if (!existing) return res.status(404).json({ message: 'User not found. Please register first.' });
 
-  const hashed = await hashPassword(password);
-  const user = await User.create({ phone_number: phone, password: hashed, phone_verified: true, first_name: firstName || null, last_name: lastName || null });
+    // Update phone_verified to true
+    const user = await User.updatePhoneVerified(phone, true);
 
     const token = jwt.sign({ id: user.id, phone: user.phone_number }, JWT_SECRET, { expiresIn: '7d' });
-    res.status(201).json({ user: { id: user.id, phone: user.phone_number, firstName: user.first_name, lastName: user.last_name }, token });
+    res.json({ user: { id: user.id, phone: user.phone_number, firstName: user.first_name, lastName: user.last_name }, token });
   } catch (err) {
     console.error('onboardPhone error', err);
     res.status(500).json({ message: 'Phone onboarding failed' });
