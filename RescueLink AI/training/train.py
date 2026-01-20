@@ -35,8 +35,13 @@ class EmergencyDataset(Dataset):
 # Training Logic
 # -----------------------------
 def train():
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Using device: {device}")
+    # Detect device
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+        print(f"Using GPU: {torch.cuda.get_device_name(0)}")
+    else:
+        device = torch.device("cpu")
+        print("Using CPU")
 
     # Ensure folders exist
     os.makedirs("models", exist_ok=True)
@@ -66,7 +71,8 @@ def train():
         df["severity_label"].tolist()
     )
 
-    dataloader = DataLoader(dataset, batch_size=4, shuffle=True)
+    # Larger batch size for GPU, adjust if VRAM is limited
+    dataloader = DataLoader(dataset, batch_size=16, shuffle=True)
 
     model = EmergencyClassifier().to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=5e-5)
@@ -79,21 +85,15 @@ def train():
         for batch in dataloader:
             optimizer.zero_grad()
 
+            # Move everything to GPU/CPU
             input_ids = batch["input_ids"].to(device)
             attention_mask = batch["attention_mask"].to(device)
             labels = batch["labels"].to(device)
 
             outputs = model(input_ids, attention_mask)
 
-            loss_type = F.cross_entropy(
-                outputs["type_logits"],
-                labels[:, 0]
-            )
-
-            loss_severity = F.cross_entropy(
-                outputs["severity_logits"],
-                labels[:, 1]
-            )
+            loss_type = F.cross_entropy(outputs["type_logits"], labels[:, 0])
+            loss_severity = F.cross_entropy(outputs["severity_logits"], labels[:, 1])
 
             loss = loss_type + loss_severity
             loss.backward()
@@ -111,7 +111,7 @@ def train():
 
 
 # -----------------------------
-# Entry Point (IMPORTANT)
+# Entry Point
 # -----------------------------
 if __name__ == "__main__":
     train()
