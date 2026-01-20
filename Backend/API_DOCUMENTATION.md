@@ -247,8 +247,14 @@ Create a new responder record.
 
 **Error Responses:**
 
-- `400 Bad Request` - Missing required field (name)
+- `400 Bad Request` - Missing required field (name) or validation errors
 - `500 Internal Server Error` - Server error
+
+**Validation:**
+- `name`: 1-150 characters (required)
+- `organization`: Max 150 characters (optional)
+- `contact_number`: Max 20 characters (optional)
+- `availability_status`: Max 50 characters (optional)
 
 ---
 
@@ -362,9 +368,16 @@ Update a responder record. **Full update required** - all fields must be provide
 
 **Error Responses:**
 
-- `400 Bad Request` - Missing required fields for full update
+- `400 Bad Request` - Missing required fields for full update or validation errors
 - `404 Not Found` - Responder not found
 - `500 Internal Server Error` - Server error
+
+**Validation:**
+- `id`: Must be a positive integer
+- `name`: 1-150 characters (required)
+- `organization`: Max 150 characters (required, can be null)
+- `contact_number`: Max 20 characters (required, can be null)
+- `availability_status`: Max 50 characters (required, can be null)
 
 ---
 
@@ -432,9 +445,14 @@ Create a new dispatch record. Validates that both the incident report and respon
 
 **Error Responses:**
 
-- `400 Bad Request` - Missing required fields (report_id or responder_id)
+- `400 Bad Request` - Missing required fields (report_id or responder_id) or validation errors
 - `404 Not Found` - Incident report not found or Responder not found
 - `500 Internal Server Error` - Server error
+
+**Validation:**
+- `report_id`: Must be a positive integer (required)
+- `responder_id`: Must be a positive integer (required)
+- `response_status`: Max 50 characters (optional)
 
 ---
 
@@ -548,9 +566,15 @@ Update a dispatch record. **Full update required** - all fields must be provided
 
 **Error Responses:**
 
-- `400 Bad Request` - Missing required fields for full update
+- `400 Bad Request` - Missing required fields for full update or validation errors
 - `404 Not Found` - Dispatch not found, Incident report not found, or Responder not found
 - `500 Internal Server Error` - Server error
+
+**Validation:**
+- `id`: Must be a positive integer
+- `report_id`: Must be a positive integer (required)
+- `responder_id`: Must be a positive integer (required)
+- `response_status`: Max 50 characters (required, can be null)
 
 ---
 
@@ -620,9 +644,15 @@ Create a new notification record. Validates that the user exists and optionally 
 
 **Error Responses:**
 
-- `400 Bad Request` - Missing required fields (user_id or message)
+- `400 Bad Request` - Missing required fields (user_id or message) or validation errors
 - `404 Not Found` - User not found or Incident report not found
 - `500 Internal Server Error` - Server error
+
+**Validation:**
+- `user_id`: Must be a positive integer (required)
+- `report_id`: Must be a positive integer if provided (optional)
+- `message`: 1-500 characters (required)
+- `sent_via`: Max 50 characters (optional)
 
 ---
 
@@ -741,9 +771,16 @@ Update a notification record. **Full update required** - all fields must be prov
 
 **Error Responses:**
 
-- `400 Bad Request` - Missing required fields for full update
+- `400 Bad Request` - Missing required fields for full update or validation errors
 - `404 Not Found` - Notification not found, User not found, or Incident report not found
 - `500 Internal Server Error` - Server error
+
+**Validation:**
+- `id`: Must be a positive integer
+- `user_id`: Must be a positive integer (required)
+- `report_id`: Must be a positive integer if provided (required, can be null)
+- `message`: 1-500 characters (required)
+- `sent_via`: Max 50 characters (required, can be null)
 
 ---
 
@@ -775,8 +812,12 @@ Delete a notification record.
 
 **Error Responses:**
 
+- `400 Bad Request` - Invalid notification ID format
 - `404 Not Found` - Notification not found
 - `500 Internal Server Error` - Server error
+
+**Validation:**
+- `id`: Must be a positive integer
 
 ---
 
@@ -784,7 +825,7 @@ Delete a notification record.
 
 - `200 OK` - Request successful
 - `201 Created` - Resource created successfully
-- `400 Bad Request` - Invalid request parameters or missing required fields
+- `400 Bad Request` - Invalid request parameters, missing required fields, or validation errors
 - `401 Unauthorized` - Missing, invalid, or expired authentication token
 - `404 Not Found` - Resource not found
 - `500 Internal Server Error` - Server error
