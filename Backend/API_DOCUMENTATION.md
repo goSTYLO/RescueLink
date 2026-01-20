@@ -251,6 +251,7 @@ Create a new responder record.
 - `500 Internal Server Error` - Server error
 
 **Validation:**
+
 - `name`: 1-150 characters (required)
 - `organization`: Max 150 characters (optional)
 - `contact_number`: Max 20 characters (optional)
@@ -373,6 +374,7 @@ Update a responder record. **Full update required** - all fields must be provide
 - `500 Internal Server Error` - Server error
 
 **Validation:**
+
 - `id`: Must be a positive integer
 - `name`: 1-150 characters (required)
 - `organization`: Max 150 characters (required, can be null)
@@ -450,6 +452,7 @@ Create a new dispatch record. Validates that both the incident report and respon
 - `500 Internal Server Error` - Server error
 
 **Validation:**
+
 - `report_id`: Must be a positive integer (required)
 - `responder_id`: Must be a positive integer (required)
 - `response_status`: Max 50 characters (optional)
@@ -571,6 +574,7 @@ Update a dispatch record. **Full update required** - all fields must be provided
 - `500 Internal Server Error` - Server error
 
 **Validation:**
+
 - `id`: Must be a positive integer
 - `report_id`: Must be a positive integer (required)
 - `responder_id`: Must be a positive integer (required)
@@ -649,6 +653,7 @@ Create a new notification record. Validates that the user exists and optionally 
 - `500 Internal Server Error` - Server error
 
 **Validation:**
+
 - `user_id`: Must be a positive integer (required)
 - `report_id`: Must be a positive integer if provided (optional)
 - `message`: 1-500 characters (required)
@@ -776,6 +781,7 @@ Update a notification record. **Full update required** - all fields must be prov
 - `500 Internal Server Error` - Server error
 
 **Validation:**
+
 - `id`: Must be a positive integer
 - `user_id`: Must be a positive integer (required)
 - `report_id`: Must be a positive integer if provided (required, can be null)
@@ -817,6 +823,7 @@ Delete a notification record.
 - `500 Internal Server Error` - Server error
 
 **Validation:**
+
 - `id`: Must be a positive integer
 
 ---
