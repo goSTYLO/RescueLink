@@ -5,40 +5,36 @@ const firebaseAdmin = require('../config/firebase');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'change_this_secret';
 
-// Register using phone_number & password
+// Register using phone_number
 exports.register = async (req, res) => {
   try {
-    const { phone, password, firstName, lastName } = req.body;
-    if (!phone || !password || !firstName || !lastName) return res.status(400).json({ message: 'Phone, firstName, lastName and password required' });
+    const { phone, firstName, lastName, email } = req.body;
+    if (!phone || !firstName || !lastName) return res.status(400).json({ message: 'Phone, firstName, and lastName required' });
 
     const existing = await User.findByPhone(phone);
     if (existing) return res.status(409).json({ message: 'User with this phone already exists' });
 
-    const hashed = await hashPassword(password);
-    const user = await User.create({ phone_number: phone, password: hashed, phone_verified: false, first_name: firstName, last_name: lastName });
+    const user = await User.create({ phone_number: phone, email: email || null, phone_verified: false, first_name: firstName, last_name: lastName });
 
-    const token = jwt.sign({ id: user.id, phone: user.phone_number }, JWT_SECRET, { expiresIn: '7d' });
-    res.status(201).json({ user: { id: user.id, phone: user.phone_number, firstName: user.first_name, lastName: user.last_name }, token });
+    const token = jwt.sign({ user_id: user.user_id, phone: user.phone_number, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
+    res.status(201).json({ user: { user_id: user.user_id, phone: user.phone_number, firstName: user.first_name, lastName: user.last_name, role: user.role }, token });
   } catch (err) {
     console.error('register error', err);
     res.status(500).json({ message: 'Registration failed' });
   }
 };
 
-// Login using phone_number & password
+// Login using phone_number (authentication via Firebase in production)
 exports.login = async (req, res) => {
   try {
-    const { phone, password } = req.body;
-    if (!phone || !password) return res.status(400).json({ message: 'Phone number and password required' });
+    const { phone } = req.body;
+    if (!phone) return res.status(400).json({ message: 'Phone number required' });
 
     const user = await User.findByPhone(phone);
     if (!user) return res.status(401).json({ message: 'Invalid credentials' });
 
-    const ok = await comparePassword(password, user.password);
-    if (!ok) return res.status(401).json({ message: 'Invalid credentials' });
-
-    const token = jwt.sign({ id: user.id, phone: user.phone_number }, JWT_SECRET, { expiresIn: '7d' });
-    res.json({ user: { id: user.id, phone: user.phone_number }, token });
+    const token = jwt.sign({ user_id: user.user_id, phone: user.phone_number, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
+    res.json({ user: { user_id: user.user_id, phone: user.phone_number, role: user.role }, token });
   } catch (err) {
     console.error('login error', err);
     res.status(500).json({ message: 'Login failed' });
@@ -67,8 +63,8 @@ exports.onboardPhone = async (req, res) => {
     // Update phone_verified to true
     const user = await User.updatePhoneVerified(phone, true);
 
-    const token = jwt.sign({ id: user.id, phone: user.phone_number }, JWT_SECRET, { expiresIn: '7d' });
-    res.json({ user: { id: user.id, phone: user.phone_number, firstName: user.first_name, lastName: user.last_name }, token });
+    const token = jwt.sign({ user_id: user.user_id, phone: user.phone_number, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
+    res.json({ user: { user_id: user.user_id, phone: user.phone_number, firstName: user.first_name, lastName: user.last_name, role: user.role }, token });
   } catch (err) {
     console.error('onboardPhone error', err);
     res.status(500).json({ message: 'Phone onboarding failed' });
