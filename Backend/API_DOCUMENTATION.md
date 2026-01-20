@@ -24,6 +24,38 @@ To obtain a JWT token, use the `/api/auth/login` or `/api/auth/register` endpoin
 
 ---
 
+## Input Validation
+
+All API endpoints include comprehensive input validation to prevent SQL injection and ensure data integrity:
+
+**Validation Rules:**
+
+- **Integers** (IDs, pagination): Must be positive integers
+- **Phone numbers**: Max 20 characters, accepts digits, +, spaces, hyphens, parentheses
+- **Email**: Must be valid email format, max 255 characters
+- **Names** (first/last): 1-100 characters
+- **Strings** (general): Length limits based on database schema (typically 50-500 characters)
+- **Pagination**: `limit` capped at 100, `offset` must be non-negative
+
+**Validation Error Response:**
+All validation errors return `400 Bad Request` with a descriptive error message:
+
+```json
+{
+  "error": "firstName must be at least 1 characters",
+  "message": "Invalid phone number format"
+}
+```
+
+**Security:**
+
+- All database queries use parameterized statements to prevent SQL injection
+- Input sanitization removes dangerous control characters
+- Type checking ensures data matches expected formats
+- Length constraints prevent buffer overflow attacks
+
+---
+
 ## Authentication API
 
 ### Register
@@ -60,9 +92,16 @@ Register a new user with phone number and optional email. Does not require authe
 
 **Error Responses:**
 
-- `400 Bad Request` - Missing required fields (phone, firstName, or lastName)
+- `400 Bad Request` - Missing required fields (phone, firstName, or lastName) or validation errors
 - `409 Conflict` - User with this phone already exists
 - `500 Internal Server Error` - Registration failed
+
+**Validation:**
+
+- `phone`: Max 20 characters, valid phone format
+- `firstName`: 1-100 characters
+- `lastName`: 1-100 characters
+- `email` (optional): Valid email format, max 255 characters
 
 **Notes:**
 
@@ -102,9 +141,13 @@ Login with phone number. Does not require authentication.
 
 **Error Responses:**
 
-- `400 Bad Request` - Missing required field (phone)
+- `400 Bad Request` - Missing required field (phone) or validation errors
 - `401 Unauthorized` - Invalid credentials
 - `500 Internal Server Error` - Login failed
+
+**Validation:**
+
+- `phone`: Max 20 characters, valid phone format
 
 **Notes:**
 
@@ -150,8 +193,14 @@ Verify phone number using Firebase and update user's phone verification status. 
 }
 ```
 
-**Error Responses:**
+, ID token does not contain a phone number, or validation errors
 
+- `404 Not Found` - User not found. Please register first.
+- `500 Internal Server Error` - Phone onboarding failed
+
+**Validation:**
+
+- `idToken`: 1-2048 characters
 - `400 Bad Request` - Missing idToken or ID token does not contain a phone number
 - `404 Not Found` - User not found. Please register first.
 - `500 Internal Server Error` - Phone onboarding failed

@@ -1,4 +1,5 @@
 const Dispatch = require('../models/dispatch');
+const { validateInteger, validateOptionalString, validatePagination } = require('../utils/validation');
 
 const dispatchController = {
   // Create new dispatch
@@ -11,27 +12,35 @@ const dispatchController = {
         return res.status(400).json({ error: 'report_id and responder_id are required' });
       }
 
+      // Validate and sanitize inputs
+      const validatedReportId = validateInteger(report_id, 'report_id');
+      const validatedResponderId = validateInteger(responder_id, 'responder_id');
+      const validatedResponseStatus = validateOptionalString(response_status, 'response_status', 50);
+
       // Check if report exists
-      const reportExists = await Dispatch.reportExists(report_id);
+      const reportExists = await Dispatch.reportExists(validatedReportId);
       if (!reportExists) {
         return res.status(404).json({ error: 'Incident report not found' });
       }
 
       // Check if responder exists
-      const responderExists = await Dispatch.responderExists(responder_id);
+      const responderExists = await Dispatch.responderExists(validatedResponderId);
       if (!responderExists) {
         return res.status(404).json({ error: 'Responder not found' });
       }
 
       const dispatch = await Dispatch.create({
-        report_id,
-        responder_id,
-        response_status
+        report_id: validatedReportId,
+        responder_id: validatedResponderId,
+        response_status: validatedResponseStatus
       });
 
       res.status(201).json(dispatch);
     } catch (error) {
       console.error('Error creating dispatch:', error);
+      if (error.message.includes('must be') || error.message.includes('must not')) {
+        return res.status(400).json({ error: error.message });
+      }
       res.status(500).json({ error: 'Internal server error' });
     }
   },
@@ -40,7 +49,9 @@ const dispatchController = {
   async getById(req, res) {
     try {
       const { id } = req.params;
-      const dispatch = await Dispatch.findById(id);
+      const validatedId = validateInteger(id, 'dispatch ID');
+      
+      const dispatch = await Dispatch.findById(validatedId);
 
       if (!dispatch) {
         return res.status(404).json({ error: 'Dispatch not found' });
@@ -49,6 +60,9 @@ const dispatchController = {
       res.json(dispatch);
     } catch (error) {
       console.error('Error fetching dispatch:', error);
+      if (error.message.includes('must be')) {
+        return res.status(400).json({ error: error.message });
+      }
       res.status(500).json({ error: 'Internal server error' });
     }
   },
@@ -57,24 +71,35 @@ const dispatchController = {
   async getAll(req, res) {
     try {
       const {
-        limit = 20,
-        offset = 0,
+        limit,
+        offset,
         report_id,
         responder_id,
         response_status
       } = req.query;
 
+      // Validate pagination
+      const { limit: validatedLimit, offset: validatedOffset } = validatePagination(limit, offset);
+      
+      // Validate optional filters
+      const validatedReportId = report_id ? validateInteger(report_id, 'report_id') : null;
+      const validatedResponderId = responder_id ? validateInteger(responder_id, 'responder_id') : null;
+      const validatedResponseStatus = response_status ? validateOptionalString(response_status, 'response_status', 50) : null;
+
       const dispatches = await Dispatch.findAll({
-        limit: parseInt(limit),
-        offset: parseInt(offset),
-        report_id: report_id ? parseInt(report_id) : null,
-        responder_id: responder_id ? parseInt(responder_id) : null,
-        response_status
+        limit: validatedLimit,
+        offset: validatedOffset,
+        report_id: validatedReportId,
+        responder_id: validatedResponderId,
+        response_status: validatedResponseStatus
       });
 
       res.json(dispatches);
     } catch (error) {
       console.error('Error fetching dispatches:', error);
+      if (error.message.includes('must be')) {
+        return res.status(400).json({ error: error.message });
+      }
       res.status(500).json({ error: 'Internal server error' });
     }
   },
@@ -85,6 +110,9 @@ const dispatchController = {
       const { id } = req.params;
       const { report_id, responder_id, response_status } = req.body;
 
+      // Validate ID
+      const validatedId = validateInteger(id, 'dispatch ID');
+
       // Validate required fields for full update
       if (!report_id || !responder_id || response_status === undefined) {
         return res.status(400).json({ 
@@ -92,33 +120,41 @@ const dispatchController = {
         });
       }
 
+      // Validate and sanitize inputs
+      const validatedReportId = validateInteger(report_id, 'report_id');
+      const validatedResponderId = validateInteger(responder_id, 'responder_id');
+      const validatedResponseStatus = validateOptionalString(response_status, 'response_status', 50);
+
       // Check if dispatch exists
-      const existing = await Dispatch.findById(id);
+      const existing = await Dispatch.findById(validatedId);
       if (!existing) {
         return res.status(404).json({ error: 'Dispatch not found' });
       }
 
       // Check if report exists
-      const reportExists = await Dispatch.reportExists(report_id);
+      const reportExists = await Dispatch.reportExists(validatedReportId);
       if (!reportExists) {
         return res.status(404).json({ error: 'Incident report not found' });
       }
 
       // Check if responder exists
-      const responderExists = await Dispatch.responderExists(responder_id);
+      const responderExists = await Dispatch.responderExists(validatedResponderId);
       if (!responderExists) {
         return res.status(404).json({ error: 'Responder not found' });
       }
 
-      const updated = await Dispatch.update(id, {
-        report_id,
-        responder_id,
-        response_status
+      const updated = await Dispatch.update(validatedId, {
+        report_id: validatedReportId,
+        responder_id: validatedResponderId,
+        response_status: validatedResponseStatus
       });
 
       res.json(updated);
     } catch (error) {
       console.error('Error updating dispatch:', error);
+      if (error.message.includes('must be') || error.message.includes('must not')) {
+        return res.status(400).json({ error: error.message });
+      }
       res.status(500).json({ error: 'Internal server error' });
     }
   },
@@ -127,8 +163,9 @@ const dispatchController = {
   async delete(req, res) {
     try {
       const { id } = req.params;
+      const validatedId = validateInteger(id, 'dispatch ID');
 
-      const deleted = await Dispatch.delete(id);
+      const deleted = await Dispatch.delete(validatedId);
 
       if (!deleted) {
         return res.status(404).json({ error: 'Dispatch not found' });
@@ -137,6 +174,9 @@ const dispatchController = {
       res.json({ message: 'Dispatch deleted successfully', dispatch: deleted });
     } catch (error) {
       console.error('Error deleting dispatch:', error);
+      if (error.message.includes('must be')) {
+        return res.status(400).json({ error: error.message });
+      }
       res.status(500).json({ error: 'Internal server error' });
     }
   }

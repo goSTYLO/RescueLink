@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/user');
 const { hashPassword, comparePassword } = require('../utils/hash');
 const firebaseAdmin = require('../config/firebase');
+const { validatePhone, validateString, validateOptionalString } = require('../utils/validation');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'change_this_secret';
 
@@ -11,15 +12,24 @@ exports.register = async (req, res) => {
     const { phone, firstName, lastName, email } = req.body;
     if (!phone || !firstName || !lastName) return res.status(400).json({ message: 'Phone, firstName, and lastName required' });
 
-    const existing = await User.findByPhone(phone);
+    // Validate and sanitize inputs
+    const validatedPhone = validatePhone(phone);
+    const validatedFirstName = validateString(firstName, 'firstName', 1, 100);
+    const validatedLastName = validateString(lastName, 'lastName', 1, 100);
+    const validatedEmail = email ? validateOptionalString(email, 'email', 255) : null;
+
+    const existing = await User.findByPhone(validatedPhone);
     if (existing) return res.status(409).json({ message: 'User with this phone already exists' });
 
-    const user = await User.create({ phone_number: phone, email: email || null, phone_verified: false, first_name: firstName, last_name: lastName });
+    const user = await User.create({ phone_number: validatedPhone, email: validatedEmail, phone_verified: false, first_name: validatedFirstName, last_name: validatedLastName });
 
     const token = jwt.sign({ user_id: user.user_id, phone: user.phone_number, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
     res.status(201).json({ user: { user_id: user.user_id, phone: user.phone_number, firstName: user.first_name, lastName: user.last_name, role: user.role }, token });
   } catch (err) {
     console.error('register error', err);
+    if (err.message.includes('must be') || err.message.includes('Invalid')) {
+      return res.status(400).json({ message: err.message });
+    }
     res.status(500).json({ message: 'Registration failed' });
   }
 };
@@ -30,13 +40,19 @@ exports.login = async (req, res) => {
     const { phone } = req.body;
     if (!phone) return res.status(400).json({ message: 'Phone number required' });
 
-    const user = await User.findByPhone(phone);
+    // Validate and sanitize input
+    const validatedPhone = validatePhone(phone);
+
+    const user = await User.findByPhone(validatedPhone);
     if (!user) return res.status(401).json({ message: 'Invalid credentials' });
 
     const token = jwt.sign({ user_id: user.user_id, phone: user.phone_number, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
     res.json({ user: { user_id: user.user_id, phone: user.phone_number, role: user.role }, token });
   } catch (err) {
     console.error('login error', err);
+    if (err.message.includes('must be') || err.message.includes('Invalid')) {
+      return res.status(400).json({ message: err.message });
+    }
     res.status(500).json({ message: 'Login failed' });
   }
 };
@@ -50,8 +66,11 @@ exports.onboardPhone = async (req, res) => {
     const { idToken } = req.body;
     if (!idToken) return res.status(400).json({ message: 'idToken required' });
 
+    // Validate idToken is a string
+    const validatedToken = validateString(idToken, 'idToken', 1, 2048);
+
     // Verify the Firebase ID token
-    const decoded = await firebaseAdmin.auth().verifyIdToken(idToken);
+    const decoded = await firebaseAdmin.auth().verifyIdToken(validatedToken);
     // Firebase phone auth places phone number on the token
     const phone = decoded.phone_number;
     if (!phone) return res.status(400).json({ message: 'ID token does not contain a phone number' });
@@ -67,6 +86,9 @@ exports.onboardPhone = async (req, res) => {
     res.json({ user: { user_id: user.user_id, phone: user.phone_number, firstName: user.first_name, lastName: user.last_name, role: user.role }, token });
   } catch (err) {
     console.error('onboardPhone error', err);
+    if (err.message.includes('must be') || err.message.includes('Invalid')) {
+      return res.status(400).json({ message: err.message });
+    }
     res.status(500).json({ message: 'Phone onboarding failed' });
   }
 };
