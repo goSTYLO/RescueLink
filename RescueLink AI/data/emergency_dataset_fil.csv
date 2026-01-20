@@ -1,0 +1,2001 @@
+id,text,incident_type,severity,type_label,severity_label
+1,"Kailangan ng responders para sa aksidente sa kotse, may mga taong nasaktan.",Aksidente,Severe,2,2
+2,"Kailangan ng responders para sa may taong bumagsak, lumalala ang sitwasyon.",Medikal,Moderate,3,1
+3,"Ipadala ang mga yunit para sa hindi matukoy na emergency, maraming nasugatan.",Iba Pa,Critical,5,3
+4,"Kailangan ng responders para sa nahihirapang huminga, kailangan ng agarang tulong.",Medikal,Severe,3,2
+5,"Insidente: may usok na lumalabas, maraming nasugatan.",Sunog,Critical,0,3
+6,"Kritikal na alerto: armadong pagnanakaw, maraming nasugatan.",Krimen,Critical,1,3
+7,"Inalerto ang mga awtoridad: hayop na na-trap, kailangan ng agarang tulong.",Iba Pa,Severe,5,2
+8,"Inalerto ang mga awtoridad: kombulsyon, kailangan ng agarang tugon.",Medikal,Moderate,3,1
+9,"Inalerto ang mga awtoridad: baha, maliit na problema lamang.",Sakunang Likas,Minor,4,0
+10,"Agarang sitwasyon: malakas na ulan, kailangan ng tulong.",Sakunang Likas,Moderate,4,1
+11,"Emergency na kinasasangkutan ng aksidente sa kotse, lumalala ang sitwasyon.",Aksidente,Moderate,2,1
+12,"Kailangan ng responders para sa may taong bumagsak, walang nasugatan.",Medikal,Minor,3,0
+13,"Ipadala ang mga yunit para sa pananakit, kailangan ng agarang tulong.",Krimen,Severe,1,2
+14,"Kritikal na alerto: epekto ng bagyo, may mga taong na-trap.",Sakunang Likas,Critical,4,3
+15,"Insidente: karahasan sa bahay, kailangan ng agarang tugon.",Krimen,Moderate,1,1
+16,"May naiulat na storm surge, kailangan ng tulong.",Sakunang Likas,Moderate,4,1
+17,"Inalerto ang mga awtoridad: pananakit ng dibdib, kailangan ng agarang tulong.",Medikal,Severe,3,2
+18,"Kritikal na alerto: sunog sa bahay, kontrolado na ang sitwasyon.",Sunog,Minor,0,0
+19,"Ipadala ang mga yunit para sa walang malay na pasyente, lumalala ang sitwasyon.",Medikal,Moderate,3,1
+20,"Agarang sitwasyon: sunog sa kuryente, walang nasugatan.",Sunog,Minor,0,0
+21,"Insidente: nawawalang bata, may mga taong na-trap.",Iba Pa,Critical,5,3
+22,"May naiulat na nasusunog na istruktura, posibleng may nasugatan.",Sunog,Moderate,0,1
+23,"May naiulat na may taong bumagsak, kailangan ng agarang tulong.",Medikal,Severe,3,2
+24,"Emergency na kinasasangkutan ng walang malay na pasyente, walang nasugatan.",Medikal,Minor,3,0
+25,"Insidente: banggaan sa kalsada, may mga taong nasaktan.",Aksidente,Severe,2,2
+26,"Inalerto ang mga awtoridad: karahasan sa bahay, may mga taong na-trap.",Krimen,Critical,1,3
+27,"May naiulat na karahasan sa bahay, walang nasugatan.",Krimen,Minor,1,0
+28,"Agarang sitwasyon: gulo sa publiko, may malubhang sugatan.",Iba Pa,Severe,5,2
+29,"Agarang sitwasyon: walang malay na pasyente, tumitindi ang panganib.",Medikal,Severe,3,2
+30,"Ipadala ang mga yunit para sa pinsala mula sa lindol, may mga taong nasaktan.",Sakunang Likas,Severe,4,2
+31,"May naiulat na hit and run, kailangan ng tulong.",Aksidente,Moderate,2,1
+32,"Agarang sitwasyon: hit and run, agarang panganib sa buhay.",Aksidente,Critical,2,3
+33,"May naiulat na hayop na na-trap, sitwasyong nagbabanta sa buhay.",Iba Pa,Critical,5,3
+34,"Inalerto ang mga awtoridad: pagguho ng lupa, walang nasugatan.",Sakunang Likas,Minor,4,0
+35,"Agarang sitwasyon: nahihirapang huminga, tumitindi ang panganib.",Medikal,Severe,3,2
+36,"May naiulat na nasusunog na gusali, agarang panganib sa buhay.",Sunog,Critical,0,3
+37,"Inalerto ang mga awtoridad: lalaking may kutsilyo, walang agarang panganib.",Krimen,Minor,1,0
+38,"Inalerto ang mga awtoridad: sunog sa kusina, sitwasyong nagbabanta sa buhay.",Sunog,Critical,0,3
+39,"Kritikal na alerto: nasusunog na gusali, tumitindi ang panganib.",Sunog,Severe,0,2
+40,"Inalerto ang mga awtoridad: hayop na na-trap, kailangan ng agarang tulong.",Iba Pa,Severe,5,2
+41,"May naiulat na hindi matukoy na emergency, sitwasyong nagbabanta sa buhay.",Iba Pa,Critical,5,3
+42,"Agarang sitwasyon: armadong pagnanakaw, lumalala ang sitwasyon.",Krimen,Moderate,1,1
+43,"Ipadala ang mga yunit para sa sunog sa kuryente, sitwasyong nagbabanta sa buhay.",Sunog,Critical,0,3
+44,"Insidente: may taong bumagsak, walang agarang panganib.",Medikal,Minor,3,0
+45,"Inalerto ang mga awtoridad: banggaan sa kalsada, maliit na problema lamang.",Aksidente,Minor,2,0
+46,"Inalerto ang mga awtoridad: hindi matukoy na emergency, sitwasyong nagbabanta sa buhay.",Iba Pa,Critical,5,3
+47,"Kailangan ng responders para sa karahasan sa bahay, may mga taong na-trap.",Krimen,Critical,1,3
+48,"Inalerto ang mga awtoridad: brownout, may mga taong nasaktan.",Iba Pa,Severe,5,2
+49,"Kritikal na alerto: banta ng baril, kontrolado na ang sitwasyon.",Krimen,Minor,1,0
+50,"Kritikal na alerto: sapilitang pasok, tumitindi ang panganib.",Krimen,Severe,1,2
+51,"Ipadala ang mga yunit para sa kombulsyon, walang agarang panganib.",Medikal,Minor,3,0
+52,"Agarang sitwasyon: pananakit, kailangan ng tulong.",Krimen,Moderate,1,1
+53,"Kritikal na alerto: sunog sa bahay, may malubhang sugatan.",Sunog,Severe,0,2
+54,"Ipadala ang mga yunit para sa hayop na na-trap, maraming nasugatan.",Iba Pa,Critical,5,3
+55,"Ipadala ang mga yunit para sa hindi humihinga, tumitindi ang panganib.",Medikal,Severe,3,2
+56,"Emergency na kinasasangkutan ng nawawalang bata, tumitindi ang panganib.",Iba Pa,Severe,5,2
+57,"Kailangan ng responders para sa armadong pagnanakaw, maliit na problema lamang.",Krimen,Minor,1,0
+58,"Agarang sitwasyon: armadong pagnanakaw, maraming nasugatan.",Krimen,Critical,1,3
+59,"Inalerto ang mga awtoridad: salpukan ng sasakyan, maraming nasugatan.",Aksidente,Critical,2,3
+60,"Inalerto ang mga awtoridad: sapilitang pasok, tumitindi ang panganib.",Krimen,Severe,1,2
+61,"May naiulat na pinsala mula sa lindol, walang agarang panganib.",Sakunang Likas,Minor,4,0
+62,"Kailangan ng responders para sa banta ng baril, walang nasugatan.",Krimen,Minor,1,0
+63,"Emergency na kinasasangkutan ng storm surge, agarang panganib sa buhay.",Sakunang Likas,Critical,4,3
+64,"Ipadala ang mga yunit para sa may usok na lumalabas, kailangan ng tulong.",Sunog,Moderate,0,1
+65,"Ipadala ang mga yunit para sa nasusunog na gusali, walang nasugatan.",Sunog,Minor,0,0
+66,"Ipadala ang mga yunit para sa salpukan ng sasakyan, agarang panganib sa buhay.",Aksidente,Critical,2,3
+67,"Emergency na kinasasangkutan ng may usok na lumalabas, posibleng may nasugatan.",Sunog,Moderate,0,1
+68,"May naiulat na sunog sa kuryente, maraming nasugatan.",Sunog,Critical,0,3
+69,"Agarang sitwasyon: hindi matukoy na emergency, may mga taong na-trap.",Iba Pa,Critical,5,3
+70,"Inalerto ang mga awtoridad: nahihirapang huminga, agarang panganib sa buhay.",Medikal,Critical,3,3
+71,"Inalerto ang mga awtoridad: hit and run, lumalala ang sitwasyon.",Aksidente,Moderate,2,1
+72,"Kritikal na alerto: epekto ng bagyo, lumalala ang sitwasyon.",Sakunang Likas,Moderate,4,1
+73,"Insidente: nawawalang bata, may mga taong na-trap.",Iba Pa,Critical,5,3
+74,"May naiulat na pinsala mula sa lindol, agarang panganib sa buhay.",Sakunang Likas,Critical,4,3
+75,"May naiulat na karahasan sa bahay, kailangan ng agarang tugon.",Krimen,Moderate,1,1
+76,"Kritikal na alerto: sunog sa kuryente, kailangan ng agarang tulong.",Sunog,Severe,0,2
+77,"Ipadala ang mga yunit para sa kombulsyon, posibleng may nasugatan.",Medikal,Moderate,3,1
+78,"Emergency na kinasasangkutan ng kombulsyon, may mga taong nasaktan.",Medikal,Severe,3,2
+79,"Emergency na kinasasangkutan ng pananakit ng dibdib, maliit na problema lamang.",Medikal,Minor,3,0
+80,"Kritikal na alerto: banta ng baril, posibleng may nasugatan.",Krimen,Moderate,1,1
+81,"Agarang sitwasyon: sunog sa kusina, kailangan ng tulong.",Sunog,Moderate,0,1
+82,"Kailangan ng responders para sa baha, may mga taong nasaktan.",Sakunang Likas,Severe,4,2
+83,"Agarang sitwasyon: brownout, lumalala ang sitwasyon.",Iba Pa,Moderate,5,1
+84,"Emergency na kinasasangkutan ng hayop na na-trap, walang nasugatan.",Iba Pa,Minor,5,0
+85,"Kritikal na alerto: sunog sa bahay, maliit na problema lamang.",Sunog,Minor,0,0
+86,"Insidente: pananakit ng dibdib, posibleng may nasugatan.",Medikal,Moderate,3,1
+87,"Insidente: hit and run, may malubhang sugatan.",Aksidente,Severe,2,2
+88,"Emergency na kinasasangkutan ng baha, maraming nasugatan.",Sakunang Likas,Critical,4,3
+89,"Kritikal na alerto: aksidente sa kotse, maraming nasugatan.",Aksidente,Critical,2,3
+90,"Kritikal na alerto: banggaan ng motorsiklo, walang agarang panganib.",Aksidente,Minor,2,0
+91,"May naiulat na salpukan ng sasakyan, kailangan ng agarang tugon.",Aksidente,Moderate,2,1
+92,"Insidente: sapilitang pasok, walang agarang panganib.",Krimen,Minor,1,0
+93,"Ipadala ang mga yunit para sa pananakit ng dibdib, may mga taong nasaktan.",Medikal,Severe,3,2
+94,"Insidente: sunog sa bahay, posibleng may nasugatan.",Sunog,Moderate,0,1
+95,"Kailangan ng responders para sa pinsala mula sa lindol, agarang panganib sa buhay.",Sakunang Likas,Critical,4,3
+96,"Ipadala ang mga yunit para sa sunog sa bahay, kailangan ng agarang tulong.",Sunog,Severe,0,2
+97,"Ipadala ang mga yunit para sa hindi humihinga, tumitindi ang panganib.",Medikal,Severe,3,2
+98,"Insidente: sapilitang pasok, walang agarang panganib.",Krimen,Minor,1,0
+99,"Agarang sitwasyon: nasusunog na gusali, kailangan ng agarang tugon.",Sunog,Moderate,0,1
+100,"Kailangan ng responders para sa hayop na na-trap, kailangan ng agarang tulong.",Iba Pa,Severe,5,2
+101,"Ipadala ang mga yunit para sa sunog sa kusina, agarang panganib sa buhay.",Sunog,Critical,0,3
+102,"May naiulat na storm surge, kailangan ng agarang tugon.",Sakunang Likas,Moderate,4,1
+103,"Agarang sitwasyon: aksidente sa kotse, kailangan ng agarang tulong.",Aksidente,Severe,2,2
+104,"Ipadala ang mga yunit para sa lalaking may kutsilyo, agarang panganib sa buhay.",Krimen,Critical,1,3
+105,"Ipadala ang mga yunit para sa lalaking may kutsilyo, maraming nasugatan.",Krimen,Critical,1,3
+106,"Emergency na kinasasangkutan ng nasusunog na gusali, may mga taong na-trap.",Sunog,Critical,0,3
+107,"Ipadala ang mga yunit para sa nawawalang bata, sitwasyong nagbabanta sa buhay.",Iba Pa,Critical,5,3
+108,"Insidente: aksidente sa trak, tumitindi ang panganib.",Aksidente,Severe,2,2
+109,"Kritikal na alerto: walang malay na pasyente, may mga taong nasaktan.",Medikal,Severe,3,2
+110,"Agarang sitwasyon: malakas na ulan, posibleng may nasugatan.",Sakunang Likas,Moderate,4,1
+111,"Agarang sitwasyon: lalaking may kutsilyo, kailangan ng agarang tugon.",Krimen,Moderate,1,1
+112,"Inalerto ang mga awtoridad: hit and run, posibleng may nasugatan.",Aksidente,Moderate,2,1
+113,"Inalerto ang mga awtoridad: hindi matukoy na emergency, may mga taong nasaktan.",Iba Pa,Severe,5,2
+114,"Kailangan ng responders para sa baha, kontrolado na ang sitwasyon.",Sakunang Likas,Minor,4,0
+115,"Agarang sitwasyon: pagguho ng lupa, kailangan ng tulong.",Sakunang Likas,Moderate,4,1
+116,"Kritikal na alerto: nasusunog na istruktura, kailangan ng tulong.",Sunog,Moderate,0,1
+117,"May naiulat na salpukan ng sasakyan, lumalala ang sitwasyon.",Aksidente,Moderate,2,1
+118,"Ipadala ang mga yunit para sa sunog sa kusina, maliit na problema lamang.",Sunog,Minor,0,0
+119,"Emergency na kinasasangkutan ng gulo sa publiko, sitwasyong nagbabanta sa buhay.",Iba Pa,Critical,5,3
+120,"Emergency na kinasasangkutan ng hindi matukoy na emergency, may mga taong nasaktan.",Iba Pa,Severe,5,2
+121,"Emergency na kinasasangkutan ng banggaan ng motorsiklo, agarang panganib sa buhay.",Aksidente,Critical,2,3
+122,"Kritikal na alerto: sunog sa kuryente, walang nasugatan.",Sunog,Minor,0,0
+123,"Ipadala ang mga yunit para sa hindi matukoy na emergency, walang nasugatan.",Iba Pa,Minor,5,0
+124,"Kailangan ng responders para sa brownout, tumitindi ang panganib.",Iba Pa,Severe,5,2
+125,"May naiulat na karahasan sa bahay, kailangan ng agarang tugon.",Krimen,Moderate,1,1
+126,"May naiulat na lalaking may kutsilyo, maraming nasugatan.",Krimen,Critical,1,3
+127,"Insidente: kombulsyon, posibleng may nasugatan.",Medikal,Moderate,3,1
+128,"Kritikal na alerto: banta ng baril, may mga taong na-trap.",Krimen,Critical,1,3
+129,"Kritikal na alerto: pananakit ng dibdib, tumitindi ang panganib.",Medikal,Severe,3,2
+130,"May naiulat na hindi matukoy na emergency, posibleng may nasugatan.",Iba Pa,Moderate,5,1
+131,"Agarang sitwasyon: aksidente sa trak, walang agarang panganib.",Aksidente,Minor,2,0
+132,"Inalerto ang mga awtoridad: hindi matukoy na emergency, walang agarang panganib.",Iba Pa,Minor,5,0
+133,"May naiulat na may usok na lumalabas, kailangan ng agarang tulong.",Sunog,Severe,0,2
+134,"Emergency na kinasasangkutan ng walang malay na pasyente, kailangan ng tulong.",Medikal,Moderate,3,1
+135,"Ipadala ang mga yunit para sa karahasan sa bahay, sitwasyong nagbabanta sa buhay.",Krimen,Critical,1,3
+136,"Kritikal na alerto: brownout, kontrolado na ang sitwasyon.",Iba Pa,Minor,5,0
+137,"Kailangan ng responders para sa malakas na ulan, may mga taong nasaktan.",Sakunang Likas,Severe,4,2
+138,"Inalerto ang mga awtoridad: pinsala mula sa lindol, may mga taong na-trap.",Sakunang Likas,Critical,4,3
+139,"Kailangan ng responders para sa sunog sa kuryente, kailangan ng agarang tulong.",Sunog,Severe,0,2
+140,"Agarang sitwasyon: sapilitang pasok, may mga taong na-trap.",Krimen,Critical,1,3
+141,"Ipadala ang mga yunit para sa hindi matukoy na emergency, may mga taong nasaktan.",Iba Pa,Severe,5,2
+142,"May naiulat na armadong pagnanakaw, kailangan ng agarang tulong.",Krimen,Severe,1,2
+143,"Insidente: aksidente sa trak, walang nasugatan.",Aksidente,Minor,2,0
+144,"Kritikal na alerto: pagguho ng lupa, kailangan ng agarang tulong.",Sakunang Likas,Severe,4,2
+145,"Kritikal na alerto: sapilitang pasok, may mga taong na-trap.",Krimen,Critical,1,3
+146,"May naiulat na hit and run, may mga taong nasaktan.",Aksidente,Severe,2,2
+147,"May naiulat na nawawalang bata, may mga taong nasaktan.",Iba Pa,Severe,5,2
+148,"May naiulat na kombulsyon, kailangan ng agarang tulong.",Medikal,Severe,3,2
+149,"May naiulat na banta ng baril, walang nasugatan.",Krimen,Minor,1,0
+150,"Inalerto ang mga awtoridad: armadong pagnanakaw, maliit na problema lamang.",Krimen,Minor,1,0
+151,"Agarang sitwasyon: armadong pagnanakaw, kontrolado na ang sitwasyon.",Krimen,Minor,1,0
+152,"Emergency na kinasasangkutan ng lalaking may kutsilyo, kailangan ng tulong.",Krimen,Moderate,1,1
+153,"Kritikal na alerto: hit and run, agarang panganib sa buhay.",Aksidente,Critical,2,3
+154,"Inalerto ang mga awtoridad: pananakit ng dibdib, walang agarang panganib.",Medikal,Minor,3,0
+155,"Insidente: hindi humihinga, may malubhang sugatan.",Medikal,Severe,3,2
+156,"Agarang sitwasyon: sunog sa kuryente, kailangan ng agarang tulong.",Sunog,Severe,0,2
+157,"May naiulat na sunog sa kusina, kailangan ng tulong.",Sunog,Moderate,0,1
+158,"Kailangan ng responders para sa sunog sa bahay, may mga taong na-trap.",Sunog,Critical,0,3
+159,"Ipadala ang mga yunit para sa nawawalang bata, kailangan ng agarang tulong.",Iba Pa,Severe,5,2
+160,"Inalerto ang mga awtoridad: brownout, maliit na problema lamang.",Iba Pa,Minor,5,0
+161,"May naiulat na pananakit, lumalala ang sitwasyon.",Krimen,Moderate,1,1
+162,"Insidente: aksidente sa trak, sitwasyong nagbabanta sa buhay.",Aksidente,Critical,2,3
+163,"Inalerto ang mga awtoridad: banta ng baril, walang nasugatan.",Krimen,Minor,1,0
+164,"Kritikal na alerto: baha, posibleng may nasugatan.",Sakunang Likas,Moderate,4,1
+165,"Agarang sitwasyon: banta ng baril, may mga taong na-trap.",Krimen,Critical,1,3
+166,"Ipadala ang mga yunit para sa karahasan sa bahay, maliit na problema lamang.",Krimen,Minor,1,0
+167,"Inalerto ang mga awtoridad: sapilitang pasok, may mga taong na-trap.",Krimen,Critical,1,3
+168,"Kailangan ng responders para sa may usok na lumalabas, kailangan ng tulong.",Sunog,Moderate,0,1
+169,"Insidente: pananakit ng dibdib, maliit na problema lamang.",Medikal,Minor,3,0
+170,"Kailangan ng responders para sa karahasan sa bahay, may mga taong nasaktan.",Krimen,Severe,1,2
+171,"May naiulat na brownout, walang agarang panganib.",Iba Pa,Minor,5,0
+172,"Agarang sitwasyon: nahihirapang huminga, may malubhang sugatan.",Medikal,Severe,3,2
+173,"Emergency na kinasasangkutan ng pananakit, kontrolado na ang sitwasyon.",Krimen,Minor,1,0
+174,"Agarang sitwasyon: may usok na lumalabas, may malubhang sugatan.",Sunog,Severe,0,2
+175,"Insidente: salpukan ng sasakyan, walang agarang panganib.",Aksidente,Minor,2,0
+176,"Agarang sitwasyon: sunog sa kusina, lumalala ang sitwasyon.",Sunog,Moderate,0,1
+177,"Insidente: banta ng baril, maliit na problema lamang.",Krimen,Minor,1,0
+178,"May naiulat na nasusunog na istruktura, walang nasugatan.",Sunog,Minor,0,0
+179,"Inalerto ang mga awtoridad: epekto ng bagyo, lumalala ang sitwasyon.",Sakunang Likas,Moderate,4,1
+180,"Agarang sitwasyon: brownout, may mga taong nasaktan.",Iba Pa,Severe,5,2
+181,"May naiulat na salpukan ng sasakyan, lumalala ang sitwasyon.",Aksidente,Moderate,2,1
+182,"Ipadala ang mga yunit para sa epekto ng bagyo, sitwasyong nagbabanta sa buhay.",Sakunang Likas,Critical,4,3
+183,"Kailangan ng responders para sa pananakit, lumalala ang sitwasyon.",Krimen,Moderate,1,1
+184,"Kritikal na alerto: nasusunog na istruktura, may malubhang sugatan.",Sunog,Severe,0,2
+185,"Insidente: hindi matukoy na emergency, kailangan ng tulong.",Iba Pa,Moderate,5,1
+186,"Agarang sitwasyon: nasusunog na gusali, may malubhang sugatan.",Sunog,Severe,0,2
+187,"Emergency na kinasasangkutan ng lalaking may kutsilyo, kailangan ng agarang tulong.",Krimen,Severe,1,2
+188,"Kailangan ng responders para sa hit and run, kailangan ng tulong.",Aksidente,Moderate,2,1
+189,"Inalerto ang mga awtoridad: sapilitang pasok, agarang panganib sa buhay.",Krimen,Critical,1,3
+190,"Agarang sitwasyon: banggaan sa kalsada, agarang panganib sa buhay.",Aksidente,Critical,2,3
+191,"Emergency na kinasasangkutan ng hayop na na-trap, kontrolado na ang sitwasyon.",Iba Pa,Minor,5,0
+192,"Insidente: banggaan sa kalsada, walang agarang panganib.",Aksidente,Minor,2,0
+193,"Ipadala ang mga yunit para sa nahihirapang huminga, may malubhang sugatan.",Medikal,Severe,3,2
+194,"Kailangan ng responders para sa may taong bumagsak, maraming nasugatan.",Medikal,Critical,3,3
+195,"Agarang sitwasyon: nawawalang bata, sitwasyong nagbabanta sa buhay.",Iba Pa,Critical,5,3
+196,"Insidente: karahasan sa bahay, kailangan ng agarang tulong.",Krimen,Severe,1,2
+197,"Kailangan ng responders para sa sapilitang pasok, kailangan ng agarang tulong.",Krimen,Severe,1,2
+198,"Inalerto ang mga awtoridad: sapilitang pasok, may mga taong nasaktan.",Krimen,Severe,1,2
+199,"Kailangan ng responders para sa banggaan ng motorsiklo, posibleng may nasugatan.",Aksidente,Moderate,2,1
+200,"Kailangan ng responders para sa aksidente sa kotse, kailangan ng agarang tulong.",Aksidente,Severe,2,2
+201,"May naiulat na baha, may mga taong na-trap.",Sakunang Likas,Critical,4,3
+202,"Ipadala ang mga yunit para sa aksidente sa kotse, may mga taong na-trap.",Aksidente,Critical,2,3
+203,"Emergency na kinasasangkutan ng nahihirapang huminga, kontrolado na ang sitwasyon.",Medikal,Minor,3,0
+204,"Emergency na kinasasangkutan ng hindi matukoy na emergency, kailangan ng agarang tugon.",Iba Pa,Moderate,5,1
+205,"Agarang sitwasyon: walang malay na pasyente, maliit na problema lamang.",Medikal,Minor,3,0
+206,"Kailangan ng responders para sa banta ng baril, tumitindi ang panganib.",Krimen,Severe,1,2
+207,"Kailangan ng responders para sa banta ng baril, walang nasugatan.",Krimen,Minor,1,0
+208,"May naiulat na salpukan ng sasakyan, may mga taong na-trap.",Aksidente,Critical,2,3
+209,"Insidente: banta ng baril, may mga taong nasaktan.",Krimen,Severe,1,2
+210,"Agarang sitwasyon: malakas na ulan, walang nasugatan.",Sakunang Likas,Minor,4,0
+211,"Emergency na kinasasangkutan ng brownout, walang agarang panganib.",Iba Pa,Minor,5,0
+212,"Emergency na kinasasangkutan ng karahasan sa bahay, kailangan ng agarang tugon.",Krimen,Moderate,1,1
+213,"Insidente: kombulsyon, lumalala ang sitwasyon.",Medikal,Moderate,3,1
+214,"Ipadala ang mga yunit para sa kombulsyon, sitwasyong nagbabanta sa buhay.",Medikal,Critical,3,3
+215,"Emergency na kinasasangkutan ng salpukan ng sasakyan, tumitindi ang panganib.",Aksidente,Severe,2,2
+216,"Kailangan ng responders para sa banggaan sa kalsada, walang nasugatan.",Aksidente,Minor,2,0
+217,"Emergency na kinasasangkutan ng aksidente sa kotse, kailangan ng agarang tulong.",Aksidente,Severe,2,2
+218,"Kailangan ng responders para sa sunog sa kuryente, walang nasugatan.",Sunog,Minor,0,0
+219,"Emergency na kinasasangkutan ng storm surge, walang nasugatan.",Sakunang Likas,Minor,4,0
+220,"Kritikal na alerto: sunog sa kuryente, may mga taong na-trap.",Sunog,Critical,0,3
+221,"Kailangan ng responders para sa malakas na ulan, kailangan ng agarang tugon.",Sakunang Likas,Moderate,4,1
+222,"May naiulat na nasusunog na istruktura, tumitindi ang panganib.",Sunog,Severe,0,2
+223,"Insidente: pagguho ng lupa, lumalala ang sitwasyon.",Sakunang Likas,Moderate,4,1
+224,"Kailangan ng responders para sa nasusunog na istruktura, maraming nasugatan.",Sunog,Critical,0,3
+225,"Insidente: walang malay na pasyente, lumalala ang sitwasyon.",Medikal,Moderate,3,1
+226,"Ipadala ang mga yunit para sa hit and run, maliit na problema lamang.",Aksidente,Minor,2,0
+227,"Kailangan ng responders para sa armadong pagnanakaw, kailangan ng tulong.",Krimen,Moderate,1,1
+228,"Insidente: lalaking may kutsilyo, kailangan ng tulong.",Krimen,Moderate,1,1
+229,"Emergency na kinasasangkutan ng hit and run, kailangan ng tulong.",Aksidente,Moderate,2,1
+230,"Agarang sitwasyon: banta ng baril, kailangan ng tulong.",Krimen,Moderate,1,1
+231,"Insidente: lalaking may kutsilyo, kailangan ng agarang tugon.",Krimen,Moderate,1,1
+232,"Emergency na kinasasangkutan ng gulo sa publiko, may mga taong nasaktan.",Iba Pa,Severe,5,2
+233,"Kailangan ng responders para sa pinsala mula sa lindol, kailangan ng tulong.",Sakunang Likas,Moderate,4,1
+234,"Insidente: armadong pagnanakaw, lumalala ang sitwasyon.",Krimen,Moderate,1,1
+235,"Ipadala ang mga yunit para sa pananakit, posibleng may nasugatan.",Krimen,Moderate,1,1
+236,"Emergency na kinasasangkutan ng armadong pagnanakaw, may mga taong na-trap.",Krimen,Critical,1,3
+237,"Kailangan ng responders para sa sunog sa bahay, sitwasyong nagbabanta sa buhay.",Sunog,Critical,0,3
+238,"Inalerto ang mga awtoridad: sunog sa kuryente, may mga taong na-trap.",Sunog,Critical,0,3
+239,"May naiulat na walang malay na pasyente, posibleng may nasugatan.",Medikal,Moderate,3,1
+240,"Emergency na kinasasangkutan ng baha, kailangan ng tulong.",Sakunang Likas,Moderate,4,1
+241,"Ipadala ang mga yunit para sa epekto ng bagyo, kontrolado na ang sitwasyon.",Sakunang Likas,Minor,4,0
+242,"May naiulat na hindi matukoy na emergency, agarang panganib sa buhay.",Iba Pa,Critical,5,3
+243,"Agarang sitwasyon: pagguho ng lupa, walang agarang panganib.",Sakunang Likas,Minor,4,0
+244,"Emergency na kinasasangkutan ng gulo sa publiko, maraming nasugatan.",Iba Pa,Critical,5,3
+245,"Emergency na kinasasangkutan ng sunog sa kusina, kontrolado na ang sitwasyon.",Sunog,Minor,0,0
+246,"Agarang sitwasyon: salpukan ng sasakyan, tumitindi ang panganib.",Aksidente,Severe,2,2
+247,"Agarang sitwasyon: hayop na na-trap, kailangan ng tulong.",Iba Pa,Moderate,5,1
+248,"Ipadala ang mga yunit para sa banggaan ng motorsiklo, walang agarang panganib.",Aksidente,Minor,2,0
+249,"Agarang sitwasyon: sunog sa kusina, posibleng may nasugatan.",Sunog,Moderate,0,1
+250,"Emergency na kinasasangkutan ng pananakit ng dibdib, maliit na problema lamang.",Medikal,Minor,3,0
+251,"Ipadala ang mga yunit para sa nahihirapang huminga, maraming nasugatan.",Medikal,Critical,3,3
+252,"Insidente: pananakit, agarang panganib sa buhay.",Krimen,Critical,1,3
+253,"Emergency na kinasasangkutan ng may taong bumagsak, sitwasyong nagbabanta sa buhay.",Medikal,Critical,3,3
+254,"Inalerto ang mga awtoridad: hit and run, maliit na problema lamang.",Aksidente,Minor,2,0
+255,"Inalerto ang mga awtoridad: hit and run, kailangan ng tulong.",Aksidente,Moderate,2,1
+256,"Emergency na kinasasangkutan ng nawawalang bata, may mga taong nasaktan.",Iba Pa,Severe,5,2
+257,"Insidente: sunog sa bahay, posibleng may nasugatan.",Sunog,Moderate,0,1
+258,"Ipadala ang mga yunit para sa sunog sa kuryente, may mga taong nasaktan.",Sunog,Severe,0,2
+259,"Agarang sitwasyon: may taong bumagsak, walang nasugatan.",Medikal,Minor,3,0
+260,"Kritikal na alerto: hindi matukoy na emergency, tumitindi ang panganib.",Iba Pa,Severe,5,2
+261,"Emergency na kinasasangkutan ng pinsala mula sa lindol, posibleng may nasugatan.",Sakunang Likas,Moderate,4,1
+262,"Ipadala ang mga yunit para sa banggaan ng motorsiklo, posibleng may nasugatan.",Aksidente,Moderate,2,1
+263,"Kailangan ng responders para sa pinsala mula sa lindol, may mga taong nasaktan.",Sakunang Likas,Severe,4,2
+264,"Agarang sitwasyon: gulo sa publiko, kailangan ng agarang tulong.",Iba Pa,Severe,5,2
+265,"Agarang sitwasyon: aksidente sa kotse, may mga taong nasaktan.",Aksidente,Severe,2,2
+266,"Agarang sitwasyon: nasusunog na gusali, walang agarang panganib.",Sunog,Minor,0,0
+267,"Ipadala ang mga yunit para sa pananakit, sitwasyong nagbabanta sa buhay.",Krimen,Critical,1,3
+268,"Inalerto ang mga awtoridad: aksidente sa trak, may mga taong nasaktan.",Aksidente,Severe,2,2
+269,"Emergency na kinasasangkutan ng hayop na na-trap, posibleng may nasugatan.",Iba Pa,Moderate,5,1
+270,"May naiulat na pananakit ng dibdib, agarang panganib sa buhay.",Medikal,Critical,3,3
+271,"May naiulat na nawawalang bata, agarang panganib sa buhay.",Iba Pa,Critical,5,3
+272,"Agarang sitwasyon: gulo sa publiko, kailangan ng tulong.",Iba Pa,Moderate,5,1
+273,"Insidente: aksidente sa trak, sitwasyong nagbabanta sa buhay.",Aksidente,Critical,2,3
+274,"Emergency na kinasasangkutan ng baha, may mga taong nasaktan.",Sakunang Likas,Severe,4,2
+275,"Kailangan ng responders para sa storm surge, kailangan ng tulong.",Sakunang Likas,Moderate,4,1
+276,"Kritikal na alerto: pagguho ng lupa, may mga taong na-trap.",Sakunang Likas,Critical,4,3
+277,"May naiulat na salpukan ng sasakyan, kailangan ng tulong.",Aksidente,Moderate,2,1
+278,"Inalerto ang mga awtoridad: aksidente sa trak, posibleng may nasugatan.",Aksidente,Moderate,2,1
+279,"May naiulat na may taong bumagsak, maliit na problema lamang.",Medikal,Minor,3,0
+280,"Ipadala ang mga yunit para sa aksidente sa trak, posibleng may nasugatan.",Aksidente,Moderate,2,1
+281,"Kritikal na alerto: hayop na na-trap, walang nasugatan.",Iba Pa,Minor,5,0
+282,"Ipadala ang mga yunit para sa lalaking may kutsilyo, agarang panganib sa buhay.",Krimen,Critical,1,3
+283,"Ipadala ang mga yunit para sa baha, may mga taong na-trap.",Sakunang Likas,Critical,4,3
+284,"Inalerto ang mga awtoridad: hindi humihinga, agarang panganib sa buhay.",Medikal,Critical,3,3
+285,"Emergency na kinasasangkutan ng storm surge, maraming nasugatan.",Sakunang Likas,Critical,4,3
+286,"Kritikal na alerto: aksidente sa trak, kailangan ng agarang tugon.",Aksidente,Moderate,2,1
+287,"Inalerto ang mga awtoridad: banta ng baril, maraming nasugatan.",Krimen,Critical,1,3
+288,"Ipadala ang mga yunit para sa hindi matukoy na emergency, kailangan ng tulong.",Iba Pa,Moderate,5,1
+289,"Kritikal na alerto: epekto ng bagyo, posibleng may nasugatan.",Sakunang Likas,Moderate,4,1
+290,"Inalerto ang mga awtoridad: banggaan sa kalsada, kailangan ng agarang tugon.",Aksidente,Moderate,2,1
+291,"Insidente: kombulsyon, kailangan ng agarang tulong.",Medikal,Severe,3,2
+292,"Insidente: karahasan sa bahay, kailangan ng agarang tugon.",Krimen,Moderate,1,1
+293,"Agarang sitwasyon: banggaan sa kalsada, kailangan ng tulong.",Aksidente,Moderate,2,1
+294,"Kritikal na alerto: epekto ng bagyo, may malubhang sugatan.",Sakunang Likas,Severe,4,2
+295,"May naiulat na banggaan sa kalsada, walang nasugatan.",Aksidente,Minor,2,0
+296,"Agarang sitwasyon: may taong bumagsak, kailangan ng agarang tugon.",Medikal,Moderate,3,1
+297,"Emergency na kinasasangkutan ng may usok na lumalabas, kailangan ng agarang tugon.",Sunog,Moderate,0,1
+298,"Insidente: epekto ng bagyo, tumitindi ang panganib.",Sakunang Likas,Severe,4,2
+299,"Ipadala ang mga yunit para sa epekto ng bagyo, walang agarang panganib.",Sakunang Likas,Minor,4,0
+300,"Kailangan ng responders para sa gulo sa publiko, lumalala ang sitwasyon.",Iba Pa,Moderate,5,1
+301,"Agarang sitwasyon: hindi matukoy na emergency, agarang panganib sa buhay.",Iba Pa,Critical,5,3
+302,"Emergency na kinasasangkutan ng nasusunog na gusali, walang nasugatan.",Sunog,Minor,0,0
+303,"Ipadala ang mga yunit para sa hayop na na-trap, kailangan ng tulong.",Iba Pa,Moderate,5,1
+304,"Inalerto ang mga awtoridad: pagguho ng lupa, may malubhang sugatan.",Sakunang Likas,Severe,4,2
+305,"Kailangan ng responders para sa aksidente sa trak, walang nasugatan.",Aksidente,Minor,2,0
+306,"Emergency na kinasasangkutan ng nasusunog na gusali, kailangan ng agarang tulong.",Sunog,Severe,0,2
+307,"Ipadala ang mga yunit para sa karahasan sa bahay, posibleng may nasugatan.",Krimen,Moderate,1,1
+308,"Inalerto ang mga awtoridad: banggaan sa kalsada, walang agarang panganib.",Aksidente,Minor,2,0
+309,"Kritikal na alerto: gulo sa publiko, walang agarang panganib.",Iba Pa,Minor,5,0
+310,"Kailangan ng responders para sa sapilitang pasok, walang agarang panganib.",Krimen,Minor,1,0
+311,"Inalerto ang mga awtoridad: may usok na lumalabas, sitwasyong nagbabanta sa buhay.",Sunog,Critical,0,3
+312,"Ipadala ang mga yunit para sa armadong pagnanakaw, may malubhang sugatan.",Krimen,Severe,1,2
+313,"Ipadala ang mga yunit para sa sapilitang pasok, maliit na problema lamang.",Krimen,Minor,1,0
+314,"Inalerto ang mga awtoridad: hayop na na-trap, maliit na problema lamang.",Iba Pa,Minor,5,0
+315,"Kritikal na alerto: baha, agarang panganib sa buhay.",Sakunang Likas,Critical,4,3
+316,"May naiulat na pananakit ng dibdib, kailangan ng agarang tulong.",Medikal,Severe,3,2
+317,"Insidente: baha, may mga taong nasaktan.",Sakunang Likas,Severe,4,2
+318,"Kailangan ng responders para sa pagguho ng lupa, agarang panganib sa buhay.",Sakunang Likas,Critical,4,3
+319,"Emergency na kinasasangkutan ng aksidente sa kotse, tumitindi ang panganib.",Aksidente,Severe,2,2
+320,"Kritikal na alerto: aksidente sa trak, kailangan ng tulong.",Aksidente,Moderate,2,1
+321,"Kailangan ng responders para sa nasusunog na gusali, maliit na problema lamang.",Sunog,Minor,0,0
+322,"Kritikal na alerto: may taong bumagsak, may mga taong nasaktan.",Medikal,Severe,3,2
+323,"Kritikal na alerto: walang malay na pasyente, maraming nasugatan.",Medikal,Critical,3,3
+324,"Inalerto ang mga awtoridad: may taong bumagsak, may malubhang sugatan.",Medikal,Severe,3,2
+325,"Kailangan ng responders para sa pinsala mula sa lindol, walang nasugatan.",Sakunang Likas,Minor,4,0
+326,"Kritikal na alerto: banta ng baril, kailangan ng tulong.",Krimen,Moderate,1,1
+327,"Emergency na kinasasangkutan ng gulo sa publiko, kailangan ng agarang tulong.",Iba Pa,Severe,5,2
+328,"Insidente: may taong bumagsak, walang nasugatan.",Medikal,Minor,3,0
+329,"Agarang sitwasyon: banggaan ng motorsiklo, may malubhang sugatan.",Aksidente,Severe,2,2
+330,"Inalerto ang mga awtoridad: walang malay na pasyente, lumalala ang sitwasyon.",Medikal,Moderate,3,1
+331,"May naiulat na sunog sa bahay, agarang panganib sa buhay.",Sunog,Critical,0,3
+332,"Insidente: salpukan ng sasakyan, kailangan ng agarang tugon.",Aksidente,Moderate,2,1
+333,"Inalerto ang mga awtoridad: pananakit ng dibdib, lumalala ang sitwasyon.",Medikal,Moderate,3,1
+334,"Emergency na kinasasangkutan ng banggaan ng motorsiklo, lumalala ang sitwasyon.",Aksidente,Moderate,2,1
+335,"May naiulat na pinsala mula sa lindol, may mga taong na-trap.",Sakunang Likas,Critical,4,3
+336,"Ipadala ang mga yunit para sa sapilitang pasok, may malubhang sugatan.",Krimen,Severe,1,2
+337,"Emergency na kinasasangkutan ng aksidente sa kotse, kailangan ng agarang tulong.",Aksidente,Severe,2,2
+338,"Agarang sitwasyon: may usok na lumalabas, tumitindi ang panganib.",Sunog,Severe,0,2
+339,"Emergency na kinasasangkutan ng armadong pagnanakaw, kailangan ng tulong.",Krimen,Moderate,1,1
+340,"May naiulat na salpukan ng sasakyan, lumalala ang sitwasyon.",Aksidente,Moderate,2,1
+341,"May naiulat na banggaan sa kalsada, walang nasugatan.",Aksidente,Minor,2,0
+342,"Agarang sitwasyon: pagguho ng lupa, posibleng may nasugatan.",Sakunang Likas,Moderate,4,1
+343,"Inalerto ang mga awtoridad: armadong pagnanakaw, walang nasugatan.",Krimen,Minor,1,0
+344,"May naiulat na banggaan ng motorsiklo, may mga taong na-trap.",Aksidente,Critical,2,3
+345,"Inalerto ang mga awtoridad: lalaking may kutsilyo, may mga taong nasaktan.",Krimen,Severe,1,2
+346,"Insidente: baha, kailangan ng agarang tulong.",Sakunang Likas,Severe,4,2
+347,"Insidente: sunog sa kusina, kailangan ng agarang tulong.",Sunog,Severe,0,2
+348,"Kailangan ng responders para sa nasusunog na gusali, may mga taong nasaktan.",Sunog,Severe,0,2
+349,"Kailangan ng responders para sa sunog sa bahay, may mga taong na-trap.",Sunog,Critical,0,3
+350,"Ipadala ang mga yunit para sa hindi matukoy na emergency, walang agarang panganib.",Iba Pa,Minor,5,0
+351,"Kailangan ng responders para sa aksidente sa kotse, lumalala ang sitwasyon.",Aksidente,Moderate,2,1
+352,"Agarang sitwasyon: malakas na ulan, tumitindi ang panganib.",Sakunang Likas,Severe,4,2
+353,"Inalerto ang mga awtoridad: may taong bumagsak, may mga taong na-trap.",Medikal,Critical,3,3
+354,"Insidente: nasusunog na gusali, kontrolado na ang sitwasyon.",Sunog,Minor,0,0
+355,"Agarang sitwasyon: epekto ng bagyo, kailangan ng agarang tulong.",Sakunang Likas,Severe,4,2
+356,"Agarang sitwasyon: hindi humihinga, lumalala ang sitwasyon.",Medikal,Moderate,3,1
+357,"Inalerto ang mga awtoridad: brownout, maraming nasugatan.",Iba Pa,Critical,5,3
+358,"May naiulat na pagguho ng lupa, may malubhang sugatan.",Sakunang Likas,Severe,4,2
+359,"Ipadala ang mga yunit para sa nahihirapang huminga, walang nasugatan.",Medikal,Minor,3,0
+360,"Agarang sitwasyon: karahasan sa bahay, kailangan ng tulong.",Krimen,Moderate,1,1
+361,"Ipadala ang mga yunit para sa nawawalang bata, maraming nasugatan.",Iba Pa,Critical,5,3
+362,"Ipadala ang mga yunit para sa armadong pagnanakaw, agarang panganib sa buhay.",Krimen,Critical,1,3
+363,"Emergency na kinasasangkutan ng epekto ng bagyo, walang agarang panganib.",Sakunang Likas,Minor,4,0
+364,"May naiulat na epekto ng bagyo, kontrolado na ang sitwasyon.",Sakunang Likas,Minor,4,0
+365,"Ipadala ang mga yunit para sa walang malay na pasyente, kailangan ng tulong.",Medikal,Moderate,3,1
+366,"Insidente: hindi humihinga, walang agarang panganib.",Medikal,Minor,3,0
+367,"Agarang sitwasyon: kombulsyon, may malubhang sugatan.",Medikal,Severe,3,2
+368,"Inalerto ang mga awtoridad: storm surge, lumalala ang sitwasyon.",Sakunang Likas,Moderate,4,1
+369,"May naiulat na banta ng baril, posibleng may nasugatan.",Krimen,Moderate,1,1
+370,"Insidente: lalaking may kutsilyo, walang nasugatan.",Krimen,Minor,1,0
+371,"Insidente: banggaan sa kalsada, may mga taong nasaktan.",Aksidente,Severe,2,2
+372,"Kritikal na alerto: nawawalang bata, agarang panganib sa buhay.",Iba Pa,Critical,5,3
+373,"Inalerto ang mga awtoridad: banggaan ng motorsiklo, sitwasyong nagbabanta sa buhay.",Aksidente,Critical,2,3
+374,"May naiulat na nasusunog na gusali, may malubhang sugatan.",Sunog,Severe,0,2
+375,"Ipadala ang mga yunit para sa hayop na na-trap, maraming nasugatan.",Iba Pa,Critical,5,3
+376,"Emergency na kinasasangkutan ng karahasan sa bahay, may mga taong nasaktan.",Krimen,Severe,1,2
+377,"May naiulat na pananakit ng dibdib, may mga taong nasaktan.",Medikal,Severe,3,2
+378,"Inalerto ang mga awtoridad: sapilitang pasok, may malubhang sugatan.",Krimen,Severe,1,2
+379,"Emergency na kinasasangkutan ng salpukan ng sasakyan, maliit na problema lamang.",Aksidente,Minor,2,0
+380,"Emergency na kinasasangkutan ng malakas na ulan, may mga taong nasaktan.",Sakunang Likas,Severe,4,2
+381,"Inalerto ang mga awtoridad: hindi matukoy na emergency, kailangan ng tulong.",Iba Pa,Moderate,5,1
+382,"Kritikal na alerto: hayop na na-trap, kailangan ng tulong.",Iba Pa,Moderate,5,1
+383,"May naiulat na sapilitang pasok, walang nasugatan.",Krimen,Minor,1,0
+384,"Ipadala ang mga yunit para sa brownout, maliit na problema lamang.",Iba Pa,Minor,5,0
+385,"Kritikal na alerto: banggaan ng motorsiklo, posibleng may nasugatan.",Aksidente,Moderate,2,1
+386,"Ipadala ang mga yunit para sa lalaking may kutsilyo, tumitindi ang panganib.",Krimen,Severe,1,2
+387,"Agarang sitwasyon: banggaan ng motorsiklo, kailangan ng agarang tugon.",Aksidente,Moderate,2,1
+388,"Insidente: banggaan ng motorsiklo, walang nasugatan.",Aksidente,Minor,2,0
+389,"Kritikal na alerto: armadong pagnanakaw, kontrolado na ang sitwasyon.",Krimen,Minor,1,0
+390,"Agarang sitwasyon: brownout, may mga taong nasaktan.",Iba Pa,Severe,5,2
+391,"Insidente: aksidente sa kotse, maraming nasugatan.",Aksidente,Critical,2,3
+392,"Ipadala ang mga yunit para sa sunog sa kuryente, agarang panganib sa buhay.",Sunog,Critical,0,3
+393,"Ipadala ang mga yunit para sa storm surge, may mga taong na-trap.",Sakunang Likas,Critical,4,3
+394,"Insidente: pananakit, posibleng may nasugatan.",Krimen,Moderate,1,1
+395,"May naiulat na may usok na lumalabas, sitwasyong nagbabanta sa buhay.",Sunog,Critical,0,3
+396,"Kritikal na alerto: sunog sa bahay, agarang panganib sa buhay.",Sunog,Critical,0,3
+397,"Insidente: banta ng baril, walang nasugatan.",Krimen,Minor,1,0
+398,"Emergency na kinasasangkutan ng may taong bumagsak, maraming nasugatan.",Medikal,Critical,3,3
+399,"Agarang sitwasyon: banggaan ng motorsiklo, sitwasyong nagbabanta sa buhay.",Aksidente,Critical,2,3
+400,"Emergency na kinasasangkutan ng armadong pagnanakaw, walang nasugatan.",Krimen,Minor,1,0
+401,"Emergency na kinasasangkutan ng gulo sa publiko, maliit na problema lamang.",Iba Pa,Minor,5,0
+402,"Agarang sitwasyon: nasusunog na gusali, may malubhang sugatan.",Sunog,Severe,0,2
+403,"Agarang sitwasyon: gulo sa publiko, kailangan ng agarang tugon.",Iba Pa,Moderate,5,1
+404,"Kritikal na alerto: hindi matukoy na emergency, sitwasyong nagbabanta sa buhay.",Iba Pa,Critical,5,3
+405,"May naiulat na nasusunog na istruktura, maraming nasugatan.",Sunog,Critical,0,3
+406,"Kritikal na alerto: pagguho ng lupa, may mga taong na-trap.",Sakunang Likas,Critical,4,3
+407,"Ipadala ang mga yunit para sa hindi matukoy na emergency, posibleng may nasugatan.",Iba Pa,Moderate,5,1
+408,"Insidente: nawawalang bata, kailangan ng agarang tulong.",Iba Pa,Severe,5,2
+409,"Emergency na kinasasangkutan ng gulo sa publiko, walang agarang panganib.",Iba Pa,Minor,5,0
+410,"Ipadala ang mga yunit para sa walang malay na pasyente, kailangan ng agarang tulong.",Medikal,Severe,3,2
+411,"May naiulat na epekto ng bagyo, may mga taong nasaktan.",Sakunang Likas,Severe,4,2
+412,"Insidente: sunog sa bahay, may mga taong nasaktan.",Sunog,Severe,0,2
+413,"Inalerto ang mga awtoridad: lalaking may kutsilyo, agarang panganib sa buhay.",Krimen,Critical,1,3
+414,"Agarang sitwasyon: banggaan sa kalsada, walang agarang panganib.",Aksidente,Minor,2,0
+415,"Kailangan ng responders para sa banggaan sa kalsada, may mga taong nasaktan.",Aksidente,Severe,2,2
+416,"Inalerto ang mga awtoridad: sapilitang pasok, sitwasyong nagbabanta sa buhay.",Krimen,Critical,1,3
+417,"Ipadala ang mga yunit para sa storm surge, kontrolado na ang sitwasyon.",Sakunang Likas,Minor,4,0
+418,"Inalerto ang mga awtoridad: walang malay na pasyente, lumalala ang sitwasyon.",Medikal,Moderate,3,1
+419,"Kritikal na alerto: nasusunog na gusali, kontrolado na ang sitwasyon.",Sunog,Minor,0,0
+420,"Emergency na kinasasangkutan ng banggaan ng motorsiklo, may malubhang sugatan.",Aksidente,Severe,2,2
+421,"Emergency na kinasasangkutan ng aksidente sa kotse, maliit na problema lamang.",Aksidente,Minor,2,0
+422,"Inalerto ang mga awtoridad: nasusunog na gusali, walang nasugatan.",Sunog,Minor,0,0
+423,"Inalerto ang mga awtoridad: sapilitang pasok, kailangan ng tulong.",Krimen,Moderate,1,1
+424,"Kailangan ng responders para sa lalaking may kutsilyo, walang agarang panganib.",Krimen,Minor,1,0
+425,"Kailangan ng responders para sa may taong bumagsak, kailangan ng tulong.",Medikal,Moderate,3,1
+426,"Ipadala ang mga yunit para sa banta ng baril, may mga taong nasaktan.",Krimen,Severe,1,2
+427,"Inalerto ang mga awtoridad: armadong pagnanakaw, kailangan ng agarang tugon.",Krimen,Moderate,1,1
+428,"May naiulat na baha, sitwasyong nagbabanta sa buhay.",Sakunang Likas,Critical,4,3
+429,"Emergency na kinasasangkutan ng aksidente sa kotse, sitwasyong nagbabanta sa buhay.",Aksidente,Critical,2,3
+430,"Inalerto ang mga awtoridad: pananakit ng dibdib, may mga taong nasaktan.",Medikal,Severe,3,2
+431,"Insidente: hindi humihinga, kailangan ng tulong.",Medikal,Moderate,3,1
+432,"Insidente: banggaan ng motorsiklo, maliit na problema lamang.",Aksidente,Minor,2,0
+433,"May naiulat na kombulsyon, kailangan ng agarang tugon.",Medikal,Moderate,3,1
+434,"May naiulat na karahasan sa bahay, agarang panganib sa buhay.",Krimen,Critical,1,3
+435,"Ipadala ang mga yunit para sa pananakit ng dibdib, sitwasyong nagbabanta sa buhay.",Medikal,Critical,3,3
+436,"May naiulat na gulo sa publiko, kailangan ng agarang tugon.",Iba Pa,Moderate,5,1
+437,"Inalerto ang mga awtoridad: karahasan sa bahay, sitwasyong nagbabanta sa buhay.",Krimen,Critical,1,3
+438,"Kritikal na alerto: hindi humihinga, tumitindi ang panganib.",Medikal,Severe,3,2
+439,"May naiulat na nawawalang bata, agarang panganib sa buhay.",Iba Pa,Critical,5,3
+440,"Inalerto ang mga awtoridad: aksidente sa kotse, walang agarang panganib.",Aksidente,Minor,2,0
+441,"Insidente: salpukan ng sasakyan, sitwasyong nagbabanta sa buhay.",Aksidente,Critical,2,3
+442,"Kritikal na alerto: sunog sa bahay, maraming nasugatan.",Sunog,Critical,0,3
+443,"Agarang sitwasyon: karahasan sa bahay, lumalala ang sitwasyon.",Krimen,Moderate,1,1
+444,"Kritikal na alerto: salpukan ng sasakyan, kailangan ng agarang tugon.",Aksidente,Moderate,2,1
+445,"Kritikal na alerto: lalaking may kutsilyo, may malubhang sugatan.",Krimen,Severe,1,2
+446,"Kailangan ng responders para sa storm surge, walang agarang panganib.",Sakunang Likas,Minor,4,0
+447,"Kritikal na alerto: pagguho ng lupa, maraming nasugatan.",Sakunang Likas,Critical,4,3
+448,"Inalerto ang mga awtoridad: sunog sa kusina, kailangan ng agarang tugon.",Sunog,Moderate,0,1
+449,"Ipadala ang mga yunit para sa brownout, maraming nasugatan.",Iba Pa,Critical,5,3
+450,"Kailangan ng responders para sa karahasan sa bahay, kailangan ng agarang tulong.",Krimen,Severe,1,2
+451,"Kritikal na alerto: nasusunog na istruktura, may mga taong na-trap.",Sunog,Critical,0,3
+452,"May naiulat na nasusunog na istruktura, lumalala ang sitwasyon.",Sunog,Moderate,0,1
+453,"May naiulat na hindi humihinga, may mga taong na-trap.",Medikal,Critical,3,3
+454,"Emergency na kinasasangkutan ng sapilitang pasok, walang nasugatan.",Krimen,Minor,1,0
+455,"Ipadala ang mga yunit para sa banggaan ng motorsiklo, walang nasugatan.",Aksidente,Minor,2,0
+456,"Agarang sitwasyon: karahasan sa bahay, may malubhang sugatan.",Krimen,Severe,1,2
+457,"Ipadala ang mga yunit para sa nasusunog na istruktura, maliit na problema lamang.",Sunog,Minor,0,0
+458,"Agarang sitwasyon: gulo sa publiko, maliit na problema lamang.",Iba Pa,Minor,5,0
+459,"Kailangan ng responders para sa pinsala mula sa lindol, tumitindi ang panganib.",Sakunang Likas,Severe,4,2
+460,"Agarang sitwasyon: hayop na na-trap, lumalala ang sitwasyon.",Iba Pa,Moderate,5,1
+461,"Inalerto ang mga awtoridad: karahasan sa bahay, agarang panganib sa buhay.",Krimen,Critical,1,3
+462,"May naiulat na pananakit, kailangan ng agarang tulong.",Krimen,Severe,1,2
+463,"May naiulat na aksidente sa kotse, kailangan ng tulong.",Aksidente,Moderate,2,1
+464,"Emergency na kinasasangkutan ng karahasan sa bahay, may mga taong na-trap.",Krimen,Critical,1,3
+465,"Emergency na kinasasangkutan ng hayop na na-trap, lumalala ang sitwasyon.",Iba Pa,Moderate,5,1
+466,"May naiulat na hayop na na-trap, maliit na problema lamang.",Iba Pa,Minor,5,0
+467,"Kailangan ng responders para sa hayop na na-trap, agarang panganib sa buhay.",Iba Pa,Critical,5,3
+468,"Ipadala ang mga yunit para sa aksidente sa trak, agarang panganib sa buhay.",Aksidente,Critical,2,3
+469,"Ipadala ang mga yunit para sa epekto ng bagyo, lumalala ang sitwasyon.",Sakunang Likas,Moderate,4,1
+470,"Kailangan ng responders para sa walang malay na pasyente, may malubhang sugatan.",Medikal,Severe,3,2
+471,"Inalerto ang mga awtoridad: sapilitang pasok, kailangan ng agarang tugon.",Krimen,Moderate,1,1
+472,"Emergency na kinasasangkutan ng banggaan sa kalsada, sitwasyong nagbabanta sa buhay.",Aksidente,Critical,2,3
+473,"Inalerto ang mga awtoridad: nawawalang bata, posibleng may nasugatan.",Iba Pa,Moderate,5,1
+474,"Agarang sitwasyon: armadong pagnanakaw, sitwasyong nagbabanta sa buhay.",Krimen,Critical,1,3
+475,"Agarang sitwasyon: malakas na ulan, tumitindi ang panganib.",Sakunang Likas,Severe,4,2
+476,"Inalerto ang mga awtoridad: brownout, kailangan ng agarang tulong.",Iba Pa,Severe,5,2
+477,"May naiulat na nawawalang bata, posibleng may nasugatan.",Iba Pa,Moderate,5,1
+478,"Emergency na kinasasangkutan ng banta ng baril, may malubhang sugatan.",Krimen,Severe,1,2
+479,"Ipadala ang mga yunit para sa lalaking may kutsilyo, walang agarang panganib.",Krimen,Minor,1,0
+480,"Emergency na kinasasangkutan ng salpukan ng sasakyan, maraming nasugatan.",Aksidente,Critical,2,3
+481,"Insidente: salpukan ng sasakyan, walang nasugatan.",Aksidente,Minor,2,0
+482,"Inalerto ang mga awtoridad: pananakit, kailangan ng tulong.",Krimen,Moderate,1,1
+483,"Inalerto ang mga awtoridad: banggaan ng motorsiklo, kailangan ng tulong.",Aksidente,Moderate,2,1
+484,"Kailangan ng responders para sa gulo sa publiko, may mga taong nasaktan.",Iba Pa,Severe,5,2
+485,"Inalerto ang mga awtoridad: walang malay na pasyente, may mga taong na-trap.",Medikal,Critical,3,3
+486,"Agarang sitwasyon: kombulsyon, may malubhang sugatan.",Medikal,Severe,3,2
+487,"Inalerto ang mga awtoridad: banggaan ng motorsiklo, kontrolado na ang sitwasyon.",Aksidente,Minor,2,0
+488,"Kritikal na alerto: banggaan ng motorsiklo, may malubhang sugatan.",Aksidente,Severe,2,2
+489,"Ipadala ang mga yunit para sa banggaan sa kalsada, maraming nasugatan.",Aksidente,Critical,2,3
+490,"Ipadala ang mga yunit para sa pananakit ng dibdib, kailangan ng tulong.",Medikal,Moderate,3,1
+491,"Ipadala ang mga yunit para sa malakas na ulan, may mga taong na-trap.",Sakunang Likas,Critical,4,3
+492,"Emergency na kinasasangkutan ng malakas na ulan, kailangan ng tulong.",Sakunang Likas,Moderate,4,1
+493,"Emergency na kinasasangkutan ng malakas na ulan, may mga taong nasaktan.",Sakunang Likas,Severe,4,2
+494,"Agarang sitwasyon: pananakit ng dibdib, tumitindi ang panganib.",Medikal,Severe,3,2
+495,"Agarang sitwasyon: banggaan sa kalsada, kailangan ng tulong.",Aksidente,Moderate,2,1
+496,"Emergency na kinasasangkutan ng walang malay na pasyente, may mga taong nasaktan.",Medikal,Severe,3,2
+497,"Kritikal na alerto: nasusunog na istruktura, may malubhang sugatan.",Sunog,Severe,0,2
+498,"Kailangan ng responders para sa nawawalang bata, may malubhang sugatan.",Iba Pa,Severe,5,2
+499,"May naiulat na hindi humihinga, posibleng may nasugatan.",Medikal,Moderate,3,1
+500,"May naiulat na epekto ng bagyo, lumalala ang sitwasyon.",Sakunang Likas,Moderate,4,1
+501,"Inalerto ang mga awtoridad: pananakit, kailangan ng tulong.",Krimen,Moderate,1,1
+502,"Insidente: nasusunog na istruktura, may malubhang sugatan.",Sunog,Severe,0,2
+503,"Kritikal na alerto: may taong bumagsak, agarang panganib sa buhay.",Medikal,Critical,3,3
+504,"Inalerto ang mga awtoridad: nasusunog na gusali, may mga taong nasaktan.",Sunog,Severe,0,2
+505,"May naiulat na salpukan ng sasakyan, posibleng may nasugatan.",Aksidente,Moderate,2,1
+506,"Insidente: banta ng baril, may malubhang sugatan.",Krimen,Severe,1,2
+507,"Emergency na kinasasangkutan ng malakas na ulan, tumitindi ang panganib.",Sakunang Likas,Severe,4,2
+508,"Kritikal na alerto: lalaking may kutsilyo, walang agarang panganib.",Krimen,Minor,1,0
+509,"Inalerto ang mga awtoridad: sunog sa kuryente, may mga taong na-trap.",Sunog,Critical,0,3
+510,"Ipadala ang mga yunit para sa brownout, may malubhang sugatan.",Iba Pa,Severe,5,2
+511,"May naiulat na hit and run, sitwasyong nagbabanta sa buhay.",Aksidente,Critical,2,3
+512,"Insidente: brownout, sitwasyong nagbabanta sa buhay.",Iba Pa,Critical,5,3
+513,"Agarang sitwasyon: nasusunog na istruktura, may malubhang sugatan.",Sunog,Severe,0,2
+514,"Kailangan ng responders para sa pinsala mula sa lindol, kailangan ng agarang tugon.",Sakunang Likas,Moderate,4,1
+515,"Ipadala ang mga yunit para sa banggaan sa kalsada, kailangan ng agarang tulong.",Aksidente,Severe,2,2
+516,"Kailangan ng responders para sa salpukan ng sasakyan, kailangan ng agarang tulong.",Aksidente,Severe,2,2
+517,"Kailangan ng responders para sa epekto ng bagyo, tumitindi ang panganib.",Sakunang Likas,Severe,4,2
+518,"May naiulat na sunog sa bahay, walang nasugatan.",Sunog,Minor,0,0
+519,"Ipadala ang mga yunit para sa sunog sa bahay, kontrolado na ang sitwasyon.",Sunog,Minor,0,0
+520,"Kailangan ng responders para sa brownout, agarang panganib sa buhay.",Iba Pa,Critical,5,3
+521,"Inalerto ang mga awtoridad: banta ng baril, maliit na problema lamang.",Krimen,Minor,1,0
+522,"Insidente: banggaan ng motorsiklo, posibleng may nasugatan.",Aksidente,Moderate,2,1
+523,"Emergency na kinasasangkutan ng sunog sa kuryente, maliit na problema lamang.",Sunog,Minor,0,0
+524,"May naiulat na nahihirapang huminga, walang nasugatan.",Medikal,Minor,3,0
+525,"Agarang sitwasyon: epekto ng bagyo, walang nasugatan.",Sakunang Likas,Minor,4,0
+526,"Ipadala ang mga yunit para sa hindi matukoy na emergency, may mga taong nasaktan.",Iba Pa,Severe,5,2
+527,"Kailangan ng responders para sa baha, agarang panganib sa buhay.",Sakunang Likas,Critical,4,3
+528,"Kailangan ng responders para sa may usok na lumalabas, walang nasugatan.",Sunog,Minor,0,0
+529,"Ipadala ang mga yunit para sa sunog sa bahay, may mga taong na-trap.",Sunog,Critical,0,3
+530,"Ipadala ang mga yunit para sa epekto ng bagyo, kailangan ng tulong.",Sakunang Likas,Moderate,4,1
+531,"Inalerto ang mga awtoridad: hit and run, walang agarang panganib.",Aksidente,Minor,2,0
+532,"Insidente: hayop na na-trap, maraming nasugatan.",Iba Pa,Critical,5,3
+533,"May naiulat na nasusunog na gusali, kailangan ng tulong.",Sunog,Moderate,0,1
+534,"May naiulat na pinsala mula sa lindol, kailangan ng tulong.",Sakunang Likas,Moderate,4,1
+535,"Inalerto ang mga awtoridad: pananakit, maliit na problema lamang.",Krimen,Minor,1,0
+536,"Kailangan ng responders para sa storm surge, kailangan ng agarang tugon.",Sakunang Likas,Moderate,4,1
+537,"Insidente: sapilitang pasok, kontrolado na ang sitwasyon.",Krimen,Minor,1,0
+538,"Ipadala ang mga yunit para sa aksidente sa kotse, may malubhang sugatan.",Aksidente,Severe,2,2
+539,"Kritikal na alerto: nawawalang bata, posibleng may nasugatan.",Iba Pa,Moderate,5,1
+540,"Kailangan ng responders para sa banggaan ng motorsiklo, sitwasyong nagbabanta sa buhay.",Aksidente,Critical,2,3
+541,"Kailangan ng responders para sa hayop na na-trap, sitwasyong nagbabanta sa buhay.",Iba Pa,Critical,5,3
+542,"Insidente: brownout, kailangan ng agarang tulong.",Iba Pa,Severe,5,2
+543,"Kailangan ng responders para sa epekto ng bagyo, walang nasugatan.",Sakunang Likas,Minor,4,0
+544,"Kailangan ng responders para sa nasusunog na gusali, tumitindi ang panganib.",Sunog,Severe,0,2
+545,"Kritikal na alerto: may taong bumagsak, maraming nasugatan.",Medikal,Critical,3,3
+546,"Insidente: banggaan ng motorsiklo, may malubhang sugatan.",Aksidente,Severe,2,2
+547,"Inalerto ang mga awtoridad: kombulsyon, kailangan ng tulong.",Medikal,Moderate,3,1
+548,"Emergency na kinasasangkutan ng nawawalang bata, may mga taong nasaktan.",Iba Pa,Severe,5,2
+549,"Emergency na kinasasangkutan ng sunog sa kuryente, walang agarang panganib.",Sunog,Minor,0,0
+550,"Ipadala ang mga yunit para sa banta ng baril, posibleng may nasugatan.",Krimen,Moderate,1,1
+551,"May naiulat na nasusunog na gusali, may mga taong na-trap.",Sunog,Critical,0,3
+552,"Ipadala ang mga yunit para sa pananakit, maraming nasugatan.",Krimen,Critical,1,3
+553,"Agarang sitwasyon: kombulsyon, kailangan ng tulong.",Medikal,Moderate,3,1
+554,"Emergency na kinasasangkutan ng kombulsyon, agarang panganib sa buhay.",Medikal,Critical,3,3
+555,"Emergency na kinasasangkutan ng aksidente sa kotse, walang agarang panganib.",Aksidente,Minor,2,0
+556,"Agarang sitwasyon: sunog sa kuryente, posibleng may nasugatan.",Sunog,Moderate,0,1
+557,"May naiulat na baha, kailangan ng agarang tulong.",Sakunang Likas,Severe,4,2
+558,"Kailangan ng responders para sa nahihirapang huminga, lumalala ang sitwasyon.",Medikal,Moderate,3,1
+559,"Insidente: may usok na lumalabas, walang agarang panganib.",Sunog,Minor,0,0
+560,"Kritikal na alerto: nawawalang bata, agarang panganib sa buhay.",Iba Pa,Critical,5,3
+561,"Agarang sitwasyon: sunog sa kuryente, lumalala ang sitwasyon.",Sunog,Moderate,0,1
+562,"Agarang sitwasyon: gulo sa publiko, posibleng may nasugatan.",Iba Pa,Moderate,5,1
+563,"Insidente: pagguho ng lupa, sitwasyong nagbabanta sa buhay.",Sakunang Likas,Critical,4,3
+564,"Insidente: armadong pagnanakaw, kailangan ng agarang tulong.",Krimen,Severe,1,2
+565,"Insidente: nahihirapang huminga, lumalala ang sitwasyon.",Medikal,Moderate,3,1
+566,"May naiulat na sunog sa kuryente, sitwasyong nagbabanta sa buhay.",Sunog,Critical,0,3
+567,"Insidente: hindi matukoy na emergency, kailangan ng tulong.",Iba Pa,Moderate,5,1
+568,"Emergency na kinasasangkutan ng nawawalang bata, sitwasyong nagbabanta sa buhay.",Iba Pa,Critical,5,3
+569,"Insidente: nawawalang bata, kailangan ng agarang tugon.",Iba Pa,Moderate,5,1
+570,"Agarang sitwasyon: epekto ng bagyo, agarang panganib sa buhay.",Sakunang Likas,Critical,4,3
+571,"Insidente: nawawalang bata, kailangan ng tulong.",Iba Pa,Moderate,5,1
+572,"Insidente: may usok na lumalabas, tumitindi ang panganib.",Sunog,Severe,0,2
+573,"Agarang sitwasyon: hayop na na-trap, kailangan ng agarang tulong.",Iba Pa,Severe,5,2
+574,"Agarang sitwasyon: banggaan ng motorsiklo, maraming nasugatan.",Aksidente,Critical,2,3
+575,"Ipadala ang mga yunit para sa hindi humihinga, posibleng may nasugatan.",Medikal,Moderate,3,1
+576,"Kritikal na alerto: nahihirapang huminga, kailangan ng tulong.",Medikal,Moderate,3,1
+577,"Kritikal na alerto: nawawalang bata, maliit na problema lamang.",Iba Pa,Minor,5,0
+578,"Kailangan ng responders para sa hindi humihinga, walang nasugatan.",Medikal,Minor,3,0
+579,"Agarang sitwasyon: malakas na ulan, kailangan ng agarang tulong.",Sakunang Likas,Severe,4,2
+580,"Agarang sitwasyon: hindi humihinga, kailangan ng agarang tugon.",Medikal,Moderate,3,1
+581,"Ipadala ang mga yunit para sa hayop na na-trap, lumalala ang sitwasyon.",Iba Pa,Moderate,5,1
+582,"Kailangan ng responders para sa brownout, tumitindi ang panganib.",Iba Pa,Severe,5,2
+583,"Emergency na kinasasangkutan ng brownout, tumitindi ang panganib.",Iba Pa,Severe,5,2
+584,"Agarang sitwasyon: sapilitang pasok, posibleng may nasugatan.",Krimen,Moderate,1,1
+585,"Emergency na kinasasangkutan ng sunog sa kuryente, walang agarang panganib.",Sunog,Minor,0,0
+586,"Kailangan ng responders para sa sapilitang pasok, may mga taong nasaktan.",Krimen,Severe,1,2
+587,"Kritikal na alerto: epekto ng bagyo, posibleng may nasugatan.",Sakunang Likas,Moderate,4,1
+588,"Kailangan ng responders para sa baha, kailangan ng tulong.",Sakunang Likas,Moderate,4,1
+589,"Inalerto ang mga awtoridad: hindi matukoy na emergency, kontrolado na ang sitwasyon.",Iba Pa,Minor,5,0
+590,"Inalerto ang mga awtoridad: gulo sa publiko, may malubhang sugatan.",Iba Pa,Severe,5,2
+591,"Insidente: nahihirapang huminga, sitwasyong nagbabanta sa buhay.",Medikal,Critical,3,3
+592,"Kritikal na alerto: karahasan sa bahay, sitwasyong nagbabanta sa buhay.",Krimen,Critical,1,3
+593,"Agarang sitwasyon: hindi humihinga, kailangan ng tulong.",Medikal,Moderate,3,1
+594,"Inalerto ang mga awtoridad: banggaan sa kalsada, maliit na problema lamang.",Aksidente,Minor,2,0
+595,"Emergency na kinasasangkutan ng pinsala mula sa lindol, maliit na problema lamang.",Sakunang Likas,Minor,4,0
+596,"Emergency na kinasasangkutan ng malakas na ulan, tumitindi ang panganib.",Sakunang Likas,Severe,4,2
+597,"May naiulat na nahihirapang huminga, posibleng may nasugatan.",Medikal,Moderate,3,1
+598,"Insidente: aksidente sa kotse, posibleng may nasugatan.",Aksidente,Moderate,2,1
+599,"Kritikal na alerto: banggaan sa kalsada, walang nasugatan.",Aksidente,Minor,2,0
+600,"Inalerto ang mga awtoridad: pinsala mula sa lindol, tumitindi ang panganib.",Sakunang Likas,Severe,4,2
+601,"Ipadala ang mga yunit para sa nahihirapang huminga, maliit na problema lamang.",Medikal,Minor,3,0
+602,"May naiulat na nawawalang bata, may mga taong nasaktan.",Iba Pa,Severe,5,2
+603,"Ipadala ang mga yunit para sa baha, may malubhang sugatan.",Sakunang Likas,Severe,4,2
+604,"May naiulat na may usok na lumalabas, tumitindi ang panganib.",Sunog,Severe,0,2
+605,"Inalerto ang mga awtoridad: salpukan ng sasakyan, tumitindi ang panganib.",Aksidente,Severe,2,2
+606,"Kritikal na alerto: banta ng baril, maliit na problema lamang.",Krimen,Minor,1,0
+607,"May naiulat na banta ng baril, tumitindi ang panganib.",Krimen,Severe,1,2
+608,"Emergency na kinasasangkutan ng hindi humihinga, maliit na problema lamang.",Medikal,Minor,3,0
+609,"May naiulat na malakas na ulan, agarang panganib sa buhay.",Sakunang Likas,Critical,4,3
+610,"Kailangan ng responders para sa gulo sa publiko, tumitindi ang panganib.",Iba Pa,Severe,5,2
+611,"May naiulat na brownout, walang agarang panganib.",Iba Pa,Minor,5,0
+612,"Insidente: banggaan sa kalsada, walang agarang panganib.",Aksidente,Minor,2,0
+613,"May naiulat na sapilitang pasok, may malubhang sugatan.",Krimen,Severe,1,2
+614,"May naiulat na hindi matukoy na emergency, maliit na problema lamang.",Iba Pa,Minor,5,0
+615,"Ipadala ang mga yunit para sa armadong pagnanakaw, lumalala ang sitwasyon.",Krimen,Moderate,1,1
+616,"Agarang sitwasyon: sunog sa kusina, kailangan ng agarang tugon.",Sunog,Moderate,0,1
+617,"Agarang sitwasyon: kombulsyon, kontrolado na ang sitwasyon.",Medikal,Minor,3,0
+618,"Emergency na kinasasangkutan ng nasusunog na istruktura, agarang panganib sa buhay.",Sunog,Critical,0,3
+619,"Agarang sitwasyon: gulo sa publiko, tumitindi ang panganib.",Iba Pa,Severe,5,2
+620,"Kailangan ng responders para sa may taong bumagsak, agarang panganib sa buhay.",Medikal,Critical,3,3
+621,"Ipadala ang mga yunit para sa hindi matukoy na emergency, sitwasyong nagbabanta sa buhay.",Iba Pa,Critical,5,3
+622,"Inalerto ang mga awtoridad: nasusunog na istruktura, kailangan ng tulong.",Sunog,Moderate,0,1
+623,"Kritikal na alerto: banggaan ng motorsiklo, may mga taong na-trap.",Aksidente,Critical,2,3
+624,"Insidente: hayop na na-trap, kailangan ng tulong.",Iba Pa,Moderate,5,1
+625,"Kritikal na alerto: hit and run, kailangan ng tulong.",Aksidente,Moderate,2,1
+626,"Emergency na kinasasangkutan ng sunog sa kusina, may mga taong na-trap.",Sunog,Critical,0,3
+627,"Agarang sitwasyon: armadong pagnanakaw, walang nasugatan.",Krimen,Minor,1,0
+628,"Insidente: pananakit, agarang panganib sa buhay.",Krimen,Critical,1,3
+629,"May naiulat na aksidente sa trak, sitwasyong nagbabanta sa buhay.",Aksidente,Critical,2,3
+630,"Kritikal na alerto: sunog sa bahay, walang nasugatan.",Sunog,Minor,0,0
+631,"Kailangan ng responders para sa armadong pagnanakaw, kailangan ng tulong.",Krimen,Moderate,1,1
+632,"Agarang sitwasyon: baha, may mga taong nasaktan.",Sakunang Likas,Severe,4,2
+633,"Ipadala ang mga yunit para sa hindi humihinga, tumitindi ang panganib.",Medikal,Severe,3,2
+634,"Insidente: malakas na ulan, walang nasugatan.",Sakunang Likas,Minor,4,0
+635,"Ipadala ang mga yunit para sa nawawalang bata, kailangan ng tulong.",Iba Pa,Moderate,5,1
+636,"Ipadala ang mga yunit para sa hayop na na-trap, kailangan ng tulong.",Iba Pa,Moderate,5,1
+637,"Kailangan ng responders para sa sunog sa kusina, kailangan ng agarang tulong.",Sunog,Severe,0,2
+638,"Insidente: hindi humihinga, kontrolado na ang sitwasyon.",Medikal,Minor,3,0
+639,"Agarang sitwasyon: sunog sa bahay, tumitindi ang panganib.",Sunog,Severe,0,2
+640,"May naiulat na aksidente sa trak, kailangan ng agarang tugon.",Aksidente,Moderate,2,1
+641,"Agarang sitwasyon: armadong pagnanakaw, agarang panganib sa buhay.",Krimen,Critical,1,3
+642,"Kailangan ng responders para sa nasusunog na gusali, may malubhang sugatan.",Sunog,Severe,0,2
+643,"Ipadala ang mga yunit para sa armadong pagnanakaw, lumalala ang sitwasyon.",Krimen,Moderate,1,1
+644,"May naiulat na walang malay na pasyente, tumitindi ang panganib.",Medikal,Severe,3,2
+645,"Agarang sitwasyon: karahasan sa bahay, tumitindi ang panganib.",Krimen,Severe,1,2
+646,"Agarang sitwasyon: epekto ng bagyo, may mga taong nasaktan.",Sakunang Likas,Severe,4,2
+647,"May naiulat na salpukan ng sasakyan, may mga taong nasaktan.",Aksidente,Severe,2,2
+648,"Inalerto ang mga awtoridad: nahihirapang huminga, agarang panganib sa buhay.",Medikal,Critical,3,3
+649,"Insidente: sunog sa kusina, may mga taong na-trap.",Sunog,Critical,0,3
+650,"Agarang sitwasyon: hayop na na-trap, tumitindi ang panganib.",Iba Pa,Severe,5,2
+651,"Agarang sitwasyon: hindi humihinga, kontrolado na ang sitwasyon.",Medikal,Minor,3,0
+652,"Kailangan ng responders para sa pagguho ng lupa, kontrolado na ang sitwasyon.",Sakunang Likas,Minor,4,0
+653,"Ipadala ang mga yunit para sa gulo sa publiko, may malubhang sugatan.",Iba Pa,Severe,5,2
+654,"May naiulat na malakas na ulan, lumalala ang sitwasyon.",Sakunang Likas,Moderate,4,1
+655,"Agarang sitwasyon: pananakit, kailangan ng tulong.",Krimen,Moderate,1,1
+656,"Inalerto ang mga awtoridad: walang malay na pasyente, posibleng may nasugatan.",Medikal,Moderate,3,1
+657,"Kailangan ng responders para sa baha, may mga taong nasaktan.",Sakunang Likas,Severe,4,2
+658,"Inalerto ang mga awtoridad: pagguho ng lupa, kailangan ng tulong.",Sakunang Likas,Moderate,4,1
+659,"Kailangan ng responders para sa sunog sa kusina, walang nasugatan.",Sunog,Minor,0,0
+660,"Inalerto ang mga awtoridad: nasusunog na istruktura, may mga taong nasaktan.",Sunog,Severe,0,2
+661,"Kritikal na alerto: gulo sa publiko, posibleng may nasugatan.",Iba Pa,Moderate,5,1
+662,"Inalerto ang mga awtoridad: armadong pagnanakaw, may malubhang sugatan.",Krimen,Severe,1,2
+663,"Ipadala ang mga yunit para sa armadong pagnanakaw, posibleng may nasugatan.",Krimen,Moderate,1,1
+664,"Emergency na kinasasangkutan ng hayop na na-trap, kontrolado na ang sitwasyon.",Iba Pa,Minor,5,0
+665,"Kritikal na alerto: epekto ng bagyo, may malubhang sugatan.",Sakunang Likas,Severe,4,2
+666,"Kailangan ng responders para sa nasusunog na gusali, may mga taong nasaktan.",Sunog,Severe,0,2
+667,"Ipadala ang mga yunit para sa epekto ng bagyo, posibleng may nasugatan.",Sakunang Likas,Moderate,4,1
+668,"Insidente: nasusunog na istruktura, kailangan ng tulong.",Sunog,Moderate,0,1
+669,"Inalerto ang mga awtoridad: sapilitang pasok, lumalala ang sitwasyon.",Krimen,Moderate,1,1
+670,"Inalerto ang mga awtoridad: brownout, walang agarang panganib.",Iba Pa,Minor,5,0
+671,"Insidente: armadong pagnanakaw, may mga taong na-trap.",Krimen,Critical,1,3
+672,"May naiulat na nasusunog na istruktura, posibleng may nasugatan.",Sunog,Moderate,0,1
+673,"Agarang sitwasyon: nawawalang bata, agarang panganib sa buhay.",Iba Pa,Critical,5,3
+674,"May naiulat na nawawalang bata, maliit na problema lamang.",Iba Pa,Minor,5,0
+675,"Kritikal na alerto: banggaan sa kalsada, agarang panganib sa buhay.",Aksidente,Critical,2,3
+676,"May naiulat na walang malay na pasyente, kailangan ng agarang tugon.",Medikal,Moderate,3,1
+677,"Ipadala ang mga yunit para sa sunog sa kusina, tumitindi ang panganib.",Sunog,Severe,0,2
+678,"Kritikal na alerto: lalaking may kutsilyo, kailangan ng tulong.",Krimen,Moderate,1,1
+679,"Insidente: pananakit, kailangan ng tulong.",Krimen,Moderate,1,1
+680,"May naiulat na hindi matukoy na emergency, sitwasyong nagbabanta sa buhay.",Iba Pa,Critical,5,3
+681,"Inalerto ang mga awtoridad: pananakit, kailangan ng agarang tulong.",Krimen,Severe,1,2
+682,"Kailangan ng responders para sa banggaan ng motorsiklo, maraming nasugatan.",Aksidente,Critical,2,3
+683,"Kailangan ng responders para sa sunog sa kusina, sitwasyong nagbabanta sa buhay.",Sunog,Critical,0,3
+684,"May naiulat na pinsala mula sa lindol, kontrolado na ang sitwasyon.",Sakunang Likas,Minor,4,0
+685,"Ipadala ang mga yunit para sa sunog sa bahay, posibleng may nasugatan.",Sunog,Moderate,0,1
+686,"Inalerto ang mga awtoridad: gulo sa publiko, kailangan ng agarang tulong.",Iba Pa,Severe,5,2
+687,"Agarang sitwasyon: hindi humihinga, may mga taong na-trap.",Medikal,Critical,3,3
+688,"May naiulat na sunog sa kuryente, maraming nasugatan.",Sunog,Critical,0,3
+689,"Kailangan ng responders para sa hindi humihinga, kailangan ng agarang tulong.",Medikal,Severe,3,2
+690,"Ipadala ang mga yunit para sa sapilitang pasok, agarang panganib sa buhay.",Krimen,Critical,1,3
+691,"Ipadala ang mga yunit para sa sunog sa kusina, posibleng may nasugatan.",Sunog,Moderate,0,1
+692,"Inalerto ang mga awtoridad: walang malay na pasyente, maraming nasugatan.",Medikal,Critical,3,3
+693,"Insidente: may usok na lumalabas, maraming nasugatan.",Sunog,Critical,0,3
+694,"Emergency na kinasasangkutan ng armadong pagnanakaw, sitwasyong nagbabanta sa buhay.",Krimen,Critical,1,3
+695,"Inalerto ang mga awtoridad: hindi matukoy na emergency, sitwasyong nagbabanta sa buhay.",Iba Pa,Critical,5,3
+696,"Kailangan ng responders para sa may taong bumagsak, kailangan ng agarang tugon.",Medikal,Moderate,3,1
+697,"Inalerto ang mga awtoridad: sunog sa kuryente, agarang panganib sa buhay.",Sunog,Critical,0,3
+698,"May naiulat na pananakit ng dibdib, walang agarang panganib.",Medikal,Minor,3,0
+699,"Ipadala ang mga yunit para sa sunog sa bahay, may mga taong na-trap.",Sunog,Critical,0,3
+700,"Kailangan ng responders para sa gulo sa publiko, walang agarang panganib.",Iba Pa,Minor,5,0
+701,"Kritikal na alerto: banggaan ng motorsiklo, kontrolado na ang sitwasyon.",Aksidente,Minor,2,0
+702,"Ipadala ang mga yunit para sa hit and run, kontrolado na ang sitwasyon.",Aksidente,Minor,2,0
+703,"Emergency na kinasasangkutan ng storm surge, kontrolado na ang sitwasyon.",Sakunang Likas,Minor,4,0
+704,"Insidente: armadong pagnanakaw, may mga taong na-trap.",Krimen,Critical,1,3
+705,"Insidente: may usok na lumalabas, maliit na problema lamang.",Sunog,Minor,0,0
+706,"Insidente: aksidente sa trak, tumitindi ang panganib.",Aksidente,Severe,2,2
+707,"Kritikal na alerto: sunog sa bahay, kailangan ng agarang tugon.",Sunog,Moderate,0,1
+708,"Kritikal na alerto: banggaan ng motorsiklo, agarang panganib sa buhay.",Aksidente,Critical,2,3
+709,"May naiulat na epekto ng bagyo, tumitindi ang panganib.",Sakunang Likas,Severe,4,2
+710,"May naiulat na nasusunog na gusali, may mga taong na-trap.",Sunog,Critical,0,3
+711,"Kritikal na alerto: sunog sa bahay, lumalala ang sitwasyon.",Sunog,Moderate,0,1
+712,"Kritikal na alerto: hayop na na-trap, lumalala ang sitwasyon.",Iba Pa,Moderate,5,1
+713,"Insidente: sunog sa bahay, posibleng may nasugatan.",Sunog,Moderate,0,1
+714,"Insidente: aksidente sa kotse, maraming nasugatan.",Aksidente,Critical,2,3
+715,"Inalerto ang mga awtoridad: sunog sa kuryente, walang agarang panganib.",Sunog,Minor,0,0
+716,"Ipadala ang mga yunit para sa pananakit, may mga taong na-trap.",Krimen,Critical,1,3
+717,"May naiulat na pananakit, kailangan ng agarang tulong.",Krimen,Severe,1,2
+718,"Ipadala ang mga yunit para sa nawawalang bata, lumalala ang sitwasyon.",Iba Pa,Moderate,5,1
+719,"Kailangan ng responders para sa kombulsyon, kontrolado na ang sitwasyon.",Medikal,Minor,3,0
+720,"Inalerto ang mga awtoridad: pananakit, maliit na problema lamang.",Krimen,Minor,1,0
+721,"Ipadala ang mga yunit para sa storm surge, may mga taong nasaktan.",Sakunang Likas,Severe,4,2
+722,"Ipadala ang mga yunit para sa aksidente sa kotse, maliit na problema lamang.",Aksidente,Minor,2,0
+723,"May naiulat na hayop na na-trap, sitwasyong nagbabanta sa buhay.",Iba Pa,Critical,5,3
+724,"Kritikal na alerto: nahihirapang huminga, may mga taong na-trap.",Medikal,Critical,3,3
+725,"Kritikal na alerto: hayop na na-trap, maliit na problema lamang.",Iba Pa,Minor,5,0
+726,"Inalerto ang mga awtoridad: sapilitang pasok, maliit na problema lamang.",Krimen,Minor,1,0
+727,"Kailangan ng responders para sa hindi matukoy na emergency, kailangan ng agarang tulong.",Iba Pa,Severe,5,2
+728,"Insidente: banggaan ng motorsiklo, walang nasugatan.",Aksidente,Minor,2,0
+729,"Agarang sitwasyon: nawawalang bata, kailangan ng agarang tulong.",Iba Pa,Severe,5,2
+730,"Kritikal na alerto: malakas na ulan, maliit na problema lamang.",Sakunang Likas,Minor,4,0
+731,"Insidente: karahasan sa bahay, kailangan ng agarang tulong.",Krimen,Severe,1,2
+732,"Agarang sitwasyon: pananakit ng dibdib, lumalala ang sitwasyon.",Medikal,Moderate,3,1
+733,"Agarang sitwasyon: lalaking may kutsilyo, kailangan ng agarang tulong.",Krimen,Severe,1,2
+734,"Kailangan ng responders para sa sunog sa bahay, kailangan ng tulong.",Sunog,Moderate,0,1
+735,"Emergency na kinasasangkutan ng salpukan ng sasakyan, agarang panganib sa buhay.",Aksidente,Critical,2,3
+736,"Kailangan ng responders para sa kombulsyon, posibleng may nasugatan.",Medikal,Moderate,3,1
+737,"Kritikal na alerto: nasusunog na istruktura, walang agarang panganib.",Sunog,Minor,0,0
+738,"Kailangan ng responders para sa brownout, may mga taong na-trap.",Iba Pa,Critical,5,3
+739,"May naiulat na sapilitang pasok, maraming nasugatan.",Krimen,Critical,1,3
+740,"Kritikal na alerto: nasusunog na gusali, kailangan ng agarang tugon.",Sunog,Moderate,0,1
+741,"Ipadala ang mga yunit para sa aksidente sa trak, sitwasyong nagbabanta sa buhay.",Aksidente,Critical,2,3
+742,"Kailangan ng responders para sa brownout, agarang panganib sa buhay.",Iba Pa,Critical,5,3
+743,"Kritikal na alerto: pananakit, walang agarang panganib.",Krimen,Minor,1,0
+744,"Inalerto ang mga awtoridad: nawawalang bata, walang nasugatan.",Iba Pa,Minor,5,0
+745,"Kailangan ng responders para sa brownout, maliit na problema lamang.",Iba Pa,Minor,5,0
+746,"Insidente: walang malay na pasyente, walang nasugatan.",Medikal,Minor,3,0
+747,"Agarang sitwasyon: baha, lumalala ang sitwasyon.",Sakunang Likas,Moderate,4,1
+748,"Ipadala ang mga yunit para sa baha, sitwasyong nagbabanta sa buhay.",Sakunang Likas,Critical,4,3
+749,"Agarang sitwasyon: sunog sa kusina, may mga taong na-trap.",Sunog,Critical,0,3
+750,"Ipadala ang mga yunit para sa baha, kailangan ng agarang tulong.",Sakunang Likas,Severe,4,2
+751,"Insidente: nawawalang bata, kontrolado na ang sitwasyon.",Iba Pa,Minor,5,0
+752,"Kailangan ng responders para sa epekto ng bagyo, walang nasugatan.",Sakunang Likas,Minor,4,0
+753,"Kailangan ng responders para sa hindi humihinga, may mga taong nasaktan.",Medikal,Severe,3,2
+754,"Insidente: banta ng baril, kailangan ng agarang tugon.",Krimen,Moderate,1,1
+755,"Agarang sitwasyon: hayop na na-trap, kailangan ng tulong.",Iba Pa,Moderate,5,1
+756,"Kritikal na alerto: baha, walang nasugatan.",Sakunang Likas,Minor,4,0
+757,"Inalerto ang mga awtoridad: lalaking may kutsilyo, maraming nasugatan.",Krimen,Critical,1,3
+758,"May naiulat na hayop na na-trap, kailangan ng tulong.",Iba Pa,Moderate,5,1
+759,"Insidente: banggaan sa kalsada, may mga taong na-trap.",Aksidente,Critical,2,3
+760,"Insidente: banggaan sa kalsada, may mga taong na-trap.",Aksidente,Critical,2,3
+761,"Agarang sitwasyon: sapilitang pasok, maliit na problema lamang.",Krimen,Minor,1,0
+762,"Agarang sitwasyon: pananakit ng dibdib, tumitindi ang panganib.",Medikal,Severe,3,2
+763,"Emergency na kinasasangkutan ng baha, kailangan ng agarang tulong.",Sakunang Likas,Severe,4,2
+764,"Ipadala ang mga yunit para sa hindi matukoy na emergency, kontrolado na ang sitwasyon.",Iba Pa,Minor,5,0
+765,"Kailangan ng responders para sa nasusunog na gusali, kailangan ng agarang tulong.",Sunog,Severe,0,2
+766,"Kailangan ng responders para sa baha, may malubhang sugatan.",Sakunang Likas,Severe,4,2
+767,"Ipadala ang mga yunit para sa walang malay na pasyente, walang agarang panganib.",Medikal,Minor,3,0
+768,"Agarang sitwasyon: may taong bumagsak, may malubhang sugatan.",Medikal,Severe,3,2
+769,"Ipadala ang mga yunit para sa hindi matukoy na emergency, walang agarang panganib.",Iba Pa,Minor,5,0
+770,"May naiulat na nawawalang bata, lumalala ang sitwasyon.",Iba Pa,Moderate,5,1
+771,"Agarang sitwasyon: may usok na lumalabas, kailangan ng agarang tugon.",Sunog,Moderate,0,1
+772,"Emergency na kinasasangkutan ng karahasan sa bahay, lumalala ang sitwasyon.",Krimen,Moderate,1,1
+773,"Emergency na kinasasangkutan ng hindi humihinga, walang agarang panganib.",Medikal,Minor,3,0
+774,"Kritikal na alerto: banggaan sa kalsada, maliit na problema lamang.",Aksidente,Minor,2,0
+775,"Emergency na kinasasangkutan ng hindi matukoy na emergency, may mga taong nasaktan.",Iba Pa,Severe,5,2
+776,"Insidente: banta ng baril, may mga taong nasaktan.",Krimen,Severe,1,2
+777,"May naiulat na gulo sa publiko, kailangan ng tulong.",Iba Pa,Moderate,5,1
+778,"Agarang sitwasyon: walang malay na pasyente, walang agarang panganib.",Medikal,Minor,3,0
+779,"Inalerto ang mga awtoridad: hit and run, posibleng may nasugatan.",Aksidente,Moderate,2,1
+780,"May naiulat na pananakit ng dibdib, may mga taong nasaktan.",Medikal,Severe,3,2
+781,"Agarang sitwasyon: aksidente sa kotse, maliit na problema lamang.",Aksidente,Minor,2,0
+782,"Emergency na kinasasangkutan ng malakas na ulan, walang agarang panganib.",Sakunang Likas,Minor,4,0
+783,"Ipadala ang mga yunit para sa aksidente sa kotse, posibleng may nasugatan.",Aksidente,Moderate,2,1
+784,"Kailangan ng responders para sa malakas na ulan, sitwasyong nagbabanta sa buhay.",Sakunang Likas,Critical,4,3
+785,"Kailangan ng responders para sa karahasan sa bahay, sitwasyong nagbabanta sa buhay.",Krimen,Critical,1,3
+786,"Emergency na kinasasangkutan ng nasusunog na gusali, lumalala ang sitwasyon.",Sunog,Moderate,0,1
+787,"Insidente: baha, tumitindi ang panganib.",Sakunang Likas,Severe,4,2
+788,"Ipadala ang mga yunit para sa sunog sa kuryente, maliit na problema lamang.",Sunog,Minor,0,0
+789,"Inalerto ang mga awtoridad: nawawalang bata, maliit na problema lamang.",Iba Pa,Minor,5,0
+790,"Ipadala ang mga yunit para sa pananakit, may mga taong nasaktan.",Krimen,Severe,1,2
+791,"Ipadala ang mga yunit para sa lalaking may kutsilyo, kailangan ng agarang tugon.",Krimen,Moderate,1,1
+792,"Inalerto ang mga awtoridad: banggaan sa kalsada, kailangan ng agarang tugon.",Aksidente,Moderate,2,1
+793,"Emergency na kinasasangkutan ng aksidente sa trak, may mga taong na-trap.",Aksidente,Critical,2,3
+794,"Inalerto ang mga awtoridad: banggaan ng motorsiklo, lumalala ang sitwasyon.",Aksidente,Moderate,2,1
+795,"Kritikal na alerto: aksidente sa kotse, kailangan ng agarang tulong.",Aksidente,Severe,2,2
+796,"Kritikal na alerto: hindi humihinga, sitwasyong nagbabanta sa buhay.",Medikal,Critical,3,3
+797,"Inalerto ang mga awtoridad: salpukan ng sasakyan, agarang panganib sa buhay.",Aksidente,Critical,2,3
+798,"Kailangan ng responders para sa epekto ng bagyo, may mga taong na-trap.",Sakunang Likas,Critical,4,3
+799,"Kailangan ng responders para sa brownout, posibleng may nasugatan.",Iba Pa,Moderate,5,1
+800,"Ipadala ang mga yunit para sa pananakit, kailangan ng agarang tugon.",Krimen,Moderate,1,1
+801,"May naiulat na banggaan sa kalsada, maliit na problema lamang.",Aksidente,Minor,2,0
+802,"Insidente: baha, walang nasugatan.",Sakunang Likas,Minor,4,0
+803,"Kritikal na alerto: hit and run, kailangan ng agarang tulong.",Aksidente,Severe,2,2
+804,"Ipadala ang mga yunit para sa armadong pagnanakaw, may malubhang sugatan.",Krimen,Severe,1,2
+805,"Kailangan ng responders para sa storm surge, tumitindi ang panganib.",Sakunang Likas,Severe,4,2
+806,"Agarang sitwasyon: nahihirapang huminga, walang nasugatan.",Medikal,Minor,3,0
+807,"Inalerto ang mga awtoridad: banggaan ng motorsiklo, may mga taong nasaktan.",Aksidente,Severe,2,2
+808,"Agarang sitwasyon: sunog sa bahay, walang nasugatan.",Sunog,Minor,0,0
+809,"May naiulat na lalaking may kutsilyo, sitwasyong nagbabanta sa buhay.",Krimen,Critical,1,3
+810,"Emergency na kinasasangkutan ng pinsala mula sa lindol, posibleng may nasugatan.",Sakunang Likas,Moderate,4,1
+811,"Ipadala ang mga yunit para sa armadong pagnanakaw, walang agarang panganib.",Krimen,Minor,1,0
+812,"Agarang sitwasyon: karahasan sa bahay, maraming nasugatan.",Krimen,Critical,1,3
+813,"Emergency na kinasasangkutan ng nasusunog na gusali, sitwasyong nagbabanta sa buhay.",Sunog,Critical,0,3
+814,"Emergency na kinasasangkutan ng banggaan ng motorsiklo, maraming nasugatan.",Aksidente,Critical,2,3
+815,"May naiulat na gulo sa publiko, sitwasyong nagbabanta sa buhay.",Iba Pa,Critical,5,3
+816,"Emergency na kinasasangkutan ng banta ng baril, tumitindi ang panganib.",Krimen,Severe,1,2
+817,"Agarang sitwasyon: nasusunog na istruktura, maliit na problema lamang.",Sunog,Minor,0,0
+818,"Agarang sitwasyon: karahasan sa bahay, posibleng may nasugatan.",Krimen,Moderate,1,1
+819,"Kailangan ng responders para sa epekto ng bagyo, maliit na problema lamang.",Sakunang Likas,Minor,4,0
+820,"May naiulat na salpukan ng sasakyan, walang nasugatan.",Aksidente,Minor,2,0
+821,"Kritikal na alerto: karahasan sa bahay, posibleng may nasugatan.",Krimen,Moderate,1,1
+822,"Kritikal na alerto: aksidente sa trak, tumitindi ang panganib.",Aksidente,Severe,2,2
+823,"Agarang sitwasyon: banggaan sa kalsada, agarang panganib sa buhay.",Aksidente,Critical,2,3
+824,"Kailangan ng responders para sa karahasan sa bahay, sitwasyong nagbabanta sa buhay.",Krimen,Critical,1,3
+825,"Kritikal na alerto: gulo sa publiko, may mga taong nasaktan.",Iba Pa,Severe,5,2
+826,"Kritikal na alerto: epekto ng bagyo, kailangan ng agarang tulong.",Sakunang Likas,Severe,4,2
+827,"Ipadala ang mga yunit para sa may taong bumagsak, walang agarang panganib.",Medikal,Minor,3,0
+828,"Ipadala ang mga yunit para sa armadong pagnanakaw, walang agarang panganib.",Krimen,Minor,1,0
+829,"Kailangan ng responders para sa aksidente sa trak, walang agarang panganib.",Aksidente,Minor,2,0
+830,"Emergency na kinasasangkutan ng pagguho ng lupa, sitwasyong nagbabanta sa buhay.",Sakunang Likas,Critical,4,3
+831,"Ipadala ang mga yunit para sa pananakit, lumalala ang sitwasyon.",Krimen,Moderate,1,1
+832,"Ipadala ang mga yunit para sa hindi humihinga, may malubhang sugatan.",Medikal,Severe,3,2
+833,"Insidente: pananakit, may malubhang sugatan.",Krimen,Severe,1,2
+834,"Emergency na kinasasangkutan ng banta ng baril, may malubhang sugatan.",Krimen,Severe,1,2
+835,"Inalerto ang mga awtoridad: walang malay na pasyente, lumalala ang sitwasyon.",Medikal,Moderate,3,1
+836,"Ipadala ang mga yunit para sa salpukan ng sasakyan, tumitindi ang panganib.",Aksidente,Severe,2,2
+837,"Emergency na kinasasangkutan ng gulo sa publiko, walang agarang panganib.",Iba Pa,Minor,5,0
+838,"Agarang sitwasyon: banggaan ng motorsiklo, may malubhang sugatan.",Aksidente,Severe,2,2
+839,"Emergency na kinasasangkutan ng banggaan sa kalsada, kailangan ng agarang tugon.",Aksidente,Moderate,2,1
+840,"May naiulat na may usok na lumalabas, kailangan ng agarang tulong.",Sunog,Severe,0,2
+841,"Kritikal na alerto: storm surge, kailangan ng agarang tugon.",Sakunang Likas,Moderate,4,1
+842,"Insidente: epekto ng bagyo, kailangan ng agarang tugon.",Sakunang Likas,Moderate,4,1
+843,"May naiulat na sunog sa kusina, tumitindi ang panganib.",Sunog,Severe,0,2
+844,"Kailangan ng responders para sa hindi matukoy na emergency, tumitindi ang panganib.",Iba Pa,Severe,5,2
+845,"Ipadala ang mga yunit para sa nasusunog na istruktura, kailangan ng agarang tulong.",Sunog,Severe,0,2
+846,"Insidente: sunog sa kuryente, lumalala ang sitwasyon.",Sunog,Moderate,0,1
+847,"Agarang sitwasyon: gulo sa publiko, may mga taong nasaktan.",Iba Pa,Severe,5,2
+848,"Agarang sitwasyon: sunog sa kuryente, kailangan ng agarang tugon.",Sunog,Moderate,0,1
+849,"Emergency na kinasasangkutan ng sunog sa kuryente, posibleng may nasugatan.",Sunog,Moderate,0,1
+850,"May naiulat na baha, walang agarang panganib.",Sakunang Likas,Minor,4,0
+851,"Insidente: brownout, kailangan ng agarang tugon.",Iba Pa,Moderate,5,1
+852,"Inalerto ang mga awtoridad: malakas na ulan, posibleng may nasugatan.",Sakunang Likas,Moderate,4,1
+853,"May naiulat na pinsala mula sa lindol, kailangan ng agarang tugon.",Sakunang Likas,Moderate,4,1
+854,"Kailangan ng responders para sa lalaking may kutsilyo, posibleng may nasugatan.",Krimen,Moderate,1,1
+855,"Inalerto ang mga awtoridad: may usok na lumalabas, kontrolado na ang sitwasyon.",Sunog,Minor,0,0
+856,"Kailangan ng responders para sa epekto ng bagyo, lumalala ang sitwasyon.",Sakunang Likas,Moderate,4,1
+857,"Agarang sitwasyon: may usok na lumalabas, lumalala ang sitwasyon.",Sunog,Moderate,0,1
+858,"Emergency na kinasasangkutan ng hayop na na-trap, sitwasyong nagbabanta sa buhay.",Iba Pa,Critical,5,3
+859,"May naiulat na nawawalang bata, walang agarang panganib.",Iba Pa,Minor,5,0
+860,"Kailangan ng responders para sa lalaking may kutsilyo, agarang panganib sa buhay.",Krimen,Critical,1,3
+861,"Agarang sitwasyon: brownout, kailangan ng agarang tulong.",Iba Pa,Severe,5,2
+862,"Kritikal na alerto: karahasan sa bahay, may mga taong nasaktan.",Krimen,Severe,1,2
+863,"Insidente: hayop na na-trap, maliit na problema lamang.",Iba Pa,Minor,5,0
+864,"Kritikal na alerto: pananakit, posibleng may nasugatan.",Krimen,Moderate,1,1
+865,"Agarang sitwasyon: hayop na na-trap, lumalala ang sitwasyon.",Iba Pa,Moderate,5,1
+866,"Emergency na kinasasangkutan ng nasusunog na istruktura, kailangan ng agarang tulong.",Sunog,Severe,0,2
+867,"Ipadala ang mga yunit para sa banggaan ng motorsiklo, agarang panganib sa buhay.",Aksidente,Critical,2,3
+868,"Ipadala ang mga yunit para sa aksidente sa trak, kailangan ng tulong.",Aksidente,Moderate,2,1
+869,"Kritikal na alerto: pananakit, maliit na problema lamang.",Krimen,Minor,1,0
+870,"Agarang sitwasyon: karahasan sa bahay, maliit na problema lamang.",Krimen,Minor,1,0
+871,"Emergency na kinasasangkutan ng banta ng baril, may mga taong nasaktan.",Krimen,Severe,1,2
+872,"Emergency na kinasasangkutan ng gulo sa publiko, kailangan ng agarang tugon.",Iba Pa,Moderate,5,1
+873,"Agarang sitwasyon: hayop na na-trap, sitwasyong nagbabanta sa buhay.",Iba Pa,Critical,5,3
+874,"Kailangan ng responders para sa armadong pagnanakaw, lumalala ang sitwasyon.",Krimen,Moderate,1,1
+875,"Inalerto ang mga awtoridad: pananakit, kailangan ng agarang tugon.",Krimen,Moderate,1,1
+876,"Insidente: hit and run, kailangan ng tulong.",Aksidente,Moderate,2,1
+877,"Inalerto ang mga awtoridad: lalaking may kutsilyo, kailangan ng tulong.",Krimen,Moderate,1,1
+878,"Inalerto ang mga awtoridad: storm surge, may malubhang sugatan.",Sakunang Likas,Severe,4,2
+879,"May naiulat na banggaan ng motorsiklo, tumitindi ang panganib.",Aksidente,Severe,2,2
+880,"Emergency na kinasasangkutan ng sunog sa kuryente, may mga taong nasaktan.",Sunog,Severe,0,2
+881,"May naiulat na storm surge, kailangan ng tulong.",Sakunang Likas,Moderate,4,1
+882,"Kritikal na alerto: banggaan sa kalsada, posibleng may nasugatan.",Aksidente,Moderate,2,1
+883,"Agarang sitwasyon: hindi matukoy na emergency, may malubhang sugatan.",Iba Pa,Severe,5,2
+884,"Inalerto ang mga awtoridad: storm surge, walang agarang panganib.",Sakunang Likas,Minor,4,0
+885,"Ipadala ang mga yunit para sa hayop na na-trap, may mga taong nasaktan.",Iba Pa,Severe,5,2
+886,"Agarang sitwasyon: hayop na na-trap, kailangan ng tulong.",Iba Pa,Moderate,5,1
+887,"Kailangan ng responders para sa karahasan sa bahay, posibleng may nasugatan.",Krimen,Moderate,1,1
+888,"Kailangan ng responders para sa salpukan ng sasakyan, kontrolado na ang sitwasyon.",Aksidente,Minor,2,0
+889,"Kritikal na alerto: storm surge, posibleng may nasugatan.",Sakunang Likas,Moderate,4,1
+890,"May naiulat na gulo sa publiko, posibleng may nasugatan.",Iba Pa,Moderate,5,1
+891,"Emergency na kinasasangkutan ng sunog sa kuryente, agarang panganib sa buhay.",Sunog,Critical,0,3
+892,"Insidente: nawawalang bata, may mga taong na-trap.",Iba Pa,Critical,5,3
+893,"Inalerto ang mga awtoridad: storm surge, tumitindi ang panganib.",Sakunang Likas,Severe,4,2
+894,"Kritikal na alerto: epekto ng bagyo, kailangan ng agarang tugon.",Sakunang Likas,Moderate,4,1
+895,"Kailangan ng responders para sa salpukan ng sasakyan, may mga taong na-trap.",Aksidente,Critical,2,3
+896,"Insidente: sunog sa bahay, may malubhang sugatan.",Sunog,Severe,0,2
+897,"May naiulat na banggaan sa kalsada, tumitindi ang panganib.",Aksidente,Severe,2,2
+898,"Kailangan ng responders para sa walang malay na pasyente, kontrolado na ang sitwasyon.",Medikal,Minor,3,0
+899,"Emergency na kinasasangkutan ng may taong bumagsak, tumitindi ang panganib.",Medikal,Severe,3,2
+900,"Agarang sitwasyon: hit and run, may mga taong na-trap.",Aksidente,Critical,2,3
+901,"Kailangan ng responders para sa nawawalang bata, may mga taong nasaktan.",Iba Pa,Severe,5,2
+902,"Insidente: hayop na na-trap, kailangan ng agarang tulong.",Iba Pa,Severe,5,2
+903,"Inalerto ang mga awtoridad: nasusunog na istruktura, may mga taong na-trap.",Sunog,Critical,0,3
+904,"Kritikal na alerto: aksidente sa trak, may malubhang sugatan.",Aksidente,Severe,2,2
+905,"May naiulat na walang malay na pasyente, agarang panganib sa buhay.",Medikal,Critical,3,3
+906,"Insidente: pananakit ng dibdib, posibleng may nasugatan.",Medikal,Moderate,3,1
+907,"Emergency na kinasasangkutan ng malakas na ulan, sitwasyong nagbabanta sa buhay.",Sakunang Likas,Critical,4,3
+908,"Insidente: walang malay na pasyente, may malubhang sugatan.",Medikal,Severe,3,2
+909,"Inalerto ang mga awtoridad: pananakit, lumalala ang sitwasyon.",Krimen,Moderate,1,1
+910,"Kritikal na alerto: may taong bumagsak, may malubhang sugatan.",Medikal,Severe,3,2
+911,"Ipadala ang mga yunit para sa hit and run, may mga taong nasaktan.",Aksidente,Severe,2,2
+912,"May naiulat na gulo sa publiko, may mga taong na-trap.",Iba Pa,Critical,5,3
+913,"Ipadala ang mga yunit para sa lalaking may kutsilyo, walang nasugatan.",Krimen,Minor,1,0
+914,"Kritikal na alerto: storm surge, maliit na problema lamang.",Sakunang Likas,Minor,4,0
+915,"May naiulat na hindi matukoy na emergency, maliit na problema lamang.",Iba Pa,Minor,5,0
+916,"May naiulat na pagguho ng lupa, maraming nasugatan.",Sakunang Likas,Critical,4,3
+917,"Insidente: nasusunog na istruktura, may malubhang sugatan.",Sunog,Severe,0,2
+918,"Inalerto ang mga awtoridad: storm surge, maliit na problema lamang.",Sakunang Likas,Minor,4,0
+919,"Insidente: hayop na na-trap, tumitindi ang panganib.",Iba Pa,Severe,5,2
+920,"Agarang sitwasyon: hit and run, maliit na problema lamang.",Aksidente,Minor,2,0
+921,"Insidente: nawawalang bata, kailangan ng agarang tulong.",Iba Pa,Severe,5,2
+922,"Ipadala ang mga yunit para sa walang malay na pasyente, kontrolado na ang sitwasyon.",Medikal,Minor,3,0
+923,"Agarang sitwasyon: sunog sa kuryente, sitwasyong nagbabanta sa buhay.",Sunog,Critical,0,3
+924,"Emergency na kinasasangkutan ng malakas na ulan, agarang panganib sa buhay.",Sakunang Likas,Critical,4,3
+925,"Insidente: storm surge, lumalala ang sitwasyon.",Sakunang Likas,Moderate,4,1
+926,"Agarang sitwasyon: aksidente sa kotse, kailangan ng agarang tulong.",Aksidente,Severe,2,2
+927,"Insidente: aksidente sa trak, posibleng may nasugatan.",Aksidente,Moderate,2,1
+928,"Insidente: nasusunog na istruktura, sitwasyong nagbabanta sa buhay.",Sunog,Critical,0,3
+929,"Emergency na kinasasangkutan ng nahihirapang huminga, may malubhang sugatan.",Medikal,Severe,3,2
+930,"Agarang sitwasyon: hit and run, agarang panganib sa buhay.",Aksidente,Critical,2,3
+931,"May naiulat na armadong pagnanakaw, kailangan ng agarang tulong.",Krimen,Severe,1,2
+932,"Ipadala ang mga yunit para sa salpukan ng sasakyan, kailangan ng agarang tulong.",Aksidente,Severe,2,2
+933,"May naiulat na banta ng baril, maliit na problema lamang.",Krimen,Minor,1,0
+934,"Ipadala ang mga yunit para sa brownout, lumalala ang sitwasyon.",Iba Pa,Moderate,5,1
+935,"Emergency na kinasasangkutan ng walang malay na pasyente, maraming nasugatan.",Medikal,Critical,3,3
+936,"Emergency na kinasasangkutan ng sapilitang pasok, posibleng may nasugatan.",Krimen,Moderate,1,1
+937,"Kailangan ng responders para sa nahihirapang huminga, sitwasyong nagbabanta sa buhay.",Medikal,Critical,3,3
+938,"Ipadala ang mga yunit para sa epekto ng bagyo, may mga taong nasaktan.",Sakunang Likas,Severe,4,2
+939,"Kailangan ng responders para sa nasusunog na gusali, kailangan ng agarang tugon.",Sunog,Moderate,0,1
+940,"Insidente: hayop na na-trap, may mga taong na-trap.",Iba Pa,Critical,5,3
+941,"Insidente: hindi matukoy na emergency, kailangan ng agarang tugon.",Iba Pa,Moderate,5,1
+942,"Agarang sitwasyon: lalaking may kutsilyo, maliit na problema lamang.",Krimen,Minor,1,0
+943,"May naiulat na gulo sa publiko, lumalala ang sitwasyon.",Iba Pa,Moderate,5,1
+944,"Inalerto ang mga awtoridad: nawawalang bata, posibleng may nasugatan.",Iba Pa,Moderate,5,1
+945,"May naiulat na sunog sa kuryente, may mga taong nasaktan.",Sunog,Severe,0,2
+946,"May naiulat na hindi matukoy na emergency, sitwasyong nagbabanta sa buhay.",Iba Pa,Critical,5,3
+947,"May naiulat na aksidente sa kotse, posibleng may nasugatan.",Aksidente,Moderate,2,1
+948,"Kritikal na alerto: nahihirapang huminga, kailangan ng tulong.",Medikal,Moderate,3,1
+949,"Kritikal na alerto: pinsala mula sa lindol, walang nasugatan.",Sakunang Likas,Minor,4,0
+950,"Emergency na kinasasangkutan ng sunog sa bahay, agarang panganib sa buhay.",Sunog,Critical,0,3
+951,"Agarang sitwasyon: baha, agarang panganib sa buhay.",Sakunang Likas,Critical,4,3
+952,"Kritikal na alerto: lalaking may kutsilyo, walang agarang panganib.",Krimen,Minor,1,0
+953,"Insidente: banta ng baril, may malubhang sugatan.",Krimen,Severe,1,2
+954,"May naiulat na lalaking may kutsilyo, lumalala ang sitwasyon.",Krimen,Moderate,1,1
+955,"Agarang sitwasyon: hit and run, maraming nasugatan.",Aksidente,Critical,2,3
+956,"Kailangan ng responders para sa pananakit, kailangan ng agarang tugon.",Krimen,Moderate,1,1
+957,"May naiulat na armadong pagnanakaw, kailangan ng agarang tulong.",Krimen,Severe,1,2
+958,"Emergency na kinasasangkutan ng pagguho ng lupa, walang nasugatan.",Sakunang Likas,Minor,4,0
+959,"Insidente: brownout, kailangan ng tulong.",Iba Pa,Moderate,5,1
+960,"Insidente: storm surge, lumalala ang sitwasyon.",Sakunang Likas,Moderate,4,1
+961,"Kritikal na alerto: banggaan sa kalsada, maliit na problema lamang.",Aksidente,Minor,2,0
+962,"Kailangan ng responders para sa nahihirapang huminga, lumalala ang sitwasyon.",Medikal,Moderate,3,1
+963,"Emergency na kinasasangkutan ng pinsala mula sa lindol, walang agarang panganib.",Sakunang Likas,Minor,4,0
+964,"Kailangan ng responders para sa kombulsyon, walang agarang panganib.",Medikal,Minor,3,0
+965,"Kritikal na alerto: kombulsyon, kailangan ng tulong.",Medikal,Moderate,3,1
+966,"May naiulat na epekto ng bagyo, maraming nasugatan.",Sakunang Likas,Critical,4,3
+967,"Inalerto ang mga awtoridad: sunog sa bahay, kailangan ng agarang tulong.",Sunog,Severe,0,2
+968,"May naiulat na may taong bumagsak, agarang panganib sa buhay.",Medikal,Critical,3,3
+969,"Agarang sitwasyon: epekto ng bagyo, kailangan ng agarang tulong.",Sakunang Likas,Severe,4,2
+970,"Kailangan ng responders para sa baha, lumalala ang sitwasyon.",Sakunang Likas,Moderate,4,1
+971,"Inalerto ang mga awtoridad: nawawalang bata, may mga taong nasaktan.",Iba Pa,Severe,5,2
+972,"May naiulat na brownout, may malubhang sugatan.",Iba Pa,Severe,5,2
+973,"Kailangan ng responders para sa aksidente sa kotse, may malubhang sugatan.",Aksidente,Severe,2,2
+974,"Kritikal na alerto: sunog sa kuryente, may malubhang sugatan.",Sunog,Severe,0,2
+975,"May naiulat na brownout, walang nasugatan.",Iba Pa,Minor,5,0
+976,"Insidente: karahasan sa bahay, may malubhang sugatan.",Krimen,Severe,1,2
+977,"Kritikal na alerto: pananakit, tumitindi ang panganib.",Krimen,Severe,1,2
+978,"Ipadala ang mga yunit para sa nasusunog na istruktura, lumalala ang sitwasyon.",Sunog,Moderate,0,1
+979,"Insidente: brownout, maliit na problema lamang.",Iba Pa,Minor,5,0
+980,"Insidente: aksidente sa trak, kailangan ng agarang tugon.",Aksidente,Moderate,2,1
+981,"Insidente: banggaan ng motorsiklo, sitwasyong nagbabanta sa buhay.",Aksidente,Critical,2,3
+982,"Insidente: pananakit ng dibdib, may malubhang sugatan.",Medikal,Severe,3,2
+983,"Emergency na kinasasangkutan ng pinsala mula sa lindol, tumitindi ang panganib.",Sakunang Likas,Severe,4,2
+984,"Inalerto ang mga awtoridad: sunog sa kuryente, tumitindi ang panganib.",Sunog,Severe,0,2
+985,"May naiulat na hit and run, maraming nasugatan.",Aksidente,Critical,2,3
+986,"Insidente: nawawalang bata, maliit na problema lamang.",Iba Pa,Minor,5,0
+987,"Insidente: pagguho ng lupa, kailangan ng tulong.",Sakunang Likas,Moderate,4,1
+988,"May naiulat na brownout, may malubhang sugatan.",Iba Pa,Severe,5,2
+989,"Kailangan ng responders para sa malakas na ulan, walang agarang panganib.",Sakunang Likas,Minor,4,0
+990,"Inalerto ang mga awtoridad: pananakit, agarang panganib sa buhay.",Krimen,Critical,1,3
+991,"May naiulat na gulo sa publiko, maliit na problema lamang.",Iba Pa,Minor,5,0
+992,"Kritikal na alerto: pinsala mula sa lindol, walang agarang panganib.",Sakunang Likas,Minor,4,0
+993,"Kritikal na alerto: nahihirapang huminga, maraming nasugatan.",Medikal,Critical,3,3
+994,"Agarang sitwasyon: hindi matukoy na emergency, walang agarang panganib.",Iba Pa,Minor,5,0
+995,"May naiulat na nasusunog na istruktura, maliit na problema lamang.",Sunog,Minor,0,0
+996,"Ipadala ang mga yunit para sa salpukan ng sasakyan, may malubhang sugatan.",Aksidente,Severe,2,2
+997,"Agarang sitwasyon: may usok na lumalabas, sitwasyong nagbabanta sa buhay.",Sunog,Critical,0,3
+998,"Insidente: pananakit ng dibdib, may malubhang sugatan.",Medikal,Severe,3,2
+999,"Kritikal na alerto: pinsala mula sa lindol, kailangan ng agarang tugon.",Sakunang Likas,Moderate,4,1
+1000,"Insidente: sunog sa kuryente, may malubhang sugatan.",Sunog,Severe,0,2
+1001,"Inalerto ang mga awtoridad: aksidente sa trak, lumalala ang sitwasyon.",Aksidente,Moderate,2,1
+1002,"Ipadala ang mga yunit para sa sunog sa kusina, maliit na problema lamang.",Sunog,Minor,0,0
+1003,"Ipadala ang mga yunit para sa aksidente sa kotse, agarang panganib sa buhay.",Aksidente,Critical,2,3
+1004,"Kritikal na alerto: gulo sa publiko, walang nasugatan.",Iba Pa,Minor,5,0
+1005,"May naiulat na karahasan sa bahay, kailangan ng tulong.",Krimen,Moderate,1,1
+1006,"Ipadala ang mga yunit para sa armadong pagnanakaw, kontrolado na ang sitwasyon.",Krimen,Minor,1,0
+1007,"Ipadala ang mga yunit para sa nasusunog na gusali, walang agarang panganib.",Sunog,Minor,0,0
+1008,"Kritikal na alerto: nahihirapang huminga, may malubhang sugatan.",Medikal,Severe,3,2
+1009,"May naiulat na hindi matukoy na emergency, sitwasyong nagbabanta sa buhay.",Iba Pa,Critical,5,3
+1010,"Kailangan ng responders para sa gulo sa publiko, walang nasugatan.",Iba Pa,Minor,5,0
+1011,"Emergency na kinasasangkutan ng hindi matukoy na emergency, kontrolado na ang sitwasyon.",Iba Pa,Minor,5,0
+1012,"Ipadala ang mga yunit para sa hayop na na-trap, kailangan ng tulong.",Iba Pa,Moderate,5,1
+1013,"Inalerto ang mga awtoridad: may usok na lumalabas, agarang panganib sa buhay.",Sunog,Critical,0,3
+1014,"Insidente: epekto ng bagyo, kontrolado na ang sitwasyon.",Sakunang Likas,Minor,4,0
+1015,"Kailangan ng responders para sa nahihirapang huminga, tumitindi ang panganib.",Medikal,Severe,3,2
+1016,"Insidente: storm surge, maliit na problema lamang.",Sakunang Likas,Minor,4,0
+1017,"Inalerto ang mga awtoridad: may usok na lumalabas, may malubhang sugatan.",Sunog,Severe,0,2
+1018,"Insidente: walang malay na pasyente, walang agarang panganib.",Medikal,Minor,3,0
+1019,"Emergency na kinasasangkutan ng nahihirapang huminga, maliit na problema lamang.",Medikal,Minor,3,0
+1020,"Emergency na kinasasangkutan ng brownout, lumalala ang sitwasyon.",Iba Pa,Moderate,5,1
+1021,"Inalerto ang mga awtoridad: nawawalang bata, kailangan ng agarang tulong.",Iba Pa,Severe,5,2
+1022,"Agarang sitwasyon: aksidente sa trak, kailangan ng agarang tugon.",Aksidente,Moderate,2,1
+1023,"Kritikal na alerto: malakas na ulan, may mga taong na-trap.",Sakunang Likas,Critical,4,3
+1024,"Emergency na kinasasangkutan ng pinsala mula sa lindol, sitwasyong nagbabanta sa buhay.",Sakunang Likas,Critical,4,3
+1025,"Emergency na kinasasangkutan ng nahihirapang huminga, kailangan ng agarang tulong.",Medikal,Severe,3,2
+1026,"Kailangan ng responders para sa baha, walang agarang panganib.",Sakunang Likas,Minor,4,0
+1027,"Ipadala ang mga yunit para sa aksidente sa trak, agarang panganib sa buhay.",Aksidente,Critical,2,3
+1028,"Ipadala ang mga yunit para sa kombulsyon, kailangan ng agarang tugon.",Medikal,Moderate,3,1
+1029,"Inalerto ang mga awtoridad: nahihirapang huminga, tumitindi ang panganib.",Medikal,Severe,3,2
+1030,"Kailangan ng responders para sa hit and run, kailangan ng tulong.",Aksidente,Moderate,2,1
+1031,"Ipadala ang mga yunit para sa sunog sa kusina, may malubhang sugatan.",Sunog,Severe,0,2
+1032,"Emergency na kinasasangkutan ng salpukan ng sasakyan, kailangan ng agarang tugon.",Aksidente,Moderate,2,1
+1033,"Agarang sitwasyon: sunog sa kusina, kontrolado na ang sitwasyon.",Sunog,Minor,0,0
+1034,"Ipadala ang mga yunit para sa hit and run, may mga taong na-trap.",Aksidente,Critical,2,3
+1035,"Emergency na kinasasangkutan ng malakas na ulan, posibleng may nasugatan.",Sakunang Likas,Moderate,4,1
+1036,"May naiulat na lalaking may kutsilyo, maraming nasugatan.",Krimen,Critical,1,3
+1037,"Emergency na kinasasangkutan ng nawawalang bata, agarang panganib sa buhay.",Iba Pa,Critical,5,3
+1038,"Agarang sitwasyon: storm surge, may malubhang sugatan.",Sakunang Likas,Severe,4,2
+1039,"Ipadala ang mga yunit para sa sunog sa kusina, kailangan ng agarang tugon.",Sunog,Moderate,0,1
+1040,"Inalerto ang mga awtoridad: aksidente sa trak, kontrolado na ang sitwasyon.",Aksidente,Minor,2,0
+1041,"Kailangan ng responders para sa nasusunog na gusali, kontrolado na ang sitwasyon.",Sunog,Minor,0,0
+1042,"Agarang sitwasyon: nahihirapang huminga, maliit na problema lamang.",Medikal,Minor,3,0
+1043,"Kritikal na alerto: pananakit, kailangan ng agarang tugon.",Krimen,Moderate,1,1
+1044,"Ipadala ang mga yunit para sa storm surge, kailangan ng agarang tugon.",Sakunang Likas,Moderate,4,1
+1045,"Ipadala ang mga yunit para sa hindi matukoy na emergency, may mga taong na-trap.",Iba Pa,Critical,5,3
+1046,"Inalerto ang mga awtoridad: brownout, kontrolado na ang sitwasyon.",Iba Pa,Minor,5,0
+1047,"Kailangan ng responders para sa sunog sa bahay, kontrolado na ang sitwasyon.",Sunog,Minor,0,0
+1048,"Kailangan ng responders para sa baha, may mga taong nasaktan.",Sakunang Likas,Severe,4,2
+1049,"Ipadala ang mga yunit para sa nasusunog na istruktura, may mga taong na-trap.",Sunog,Critical,0,3
+1050,"May naiulat na pananakit ng dibdib, maliit na problema lamang.",Medikal,Minor,3,0
+1051,"Insidente: hindi humihinga, kailangan ng tulong.",Medikal,Moderate,3,1
+1052,"Agarang sitwasyon: pinsala mula sa lindol, may mga taong na-trap.",Sakunang Likas,Critical,4,3
+1053,"Inalerto ang mga awtoridad: sunog sa kuryente, maliit na problema lamang.",Sunog,Minor,0,0
+1054,"Kritikal na alerto: hit and run, may malubhang sugatan.",Aksidente,Severe,2,2
+1055,"Kailangan ng responders para sa epekto ng bagyo, kailangan ng agarang tulong.",Sakunang Likas,Severe,4,2
+1056,"Inalerto ang mga awtoridad: pagguho ng lupa, lumalala ang sitwasyon.",Sakunang Likas,Moderate,4,1
+1057,"Inalerto ang mga awtoridad: aksidente sa kotse, walang nasugatan.",Aksidente,Minor,2,0
+1058,"Insidente: epekto ng bagyo, sitwasyong nagbabanta sa buhay.",Sakunang Likas,Critical,4,3
+1059,"Inalerto ang mga awtoridad: sunog sa kuryente, walang agarang panganib.",Sunog,Minor,0,0
+1060,"Agarang sitwasyon: baha, maraming nasugatan.",Sakunang Likas,Critical,4,3
+1061,"Ipadala ang mga yunit para sa nasusunog na gusali, kontrolado na ang sitwasyon.",Sunog,Minor,0,0
+1062,"May naiulat na banggaan sa kalsada, tumitindi ang panganib.",Aksidente,Severe,2,2
+1063,"Inalerto ang mga awtoridad: pananakit ng dibdib, maraming nasugatan.",Medikal,Critical,3,3
+1064,"May naiulat na armadong pagnanakaw, may malubhang sugatan.",Krimen,Severe,1,2
+1065,"May naiulat na hayop na na-trap, walang nasugatan.",Iba Pa,Minor,5,0
+1066,"Kailangan ng responders para sa banggaan ng motorsiklo, kailangan ng agarang tugon.",Aksidente,Moderate,2,1
+1067,"Insidente: salpukan ng sasakyan, posibleng may nasugatan.",Aksidente,Moderate,2,1
+1068,"May naiulat na walang malay na pasyente, kailangan ng tulong.",Medikal,Moderate,3,1
+1069,"Inalerto ang mga awtoridad: armadong pagnanakaw, kontrolado na ang sitwasyon.",Krimen,Minor,1,0
+1070,"Kailangan ng responders para sa gulo sa publiko, may mga taong na-trap.",Iba Pa,Critical,5,3
+1071,"May naiulat na armadong pagnanakaw, lumalala ang sitwasyon.",Krimen,Moderate,1,1
+1072,"Kritikal na alerto: aksidente sa trak, may malubhang sugatan.",Aksidente,Severe,2,2
+1073,"Inalerto ang mga awtoridad: sunog sa kusina, may malubhang sugatan.",Sunog,Severe,0,2
+1074,"Insidente: banggaan sa kalsada, tumitindi ang panganib.",Aksidente,Severe,2,2
+1075,"Inalerto ang mga awtoridad: hindi humihinga, posibleng may nasugatan.",Medikal,Moderate,3,1
+1076,"Kailangan ng responders para sa salpukan ng sasakyan, may malubhang sugatan.",Aksidente,Severe,2,2
+1077,"Inalerto ang mga awtoridad: salpukan ng sasakyan, lumalala ang sitwasyon.",Aksidente,Moderate,2,1
+1078,"Agarang sitwasyon: hit and run, kailangan ng agarang tugon.",Aksidente,Moderate,2,1
+1079,"Inalerto ang mga awtoridad: kombulsyon, sitwasyong nagbabanta sa buhay.",Medikal,Critical,3,3
+1080,"Kailangan ng responders para sa hindi matukoy na emergency, kailangan ng tulong.",Iba Pa,Moderate,5,1
+1081,"Ipadala ang mga yunit para sa epekto ng bagyo, may malubhang sugatan.",Sakunang Likas,Severe,4,2
+1082,"Insidente: hit and run, walang nasugatan.",Aksidente,Minor,2,0
+1083,"Ipadala ang mga yunit para sa may taong bumagsak, kailangan ng agarang tulong.",Medikal,Severe,3,2
+1084,"May naiulat na kombulsyon, may mga taong nasaktan.",Medikal,Severe,3,2
+1085,"Kritikal na alerto: pananakit ng dibdib, maliit na problema lamang.",Medikal,Minor,3,0
+1086,"Inalerto ang mga awtoridad: salpukan ng sasakyan, kailangan ng agarang tulong.",Aksidente,Severe,2,2
+1087,"Ipadala ang mga yunit para sa pinsala mula sa lindol, walang agarang panganib.",Sakunang Likas,Minor,4,0
+1088,"Emergency na kinasasangkutan ng armadong pagnanakaw, agarang panganib sa buhay.",Krimen,Critical,1,3
+1089,"Kailangan ng responders para sa kombulsyon, may malubhang sugatan.",Medikal,Severe,3,2
+1090,"Ipadala ang mga yunit para sa hindi humihinga, lumalala ang sitwasyon.",Medikal,Moderate,3,1
+1091,"Emergency na kinasasangkutan ng pagguho ng lupa, maliit na problema lamang.",Sakunang Likas,Minor,4,0
+1092,"Kritikal na alerto: banta ng baril, posibleng may nasugatan.",Krimen,Moderate,1,1
+1093,"Inalerto ang mga awtoridad: hindi matukoy na emergency, kailangan ng tulong.",Iba Pa,Moderate,5,1
+1094,"May naiulat na may taong bumagsak, kailangan ng tulong.",Medikal,Moderate,3,1
+1095,"Kritikal na alerto: aksidente sa kotse, kailangan ng agarang tulong.",Aksidente,Severe,2,2
+1096,"Kritikal na alerto: lalaking may kutsilyo, may mga taong na-trap.",Krimen,Critical,1,3
+1097,"Inalerto ang mga awtoridad: aksidente sa trak, walang agarang panganib.",Aksidente,Minor,2,0
+1098,"Kailangan ng responders para sa hindi matukoy na emergency, tumitindi ang panganib.",Iba Pa,Severe,5,2
+1099,"Agarang sitwasyon: salpukan ng sasakyan, maliit na problema lamang.",Aksidente,Minor,2,0
+1100,"Agarang sitwasyon: walang malay na pasyente, agarang panganib sa buhay.",Medikal,Critical,3,3
+1101,"Ipadala ang mga yunit para sa nasusunog na gusali, may mga taong nasaktan.",Sunog,Severe,0,2
+1102,"Inalerto ang mga awtoridad: may usok na lumalabas, kailangan ng agarang tulong.",Sunog,Severe,0,2
+1103,"Insidente: may usok na lumalabas, may malubhang sugatan.",Sunog,Severe,0,2
+1104,"Kritikal na alerto: nawawalang bata, lumalala ang sitwasyon.",Iba Pa,Moderate,5,1
+1105,"Kailangan ng responders para sa sunog sa bahay, maliit na problema lamang.",Sunog,Minor,0,0
+1106,"Emergency na kinasasangkutan ng lalaking may kutsilyo, agarang panganib sa buhay.",Krimen,Critical,1,3
+1107,"Ipadala ang mga yunit para sa aksidente sa kotse, maliit na problema lamang.",Aksidente,Minor,2,0
+1108,"Kailangan ng responders para sa lalaking may kutsilyo, maliit na problema lamang.",Krimen,Minor,1,0
+1109,"Kritikal na alerto: nasusunog na gusali, walang agarang panganib.",Sunog,Minor,0,0
+1110,"Insidente: storm surge, may mga taong na-trap.",Sakunang Likas,Critical,4,3
+1111,"Ipadala ang mga yunit para sa pinsala mula sa lindol, maliit na problema lamang.",Sakunang Likas,Minor,4,0
+1112,"Emergency na kinasasangkutan ng walang malay na pasyente, kailangan ng agarang tugon.",Medikal,Moderate,3,1
+1113,"Emergency na kinasasangkutan ng may taong bumagsak, walang agarang panganib.",Medikal,Minor,3,0
+1114,"Kritikal na alerto: hit and run, kontrolado na ang sitwasyon.",Aksidente,Minor,2,0
+1115,"Inalerto ang mga awtoridad: nasusunog na istruktura, kailangan ng agarang tugon.",Sunog,Moderate,0,1
+1116,"Emergency na kinasasangkutan ng brownout, kailangan ng agarang tulong.",Iba Pa,Severe,5,2
+1117,"May naiulat na nahihirapang huminga, kailangan ng agarang tugon.",Medikal,Moderate,3,1
+1118,"Ipadala ang mga yunit para sa aksidente sa trak, kailangan ng tulong.",Aksidente,Moderate,2,1
+1119,"Kailangan ng responders para sa nahihirapang huminga, maraming nasugatan.",Medikal,Critical,3,3
+1120,"Ipadala ang mga yunit para sa nasusunog na istruktura, agarang panganib sa buhay.",Sunog,Critical,0,3
+1121,"Ipadala ang mga yunit para sa nahihirapang huminga, kailangan ng tulong.",Medikal,Moderate,3,1
+1122,"Kritikal na alerto: lalaking may kutsilyo, may mga taong nasaktan.",Krimen,Severe,1,2
+1123,"Emergency na kinasasangkutan ng sunog sa kuryente, maraming nasugatan.",Sunog,Critical,0,3
+1124,"Kritikal na alerto: may taong bumagsak, may malubhang sugatan.",Medikal,Severe,3,2
+1125,"Inalerto ang mga awtoridad: banggaan ng motorsiklo, walang agarang panganib.",Aksidente,Minor,2,0
+1126,"Emergency na kinasasangkutan ng may taong bumagsak, may mga taong na-trap.",Medikal,Critical,3,3
+1127,"May naiulat na pananakit ng dibdib, kailangan ng agarang tulong.",Medikal,Severe,3,2
+1128,"Agarang sitwasyon: hayop na na-trap, agarang panganib sa buhay.",Iba Pa,Critical,5,3
+1129,"Ipadala ang mga yunit para sa pinsala mula sa lindol, posibleng may nasugatan.",Sakunang Likas,Moderate,4,1
+1130,"Inalerto ang mga awtoridad: banggaan sa kalsada, sitwasyong nagbabanta sa buhay.",Aksidente,Critical,2,3
+1131,"Kritikal na alerto: karahasan sa bahay, maliit na problema lamang.",Krimen,Minor,1,0
+1132,"Agarang sitwasyon: karahasan sa bahay, maliit na problema lamang.",Krimen,Minor,1,0
+1133,"Kailangan ng responders para sa aksidente sa trak, may malubhang sugatan.",Aksidente,Severe,2,2
+1134,"Kritikal na alerto: may taong bumagsak, agarang panganib sa buhay.",Medikal,Critical,3,3
+1135,"Ipadala ang mga yunit para sa may usok na lumalabas, may mga taong na-trap.",Sunog,Critical,0,3
+1136,"Insidente: sunog sa kuryente, tumitindi ang panganib.",Sunog,Severe,0,2
+1137,"Emergency na kinasasangkutan ng storm surge, kailangan ng agarang tulong.",Sakunang Likas,Severe,4,2
+1138,"Ipadala ang mga yunit para sa salpukan ng sasakyan, may malubhang sugatan.",Aksidente,Severe,2,2
+1139,"Emergency na kinasasangkutan ng epekto ng bagyo, walang agarang panganib.",Sakunang Likas,Minor,4,0
+1140,"Insidente: hayop na na-trap, walang nasugatan.",Iba Pa,Minor,5,0
+1141,"May naiulat na hayop na na-trap, agarang panganib sa buhay.",Iba Pa,Critical,5,3
+1142,"Inalerto ang mga awtoridad: pananakit ng dibdib, may malubhang sugatan.",Medikal,Severe,3,2
+1143,"Kritikal na alerto: malakas na ulan, walang agarang panganib.",Sakunang Likas,Minor,4,0
+1144,"Emergency na kinasasangkutan ng sapilitang pasok, maraming nasugatan.",Krimen,Critical,1,3
+1145,"Kritikal na alerto: banggaan sa kalsada, maliit na problema lamang.",Aksidente,Minor,2,0
+1146,"Kritikal na alerto: hit and run, kailangan ng agarang tulong.",Aksidente,Severe,2,2
+1147,"Insidente: aksidente sa kotse, posibleng may nasugatan.",Aksidente,Moderate,2,1
+1148,"Kritikal na alerto: hayop na na-trap, posibleng may nasugatan.",Iba Pa,Moderate,5,1
+1149,"Emergency na kinasasangkutan ng banta ng baril, maliit na problema lamang.",Krimen,Minor,1,0
+1150,"Ipadala ang mga yunit para sa sapilitang pasok, may mga taong na-trap.",Krimen,Critical,1,3
+1151,"May naiulat na nasusunog na gusali, agarang panganib sa buhay.",Sunog,Critical,0,3
+1152,"Inalerto ang mga awtoridad: banggaan sa kalsada, sitwasyong nagbabanta sa buhay.",Aksidente,Critical,2,3
+1153,"Inalerto ang mga awtoridad: epekto ng bagyo, kontrolado na ang sitwasyon.",Sakunang Likas,Minor,4,0
+1154,"Ipadala ang mga yunit para sa pinsala mula sa lindol, may mga taong nasaktan.",Sakunang Likas,Severe,4,2
+1155,"Kailangan ng responders para sa kombulsyon, agarang panganib sa buhay.",Medikal,Critical,3,3
+1156,"Agarang sitwasyon: nawawalang bata, walang nasugatan.",Iba Pa,Minor,5,0
+1157,"Ipadala ang mga yunit para sa pagguho ng lupa, maraming nasugatan.",Sakunang Likas,Critical,4,3
+1158,"Ipadala ang mga yunit para sa banggaan ng motorsiklo, kontrolado na ang sitwasyon.",Aksidente,Minor,2,0
+1159,"Insidente: pagguho ng lupa, posibleng may nasugatan.",Sakunang Likas,Moderate,4,1
+1160,"Insidente: nasusunog na istruktura, maliit na problema lamang.",Sunog,Minor,0,0
+1161,"May naiulat na sunog sa kusina, kailangan ng agarang tulong.",Sunog,Severe,0,2
+1162,"Emergency na kinasasangkutan ng nawawalang bata, maraming nasugatan.",Iba Pa,Critical,5,3
+1163,"Kritikal na alerto: banta ng baril, walang agarang panganib.",Krimen,Minor,1,0
+1164,"May naiulat na lalaking may kutsilyo, kontrolado na ang sitwasyon.",Krimen,Minor,1,0
+1165,"Emergency na kinasasangkutan ng pagguho ng lupa, may mga taong na-trap.",Sakunang Likas,Critical,4,3
+1166,"Kailangan ng responders para sa pinsala mula sa lindol, kontrolado na ang sitwasyon.",Sakunang Likas,Minor,4,0
+1167,"Ipadala ang mga yunit para sa nahihirapang huminga, tumitindi ang panganib.",Medikal,Severe,3,2
+1168,"Ipadala ang mga yunit para sa banggaan ng motorsiklo, kontrolado na ang sitwasyon.",Aksidente,Minor,2,0
+1169,"Agarang sitwasyon: hit and run, may mga taong nasaktan.",Aksidente,Severe,2,2
+1170,"Insidente: banta ng baril, kailangan ng agarang tulong.",Krimen,Severe,1,2
+1171,"Agarang sitwasyon: banggaan sa kalsada, maraming nasugatan.",Aksidente,Critical,2,3
+1172,"May naiulat na hindi matukoy na emergency, posibleng may nasugatan.",Iba Pa,Moderate,5,1
+1173,"Kritikal na alerto: hindi matukoy na emergency, may mga taong na-trap.",Iba Pa,Critical,5,3
+1174,"Inalerto ang mga awtoridad: sunog sa kuryente, walang agarang panganib.",Sunog,Minor,0,0
+1175,"Inalerto ang mga awtoridad: aksidente sa kotse, lumalala ang sitwasyon.",Aksidente,Moderate,2,1
+1176,"Ipadala ang mga yunit para sa hit and run, walang agarang panganib.",Aksidente,Minor,2,0
+1177,"Inalerto ang mga awtoridad: may taong bumagsak, tumitindi ang panganib.",Medikal,Severe,3,2
+1178,"Emergency na kinasasangkutan ng sunog sa kusina, kailangan ng tulong.",Sunog,Moderate,0,1
+1179,"Inalerto ang mga awtoridad: epekto ng bagyo, may mga taong na-trap.",Sakunang Likas,Critical,4,3
+1180,"Inalerto ang mga awtoridad: banta ng baril, lumalala ang sitwasyon.",Krimen,Moderate,1,1
+1181,"Inalerto ang mga awtoridad: sunog sa kusina, walang agarang panganib.",Sunog,Minor,0,0
+1182,"Agarang sitwasyon: nasusunog na istruktura, may mga taong na-trap.",Sunog,Critical,0,3
+1183,"Inalerto ang mga awtoridad: storm surge, may malubhang sugatan.",Sakunang Likas,Severe,4,2
+1184,"Insidente: pananakit ng dibdib, kailangan ng agarang tulong.",Medikal,Severe,3,2
+1185,"Emergency na kinasasangkutan ng nawawalang bata, may mga taong na-trap.",Iba Pa,Critical,5,3
+1186,"Agarang sitwasyon: baha, kontrolado na ang sitwasyon.",Sakunang Likas,Minor,4,0
+1187,"Agarang sitwasyon: salpukan ng sasakyan, may mga taong nasaktan.",Aksidente,Severe,2,2
+1188,"Inalerto ang mga awtoridad: karahasan sa bahay, walang nasugatan.",Krimen,Minor,1,0
+1189,"May naiulat na brownout, lumalala ang sitwasyon.",Iba Pa,Moderate,5,1
+1190,"Insidente: sapilitang pasok, kailangan ng agarang tulong.",Krimen,Severe,1,2
+1191,"Emergency na kinasasangkutan ng armadong pagnanakaw, walang nasugatan.",Krimen,Minor,1,0
+1192,"Kritikal na alerto: walang malay na pasyente, kailangan ng agarang tulong.",Medikal,Severe,3,2
+1193,"Emergency na kinasasangkutan ng sunog sa kuryente, maraming nasugatan.",Sunog,Critical,0,3
+1194,"Ipadala ang mga yunit para sa baha, kontrolado na ang sitwasyon.",Sakunang Likas,Minor,4,0
+1195,"Kailangan ng responders para sa lalaking may kutsilyo, agarang panganib sa buhay.",Krimen,Critical,1,3
+1196,"Agarang sitwasyon: banggaan sa kalsada, tumitindi ang panganib.",Aksidente,Severe,2,2
+1197,"Kritikal na alerto: banta ng baril, agarang panganib sa buhay.",Krimen,Critical,1,3
+1198,"Ipadala ang mga yunit para sa hindi humihinga, posibleng may nasugatan.",Medikal,Moderate,3,1
+1199,"Kritikal na alerto: storm surge, walang agarang panganib.",Sakunang Likas,Minor,4,0
+1200,"Kritikal na alerto: may usok na lumalabas, agarang panganib sa buhay.",Sunog,Critical,0,3
+1201,"Ipadala ang mga yunit para sa sunog sa bahay, tumitindi ang panganib.",Sunog,Severe,0,2
+1202,"Emergency na kinasasangkutan ng gulo sa publiko, walang nasugatan.",Iba Pa,Minor,5,0
+1203,"Kritikal na alerto: hit and run, posibleng may nasugatan.",Aksidente,Moderate,2,1
+1204,"Ipadala ang mga yunit para sa hayop na na-trap, maraming nasugatan.",Iba Pa,Critical,5,3
+1205,"Ipadala ang mga yunit para sa karahasan sa bahay, may malubhang sugatan.",Krimen,Severe,1,2
+1206,"Kailangan ng responders para sa sunog sa bahay, walang agarang panganib.",Sunog,Minor,0,0
+1207,"Insidente: aksidente sa trak, kailangan ng agarang tulong.",Aksidente,Severe,2,2
+1208,"Emergency na kinasasangkutan ng lalaking may kutsilyo, lumalala ang sitwasyon.",Krimen,Moderate,1,1
+1209,"Inalerto ang mga awtoridad: nasusunog na istruktura, kailangan ng agarang tulong.",Sunog,Severe,0,2
+1210,"Insidente: nahihirapang huminga, kontrolado na ang sitwasyon.",Medikal,Minor,3,0
+1211,"May naiulat na may usok na lumalabas, may mga taong na-trap.",Sunog,Critical,0,3
+1212,"Inalerto ang mga awtoridad: may usok na lumalabas, maliit na problema lamang.",Sunog,Minor,0,0
+1213,"Emergency na kinasasangkutan ng sunog sa kusina, maliit na problema lamang.",Sunog,Minor,0,0
+1214,"May naiulat na karahasan sa bahay, posibleng may nasugatan.",Krimen,Moderate,1,1
+1215,"Agarang sitwasyon: pananakit ng dibdib, kailangan ng agarang tulong.",Medikal,Severe,3,2
+1216,"Inalerto ang mga awtoridad: pinsala mula sa lindol, maraming nasugatan.",Sakunang Likas,Critical,4,3
+1217,"Insidente: nahihirapang huminga, may malubhang sugatan.",Medikal,Severe,3,2
+1218,"Kritikal na alerto: may taong bumagsak, may malubhang sugatan.",Medikal,Severe,3,2
+1219,"Agarang sitwasyon: may usok na lumalabas, walang nasugatan.",Sunog,Minor,0,0
+1220,"Insidente: sunog sa kuryente, lumalala ang sitwasyon.",Sunog,Moderate,0,1
+1221,"Inalerto ang mga awtoridad: nasusunog na istruktura, maliit na problema lamang.",Sunog,Minor,0,0
+1222,"Insidente: banta ng baril, walang agarang panganib.",Krimen,Minor,1,0
+1223,"Ipadala ang mga yunit para sa may taong bumagsak, may mga taong nasaktan.",Medikal,Severe,3,2
+1224,"Inalerto ang mga awtoridad: kombulsyon, kailangan ng tulong.",Medikal,Moderate,3,1
+1225,"Insidente: hayop na na-trap, kontrolado na ang sitwasyon.",Iba Pa,Minor,5,0
+1226,"Kritikal na alerto: sunog sa bahay, sitwasyong nagbabanta sa buhay.",Sunog,Critical,0,3
+1227,"Insidente: malakas na ulan, may malubhang sugatan.",Sakunang Likas,Severe,4,2
+1228,"Emergency na kinasasangkutan ng pananakit, kailangan ng tulong.",Krimen,Moderate,1,1
+1229,"Ipadala ang mga yunit para sa aksidente sa trak, may malubhang sugatan.",Aksidente,Severe,2,2
+1230,"Agarang sitwasyon: banggaan ng motorsiklo, kailangan ng agarang tugon.",Aksidente,Moderate,2,1
+1231,"Insidente: hindi matukoy na emergency, lumalala ang sitwasyon.",Iba Pa,Moderate,5,1
+1232,"Inalerto ang mga awtoridad: salpukan ng sasakyan, tumitindi ang panganib.",Aksidente,Severe,2,2
+1233,"Insidente: pananakit, kailangan ng tulong.",Krimen,Moderate,1,1
+1234,"Inalerto ang mga awtoridad: banta ng baril, kailangan ng tulong.",Krimen,Moderate,1,1
+1235,"May naiulat na nahihirapang huminga, sitwasyong nagbabanta sa buhay.",Medikal,Critical,3,3
+1236,"Inalerto ang mga awtoridad: may taong bumagsak, kailangan ng tulong.",Medikal,Moderate,3,1
+1237,"Kailangan ng responders para sa hindi matukoy na emergency, agarang panganib sa buhay.",Iba Pa,Critical,5,3
+1238,"Inalerto ang mga awtoridad: banggaan sa kalsada, may mga taong nasaktan.",Aksidente,Severe,2,2
+1239,"Insidente: brownout, walang nasugatan.",Iba Pa,Minor,5,0
+1240,"Emergency na kinasasangkutan ng kombulsyon, may mga taong nasaktan.",Medikal,Severe,3,2
+1241,"Kritikal na alerto: pinsala mula sa lindol, tumitindi ang panganib.",Sakunang Likas,Severe,4,2
+1242,"Inalerto ang mga awtoridad: baha, agarang panganib sa buhay.",Sakunang Likas,Critical,4,3
+1243,"Kritikal na alerto: hit and run, walang agarang panganib.",Aksidente,Minor,2,0
+1244,"Kritikal na alerto: lalaking may kutsilyo, walang nasugatan.",Krimen,Minor,1,0
+1245,"May naiulat na aksidente sa kotse, walang agarang panganib.",Aksidente,Minor,2,0
+1246,"Ipadala ang mga yunit para sa pagguho ng lupa, maraming nasugatan.",Sakunang Likas,Critical,4,3
+1247,"Kritikal na alerto: nahihirapang huminga, kailangan ng tulong.",Medikal,Moderate,3,1
+1248,"Kritikal na alerto: walang malay na pasyente, kailangan ng tulong.",Medikal,Moderate,3,1
+1249,"Agarang sitwasyon: aksidente sa trak, kailangan ng tulong.",Aksidente,Moderate,2,1
+1250,"Kritikal na alerto: sunog sa kuryente, lumalala ang sitwasyon.",Sunog,Moderate,0,1
+1251,"Emergency na kinasasangkutan ng lalaking may kutsilyo, kailangan ng agarang tulong.",Krimen,Severe,1,2
+1252,"Inalerto ang mga awtoridad: may usok na lumalabas, kailangan ng tulong.",Sunog,Moderate,0,1
+1253,"May naiulat na pananakit, may mga taong nasaktan.",Krimen,Severe,1,2
+1254,"Agarang sitwasyon: may taong bumagsak, kailangan ng agarang tugon.",Medikal,Moderate,3,1
+1255,"Ipadala ang mga yunit para sa salpukan ng sasakyan, maliit na problema lamang.",Aksidente,Minor,2,0
+1256,"Kritikal na alerto: pagguho ng lupa, maraming nasugatan.",Sakunang Likas,Critical,4,3
+1257,"Emergency na kinasasangkutan ng walang malay na pasyente, walang agarang panganib.",Medikal,Minor,3,0
+1258,"Emergency na kinasasangkutan ng epekto ng bagyo, sitwasyong nagbabanta sa buhay.",Sakunang Likas,Critical,4,3
+1259,"Agarang sitwasyon: aksidente sa trak, walang agarang panganib.",Aksidente,Minor,2,0
+1260,"Inalerto ang mga awtoridad: gulo sa publiko, agarang panganib sa buhay.",Iba Pa,Critical,5,3
+1261,"Kritikal na alerto: nasusunog na istruktura, kailangan ng tulong.",Sunog,Moderate,0,1
+1262,"Agarang sitwasyon: storm surge, tumitindi ang panganib.",Sakunang Likas,Severe,4,2
+1263,"Kritikal na alerto: aksidente sa kotse, kailangan ng agarang tugon.",Aksidente,Moderate,2,1
+1264,"Kritikal na alerto: aksidente sa trak, maraming nasugatan.",Aksidente,Critical,2,3
+1265,"Inalerto ang mga awtoridad: nawawalang bata, kailangan ng agarang tulong.",Iba Pa,Severe,5,2
+1266,"Ipadala ang mga yunit para sa hindi matukoy na emergency, maraming nasugatan.",Iba Pa,Critical,5,3
+1267,"Kritikal na alerto: kombulsyon, walang nasugatan.",Medikal,Minor,3,0
+1268,"Emergency na kinasasangkutan ng pananakit, maraming nasugatan.",Krimen,Critical,1,3
+1269,"Inalerto ang mga awtoridad: pananakit ng dibdib, maliit na problema lamang.",Medikal,Minor,3,0
+1270,"Ipadala ang mga yunit para sa pagguho ng lupa, lumalala ang sitwasyon.",Sakunang Likas,Moderate,4,1
+1271,"Insidente: epekto ng bagyo, walang agarang panganib.",Sakunang Likas,Minor,4,0
+1272,"Kritikal na alerto: sunog sa kuryente, may mga taong na-trap.",Sunog,Critical,0,3
+1273,"Kritikal na alerto: epekto ng bagyo, kontrolado na ang sitwasyon.",Sakunang Likas,Minor,4,0
+1274,"Kailangan ng responders para sa karahasan sa bahay, kailangan ng agarang tulong.",Krimen,Severe,1,2
+1275,"Inalerto ang mga awtoridad: sunog sa kuryente, may mga taong na-trap.",Sunog,Critical,0,3
+1276,"Insidente: hindi matukoy na emergency, walang nasugatan.",Iba Pa,Minor,5,0
+1277,"Kritikal na alerto: brownout, lumalala ang sitwasyon.",Iba Pa,Moderate,5,1
+1278,"May naiulat na aksidente sa kotse, maraming nasugatan.",Aksidente,Critical,2,3
+1279,"Kailangan ng responders para sa walang malay na pasyente, tumitindi ang panganib.",Medikal,Severe,3,2
+1280,"Emergency na kinasasangkutan ng sunog sa kuryente, lumalala ang sitwasyon.",Sunog,Moderate,0,1
+1281,"Insidente: sapilitang pasok, may mga taong na-trap.",Krimen,Critical,1,3
+1282,"Kailangan ng responders para sa aksidente sa kotse, maraming nasugatan.",Aksidente,Critical,2,3
+1283,"Insidente: may usok na lumalabas, kailangan ng agarang tugon.",Sunog,Moderate,0,1
+1284,"Agarang sitwasyon: walang malay na pasyente, sitwasyong nagbabanta sa buhay.",Medikal,Critical,3,3
+1285,"Ipadala ang mga yunit para sa sapilitang pasok, may malubhang sugatan.",Krimen,Severe,1,2
+1286,"Kritikal na alerto: malakas na ulan, walang agarang panganib.",Sakunang Likas,Minor,4,0
+1287,"Kailangan ng responders para sa sunog sa kuryente, walang agarang panganib.",Sunog,Minor,0,0
+1288,"Agarang sitwasyon: gulo sa publiko, sitwasyong nagbabanta sa buhay.",Iba Pa,Critical,5,3
+1289,"May naiulat na hayop na na-trap, walang nasugatan.",Iba Pa,Minor,5,0
+1290,"Kritikal na alerto: brownout, kailangan ng tulong.",Iba Pa,Moderate,5,1
+1291,"Kailangan ng responders para sa sapilitang pasok, walang agarang panganib.",Krimen,Minor,1,0
+1292,"Emergency na kinasasangkutan ng sunog sa bahay, kailangan ng tulong.",Sunog,Moderate,0,1
+1293,"Emergency na kinasasangkutan ng pananakit ng dibdib, kailangan ng agarang tugon.",Medikal,Moderate,3,1
+1294,"Ipadala ang mga yunit para sa pagguho ng lupa, kailangan ng tulong.",Sakunang Likas,Moderate,4,1
+1295,"Ipadala ang mga yunit para sa hayop na na-trap, tumitindi ang panganib.",Iba Pa,Severe,5,2
+1296,"Insidente: sunog sa bahay, kailangan ng tulong.",Sunog,Moderate,0,1
+1297,"Kailangan ng responders para sa hit and run, may mga taong nasaktan.",Aksidente,Severe,2,2
+1298,"Kailangan ng responders para sa may usok na lumalabas, kailangan ng tulong.",Sunog,Moderate,0,1
+1299,"Emergency na kinasasangkutan ng lalaking may kutsilyo, maliit na problema lamang.",Krimen,Minor,1,0
+1300,"Ipadala ang mga yunit para sa armadong pagnanakaw, posibleng may nasugatan.",Krimen,Moderate,1,1
+1301,"Inalerto ang mga awtoridad: salpukan ng sasakyan, posibleng may nasugatan.",Aksidente,Moderate,2,1
+1302,"Kailangan ng responders para sa may taong bumagsak, may malubhang sugatan.",Medikal,Severe,3,2
+1303,"Kritikal na alerto: karahasan sa bahay, kailangan ng agarang tugon.",Krimen,Moderate,1,1
+1304,"Kailangan ng responders para sa banggaan ng motorsiklo, kailangan ng tulong.",Aksidente,Moderate,2,1
+1305,"Ipadala ang mga yunit para sa banggaan sa kalsada, maliit na problema lamang.",Aksidente,Minor,2,0
+1306,"Emergency na kinasasangkutan ng pananakit, tumitindi ang panganib.",Krimen,Severe,1,2
+1307,"May naiulat na sunog sa kusina, walang agarang panganib.",Sunog,Minor,0,0
+1308,"Insidente: hindi humihinga, walang nasugatan.",Medikal,Minor,3,0
+1309,"Ipadala ang mga yunit para sa brownout, walang nasugatan.",Iba Pa,Minor,5,0
+1310,"May naiulat na hayop na na-trap, maraming nasugatan.",Iba Pa,Critical,5,3
+1311,"May naiulat na banta ng baril, agarang panganib sa buhay.",Krimen,Critical,1,3
+1312,"Emergency na kinasasangkutan ng hindi humihinga, maliit na problema lamang.",Medikal,Minor,3,0
+1313,"Ipadala ang mga yunit para sa karahasan sa bahay, kailangan ng agarang tugon.",Krimen,Moderate,1,1
+1314,"Agarang sitwasyon: gulo sa publiko, lumalala ang sitwasyon.",Iba Pa,Moderate,5,1
+1315,"Agarang sitwasyon: sunog sa kuryente, maliit na problema lamang.",Sunog,Minor,0,0
+1316,"Agarang sitwasyon: baha, kailangan ng tulong.",Sakunang Likas,Moderate,4,1
+1317,"Inalerto ang mga awtoridad: malakas na ulan, kontrolado na ang sitwasyon.",Sakunang Likas,Minor,4,0
+1318,"May naiulat na karahasan sa bahay, kontrolado na ang sitwasyon.",Krimen,Minor,1,0
+1319,"Ipadala ang mga yunit para sa nawawalang bata, sitwasyong nagbabanta sa buhay.",Iba Pa,Critical,5,3
+1320,"Kailangan ng responders para sa banta ng baril, may mga taong nasaktan.",Krimen,Severe,1,2
+1321,"Ipadala ang mga yunit para sa salpukan ng sasakyan, kailangan ng tulong.",Aksidente,Moderate,2,1
+1322,"Inalerto ang mga awtoridad: banggaan sa kalsada, sitwasyong nagbabanta sa buhay.",Aksidente,Critical,2,3
+1323,"Emergency na kinasasangkutan ng malakas na ulan, may malubhang sugatan.",Sakunang Likas,Severe,4,2
+1324,"May naiulat na walang malay na pasyente, kailangan ng agarang tulong.",Medikal,Severe,3,2
+1325,"Insidente: aksidente sa trak, kailangan ng agarang tugon.",Aksidente,Moderate,2,1
+1326,"Inalerto ang mga awtoridad: aksidente sa trak, lumalala ang sitwasyon.",Aksidente,Moderate,2,1
+1327,"Inalerto ang mga awtoridad: baha, walang agarang panganib.",Sakunang Likas,Minor,4,0
+1328,"Agarang sitwasyon: sunog sa kuryente, maliit na problema lamang.",Sunog,Minor,0,0
+1329,"Kailangan ng responders para sa aksidente sa trak, lumalala ang sitwasyon.",Aksidente,Moderate,2,1
+1330,"May naiulat na sunog sa kuryente, posibleng may nasugatan.",Sunog,Moderate,0,1
+1331,"May naiulat na lalaking may kutsilyo, kailangan ng agarang tulong.",Krimen,Severe,1,2
+1332,"Emergency na kinasasangkutan ng epekto ng bagyo, maraming nasugatan.",Sakunang Likas,Critical,4,3
+1333,"Inalerto ang mga awtoridad: brownout, posibleng may nasugatan.",Iba Pa,Moderate,5,1
+1334,"Ipadala ang mga yunit para sa gulo sa publiko, lumalala ang sitwasyon.",Iba Pa,Moderate,5,1
+1335,"Ipadala ang mga yunit para sa armadong pagnanakaw, kailangan ng agarang tugon.",Krimen,Moderate,1,1
+1336,"May naiulat na banggaan ng motorsiklo, kailangan ng tulong.",Aksidente,Moderate,2,1
+1337,"May naiulat na lalaking may kutsilyo, sitwasyong nagbabanta sa buhay.",Krimen,Critical,1,3
+1338,"Insidente: sapilitang pasok, kailangan ng agarang tugon.",Krimen,Moderate,1,1
+1339,"Agarang sitwasyon: malakas na ulan, kailangan ng tulong.",Sakunang Likas,Moderate,4,1
+1340,"Kritikal na alerto: gulo sa publiko, may mga taong na-trap.",Iba Pa,Critical,5,3
+1341,"Inalerto ang mga awtoridad: nasusunog na gusali, tumitindi ang panganib.",Sunog,Severe,0,2
+1342,"Inalerto ang mga awtoridad: walang malay na pasyente, may mga taong na-trap.",Medikal,Critical,3,3
+1343,"Kailangan ng responders para sa storm surge, lumalala ang sitwasyon.",Sakunang Likas,Moderate,4,1
+1344,"May naiulat na hindi humihinga, may mga taong nasaktan.",Medikal,Severe,3,2
+1345,"Kritikal na alerto: nasusunog na istruktura, maliit na problema lamang.",Sunog,Minor,0,0
+1346,"Agarang sitwasyon: brownout, may malubhang sugatan.",Iba Pa,Severe,5,2
+1347,"Agarang sitwasyon: pananakit ng dibdib, may mga taong nasaktan.",Medikal,Severe,3,2
+1348,"Insidente: epekto ng bagyo, lumalala ang sitwasyon.",Sakunang Likas,Moderate,4,1
+1349,"Ipadala ang mga yunit para sa brownout, walang nasugatan.",Iba Pa,Minor,5,0
+1350,"Kritikal na alerto: baha, kailangan ng agarang tugon.",Sakunang Likas,Moderate,4,1
+1351,"May naiulat na baha, posibleng may nasugatan.",Sakunang Likas,Moderate,4,1
+1352,"Agarang sitwasyon: nasusunog na gusali, kailangan ng agarang tugon.",Sunog,Moderate,0,1
+1353,"May naiulat na baha, maliit na problema lamang.",Sakunang Likas,Minor,4,0
+1354,"Inalerto ang mga awtoridad: aksidente sa kotse, walang nasugatan.",Aksidente,Minor,2,0
+1355,"Emergency na kinasasangkutan ng hayop na na-trap, kailangan ng tulong.",Iba Pa,Moderate,5,1
+1356,"Insidente: aksidente sa kotse, walang agarang panganib.",Aksidente,Minor,2,0
+1357,"May naiulat na aksidente sa trak, kailangan ng agarang tugon.",Aksidente,Moderate,2,1
+1358,"Kritikal na alerto: gulo sa publiko, may mga taong na-trap.",Iba Pa,Critical,5,3
+1359,"Emergency na kinasasangkutan ng salpukan ng sasakyan, kailangan ng agarang tulong.",Aksidente,Severe,2,2
+1360,"Emergency na kinasasangkutan ng hayop na na-trap, maliit na problema lamang.",Iba Pa,Minor,5,0
+1361,"Insidente: walang malay na pasyente, walang nasugatan.",Medikal,Minor,3,0
+1362,"Insidente: brownout, sitwasyong nagbabanta sa buhay.",Iba Pa,Critical,5,3
+1363,"May naiulat na sunog sa bahay, tumitindi ang panganib.",Sunog,Severe,0,2
+1364,"Kailangan ng responders para sa sunog sa bahay, may mga taong nasaktan.",Sunog,Severe,0,2
+1365,"Agarang sitwasyon: banggaan sa kalsada, maraming nasugatan.",Aksidente,Critical,2,3
+1366,"Kritikal na alerto: pinsala mula sa lindol, may mga taong nasaktan.",Sakunang Likas,Severe,4,2
+1367,"Kritikal na alerto: malakas na ulan, agarang panganib sa buhay.",Sakunang Likas,Critical,4,3
+1368,"Ipadala ang mga yunit para sa epekto ng bagyo, kailangan ng tulong.",Sakunang Likas,Moderate,4,1
+1369,"May naiulat na banggaan ng motorsiklo, may mga taong na-trap.",Aksidente,Critical,2,3
+1370,"Inalerto ang mga awtoridad: baha, kailangan ng tulong.",Sakunang Likas,Moderate,4,1
+1371,"Insidente: sunog sa kusina, may mga taong nasaktan.",Sunog,Severe,0,2
+1372,"Inalerto ang mga awtoridad: aksidente sa kotse, may mga taong nasaktan.",Aksidente,Severe,2,2
+1373,"Emergency na kinasasangkutan ng banta ng baril, kailangan ng agarang tugon.",Krimen,Moderate,1,1
+1374,"Kritikal na alerto: sapilitang pasok, lumalala ang sitwasyon.",Krimen,Moderate,1,1
+1375,"May naiulat na pagguho ng lupa, posibleng may nasugatan.",Sakunang Likas,Moderate,4,1
+1376,"Kritikal na alerto: aksidente sa trak, agarang panganib sa buhay.",Aksidente,Critical,2,3
+1377,"Emergency na kinasasangkutan ng pananakit, walang agarang panganib.",Krimen,Minor,1,0
+1378,"Kritikal na alerto: epekto ng bagyo, posibleng may nasugatan.",Sakunang Likas,Moderate,4,1
+1379,"Emergency na kinasasangkutan ng pananakit ng dibdib, tumitindi ang panganib.",Medikal,Severe,3,2
+1380,"Kritikal na alerto: banggaan sa kalsada, posibleng may nasugatan.",Aksidente,Moderate,2,1
+1381,"Kritikal na alerto: malakas na ulan, kailangan ng agarang tulong.",Sakunang Likas,Severe,4,2
+1382,"May naiulat na salpukan ng sasakyan, maraming nasugatan.",Aksidente,Critical,2,3
+1383,"Emergency na kinasasangkutan ng pananakit ng dibdib, lumalala ang sitwasyon.",Medikal,Moderate,3,1
+1384,"May naiulat na nasusunog na istruktura, maraming nasugatan.",Sunog,Critical,0,3
+1385,"Agarang sitwasyon: storm surge, lumalala ang sitwasyon.",Sakunang Likas,Moderate,4,1
+1386,"Insidente: hindi humihinga, lumalala ang sitwasyon.",Medikal,Moderate,3,1
+1387,"May naiulat na banggaan sa kalsada, maliit na problema lamang.",Aksidente,Minor,2,0
+1388,"May naiulat na hindi humihinga, posibleng may nasugatan.",Medikal,Moderate,3,1
+1389,"Kritikal na alerto: aksidente sa kotse, kailangan ng agarang tugon.",Aksidente,Moderate,2,1
+1390,"May naiulat na sapilitang pasok, agarang panganib sa buhay.",Krimen,Critical,1,3
+1391,"Emergency na kinasasangkutan ng nawawalang bata, posibleng may nasugatan.",Iba Pa,Moderate,5,1
+1392,"Ipadala ang mga yunit para sa hindi matukoy na emergency, walang nasugatan.",Iba Pa,Minor,5,0
+1393,"Inalerto ang mga awtoridad: salpukan ng sasakyan, sitwasyong nagbabanta sa buhay.",Aksidente,Critical,2,3
+1394,"Ipadala ang mga yunit para sa lalaking may kutsilyo, agarang panganib sa buhay.",Krimen,Critical,1,3
+1395,"Insidente: hindi matukoy na emergency, sitwasyong nagbabanta sa buhay.",Iba Pa,Critical,5,3
+1396,"Insidente: lalaking may kutsilyo, may mga taong na-trap.",Krimen,Critical,1,3
+1397,"Ipadala ang mga yunit para sa banggaan ng motorsiklo, kailangan ng tulong.",Aksidente,Moderate,2,1
+1398,"Emergency na kinasasangkutan ng lalaking may kutsilyo, agarang panganib sa buhay.",Krimen,Critical,1,3
+1399,"Agarang sitwasyon: karahasan sa bahay, kailangan ng agarang tugon.",Krimen,Moderate,1,1
+1400,"Insidente: banggaan ng motorsiklo, lumalala ang sitwasyon.",Aksidente,Moderate,2,1
+1401,"Ipadala ang mga yunit para sa brownout, lumalala ang sitwasyon.",Iba Pa,Moderate,5,1
+1402,"Ipadala ang mga yunit para sa brownout, may malubhang sugatan.",Iba Pa,Severe,5,2
+1403,"Inalerto ang mga awtoridad: baha, tumitindi ang panganib.",Sakunang Likas,Severe,4,2
+1404,"Ipadala ang mga yunit para sa gulo sa publiko, kailangan ng agarang tulong.",Iba Pa,Severe,5,2
+1405,"May naiulat na banggaan ng motorsiklo, kailangan ng agarang tugon.",Aksidente,Moderate,2,1
+1406,"Inalerto ang mga awtoridad: lalaking may kutsilyo, may malubhang sugatan.",Krimen,Severe,1,2
+1407,"Ipadala ang mga yunit para sa may usok na lumalabas, agarang panganib sa buhay.",Sunog,Critical,0,3
+1408,"Emergency na kinasasangkutan ng hindi matukoy na emergency, lumalala ang sitwasyon.",Iba Pa,Moderate,5,1
+1409,"Kailangan ng responders para sa epekto ng bagyo, kailangan ng agarang tulong.",Sakunang Likas,Severe,4,2
+1410,"Emergency na kinasasangkutan ng hit and run, kontrolado na ang sitwasyon.",Aksidente,Minor,2,0
+1411,"Agarang sitwasyon: nasusunog na gusali, sitwasyong nagbabanta sa buhay.",Sunog,Critical,0,3
+1412,"Kailangan ng responders para sa pinsala mula sa lindol, kailangan ng tulong.",Sakunang Likas,Moderate,4,1
+1413,"Insidente: sunog sa bahay, kontrolado na ang sitwasyon.",Sunog,Minor,0,0
+1414,"May naiulat na pinsala mula sa lindol, maraming nasugatan.",Sakunang Likas,Critical,4,3
+1415,"Emergency na kinasasangkutan ng nasusunog na gusali, agarang panganib sa buhay.",Sunog,Critical,0,3
+1416,"Emergency na kinasasangkutan ng sunog sa kuryente, maliit na problema lamang.",Sunog,Minor,0,0
+1417,"May naiulat na armadong pagnanakaw, tumitindi ang panganib.",Krimen,Severe,1,2
+1418,"Agarang sitwasyon: karahasan sa bahay, kailangan ng agarang tulong.",Krimen,Severe,1,2
+1419,"Inalerto ang mga awtoridad: pinsala mula sa lindol, kailangan ng agarang tulong.",Sakunang Likas,Severe,4,2
+1420,"Kritikal na alerto: hit and run, tumitindi ang panganib.",Aksidente,Severe,2,2
+1421,"Emergency na kinasasangkutan ng aksidente sa kotse, kailangan ng tulong.",Aksidente,Moderate,2,1
+1422,"Kailangan ng responders para sa hayop na na-trap, kailangan ng agarang tulong.",Iba Pa,Severe,5,2
+1423,"Ipadala ang mga yunit para sa baha, kailangan ng agarang tugon.",Sakunang Likas,Moderate,4,1
+1424,"Agarang sitwasyon: sunog sa bahay, sitwasyong nagbabanta sa buhay.",Sunog,Critical,0,3
+1425,"May naiulat na aksidente sa kotse, may mga taong na-trap.",Aksidente,Critical,2,3
+1426,"Kailangan ng responders para sa pananakit, tumitindi ang panganib.",Krimen,Severe,1,2
+1427,"Emergency na kinasasangkutan ng lalaking may kutsilyo, posibleng may nasugatan.",Krimen,Moderate,1,1
+1428,"Kritikal na alerto: storm surge, maraming nasugatan.",Sakunang Likas,Critical,4,3
+1429,"Kritikal na alerto: banggaan sa kalsada, agarang panganib sa buhay.",Aksidente,Critical,2,3
+1430,"Emergency na kinasasangkutan ng hindi humihinga, maliit na problema lamang.",Medikal,Minor,3,0
+1431,"May naiulat na kombulsyon, kailangan ng agarang tugon.",Medikal,Moderate,3,1
+1432,"Kritikal na alerto: salpukan ng sasakyan, kailangan ng agarang tugon.",Aksidente,Moderate,2,1
+1433,"Ipadala ang mga yunit para sa lalaking may kutsilyo, lumalala ang sitwasyon.",Krimen,Moderate,1,1
+1434,"Insidente: hayop na na-trap, tumitindi ang panganib.",Iba Pa,Severe,5,2
+1435,"Insidente: aksidente sa trak, tumitindi ang panganib.",Aksidente,Severe,2,2
+1436,"Inalerto ang mga awtoridad: nasusunog na gusali, posibleng may nasugatan.",Sunog,Moderate,0,1
+1437,"May naiulat na armadong pagnanakaw, kontrolado na ang sitwasyon.",Krimen,Minor,1,0
+1438,"Inalerto ang mga awtoridad: may usok na lumalabas, kailangan ng tulong.",Sunog,Moderate,0,1
+1439,"Ipadala ang mga yunit para sa banggaan sa kalsada, kailangan ng agarang tulong.",Aksidente,Severe,2,2
+1440,"Insidente: karahasan sa bahay, lumalala ang sitwasyon.",Krimen,Moderate,1,1
+1441,"Emergency na kinasasangkutan ng hit and run, may mga taong na-trap.",Aksidente,Critical,2,3
+1442,"Ipadala ang mga yunit para sa aksidente sa kotse, sitwasyong nagbabanta sa buhay.",Aksidente,Critical,2,3
+1443,"Kailangan ng responders para sa nasusunog na gusali, posibleng may nasugatan.",Sunog,Moderate,0,1
+1444,"Insidente: sapilitang pasok, sitwasyong nagbabanta sa buhay.",Krimen,Critical,1,3
+1445,"Kritikal na alerto: pananakit, kailangan ng agarang tulong.",Krimen,Severe,1,2
+1446,"Insidente: nawawalang bata, agarang panganib sa buhay.",Iba Pa,Critical,5,3
+1447,"Kritikal na alerto: pagguho ng lupa, walang agarang panganib.",Sakunang Likas,Minor,4,0
+1448,"Kailangan ng responders para sa nahihirapang huminga, may mga taong nasaktan.",Medikal,Severe,3,2
+1449,"Emergency na kinasasangkutan ng walang malay na pasyente, kailangan ng agarang tugon.",Medikal,Moderate,3,1
+1450,"Insidente: walang malay na pasyente, maliit na problema lamang.",Medikal,Minor,3,0
+1451,"Agarang sitwasyon: nahihirapang huminga, tumitindi ang panganib.",Medikal,Severe,3,2
+1452,"Agarang sitwasyon: sunog sa kuryente, may malubhang sugatan.",Sunog,Severe,0,2
+1453,"May naiulat na hindi matukoy na emergency, may mga taong nasaktan.",Iba Pa,Severe,5,2
+1454,"Agarang sitwasyon: storm surge, kontrolado na ang sitwasyon.",Sakunang Likas,Minor,4,0
+1455,"May naiulat na kombulsyon, may mga taong na-trap.",Medikal,Critical,3,3
+1456,"Kailangan ng responders para sa may taong bumagsak, may mga taong nasaktan.",Medikal,Severe,3,2
+1457,"Ipadala ang mga yunit para sa hit and run, may malubhang sugatan.",Aksidente,Severe,2,2
+1458,"Inalerto ang mga awtoridad: sapilitang pasok, may mga taong na-trap.",Krimen,Critical,1,3
+1459,"Insidente: nasusunog na istruktura, maraming nasugatan.",Sunog,Critical,0,3
+1460,"Ipadala ang mga yunit para sa nahihirapang huminga, maliit na problema lamang.",Medikal,Minor,3,0
+1461,"Insidente: banggaan sa kalsada, tumitindi ang panganib.",Aksidente,Severe,2,2
+1462,"Agarang sitwasyon: sapilitang pasok, kontrolado na ang sitwasyon.",Krimen,Minor,1,0
+1463,"Kritikal na alerto: sunog sa kusina, kailangan ng agarang tulong.",Sunog,Severe,0,2
+1464,"Ipadala ang mga yunit para sa brownout, kailangan ng agarang tugon.",Iba Pa,Moderate,5,1
+1465,"May naiulat na kombulsyon, maraming nasugatan.",Medikal,Critical,3,3
+1466,"Kritikal na alerto: pinsala mula sa lindol, walang nasugatan.",Sakunang Likas,Minor,4,0
+1467,"Agarang sitwasyon: banggaan ng motorsiklo, walang nasugatan.",Aksidente,Minor,2,0
+1468,"Insidente: hindi humihinga, sitwasyong nagbabanta sa buhay.",Medikal,Critical,3,3
+1469,"Inalerto ang mga awtoridad: hindi matukoy na emergency, kailangan ng tulong.",Iba Pa,Moderate,5,1
+1470,"May naiulat na banta ng baril, kontrolado na ang sitwasyon.",Krimen,Minor,1,0
+1471,"May naiulat na hindi matukoy na emergency, kailangan ng agarang tulong.",Iba Pa,Severe,5,2
+1472,"Agarang sitwasyon: hindi matukoy na emergency, maraming nasugatan.",Iba Pa,Critical,5,3
+1473,"Emergency na kinasasangkutan ng sunog sa kuryente, may mga taong na-trap.",Sunog,Critical,0,3
+1474,"Insidente: epekto ng bagyo, kontrolado na ang sitwasyon.",Sakunang Likas,Minor,4,0
+1475,"Kritikal na alerto: pananakit, maliit na problema lamang.",Krimen,Minor,1,0
+1476,"Ipadala ang mga yunit para sa lalaking may kutsilyo, posibleng may nasugatan.",Krimen,Moderate,1,1
+1477,"Kritikal na alerto: brownout, kailangan ng agarang tulong.",Iba Pa,Severe,5,2
+1478,"Kailangan ng responders para sa banggaan ng motorsiklo, tumitindi ang panganib.",Aksidente,Severe,2,2
+1479,"May naiulat na hayop na na-trap, maraming nasugatan.",Iba Pa,Critical,5,3
+1480,"May naiulat na sunog sa kuryente, walang agarang panganib.",Sunog,Minor,0,0
+1481,"Agarang sitwasyon: hit and run, posibleng may nasugatan.",Aksidente,Moderate,2,1
+1482,"Kailangan ng responders para sa pinsala mula sa lindol, agarang panganib sa buhay.",Sakunang Likas,Critical,4,3
+1483,"Insidente: pagguho ng lupa, may mga taong nasaktan.",Sakunang Likas,Severe,4,2
+1484,"Emergency na kinasasangkutan ng pananakit ng dibdib, sitwasyong nagbabanta sa buhay.",Medikal,Critical,3,3
+1485,"Insidente: armadong pagnanakaw, kailangan ng agarang tugon.",Krimen,Moderate,1,1
+1486,"Kailangan ng responders para sa nawawalang bata, tumitindi ang panganib.",Iba Pa,Severe,5,2
+1487,"Agarang sitwasyon: banggaan ng motorsiklo, may mga taong nasaktan.",Aksidente,Severe,2,2
+1488,"Kailangan ng responders para sa banggaan ng motorsiklo, lumalala ang sitwasyon.",Aksidente,Moderate,2,1
+1489,"Ipadala ang mga yunit para sa banggaan sa kalsada, maraming nasugatan.",Aksidente,Critical,2,3
+1490,"Kritikal na alerto: sapilitang pasok, kailangan ng tulong.",Krimen,Moderate,1,1
+1491,"Inalerto ang mga awtoridad: aksidente sa kotse, may mga taong nasaktan.",Aksidente,Severe,2,2
+1492,"Kailangan ng responders para sa malakas na ulan, tumitindi ang panganib.",Sakunang Likas,Severe,4,2
+1493,"Insidente: banggaan ng motorsiklo, maliit na problema lamang.",Aksidente,Minor,2,0
+1494,"Kailangan ng responders para sa pananakit ng dibdib, maraming nasugatan.",Medikal,Critical,3,3
+1495,"Ipadala ang mga yunit para sa gulo sa publiko, kailangan ng agarang tugon.",Iba Pa,Moderate,5,1
+1496,"Ipadala ang mga yunit para sa nasusunog na istruktura, posibleng may nasugatan.",Sunog,Moderate,0,1
+1497,"Kritikal na alerto: karahasan sa bahay, may mga taong nasaktan.",Krimen,Severe,1,2
+1498,"Agarang sitwasyon: gulo sa publiko, sitwasyong nagbabanta sa buhay.",Iba Pa,Critical,5,3
+1499,"Kritikal na alerto: brownout, sitwasyong nagbabanta sa buhay.",Iba Pa,Critical,5,3
+1500,"Agarang sitwasyon: nawawalang bata, maraming nasugatan.",Iba Pa,Critical,5,3
+1501,"Ipadala ang mga yunit para sa nahihirapang huminga, may malubhang sugatan.",Medikal,Severe,3,2
+1502,"Agarang sitwasyon: nawawalang bata, maliit na problema lamang.",Iba Pa,Minor,5,0
+1503,"Emergency na kinasasangkutan ng gulo sa publiko, sitwasyong nagbabanta sa buhay.",Iba Pa,Critical,5,3
+1504,"Agarang sitwasyon: sapilitang pasok, kailangan ng agarang tugon.",Krimen,Moderate,1,1
+1505,"Ipadala ang mga yunit para sa armadong pagnanakaw, maliit na problema lamang.",Krimen,Minor,1,0
+1506,"Ipadala ang mga yunit para sa hindi matukoy na emergency, kontrolado na ang sitwasyon.",Iba Pa,Minor,5,0
+1507,"Inalerto ang mga awtoridad: pananakit ng dibdib, walang nasugatan.",Medikal,Minor,3,0
+1508,"Ipadala ang mga yunit para sa hindi humihinga, may malubhang sugatan.",Medikal,Severe,3,2
+1509,"Ipadala ang mga yunit para sa aksidente sa trak, walang agarang panganib.",Aksidente,Minor,2,0
+1510,"Kailangan ng responders para sa karahasan sa bahay, maraming nasugatan.",Krimen,Critical,1,3
+1511,"Insidente: baha, walang agarang panganib.",Sakunang Likas,Minor,4,0
+1512,"Kailangan ng responders para sa aksidente sa kotse, walang nasugatan.",Aksidente,Minor,2,0
+1513,"Emergency na kinasasangkutan ng brownout, sitwasyong nagbabanta sa buhay.",Iba Pa,Critical,5,3
+1514,"Kailangan ng responders para sa banggaan sa kalsada, may malubhang sugatan.",Aksidente,Severe,2,2
+1515,"Ipadala ang mga yunit para sa aksidente sa trak, sitwasyong nagbabanta sa buhay.",Aksidente,Critical,2,3
+1516,"Emergency na kinasasangkutan ng lalaking may kutsilyo, may mga taong na-trap.",Krimen,Critical,1,3
+1517,"Insidente: pagguho ng lupa, may malubhang sugatan.",Sakunang Likas,Severe,4,2
+1518,"Insidente: banggaan ng motorsiklo, kailangan ng tulong.",Aksidente,Moderate,2,1
+1519,"Kritikal na alerto: karahasan sa bahay, kailangan ng agarang tulong.",Krimen,Severe,1,2
+1520,"Kailangan ng responders para sa gulo sa publiko, kailangan ng tulong.",Iba Pa,Moderate,5,1
+1521,"Kritikal na alerto: karahasan sa bahay, posibleng may nasugatan.",Krimen,Moderate,1,1
+1522,"Kailangan ng responders para sa nahihirapang huminga, kailangan ng agarang tugon.",Medikal,Moderate,3,1
+1523,"Ipadala ang mga yunit para sa sunog sa kuryente, maraming nasugatan.",Sunog,Critical,0,3
+1524,"Emergency na kinasasangkutan ng nawawalang bata, maraming nasugatan.",Iba Pa,Critical,5,3
+1525,"Kritikal na alerto: walang malay na pasyente, kailangan ng agarang tugon.",Medikal,Moderate,3,1
+1526,"Emergency na kinasasangkutan ng pananakit, agarang panganib sa buhay.",Krimen,Critical,1,3
+1527,"May naiulat na malakas na ulan, kailangan ng tulong.",Sakunang Likas,Moderate,4,1
+1528,"Inalerto ang mga awtoridad: kombulsyon, may malubhang sugatan.",Medikal,Severe,3,2
+1529,"Insidente: nahihirapang huminga, kailangan ng tulong.",Medikal,Moderate,3,1
+1530,"Kailangan ng responders para sa salpukan ng sasakyan, maliit na problema lamang.",Aksidente,Minor,2,0
+1531,"Agarang sitwasyon: baha, tumitindi ang panganib.",Sakunang Likas,Severe,4,2
+1532,"Agarang sitwasyon: nasusunog na gusali, maraming nasugatan.",Sunog,Critical,0,3
+1533,"Agarang sitwasyon: karahasan sa bahay, walang nasugatan.",Krimen,Minor,1,0
+1534,"May naiulat na sapilitang pasok, posibleng may nasugatan.",Krimen,Moderate,1,1
+1535,"Kailangan ng responders para sa sapilitang pasok, kailangan ng tulong.",Krimen,Moderate,1,1
+1536,"Agarang sitwasyon: pagguho ng lupa, posibleng may nasugatan.",Sakunang Likas,Moderate,4,1
+1537,"Emergency na kinasasangkutan ng banggaan ng motorsiklo, kailangan ng agarang tugon.",Aksidente,Moderate,2,1
+1538,"Insidente: sapilitang pasok, tumitindi ang panganib.",Krimen,Severe,1,2
+1539,"Agarang sitwasyon: banta ng baril, posibleng may nasugatan.",Krimen,Moderate,1,1
+1540,"Kritikal na alerto: baha, kailangan ng agarang tugon.",Sakunang Likas,Moderate,4,1
+1541,"Kailangan ng responders para sa sapilitang pasok, may mga taong nasaktan.",Krimen,Severe,1,2
+1542,"May naiulat na lalaking may kutsilyo, kailangan ng tulong.",Krimen,Moderate,1,1
+1543,"Agarang sitwasyon: pagguho ng lupa, kontrolado na ang sitwasyon.",Sakunang Likas,Minor,4,0
+1544,"Kritikal na alerto: aksidente sa kotse, walang nasugatan.",Aksidente,Minor,2,0
+1545,"Ipadala ang mga yunit para sa aksidente sa kotse, kontrolado na ang sitwasyon.",Aksidente,Minor,2,0
+1546,"Ipadala ang mga yunit para sa pananakit, may mga taong na-trap.",Krimen,Critical,1,3
+1547,"Kritikal na alerto: aksidente sa kotse, kailangan ng agarang tugon.",Aksidente,Moderate,2,1
+1548,"May naiulat na hindi matukoy na emergency, maliit na problema lamang.",Iba Pa,Minor,5,0
+1549,"Kritikal na alerto: aksidente sa trak, kontrolado na ang sitwasyon.",Aksidente,Minor,2,0
+1550,"Inalerto ang mga awtoridad: sunog sa kusina, walang agarang panganib.",Sunog,Minor,0,0
+1551,"Agarang sitwasyon: may taong bumagsak, kontrolado na ang sitwasyon.",Medikal,Minor,3,0
+1552,"Kailangan ng responders para sa baha, posibleng may nasugatan.",Sakunang Likas,Moderate,4,1
+1553,"Kritikal na alerto: salpukan ng sasakyan, may malubhang sugatan.",Aksidente,Severe,2,2
+1554,"May naiulat na banggaan ng motorsiklo, maraming nasugatan.",Aksidente,Critical,2,3
+1555,"Agarang sitwasyon: may usok na lumalabas, posibleng may nasugatan.",Sunog,Moderate,0,1
+1556,"Kailangan ng responders para sa nasusunog na istruktura, walang agarang panganib.",Sunog,Minor,0,0
+1557,"Ipadala ang mga yunit para sa hindi humihinga, may mga taong na-trap.",Medikal,Critical,3,3
+1558,"Kritikal na alerto: aksidente sa trak, agarang panganib sa buhay.",Aksidente,Critical,2,3
+1559,"May naiulat na pananakit, walang agarang panganib.",Krimen,Minor,1,0
+1560,"Kritikal na alerto: salpukan ng sasakyan, posibleng may nasugatan.",Aksidente,Moderate,2,1
+1561,"May naiulat na gulo sa publiko, kontrolado na ang sitwasyon.",Iba Pa,Minor,5,0
+1562,"Insidente: nawawalang bata, tumitindi ang panganib.",Iba Pa,Severe,5,2
+1563,"Agarang sitwasyon: brownout, kailangan ng tulong.",Iba Pa,Moderate,5,1
+1564,"Agarang sitwasyon: hindi humihinga, maliit na problema lamang.",Medikal,Minor,3,0
+1565,"Kritikal na alerto: salpukan ng sasakyan, kailangan ng agarang tulong.",Aksidente,Severe,2,2
+1566,"Kritikal na alerto: sapilitang pasok, walang nasugatan.",Krimen,Minor,1,0
+1567,"May naiulat na aksidente sa kotse, posibleng may nasugatan.",Aksidente,Moderate,2,1
+1568,"Inalerto ang mga awtoridad: banggaan ng motorsiklo, agarang panganib sa buhay.",Aksidente,Critical,2,3
+1569,"Ipadala ang mga yunit para sa brownout, tumitindi ang panganib.",Iba Pa,Severe,5,2
+1570,"Inalerto ang mga awtoridad: pagguho ng lupa, lumalala ang sitwasyon.",Sakunang Likas,Moderate,4,1
+1571,"May naiulat na banta ng baril, walang agarang panganib.",Krimen,Minor,1,0
+1572,"Ipadala ang mga yunit para sa pananakit ng dibdib, agarang panganib sa buhay.",Medikal,Critical,3,3
+1573,"Agarang sitwasyon: pananakit ng dibdib, maraming nasugatan.",Medikal,Critical,3,3
+1574,"Insidente: walang malay na pasyente, may mga taong na-trap.",Medikal,Critical,3,3
+1575,"Emergency na kinasasangkutan ng nahihirapang huminga, sitwasyong nagbabanta sa buhay.",Medikal,Critical,3,3
+1576,"Ipadala ang mga yunit para sa sunog sa kuryente, maliit na problema lamang.",Sunog,Minor,0,0
+1577,"Insidente: pananakit ng dibdib, kontrolado na ang sitwasyon.",Medikal,Minor,3,0
+1578,"Agarang sitwasyon: sunog sa kusina, maraming nasugatan.",Sunog,Critical,0,3
+1579,"Emergency na kinasasangkutan ng may taong bumagsak, posibleng may nasugatan.",Medikal,Moderate,3,1
+1580,"Ipadala ang mga yunit para sa may usok na lumalabas, walang agarang panganib.",Sunog,Minor,0,0
+1581,"Agarang sitwasyon: lalaking may kutsilyo, kailangan ng agarang tugon.",Krimen,Moderate,1,1
+1582,"May naiulat na kombulsyon, kailangan ng agarang tulong.",Medikal,Severe,3,2
+1583,"Ipadala ang mga yunit para sa sunog sa bahay, tumitindi ang panganib.",Sunog,Severe,0,2
+1584,"May naiulat na walang malay na pasyente, kailangan ng agarang tugon.",Medikal,Moderate,3,1
+1585,"Ipadala ang mga yunit para sa storm surge, posibleng may nasugatan.",Sakunang Likas,Moderate,4,1
+1586,"Kritikal na alerto: epekto ng bagyo, kontrolado na ang sitwasyon.",Sakunang Likas,Minor,4,0
+1587,"Ipadala ang mga yunit para sa walang malay na pasyente, lumalala ang sitwasyon.",Medikal,Moderate,3,1
+1588,"Kritikal na alerto: armadong pagnanakaw, maliit na problema lamang.",Krimen,Minor,1,0
+1589,"May naiulat na nahihirapang huminga, walang agarang panganib.",Medikal,Minor,3,0
+1590,"Ipadala ang mga yunit para sa hindi humihinga, lumalala ang sitwasyon.",Medikal,Moderate,3,1
+1591,"Kritikal na alerto: nasusunog na istruktura, kontrolado na ang sitwasyon.",Sunog,Minor,0,0
+1592,"Kritikal na alerto: pagguho ng lupa, kailangan ng agarang tulong.",Sakunang Likas,Severe,4,2
+1593,"Agarang sitwasyon: gulo sa publiko, may malubhang sugatan.",Iba Pa,Severe,5,2
+1594,"May naiulat na storm surge, posibleng may nasugatan.",Sakunang Likas,Moderate,4,1
+1595,"Emergency na kinasasangkutan ng epekto ng bagyo, kailangan ng tulong.",Sakunang Likas,Moderate,4,1
+1596,"Kritikal na alerto: aksidente sa trak, posibleng may nasugatan.",Aksidente,Moderate,2,1
+1597,"Ipadala ang mga yunit para sa nasusunog na istruktura, agarang panganib sa buhay.",Sunog,Critical,0,3
+1598,"Ipadala ang mga yunit para sa nawawalang bata, may malubhang sugatan.",Iba Pa,Severe,5,2
+1599,"Agarang sitwasyon: gulo sa publiko, maraming nasugatan.",Iba Pa,Critical,5,3
+1600,"Ipadala ang mga yunit para sa nahihirapang huminga, kailangan ng tulong.",Medikal,Moderate,3,1
+1601,"Insidente: nahihirapang huminga, walang agarang panganib.",Medikal,Minor,3,0
+1602,"Ipadala ang mga yunit para sa hayop na na-trap, agarang panganib sa buhay.",Iba Pa,Critical,5,3
+1603,"Insidente: sunog sa kuryente, posibleng may nasugatan.",Sunog,Moderate,0,1
+1604,"Insidente: nasusunog na istruktura, may malubhang sugatan.",Sunog,Severe,0,2
+1605,"May naiulat na pinsala mula sa lindol, may mga taong na-trap.",Sakunang Likas,Critical,4,3
+1606,"Agarang sitwasyon: kombulsyon, kailangan ng agarang tugon.",Medikal,Moderate,3,1
+1607,"Ipadala ang mga yunit para sa sunog sa kuryente, kontrolado na ang sitwasyon.",Sunog,Minor,0,0
+1608,"Emergency na kinasasangkutan ng nawawalang bata, agarang panganib sa buhay.",Iba Pa,Critical,5,3
+1609,"May naiulat na walang malay na pasyente, kailangan ng agarang tugon.",Medikal,Moderate,3,1
+1610,"Kailangan ng responders para sa hindi matukoy na emergency, maraming nasugatan.",Iba Pa,Critical,5,3
+1611,"Emergency na kinasasangkutan ng pinsala mula sa lindol, kontrolado na ang sitwasyon.",Sakunang Likas,Minor,4,0
+1612,"Kritikal na alerto: nasusunog na gusali, maliit na problema lamang.",Sunog,Minor,0,0
+1613,"Agarang sitwasyon: banggaan ng motorsiklo, may mga taong nasaktan.",Aksidente,Severe,2,2
+1614,"May naiulat na karahasan sa bahay, kontrolado na ang sitwasyon.",Krimen,Minor,1,0
+1615,"Kritikal na alerto: hindi humihinga, sitwasyong nagbabanta sa buhay.",Medikal,Critical,3,3
+1616,"Agarang sitwasyon: banggaan ng motorsiklo, maliit na problema lamang.",Aksidente,Minor,2,0
+1617,"Kailangan ng responders para sa pinsala mula sa lindol, may malubhang sugatan.",Sakunang Likas,Severe,4,2
+1618,"Kritikal na alerto: may usok na lumalabas, kontrolado na ang sitwasyon.",Sunog,Minor,0,0
+1619,"Inalerto ang mga awtoridad: aksidente sa trak, kailangan ng agarang tulong.",Aksidente,Severe,2,2
+1620,"Inalerto ang mga awtoridad: pinsala mula sa lindol, sitwasyong nagbabanta sa buhay.",Sakunang Likas,Critical,4,3
+1621,"Inalerto ang mga awtoridad: hit and run, sitwasyong nagbabanta sa buhay.",Aksidente,Critical,2,3
+1622,"Kailangan ng responders para sa kombulsyon, lumalala ang sitwasyon.",Medikal,Moderate,3,1
+1623,"Kritikal na alerto: nahihirapang huminga, tumitindi ang panganib.",Medikal,Severe,3,2
+1624,"Insidente: banggaan ng motorsiklo, kailangan ng agarang tulong.",Aksidente,Severe,2,2
+1625,"Kritikal na alerto: nasusunog na istruktura, walang nasugatan.",Sunog,Minor,0,0
+1626,"Emergency na kinasasangkutan ng aksidente sa trak, kailangan ng tulong.",Aksidente,Moderate,2,1
+1627,"Ipadala ang mga yunit para sa armadong pagnanakaw, kailangan ng tulong.",Krimen,Moderate,1,1
+1628,"Agarang sitwasyon: sunog sa kusina, maliit na problema lamang.",Sunog,Minor,0,0
+1629,"Kritikal na alerto: walang malay na pasyente, maliit na problema lamang.",Medikal,Minor,3,0
+1630,"Kritikal na alerto: gulo sa publiko, maliit na problema lamang.",Iba Pa,Minor,5,0
+1631,"May naiulat na hindi matukoy na emergency, kontrolado na ang sitwasyon.",Iba Pa,Minor,5,0
+1632,"Insidente: hit and run, sitwasyong nagbabanta sa buhay.",Aksidente,Critical,2,3
+1633,"Kailangan ng responders para sa salpukan ng sasakyan, agarang panganib sa buhay.",Aksidente,Critical,2,3
+1634,"Ipadala ang mga yunit para sa nasusunog na gusali, posibleng may nasugatan.",Sunog,Moderate,0,1
+1635,"Inalerto ang mga awtoridad: lalaking may kutsilyo, walang nasugatan.",Krimen,Minor,1,0
+1636,"Insidente: kombulsyon, sitwasyong nagbabanta sa buhay.",Medikal,Critical,3,3
+1637,"May naiulat na baha, may malubhang sugatan.",Sakunang Likas,Severe,4,2
+1638,"Ipadala ang mga yunit para sa hindi matukoy na emergency, kailangan ng agarang tulong.",Iba Pa,Severe,5,2
+1639,"May naiulat na banta ng baril, kontrolado na ang sitwasyon.",Krimen,Minor,1,0
+1640,"Inalerto ang mga awtoridad: aksidente sa trak, kailangan ng agarang tulong.",Aksidente,Severe,2,2
+1641,"Emergency na kinasasangkutan ng pagguho ng lupa, may mga taong na-trap.",Sakunang Likas,Critical,4,3
+1642,"Kailangan ng responders para sa sunog sa bahay, maliit na problema lamang.",Sunog,Minor,0,0
+1643,"Kailangan ng responders para sa may taong bumagsak, agarang panganib sa buhay.",Medikal,Critical,3,3
+1644,"Ipadala ang mga yunit para sa gulo sa publiko, sitwasyong nagbabanta sa buhay.",Iba Pa,Critical,5,3
+1645,"Inalerto ang mga awtoridad: sunog sa kuryente, tumitindi ang panganib.",Sunog,Severe,0,2
+1646,"Insidente: baha, may mga taong nasaktan.",Sakunang Likas,Severe,4,2
+1647,"Kritikal na alerto: gulo sa publiko, may malubhang sugatan.",Iba Pa,Severe,5,2
+1648,"Insidente: hayop na na-trap, may malubhang sugatan.",Iba Pa,Severe,5,2
+1649,"Inalerto ang mga awtoridad: armadong pagnanakaw, kontrolado na ang sitwasyon.",Krimen,Minor,1,0
+1650,"Kailangan ng responders para sa pinsala mula sa lindol, may mga taong na-trap.",Sakunang Likas,Critical,4,3
+1651,"Insidente: karahasan sa bahay, posibleng may nasugatan.",Krimen,Moderate,1,1
+1652,"Emergency na kinasasangkutan ng malakas na ulan, kailangan ng agarang tugon.",Sakunang Likas,Moderate,4,1
+1653,"Agarang sitwasyon: sunog sa bahay, may malubhang sugatan.",Sunog,Severe,0,2
+1654,"May naiulat na may taong bumagsak, kailangan ng agarang tugon.",Medikal,Moderate,3,1
+1655,"Agarang sitwasyon: banggaan ng motorsiklo, maliit na problema lamang.",Aksidente,Minor,2,0
+1656,"Insidente: armadong pagnanakaw, posibleng may nasugatan.",Krimen,Moderate,1,1
+1657,"Emergency na kinasasangkutan ng brownout, lumalala ang sitwasyon.",Iba Pa,Moderate,5,1
+1658,"Insidente: armadong pagnanakaw, sitwasyong nagbabanta sa buhay.",Krimen,Critical,1,3
+1659,"Kailangan ng responders para sa epekto ng bagyo, may malubhang sugatan.",Sakunang Likas,Severe,4,2
+1660,"Inalerto ang mga awtoridad: salpukan ng sasakyan, walang nasugatan.",Aksidente,Minor,2,0
+1661,"Insidente: lalaking may kutsilyo, walang agarang panganib.",Krimen,Minor,1,0
+1662,"Ipadala ang mga yunit para sa baha, walang agarang panganib.",Sakunang Likas,Minor,4,0
+1663,"Insidente: brownout, may malubhang sugatan.",Iba Pa,Severe,5,2
+1664,"Emergency na kinasasangkutan ng nasusunog na istruktura, kailangan ng agarang tugon.",Sunog,Moderate,0,1
+1665,"Kailangan ng responders para sa hayop na na-trap, kailangan ng agarang tugon.",Iba Pa,Moderate,5,1
+1666,"May naiulat na pananakit ng dibdib, may mga taong na-trap.",Medikal,Critical,3,3
+1667,"Inalerto ang mga awtoridad: sunog sa kuryente, tumitindi ang panganib.",Sunog,Severe,0,2
+1668,"Ipadala ang mga yunit para sa lalaking may kutsilyo, kontrolado na ang sitwasyon.",Krimen,Minor,1,0
+1669,"May naiulat na nasusunog na istruktura, kailangan ng agarang tulong.",Sunog,Severe,0,2
+1670,"Kritikal na alerto: gulo sa publiko, walang nasugatan.",Iba Pa,Minor,5,0
+1671,"Kritikal na alerto: storm surge, maliit na problema lamang.",Sakunang Likas,Minor,4,0
+1672,"Kritikal na alerto: hayop na na-trap, kontrolado na ang sitwasyon.",Iba Pa,Minor,5,0
+1673,"Agarang sitwasyon: malakas na ulan, lumalala ang sitwasyon.",Sakunang Likas,Moderate,4,1
+1674,"May naiulat na pagguho ng lupa, posibleng may nasugatan.",Sakunang Likas,Moderate,4,1
+1675,"Inalerto ang mga awtoridad: hayop na na-trap, may mga taong nasaktan.",Iba Pa,Severe,5,2
+1676,"Kritikal na alerto: banta ng baril, maliit na problema lamang.",Krimen,Minor,1,0
+1677,"May naiulat na sapilitang pasok, lumalala ang sitwasyon.",Krimen,Moderate,1,1
+1678,"Emergency na kinasasangkutan ng karahasan sa bahay, kailangan ng agarang tugon.",Krimen,Moderate,1,1
+1679,"Kritikal na alerto: banggaan ng motorsiklo, kailangan ng tulong.",Aksidente,Moderate,2,1
+1680,"Emergency na kinasasangkutan ng sapilitang pasok, may mga taong nasaktan.",Krimen,Severe,1,2
+1681,"Kritikal na alerto: lalaking may kutsilyo, may mga taong nasaktan.",Krimen,Severe,1,2
+1682,"Kritikal na alerto: brownout, may malubhang sugatan.",Iba Pa,Severe,5,2
+1683,"Inalerto ang mga awtoridad: gulo sa publiko, walang nasugatan.",Iba Pa,Minor,5,0
+1684,"Kailangan ng responders para sa banta ng baril, lumalala ang sitwasyon.",Krimen,Moderate,1,1
+1685,"Agarang sitwasyon: nawawalang bata, tumitindi ang panganib.",Iba Pa,Severe,5,2
+1686,"Ipadala ang mga yunit para sa nasusunog na gusali, kailangan ng agarang tulong.",Sunog,Severe,0,2
+1687,"May naiulat na may usok na lumalabas, kailangan ng tulong.",Sunog,Moderate,0,1
+1688,"Inalerto ang mga awtoridad: karahasan sa bahay, tumitindi ang panganib.",Krimen,Severe,1,2
+1689,"Kailangan ng responders para sa banggaan ng motorsiklo, posibleng may nasugatan.",Aksidente,Moderate,2,1
+1690,"Kritikal na alerto: nawawalang bata, lumalala ang sitwasyon.",Iba Pa,Moderate,5,1
+1691,"Insidente: salpukan ng sasakyan, posibleng may nasugatan.",Aksidente,Moderate,2,1
+1692,"Kritikal na alerto: nasusunog na istruktura, may malubhang sugatan.",Sunog,Severe,0,2
+1693,"Inalerto ang mga awtoridad: banggaan ng motorsiklo, kailangan ng agarang tulong.",Aksidente,Severe,2,2
+1694,"Inalerto ang mga awtoridad: nasusunog na istruktura, kailangan ng agarang tugon.",Sunog,Moderate,0,1
+1695,"Insidente: gulo sa publiko, may malubhang sugatan.",Iba Pa,Severe,5,2
+1696,"Kritikal na alerto: hindi matukoy na emergency, may mga taong na-trap.",Iba Pa,Critical,5,3
+1697,"Insidente: sunog sa kusina, walang nasugatan.",Sunog,Minor,0,0
+1698,"May naiulat na gulo sa publiko, kontrolado na ang sitwasyon.",Iba Pa,Minor,5,0
+1699,"Inalerto ang mga awtoridad: pinsala mula sa lindol, maraming nasugatan.",Sakunang Likas,Critical,4,3
+1700,"Insidente: sunog sa bahay, lumalala ang sitwasyon.",Sunog,Moderate,0,1
+1701,"Inalerto ang mga awtoridad: baha, sitwasyong nagbabanta sa buhay.",Sakunang Likas,Critical,4,3
+1702,"Insidente: may taong bumagsak, agarang panganib sa buhay.",Medikal,Critical,3,3
+1703,"Inalerto ang mga awtoridad: pinsala mula sa lindol, walang agarang panganib.",Sakunang Likas,Minor,4,0
+1704,"Kritikal na alerto: hindi matukoy na emergency, kailangan ng agarang tulong.",Iba Pa,Severe,5,2
+1705,"Insidente: armadong pagnanakaw, kailangan ng tulong.",Krimen,Moderate,1,1
+1706,"Ipadala ang mga yunit para sa banggaan ng motorsiklo, walang agarang panganib.",Aksidente,Minor,2,0
+1707,"May naiulat na may usok na lumalabas, kailangan ng tulong.",Sunog,Moderate,0,1
+1708,"Ipadala ang mga yunit para sa brownout, maraming nasugatan.",Iba Pa,Critical,5,3
+1709,"May naiulat na hindi humihinga, agarang panganib sa buhay.",Medikal,Critical,3,3
+1710,"Agarang sitwasyon: banggaan ng motorsiklo, may mga taong nasaktan.",Aksidente,Severe,2,2
+1711,"May naiulat na brownout, sitwasyong nagbabanta sa buhay.",Iba Pa,Critical,5,3
+1712,"Kailangan ng responders para sa pinsala mula sa lindol, walang nasugatan.",Sakunang Likas,Minor,4,0
+1713,"Agarang sitwasyon: may taong bumagsak, kailangan ng agarang tulong.",Medikal,Severe,3,2
+1714,"Ipadala ang mga yunit para sa storm surge, maliit na problema lamang.",Sakunang Likas,Minor,4,0
+1715,"Emergency na kinasasangkutan ng epekto ng bagyo, lumalala ang sitwasyon.",Sakunang Likas,Moderate,4,1
+1716,"Insidente: may taong bumagsak, maliit na problema lamang.",Medikal,Minor,3,0
+1717,"Kritikal na alerto: sunog sa bahay, maliit na problema lamang.",Sunog,Minor,0,0
+1718,"Emergency na kinasasangkutan ng hit and run, may mga taong nasaktan.",Aksidente,Severe,2,2
+1719,"Kailangan ng responders para sa banggaan ng motorsiklo, kailangan ng tulong.",Aksidente,Moderate,2,1
+1720,"Agarang sitwasyon: sunog sa bahay, kailangan ng agarang tugon.",Sunog,Moderate,0,1
+1721,"Kailangan ng responders para sa nahihirapang huminga, sitwasyong nagbabanta sa buhay.",Medikal,Critical,3,3
+1722,"Kailangan ng responders para sa gulo sa publiko, may malubhang sugatan.",Iba Pa,Severe,5,2
+1723,"Emergency na kinasasangkutan ng baha, agarang panganib sa buhay.",Sakunang Likas,Critical,4,3
+1724,"Emergency na kinasasangkutan ng karahasan sa bahay, kailangan ng agarang tulong.",Krimen,Severe,1,2
+1725,"Ipadala ang mga yunit para sa karahasan sa bahay, kailangan ng tulong.",Krimen,Moderate,1,1
+1726,"Kritikal na alerto: banta ng baril, walang agarang panganib.",Krimen,Minor,1,0
+1727,"Ipadala ang mga yunit para sa nahihirapang huminga, may malubhang sugatan.",Medikal,Severe,3,2
+1728,"Kritikal na alerto: salpukan ng sasakyan, posibleng may nasugatan.",Aksidente,Moderate,2,1
+1729,"Ipadala ang mga yunit para sa pananakit ng dibdib, maraming nasugatan.",Medikal,Critical,3,3
+1730,"May naiulat na sunog sa kuryente, walang agarang panganib.",Sunog,Minor,0,0
+1731,"Kailangan ng responders para sa walang malay na pasyente, posibleng may nasugatan.",Medikal,Moderate,3,1
+1732,"Inalerto ang mga awtoridad: aksidente sa trak, maliit na problema lamang.",Aksidente,Minor,2,0
+1733,"Ipadala ang mga yunit para sa hit and run, kailangan ng agarang tulong.",Aksidente,Severe,2,2
+1734,"Insidente: hayop na na-trap, walang nasugatan.",Iba Pa,Minor,5,0
+1735,"Kritikal na alerto: baha, kailangan ng agarang tugon.",Sakunang Likas,Moderate,4,1
+1736,"Agarang sitwasyon: aksidente sa kotse, walang nasugatan.",Aksidente,Minor,2,0
+1737,"Agarang sitwasyon: nasusunog na gusali, kontrolado na ang sitwasyon.",Sunog,Minor,0,0
+1738,"Agarang sitwasyon: nasusunog na gusali, maraming nasugatan.",Sunog,Critical,0,3
+1739,"Kailangan ng responders para sa brownout, agarang panganib sa buhay.",Iba Pa,Critical,5,3
+1740,"May naiulat na hayop na na-trap, agarang panganib sa buhay.",Iba Pa,Critical,5,3
+1741,"Emergency na kinasasangkutan ng karahasan sa bahay, may malubhang sugatan.",Krimen,Severe,1,2
+1742,"Kailangan ng responders para sa storm surge, may mga taong nasaktan.",Sakunang Likas,Severe,4,2
+1743,"Ipadala ang mga yunit para sa banggaan sa kalsada, lumalala ang sitwasyon.",Aksidente,Moderate,2,1
+1744,"Ipadala ang mga yunit para sa nawawalang bata, lumalala ang sitwasyon.",Iba Pa,Moderate,5,1
+1745,"Emergency na kinasasangkutan ng banggaan sa kalsada, walang agarang panganib.",Aksidente,Minor,2,0
+1746,"Insidente: sunog sa kusina, kontrolado na ang sitwasyon.",Sunog,Minor,0,0
+1747,"Insidente: hindi matukoy na emergency, may mga taong na-trap.",Iba Pa,Critical,5,3
+1748,"Insidente: brownout, kailangan ng agarang tulong.",Iba Pa,Severe,5,2
+1749,"May naiulat na salpukan ng sasakyan, tumitindi ang panganib.",Aksidente,Severe,2,2
+1750,"Agarang sitwasyon: sunog sa kusina, maraming nasugatan.",Sunog,Critical,0,3
+1751,"May naiulat na nasusunog na istruktura, walang nasugatan.",Sunog,Minor,0,0
+1752,"Emergency na kinasasangkutan ng pagguho ng lupa, sitwasyong nagbabanta sa buhay.",Sakunang Likas,Critical,4,3
+1753,"Agarang sitwasyon: aksidente sa kotse, kailangan ng tulong.",Aksidente,Moderate,2,1
+1754,"Insidente: pananakit, kailangan ng agarang tugon.",Krimen,Moderate,1,1
+1755,"Insidente: banggaan ng motorsiklo, may mga taong na-trap.",Aksidente,Critical,2,3
+1756,"May naiulat na aksidente sa kotse, may mga taong na-trap.",Aksidente,Critical,2,3
+1757,"Inalerto ang mga awtoridad: hindi matukoy na emergency, walang agarang panganib.",Iba Pa,Minor,5,0
+1758,"Agarang sitwasyon: hit and run, lumalala ang sitwasyon.",Aksidente,Moderate,2,1
+1759,"Kritikal na alerto: kombulsyon, kailangan ng agarang tulong.",Medikal,Severe,3,2
+1760,"May naiulat na banggaan sa kalsada, kontrolado na ang sitwasyon.",Aksidente,Minor,2,0
+1761,"Agarang sitwasyon: hindi humihinga, walang agarang panganib.",Medikal,Minor,3,0
+1762,"Emergency na kinasasangkutan ng pananakit, walang agarang panganib.",Krimen,Minor,1,0
+1763,"Ipadala ang mga yunit para sa salpukan ng sasakyan, kontrolado na ang sitwasyon.",Aksidente,Minor,2,0
+1764,"Insidente: sunog sa kuryente, maliit na problema lamang.",Sunog,Minor,0,0
+1765,"Emergency na kinasasangkutan ng storm surge, tumitindi ang panganib.",Sakunang Likas,Severe,4,2
+1766,"Inalerto ang mga awtoridad: nasusunog na gusali, kontrolado na ang sitwasyon.",Sunog,Minor,0,0
+1767,"Kritikal na alerto: aksidente sa trak, sitwasyong nagbabanta sa buhay.",Aksidente,Critical,2,3
+1768,"Ipadala ang mga yunit para sa nasusunog na gusali, posibleng may nasugatan.",Sunog,Moderate,0,1
+1769,"Agarang sitwasyon: brownout, kailangan ng agarang tulong.",Iba Pa,Severe,5,2
+1770,"Ipadala ang mga yunit para sa banggaan ng motorsiklo, tumitindi ang panganib.",Aksidente,Severe,2,2
+1771,"Ipadala ang mga yunit para sa nahihirapang huminga, lumalala ang sitwasyon.",Medikal,Moderate,3,1
+1772,"Agarang sitwasyon: nasusunog na gusali, maraming nasugatan.",Sunog,Critical,0,3
+1773,"May naiulat na banggaan ng motorsiklo, may mga taong na-trap.",Aksidente,Critical,2,3
+1774,"May naiulat na nawawalang bata, kailangan ng tulong.",Iba Pa,Moderate,5,1
+1775,"Kritikal na alerto: aksidente sa trak, walang nasugatan.",Aksidente,Minor,2,0
+1776,"Ipadala ang mga yunit para sa gulo sa publiko, posibleng may nasugatan.",Iba Pa,Moderate,5,1
+1777,"Emergency na kinasasangkutan ng pagguho ng lupa, kontrolado na ang sitwasyon.",Sakunang Likas,Minor,4,0
+1778,"May naiulat na nawawalang bata, walang nasugatan.",Iba Pa,Minor,5,0
+1779,"Insidente: walang malay na pasyente, lumalala ang sitwasyon.",Medikal,Moderate,3,1
+1780,"Kailangan ng responders para sa hindi humihinga, tumitindi ang panganib.",Medikal,Severe,3,2
+1781,"Insidente: nawawalang bata, sitwasyong nagbabanta sa buhay.",Iba Pa,Critical,5,3
+1782,"Inalerto ang mga awtoridad: hindi humihinga, may mga taong nasaktan.",Medikal,Severe,3,2
+1783,"May naiulat na sunog sa kuryente, agarang panganib sa buhay.",Sunog,Critical,0,3
+1784,"Kailangan ng responders para sa armadong pagnanakaw, kailangan ng tulong.",Krimen,Moderate,1,1
+1785,"Kritikal na alerto: nasusunog na gusali, sitwasyong nagbabanta sa buhay.",Sunog,Critical,0,3
+1786,"Insidente: nawawalang bata, kontrolado na ang sitwasyon.",Iba Pa,Minor,5,0
+1787,"Ipadala ang mga yunit para sa hindi matukoy na emergency, lumalala ang sitwasyon.",Iba Pa,Moderate,5,1
+1788,"Inalerto ang mga awtoridad: aksidente sa trak, maliit na problema lamang.",Aksidente,Minor,2,0
+1789,"May naiulat na malakas na ulan, lumalala ang sitwasyon.",Sakunang Likas,Moderate,4,1
+1790,"Kritikal na alerto: pagguho ng lupa, maliit na problema lamang.",Sakunang Likas,Minor,4,0
+1791,"Agarang sitwasyon: pananakit ng dibdib, tumitindi ang panganib.",Medikal,Severe,3,2
+1792,"Insidente: nasusunog na gusali, may mga taong nasaktan.",Sunog,Severe,0,2
+1793,"Kailangan ng responders para sa hayop na na-trap, kontrolado na ang sitwasyon.",Iba Pa,Minor,5,0
+1794,"Insidente: banggaan sa kalsada, lumalala ang sitwasyon.",Aksidente,Moderate,2,1
+1795,"Kritikal na alerto: pananakit ng dibdib, tumitindi ang panganib.",Medikal,Severe,3,2
+1796,"Agarang sitwasyon: gulo sa publiko, walang agarang panganib.",Iba Pa,Minor,5,0
+1797,"Emergency na kinasasangkutan ng pagguho ng lupa, posibleng may nasugatan.",Sakunang Likas,Moderate,4,1
+1798,"Agarang sitwasyon: nawawalang bata, maraming nasugatan.",Iba Pa,Critical,5,3
+1799,"Kritikal na alerto: nasusunog na gusali, maraming nasugatan.",Sunog,Critical,0,3
+1800,"Inalerto ang mga awtoridad: sunog sa kuryente, maraming nasugatan.",Sunog,Critical,0,3
+1801,"Emergency na kinasasangkutan ng brownout, maliit na problema lamang.",Iba Pa,Minor,5,0
+1802,"Agarang sitwasyon: banggaan ng motorsiklo, walang nasugatan.",Aksidente,Minor,2,0
+1803,"Insidente: pagguho ng lupa, sitwasyong nagbabanta sa buhay.",Sakunang Likas,Critical,4,3
+1804,"Kritikal na alerto: epekto ng bagyo, kontrolado na ang sitwasyon.",Sakunang Likas,Minor,4,0
+1805,"May naiulat na banta ng baril, maraming nasugatan.",Krimen,Critical,1,3
+1806,"Inalerto ang mga awtoridad: pagguho ng lupa, may mga taong nasaktan.",Sakunang Likas,Severe,4,2
+1807,"Kritikal na alerto: lalaking may kutsilyo, agarang panganib sa buhay.",Krimen,Critical,1,3
+1808,"Agarang sitwasyon: baha, kailangan ng tulong.",Sakunang Likas,Moderate,4,1
+1809,"Insidente: hayop na na-trap, may malubhang sugatan.",Iba Pa,Severe,5,2
+1810,"Inalerto ang mga awtoridad: lalaking may kutsilyo, maliit na problema lamang.",Krimen,Minor,1,0
+1811,"Insidente: karahasan sa bahay, kailangan ng tulong.",Krimen,Moderate,1,1
+1812,"Kailangan ng responders para sa karahasan sa bahay, lumalala ang sitwasyon.",Krimen,Moderate,1,1
+1813,"Insidente: nasusunog na istruktura, maliit na problema lamang.",Sunog,Minor,0,0
+1814,"Kailangan ng responders para sa pagguho ng lupa, kailangan ng agarang tugon.",Sakunang Likas,Moderate,4,1
+1815,"Insidente: gulo sa publiko, kailangan ng agarang tugon.",Iba Pa,Moderate,5,1
+1816,"May naiulat na storm surge, posibleng may nasugatan.",Sakunang Likas,Moderate,4,1
+1817,"Kritikal na alerto: epekto ng bagyo, maliit na problema lamang.",Sakunang Likas,Minor,4,0
+1818,"Kailangan ng responders para sa hit and run, maraming nasugatan.",Aksidente,Critical,2,3
+1819,"Insidente: armadong pagnanakaw, may malubhang sugatan.",Krimen,Severe,1,2
+1820,"May naiulat na karahasan sa bahay, tumitindi ang panganib.",Krimen,Severe,1,2
+1821,"Insidente: storm surge, kontrolado na ang sitwasyon.",Sakunang Likas,Minor,4,0
+1822,"Inalerto ang mga awtoridad: lalaking may kutsilyo, agarang panganib sa buhay.",Krimen,Critical,1,3
+1823,"Insidente: aksidente sa trak, lumalala ang sitwasyon.",Aksidente,Moderate,2,1
+1824,"Emergency na kinasasangkutan ng salpukan ng sasakyan, walang nasugatan.",Aksidente,Minor,2,0
+1825,"May naiulat na banggaan ng motorsiklo, maraming nasugatan.",Aksidente,Critical,2,3
+1826,"Ipadala ang mga yunit para sa nasusunog na gusali, kontrolado na ang sitwasyon.",Sunog,Minor,0,0
+1827,"Insidente: banta ng baril, lumalala ang sitwasyon.",Krimen,Moderate,1,1
+1828,"Emergency na kinasasangkutan ng nahihirapang huminga, may mga taong na-trap.",Medikal,Critical,3,3
+1829,"Agarang sitwasyon: baha, may malubhang sugatan.",Sakunang Likas,Severe,4,2
+1830,"Insidente: sapilitang pasok, walang agarang panganib.",Krimen,Minor,1,0
+1831,"Kritikal na alerto: gulo sa publiko, kontrolado na ang sitwasyon.",Iba Pa,Minor,5,0
+1832,"Agarang sitwasyon: nahihirapang huminga, kailangan ng agarang tulong.",Medikal,Severe,3,2
+1833,"Emergency na kinasasangkutan ng storm surge, agarang panganib sa buhay.",Sakunang Likas,Critical,4,3
+1834,"Insidente: pananakit, kailangan ng tulong.",Krimen,Moderate,1,1
+1835,"May naiulat na sunog sa bahay, may mga taong na-trap.",Sunog,Critical,0,3
+1836,"Kailangan ng responders para sa storm surge, kontrolado na ang sitwasyon.",Sakunang Likas,Minor,4,0
+1837,"Emergency na kinasasangkutan ng nahihirapang huminga, maliit na problema lamang.",Medikal,Minor,3,0
+1838,"May naiulat na karahasan sa bahay, posibleng may nasugatan.",Krimen,Moderate,1,1
+1839,"Inalerto ang mga awtoridad: kombulsyon, walang agarang panganib.",Medikal,Minor,3,0
+1840,"Ipadala ang mga yunit para sa malakas na ulan, maliit na problema lamang.",Sakunang Likas,Minor,4,0
+1841,"Agarang sitwasyon: nasusunog na gusali, tumitindi ang panganib.",Sunog,Severe,0,2
+1842,"Inalerto ang mga awtoridad: may usok na lumalabas, may mga taong na-trap.",Sunog,Critical,0,3
+1843,"May naiulat na hindi humihinga, posibleng may nasugatan.",Medikal,Moderate,3,1
+1844,"Agarang sitwasyon: armadong pagnanakaw, tumitindi ang panganib.",Krimen,Severe,1,2
+1845,"Agarang sitwasyon: sunog sa kusina, posibleng may nasugatan.",Sunog,Moderate,0,1
+1846,"Ipadala ang mga yunit para sa may usok na lumalabas, maraming nasugatan.",Sunog,Critical,0,3
+1847,"Emergency na kinasasangkutan ng kombulsyon, sitwasyong nagbabanta sa buhay.",Medikal,Critical,3,3
+1848,"Kritikal na alerto: pananakit ng dibdib, walang nasugatan.",Medikal,Minor,3,0
+1849,"Agarang sitwasyon: hit and run, walang agarang panganib.",Aksidente,Minor,2,0
+1850,"Agarang sitwasyon: epekto ng bagyo, lumalala ang sitwasyon.",Sakunang Likas,Moderate,4,1
+1851,"Ipadala ang mga yunit para sa nahihirapang huminga, walang nasugatan.",Medikal,Minor,3,0
+1852,"Kailangan ng responders para sa nawawalang bata, may mga taong nasaktan.",Iba Pa,Severe,5,2
+1853,"Kritikal na alerto: armadong pagnanakaw, kailangan ng agarang tugon.",Krimen,Moderate,1,1
+1854,"Ipadala ang mga yunit para sa karahasan sa bahay, walang agarang panganib.",Krimen,Minor,1,0
+1855,"Agarang sitwasyon: nahihirapang huminga, may mga taong na-trap.",Medikal,Critical,3,3
+1856,"Emergency na kinasasangkutan ng sunog sa bahay, walang agarang panganib.",Sunog,Minor,0,0
+1857,"Insidente: pagguho ng lupa, may mga taong nasaktan.",Sakunang Likas,Severe,4,2
+1858,"Agarang sitwasyon: salpukan ng sasakyan, maraming nasugatan.",Aksidente,Critical,2,3
+1859,"Agarang sitwasyon: nawawalang bata, maliit na problema lamang.",Iba Pa,Minor,5,0
+1860,"Agarang sitwasyon: karahasan sa bahay, walang nasugatan.",Krimen,Minor,1,0
+1861,"Agarang sitwasyon: nahihirapang huminga, may mga taong nasaktan.",Medikal,Severe,3,2
+1862,"Kailangan ng responders para sa armadong pagnanakaw, may malubhang sugatan.",Krimen,Severe,1,2
+1863,"May naiulat na baha, kailangan ng agarang tugon.",Sakunang Likas,Moderate,4,1
+1864,"Inalerto ang mga awtoridad: baha, walang nasugatan.",Sakunang Likas,Minor,4,0
+1865,"May naiulat na sapilitang pasok, kailangan ng agarang tugon.",Krimen,Moderate,1,1
+1866,"Kritikal na alerto: sapilitang pasok, kailangan ng tulong.",Krimen,Moderate,1,1
+1867,"Inalerto ang mga awtoridad: pananakit ng dibdib, maliit na problema lamang.",Medikal,Minor,3,0
+1868,"Kritikal na alerto: aksidente sa kotse, may mga taong nasaktan.",Aksidente,Severe,2,2
+1869,"Kritikal na alerto: hindi matukoy na emergency, may mga taong na-trap.",Iba Pa,Critical,5,3
+1870,"Kritikal na alerto: pagguho ng lupa, may malubhang sugatan.",Sakunang Likas,Severe,4,2
+1871,"Kritikal na alerto: hindi matukoy na emergency, walang agarang panganib.",Iba Pa,Minor,5,0
+1872,"Kailangan ng responders para sa epekto ng bagyo, kailangan ng agarang tulong.",Sakunang Likas,Severe,4,2
+1873,"Kritikal na alerto: armadong pagnanakaw, maraming nasugatan.",Krimen,Critical,1,3
+1874,"Ipadala ang mga yunit para sa nasusunog na istruktura, maraming nasugatan.",Sunog,Critical,0,3
+1875,"Insidente: gulo sa publiko, may mga taong nasaktan.",Iba Pa,Severe,5,2
+1876,"Emergency na kinasasangkutan ng sunog sa kuryente, tumitindi ang panganib.",Sunog,Severe,0,2
+1877,"Inalerto ang mga awtoridad: epekto ng bagyo, may mga taong nasaktan.",Sakunang Likas,Severe,4,2
+1878,"Agarang sitwasyon: armadong pagnanakaw, walang nasugatan.",Krimen,Minor,1,0
+1879,"May naiulat na hindi matukoy na emergency, walang nasugatan.",Iba Pa,Minor,5,0
+1880,"Inalerto ang mga awtoridad: sunog sa kuryente, sitwasyong nagbabanta sa buhay.",Sunog,Critical,0,3
+1881,"Inalerto ang mga awtoridad: pananakit, may malubhang sugatan.",Krimen,Severe,1,2
+1882,"Kailangan ng responders para sa karahasan sa bahay, maliit na problema lamang.",Krimen,Minor,1,0
+1883,"Emergency na kinasasangkutan ng storm surge, maraming nasugatan.",Sakunang Likas,Critical,4,3
+1884,"Kailangan ng responders para sa banggaan ng motorsiklo, maliit na problema lamang.",Aksidente,Minor,2,0
+1885,"Inalerto ang mga awtoridad: karahasan sa bahay, walang agarang panganib.",Krimen,Minor,1,0
+1886,"Insidente: sunog sa kusina, sitwasyong nagbabanta sa buhay.",Sunog,Critical,0,3
+1887,"Ipadala ang mga yunit para sa malakas na ulan, tumitindi ang panganib.",Sakunang Likas,Severe,4,2
+1888,"Ipadala ang mga yunit para sa brownout, walang nasugatan.",Iba Pa,Minor,5,0
+1889,"Ipadala ang mga yunit para sa brownout, walang agarang panganib.",Iba Pa,Minor,5,0
+1890,"Insidente: hindi humihinga, may malubhang sugatan.",Medikal,Severe,3,2
+1891,"May naiulat na may usok na lumalabas, may mga taong na-trap.",Sunog,Critical,0,3
+1892,"Kritikal na alerto: nasusunog na istruktura, posibleng may nasugatan.",Sunog,Moderate,0,1
+1893,"Insidente: lalaking may kutsilyo, kailangan ng tulong.",Krimen,Moderate,1,1
+1894,"Agarang sitwasyon: sunog sa bahay, walang agarang panganib.",Sunog,Minor,0,0
+1895,"Ipadala ang mga yunit para sa hayop na na-trap, posibleng may nasugatan.",Iba Pa,Moderate,5,1
+1896,"Agarang sitwasyon: hindi humihinga, maraming nasugatan.",Medikal,Critical,3,3
+1897,"May naiulat na aksidente sa kotse, walang agarang panganib.",Aksidente,Minor,2,0
+1898,"Agarang sitwasyon: walang malay na pasyente, sitwasyong nagbabanta sa buhay.",Medikal,Critical,3,3
+1899,"Emergency na kinasasangkutan ng karahasan sa bahay, tumitindi ang panganib.",Krimen,Severe,1,2
+1900,"Emergency na kinasasangkutan ng sunog sa kuryente, kailangan ng tulong.",Sunog,Moderate,0,1
+1901,"Emergency na kinasasangkutan ng lalaking may kutsilyo, lumalala ang sitwasyon.",Krimen,Moderate,1,1
+1902,"Ipadala ang mga yunit para sa pananakit, sitwasyong nagbabanta sa buhay.",Krimen,Critical,1,3
+1903,"Insidente: banggaan sa kalsada, lumalala ang sitwasyon.",Aksidente,Moderate,2,1
+1904,"Ipadala ang mga yunit para sa pagguho ng lupa, kailangan ng tulong.",Sakunang Likas,Moderate,4,1
+1905,"Agarang sitwasyon: may usok na lumalabas, kailangan ng agarang tugon.",Sunog,Moderate,0,1
+1906,"Ipadala ang mga yunit para sa karahasan sa bahay, maraming nasugatan.",Krimen,Critical,1,3
+1907,"Inalerto ang mga awtoridad: hindi matukoy na emergency, kailangan ng tulong.",Iba Pa,Moderate,5,1
+1908,"Inalerto ang mga awtoridad: pagguho ng lupa, sitwasyong nagbabanta sa buhay.",Sakunang Likas,Critical,4,3
+1909,"Inalerto ang mga awtoridad: sunog sa kusina, may mga taong nasaktan.",Sunog,Severe,0,2
+1910,"Insidente: storm surge, may malubhang sugatan.",Sakunang Likas,Severe,4,2
+1911,"Kritikal na alerto: epekto ng bagyo, sitwasyong nagbabanta sa buhay.",Sakunang Likas,Critical,4,3
+1912,"Kritikal na alerto: banta ng baril, kailangan ng agarang tulong.",Krimen,Severe,1,2
+1913,"Kritikal na alerto: gulo sa publiko, kailangan ng agarang tugon.",Iba Pa,Moderate,5,1
+1914,"Kritikal na alerto: hayop na na-trap, maliit na problema lamang.",Iba Pa,Minor,5,0
+1915,"Emergency na kinasasangkutan ng sapilitang pasok, may malubhang sugatan.",Krimen,Severe,1,2
+1916,"Kailangan ng responders para sa nasusunog na istruktura, kailangan ng agarang tugon.",Sunog,Moderate,0,1
+1917,"May naiulat na sunog sa kuryente, may malubhang sugatan.",Sunog,Severe,0,2
+1918,"Emergency na kinasasangkutan ng epekto ng bagyo, kailangan ng agarang tugon.",Sakunang Likas,Moderate,4,1
+1919,"Kritikal na alerto: nahihirapang huminga, lumalala ang sitwasyon.",Medikal,Moderate,3,1
+1920,"Kailangan ng responders para sa brownout, maliit na problema lamang.",Iba Pa,Minor,5,0
+1921,"Inalerto ang mga awtoridad: karahasan sa bahay, maraming nasugatan.",Krimen,Critical,1,3
+1922,"Kailangan ng responders para sa hindi humihinga, maraming nasugatan.",Medikal,Critical,3,3
+1923,"May naiulat na sapilitang pasok, may malubhang sugatan.",Krimen,Severe,1,2
+1924,"Insidente: hindi matukoy na emergency, kontrolado na ang sitwasyon.",Iba Pa,Minor,5,0
+1925,"Emergency na kinasasangkutan ng hit and run, maliit na problema lamang.",Aksidente,Minor,2,0
+1926,"Kailangan ng responders para sa sunog sa bahay, maliit na problema lamang.",Sunog,Minor,0,0
+1927,"Ipadala ang mga yunit para sa sunog sa bahay, maraming nasugatan.",Sunog,Critical,0,3
+1928,"Kailangan ng responders para sa epekto ng bagyo, lumalala ang sitwasyon.",Sakunang Likas,Moderate,4,1
+1929,"Kritikal na alerto: nasusunog na gusali, tumitindi ang panganib.",Sunog,Severe,0,2
+1930,"Ipadala ang mga yunit para sa aksidente sa kotse, may malubhang sugatan.",Aksidente,Severe,2,2
+1931,"Insidente: nasusunog na istruktura, walang nasugatan.",Sunog,Minor,0,0
+1932,"May naiulat na hit and run, walang nasugatan.",Aksidente,Minor,2,0
+1933,"May naiulat na nasusunog na istruktura, maliit na problema lamang.",Sunog,Minor,0,0
+1934,"Kritikal na alerto: nahihirapang huminga, kailangan ng agarang tugon.",Medikal,Moderate,3,1
+1935,"Insidente: walang malay na pasyente, may mga taong na-trap.",Medikal,Critical,3,3
+1936,"Kritikal na alerto: gulo sa publiko, lumalala ang sitwasyon.",Iba Pa,Moderate,5,1
+1937,"Inalerto ang mga awtoridad: malakas na ulan, tumitindi ang panganib.",Sakunang Likas,Severe,4,2
+1938,"Kritikal na alerto: hayop na na-trap, walang nasugatan.",Iba Pa,Minor,5,0
+1939,"Insidente: pananakit, agarang panganib sa buhay.",Krimen,Critical,1,3
+1940,"Kailangan ng responders para sa salpukan ng sasakyan, lumalala ang sitwasyon.",Aksidente,Moderate,2,1
+1941,"Ipadala ang mga yunit para sa sunog sa bahay, may mga taong nasaktan.",Sunog,Severe,0,2
+1942,"Insidente: lalaking may kutsilyo, kontrolado na ang sitwasyon.",Krimen,Minor,1,0
+1943,"Agarang sitwasyon: aksidente sa kotse, posibleng may nasugatan.",Aksidente,Moderate,2,1
+1944,"Inalerto ang mga awtoridad: hayop na na-trap, walang nasugatan.",Iba Pa,Minor,5,0
+1945,"Insidente: nahihirapang huminga, maraming nasugatan.",Medikal,Critical,3,3
+1946,"Kritikal na alerto: hit and run, tumitindi ang panganib.",Aksidente,Severe,2,2
+1947,"Kailangan ng responders para sa salpukan ng sasakyan, posibleng may nasugatan.",Aksidente,Moderate,2,1
+1948,"Insidente: walang malay na pasyente, agarang panganib sa buhay.",Medikal,Critical,3,3
+1949,"Emergency na kinasasangkutan ng epekto ng bagyo, tumitindi ang panganib.",Sakunang Likas,Severe,4,2
+1950,"May naiulat na malakas na ulan, posibleng may nasugatan.",Sakunang Likas,Moderate,4,1
+1951,"Emergency na kinasasangkutan ng sapilitang pasok, lumalala ang sitwasyon.",Krimen,Moderate,1,1
+1952,"Insidente: pagguho ng lupa, kailangan ng tulong.",Sakunang Likas,Moderate,4,1
+1953,"Insidente: banggaan sa kalsada, kontrolado na ang sitwasyon.",Aksidente,Minor,2,0
+1954,"May naiulat na karahasan sa bahay, posibleng may nasugatan.",Krimen,Moderate,1,1
+1955,"Agarang sitwasyon: hayop na na-trap, walang nasugatan.",Iba Pa,Minor,5,0
+1956,"Kritikal na alerto: nawawalang bata, may mga taong nasaktan.",Iba Pa,Severe,5,2
+1957,"Inalerto ang mga awtoridad: hindi humihinga, may malubhang sugatan.",Medikal,Severe,3,2
+1958,"Emergency na kinasasangkutan ng pagguho ng lupa, posibleng may nasugatan.",Sakunang Likas,Moderate,4,1
+1959,"Kritikal na alerto: sunog sa kuryente, tumitindi ang panganib.",Sunog,Severe,0,2
+1960,"Agarang sitwasyon: sunog sa kuryente, walang agarang panganib.",Sunog,Minor,0,0
+1961,"Agarang sitwasyon: baha, may mga taong na-trap.",Sakunang Likas,Critical,4,3
+1962,"Agarang sitwasyon: armadong pagnanakaw, tumitindi ang panganib.",Krimen,Severe,1,2
+1963,"May naiulat na lalaking may kutsilyo, maraming nasugatan.",Krimen,Critical,1,3
+1964,"Inalerto ang mga awtoridad: banta ng baril, sitwasyong nagbabanta sa buhay.",Krimen,Critical,1,3
+1965,"May naiulat na sapilitang pasok, lumalala ang sitwasyon.",Krimen,Moderate,1,1
+1966,"May naiulat na storm surge, walang nasugatan.",Sakunang Likas,Minor,4,0
+1967,"Kailangan ng responders para sa nasusunog na gusali, kailangan ng agarang tugon.",Sunog,Moderate,0,1
+1968,"May naiulat na brownout, lumalala ang sitwasyon.",Iba Pa,Moderate,5,1
+1969,"Emergency na kinasasangkutan ng malakas na ulan, may mga taong nasaktan.",Sakunang Likas,Severe,4,2
+1970,"Ipadala ang mga yunit para sa nasusunog na gusali, lumalala ang sitwasyon.",Sunog,Moderate,0,1
+1971,"Kritikal na alerto: brownout, sitwasyong nagbabanta sa buhay.",Iba Pa,Critical,5,3
+1972,"Kailangan ng responders para sa sapilitang pasok, may mga taong na-trap.",Krimen,Critical,1,3
+1973,"Emergency na kinasasangkutan ng pananakit, kontrolado na ang sitwasyon.",Krimen,Minor,1,0
+1974,"Ipadala ang mga yunit para sa gulo sa publiko, may mga taong na-trap.",Iba Pa,Critical,5,3
+1975,"Kailangan ng responders para sa may usok na lumalabas, may mga taong na-trap.",Sunog,Critical,0,3
+1976,"Kritikal na alerto: malakas na ulan, kailangan ng agarang tulong.",Sakunang Likas,Severe,4,2
+1977,"May naiulat na hayop na na-trap, walang agarang panganib.",Iba Pa,Minor,5,0
+1978,"Inalerto ang mga awtoridad: kombulsyon, kailangan ng agarang tulong.",Medikal,Severe,3,2
+1979,"Ipadala ang mga yunit para sa malakas na ulan, sitwasyong nagbabanta sa buhay.",Sakunang Likas,Critical,4,3
+1980,"Kailangan ng responders para sa sunog sa bahay, kailangan ng tulong.",Sunog,Moderate,0,1
+1981,"Emergency na kinasasangkutan ng pananakit, walang nasugatan.",Krimen,Minor,1,0
+1982,"Agarang sitwasyon: banggaan sa kalsada, walang nasugatan.",Aksidente,Minor,2,0
+1983,"Kritikal na alerto: pagguho ng lupa, kailangan ng tulong.",Sakunang Likas,Moderate,4,1
+1984,"Kritikal na alerto: pananakit ng dibdib, walang agarang panganib.",Medikal,Minor,3,0
+1985,"May naiulat na pagguho ng lupa, lumalala ang sitwasyon.",Sakunang Likas,Moderate,4,1
+1986,"Insidente: may taong bumagsak, may mga taong nasaktan.",Medikal,Severe,3,2
+1987,"Agarang sitwasyon: storm surge, posibleng may nasugatan.",Sakunang Likas,Moderate,4,1
+1988,"Ipadala ang mga yunit para sa may taong bumagsak, may mga taong na-trap.",Medikal,Critical,3,3
+1989,"Emergency na kinasasangkutan ng hindi matukoy na emergency, kailangan ng tulong.",Iba Pa,Moderate,5,1
+1990,"Emergency na kinasasangkutan ng banggaan sa kalsada, kailangan ng agarang tugon.",Aksidente,Moderate,2,1
+1991,"Emergency na kinasasangkutan ng pananakit, agarang panganib sa buhay.",Krimen,Critical,1,3
+1992,"May naiulat na gulo sa publiko, posibleng may nasugatan.",Iba Pa,Moderate,5,1
+1993,"May naiulat na pinsala mula sa lindol, may mga taong na-trap.",Sakunang Likas,Critical,4,3
+1994,"Kritikal na alerto: nasusunog na istruktura, may mga taong na-trap.",Sunog,Critical,0,3
+1995,"Kritikal na alerto: hindi matukoy na emergency, may mga taong nasaktan.",Iba Pa,Severe,5,2
+1996,"Ipadala ang mga yunit para sa karahasan sa bahay, may malubhang sugatan.",Krimen,Severe,1,2
+1997,"Emergency na kinasasangkutan ng nasusunog na gusali, maraming nasugatan.",Sunog,Critical,0,3
+1998,"Insidente: salpukan ng sasakyan, may mga taong na-trap.",Aksidente,Critical,2,3
+1999,"Ipadala ang mga yunit para sa lalaking may kutsilyo, kailangan ng tulong.",Krimen,Moderate,1,1
+2000,"May naiulat na aksidente sa trak, kailangan ng agarang tulong.",Aksidente,Severe,2,2
