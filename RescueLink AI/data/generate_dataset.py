@@ -74,11 +74,19 @@ sentence_templates = [
     "Emergency reported involving {incident}, {severity}.",
     "Responders needed for {incident}, {severity}.",
     "Urgent situation: {incident}, {severity}.",
-    "Incident reported: {incident}, {severity}."
+    "Incident reported: {incident}, {severity}.",
+    "Authorities alerted: {incident}, {severity}.",
+    "Dispatch units for {incident}, {severity}.",
+    "Critical alert: {incident}, {severity}."
 ]
+
+# Map incident types and severity levels to numeric labels
+incident_type_labels = {name: idx for idx, name in enumerate(incident_types.keys())}
+severity_labels = {name: idx for idx, name in enumerate(severity_templates.keys())}
 
 rows = []
 TARGET_ROWS = 2000
+id_counter = 1
 
 while len(rows) < TARGET_ROWS:
     incident_type = random.choice(list(incident_types.keys()))
@@ -92,11 +100,19 @@ while len(rows) < TARGET_ROWS:
         severity=severity_phrase
     )
 
-    rows.append([text, incident_type, severity])
+    rows.append([
+        id_counter,
+        text,
+        incident_type,
+        severity,
+        incident_type_labels[incident_type],
+        severity_labels[severity]
+    ])
+    id_counter += 1
 
 with open(OUTPUT_FILE, mode="w", newline="", encoding="utf-8") as f:
     writer = csv.writer(f)
-    writer.writerow(["text", "incident_type", "severity"])
+    writer.writerow(["id", "text", "incident_type", "severity", "type_label", "severity_label"])
     writer.writerows(rows)
 
 print(f"Generated {len(rows)} emergency scenarios in {OUTPUT_FILE}")
