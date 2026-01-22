@@ -102,6 +102,39 @@ function sanitizeInput(input) {
     });
 }
 
+// Validate password strength
+function validatePassword(password) {
+  if (typeof password !== 'string') {
+    throw new Error('Password must be a string');
+  }
+
+  const trimmed = password.trim();
+
+  // Minimum length requirement
+  if (trimmed.length < 8) {
+    throw new Error('Password must be at least 8 characters long');
+  }
+
+  // Maximum length to prevent DoS attacks
+  if (trimmed.length > 128) {
+    throw new Error('Password must not exceed 128 characters');
+  }
+
+  // Complexity requirements: at least one letter and one number
+  const hasLetter = /[a-zA-Z]/.test(trimmed);
+  const hasNumber = /[0-9]/.test(trimmed);
+
+  if (!hasLetter) {
+    throw new Error('Password must contain at least one letter');
+  }
+
+  if (!hasNumber) {
+    throw new Error('Password must contain at least one number');
+  }
+
+  return trimmed;
+}
+
 // Validate pagination parameters
 function validatePagination(limit, offset) {
   const validatedLimit = limit ? validateInteger(limit, 'limit') : 20;
@@ -120,5 +153,6 @@ module.exports = {
   validateEmail,
   validateOptionalString,
   sanitizeInput,
+  validatePassword,
   validatePagination
 };

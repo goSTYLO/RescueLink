@@ -2,26 +2,30 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/user');
 const { hashPassword, comparePassword } = require('../utils/hash');
 const firebaseAdmin = require('../config/firebase');
-const { validatePhone, validateString, validateOptionalString } = require('../utils/validation');
+const { validatePhone, validateString, validateOptionalString, validatePassword } = require('../utils/validation');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'change_this_secret';
 
 // Register using phone_number
 exports.register = async (req, res) => {
   try {
-    const { phone, firstName, lastName, email } = req.body;
-    if (!phone || !firstName || !lastName) return res.status(400).json({ message: 'Phone, firstName, and lastName required' });
+    const { phone, firstName, lastName, email, password } = req.body;
+    if (!phone || !firstName || !lastName || !password) return res.status(400).json({ message: 'Phone, firstName, lastName, and password are required' });
 
     // Validate and sanitize inputs
     const validatedPhone = validatePhone(phone);
     const validatedFirstName = validateString(firstName, 'firstName', 1, 100);
     const validatedLastName = validateString(lastName, 'lastName', 1, 100);
     const validatedEmail = email ? validateOptionalString(email, 'email', 255) : null;
+    const validatedPassword = validatePassword(password);
 
     const existing = await User.findByPhone(validatedPhone);
     if (existing) return res.status(409).json({ message: 'User with this phone already exists' });
 
-    const user = await User.create({ phone_number: validatedPhone, email: validatedEmail, phone_verified: false, first_name: validatedFirstName, last_name: validatedLastName });
+    // Hash the password
+    const passwordHash = await hashPassword(validatedPassword);
+
+    const user = await User.create({ phone_number: validatedPhone, email: validatedEmail, password: passwordHash, phone_verified: false, first_name: validatedFirstName, last_name: validatedLastName });
 
     const token = jwt.sign({ user_id: user.user_id, phone: user.phone_number, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
     res.status(201).json({ user: { user_id: user.user_id, phone: user.phone_number, firstName: user.first_name, lastName: user.last_name, role: user.role }, token });
@@ -34,17 +38,24 @@ exports.register = async (req, res) => {
   }
 };
 
-// Login using phone_number (authentication via Firebase in production)
+// Login using phone_number and password
 exports.login = async (req, res) => {
   try {
-    const { phone } = req.body;
-    if (!phone) return res.status(400).json({ message: 'Phone number required' });
+    const { phone, password } = req.body;
+    if (!phone || !password) return res.status(400).json({ message: 'Phone number and password are required' });
 
     // Validate and sanitize input
     const validatedPhone = validatePhone(phone);
 
     const user = await User.findByPhone(validatedPhone);
     if (!user) return res.status(401).json({ message: 'Invalid credentials' });
+
+    // Check if user has a password set
+    if (!user.password) return res.status(401).json({ message: 'Invalid credentials' });
+
+    // Verify password
+    const isPasswordValid = await comparePassword(password, user.password);
+    if (!isPasswordValid) return res.status(401).json({ message: 'Invalid credentials' });
 
     const token = jwt.sign({ user_id: user.user_id, phone: user.phone_number, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
     res.json({ user: { user_id: user.user_id, phone: user.phone_number, role: user.role }, token });
@@ -63,7 +74,7 @@ exports.login = async (req, res) => {
 // Firebase Admin SDK, extract the phone number, and create the local user with phone_verified=true.
 exports.onboardPhone = async (req, res) => {
   try {
-    const { idToken } = req.body;
+    const { idToken, password } = req.body;
     if (!idToken) return res.status(400).json({ message: 'idToken required' });
 
     // Validate idToken is a string
@@ -80,7 +91,14 @@ exports.onboardPhone = async (req, res) => {
     if (!existing) return res.status(404).json({ message: 'User not found. Please register first.' });
 
     // Update phone_verified to true
-    const user = await User.updatePhoneVerified(phone, true);
+    let user = await User.updatePhoneVerified(phone, true);
+
+    // If password is provided, validate, hash, and store it
+    if (password) {
+      const validatedPassword = validatePassword(password);
+      const passwordHash = await hashPassword(validatedPassword);
+      user = await User.updatePassword(user.user_id, passwordHash);
+    }
 
     const token = jwt.sign({ user_id: user.user_id, phone: user.phone_number, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
     res.json({ user: { user_id: user.user_id, phone: user.phone_number, firstName: user.first_name, lastName: user.last_name, role: user.role }, token });
