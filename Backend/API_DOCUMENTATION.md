@@ -34,6 +34,7 @@ All API endpoints include comprehensive input validation to prevent SQL injectio
 - **Phone numbers**: Max 20 characters, accepts digits, +, spaces, hyphens, parentheses
 - **Email**: Must be valid email format, max 255 characters
 - **Names** (first/last): 1-100 characters
+- **Passwords**: 8-128 characters, must contain at least one letter and one number
 - **Strings** (general): Length limits based on database schema (typically 50-500 characters)
 - **Pagination**: `limit` capped at 100, `offset` must be non-negative
 
@@ -53,6 +54,8 @@ All validation errors return `400 Bad Request` with a descriptive error message:
 - Input sanitization removes dangerous control characters
 - Type checking ensures data matches expected formats
 - Length constraints prevent buffer overflow attacks
+- **Password Security**: All passwords are hashed using bcrypt with configurable salt rounds (default: 10) before storage. Passwords are never stored in plain text.
+- **Encryption Utilities**: AES-256-GCM encryption utilities are available for encrypting sensitive data at rest (e.g., API keys, tokens). Requires `ENCRYPTION_KEY` environment variable.
 
 ---
 
@@ -62,7 +65,7 @@ All validation errors return `400 Bad Request` with a descriptive error message:
 
 **POST** `/api/auth/register`
 
-Register a new user with phone number and optional email. Does not require authentication.
+Register a new user with phone number, password, and optional email. Does not require authentication.
 
 **Request Body:**
 
@@ -71,6 +74,7 @@ Register a new user with phone number and optional email. Does not require authe
   "phone": "+1234567890", // required
   "firstName": "John", // required
   "lastName": "Doe", // required
+  "password": "SecurePass123", // required
   "email": "john@example.com" // optional
 }
 ```
@@ -92,7 +96,7 @@ Register a new user with phone number and optional email. Does not require authe
 
 **Error Responses:**
 
-- `400 Bad Request` - Missing required fields (phone, firstName, or lastName) or validation errors
+- `400 Bad Request` - Missing required fields (phone, firstName, lastName, or password) or validation errors
 - `409 Conflict` - User with this phone already exists
 - `500 Internal Server Error` - Registration failed
 
@@ -101,14 +105,15 @@ Register a new user with phone number and optional email. Does not require authe
 - `phone`: Max 20 characters, valid phone format
 - `firstName`: 1-100 characters
 - `lastName`: 1-100 characters
+- `password`: 8-128 characters, must contain at least one letter and one number
 - `email` (optional): Valid email format, max 255 characters
 
 **Notes:**
 
 - The user is created with `phone_verified: false` and `role: 'user'`
+- Password is hashed using bcrypt before storage
 - JWT token is valid for 7 days
 - JWT payload contains user_id, phone, and role
-- Password authentication removed; use Firebase phone verification for production authentication
 
 ---
 
@@ -116,13 +121,14 @@ Register a new user with phone number and optional email. Does not require authe
 
 **POST** `/api/auth/login`
 
-Login with phone number. Does not require authentication.
+Login with phone number and password. Does not require authentication.
 
 **Request Body:**
 
 ```json
 {
-  "phone": "+1234567890" // required
+  "phone": "+1234567890", // required
+  "password": "SecurePass123" // required
 }
 ```
 
@@ -141,19 +147,20 @@ Login with phone number. Does not require authentication.
 
 **Error Responses:**
 
-- `400 Bad Request` - Missing required field (phone) or validation errors
-- `401 Unauthorized` - Invalid credentials
+- `400 Bad Request` - Missing required fields (phone or password) or validation errors
+- `401 Unauthorized` - Invalid credentials (invalid phone, password, or user has no password set)
 - `500 Internal Server Error` - Login failed
 
 **Validation:**
 
 - `phone`: Max 20 characters, valid phone format
+- `password`: Must match the user's stored password hash
 
 **Notes:**
 
+- Password is verified against the bcrypt hash stored in the database
 - JWT token is valid for 7 days
 - Token payload contains user_id, phone, and role
-- In production, use Firebase phone verification before calling this endpoint
 
 ---
 
@@ -167,14 +174,16 @@ Verify phone number using Firebase and update user's phone verification status. 
 
 1. Client performs Firebase phone verification using Firebase client SDK
 2. Client obtains a Firebase ID token after successful verification
-3. Client sends the ID token to this endpoint
+3. Client sends the ID token (and optionally a password) to this endpoint
 4. Server verifies the token with Firebase Admin SDK and updates the user's `phone_verified` status to `true`
+5. If password is provided, it is validated, hashed, and stored
 
 **Request Body:**
 
 ```json
 {
-  "idToken": "firebase_id_token_here" // required
+  "idToken": "firebase_id_token_here", // required
+  "password": "SecurePass123" // optional
 }
 ```
 
@@ -193,21 +202,24 @@ Verify phone number using Firebase and update user's phone verification status. 
 }
 ```
 
-, ID token does not contain a phone number, or validation errors
+**Error Responses:**
 
+- `400 Bad Request` - Missing idToken, ID token does not contain a phone number, or validation errors (including password validation if provided)
 - `404 Not Found` - User not found. Please register first.
 - `500 Internal Server Error` - Phone onboarding failed
 
 **Validation:**
 
-- `idToken`: 1-2048 characters
-- `400 Bad Request` - Missing idToken or ID token does not contain a phone number
-- `404 Not Found` - User not found. Please register first.
-- `500 Internal Server Error` - Phone onboarding failed
+- `idToken`: 1-2048 characters (required)
+- `password`: 8-128 characters, must contain at least one letter and one number (optional, but validated if provided)
 
 **Notes:**
 
 - User must be registered first before calling this endpoint
+- Updates `phone_verified` to `true`
+- If password is provided, it is hashed using bcrypt before storage
+- Returns a new JWT token valid for 7 days
+- Requires Firebase Admin SDK configuration
 - Updates `phone_verified` to `true`
 - Returns a new JWT token valid for 7 days
 - Requires Firebase Admin SDK configuration
