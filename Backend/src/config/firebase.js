@@ -1,5 +1,4 @@
 const admin = require('firebase-admin');
-const fs = require('fs');
 require('dotenv').config();
 
 // Initialization options:
