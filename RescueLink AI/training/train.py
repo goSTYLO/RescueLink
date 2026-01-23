@@ -1,35 +1,41 @@
+import ast
+import json
 import os
 import pandas as pd
 import torch
-import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset
-from transformers import DistilBertTokenizerFast
-from sklearn.preprocessing import LabelEncoder
+from transformers import AutoTokenizer
 
 from models.emergency_classifier import EmergencyClassifier
-from utils.encoders import save_encoders
-
 
 # -----------------------------
 # Dataset
 # -----------------------------
 class EmergencyDataset(Dataset):
-    def __init__(self, encodings, type_labels, severity_labels):
+    def __init__(self, encodings, type_labels, severity_labels, num_types):
         self.encodings = encodings
-        self.type_labels = type_labels
+        self.type_labels = type_labels   # list of lists (multi-label incident types)
         self.severity_labels = severity_labels
+        self.num_types = num_types
 
     def __getitem__(self, idx):
         item = {k: torch.tensor(v[idx]) for k, v in self.encodings.items()}
-        item["labels"] = torch.tensor(
-            [self.type_labels[idx], self.severity_labels[idx]],
-            dtype=torch.long
-        )
+
+        # Multi-label incident types → binary vector
+        type_vector = torch.zeros(self.num_types)
+        for label in self.type_labels[idx]:
+            type_vector[label] = 1.0
+
+        # Severity → single integer
+        severity_label = torch.tensor(self.severity_labels[idx])
+
+        # Combine into one tensor: [incident multi-labels..., severity]
+        item["labels"] = torch.cat([type_vector, severity_label.unsqueeze(0)])
+
         return item
 
     def __len__(self):
-        return len(self.type_labels)
-
+        return len(self.severity_labels)
 
 # -----------------------------
 # Training Logic
@@ -45,18 +51,26 @@ def train():
 
     # Ensure folders exist
     os.makedirs("models", exist_ok=True)
-    os.makedirs("utils", exist_ok=True)
 
-    # Load data
+    # Load data and recover label vocabularies from the CSV
     df = pd.read_csv("data/emergency_dataset.csv")
+    df["incident_types"] = df["incident_types"].apply(ast.literal_eval)
+    df["type_labels"] = df["type_labels"].apply(ast.literal_eval)
 
-    type_encoder = LabelEncoder()
-    severity_encoder = LabelEncoder()
+    # Rebuild index→name maps directly from the dataset
+    incident_idx_to_name = {}
+    severity_idx_to_name = {}
+    for _, row in df.iterrows():
+        for name, idx in zip(row["incident_types"], row["type_labels"]):
+            incident_idx_to_name[idx] = name
+        severity_idx_to_name[row["severity_label"]] = row["severity"]
 
-    df["type_label"] = type_encoder.fit_transform(df["incident_type"])
-    df["severity_label"] = severity_encoder.fit_transform(df["severity"])
+    incident_type_labels = [incident_idx_to_name[i] for i in sorted(incident_idx_to_name.keys())]
+    severity_labels = [severity_idx_to_name[i] for i in sorted(severity_idx_to_name.keys())]
 
-    tokenizer = DistilBertTokenizerFast.from_pretrained("distilbert-base-uncased")
+    # Tokenizer/backbone must be shared with inference
+    backbone_name = "xlm-roberta-base"
+    tokenizer = AutoTokenizer.from_pretrained(backbone_name)
 
     encodings = tokenizer(
         df["text"].tolist(),
@@ -67,15 +81,24 @@ def train():
 
     dataset = EmergencyDataset(
         encodings,
-        df["type_label"].tolist(),
-        df["severity_label"].tolist()
+        df["type_labels"].tolist(),   # list of list[int] already parsed
+        df["severity_label"].tolist(),
+        num_types=len(incident_type_labels)
     )
 
     # Larger batch size for GPU, adjust if VRAM is limited
     dataloader = DataLoader(dataset, batch_size=16, shuffle=True)
 
-    model = EmergencyClassifier().to(device)
+    model = EmergencyClassifier(
+        num_incident_types=len(incident_type_labels),
+        num_severity_classes=len(severity_labels),
+        backbone=backbone_name,
+    ).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=5e-5)
+
+    # Loss functions
+    bce_loss = torch.nn.BCEWithLogitsLoss()
+    ce_loss_severity = torch.nn.CrossEntropyLoss(label_smoothing=0.1)
 
     model.train()
 
@@ -92,8 +115,11 @@ def train():
 
             outputs = model(input_ids, attention_mask)
 
-            loss_type = F.cross_entropy(outputs["type_logits"], labels[:, 0])
-            loss_severity = F.cross_entropy(outputs["severity_logits"], labels[:, 1])
+            # Multi-label incident type loss
+            loss_type = bce_loss(outputs["type_logits"], labels[:,0:-1].float())
+
+            # Severity loss with label smoothing
+            loss_severity = ce_loss_severity(outputs["severity_logits"], labels[:,-1].long())
 
             loss = loss_type + loss_severity
             loss.backward()
@@ -104,11 +130,30 @@ def train():
         print(f"Epoch {epoch + 1} complete | Loss: {total_loss:.4f}")
 
     # Save artifacts
-    torch.save(model.state_dict(), "models/emergency_model.pt")
-    save_encoders(type_encoder, severity_encoder)
+    checkpoint = {
+        "model_state_dict": model.state_dict(),
+        "incident_type_labels": incident_type_labels,
+        "severity_labels": severity_labels,
+        "backbone": backbone_name,
+        "threshold": 0.5,
+    }
+    torch.save(checkpoint, "models/emergency_model.pt")
 
-    print("Training complete. Model and encoders saved.")
+    meta_path = os.path.join("models", "label_meta.json")
+    with open(meta_path, "w", encoding="utf-8") as f:
+        json.dump(
+            {
+                "incident_type_labels": incident_type_labels,
+                "severity_labels": severity_labels,
+                "backbone": backbone_name,
+                "threshold": 0.5,
+            },
+            f,
+            ensure_ascii=True,
+            indent=2,
+        )
 
+    print("Training complete. Model and metadata saved.")
 
 # -----------------------------
 # Entry Point

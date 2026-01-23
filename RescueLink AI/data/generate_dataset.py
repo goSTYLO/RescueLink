@@ -54,80 +54,50 @@ incident_types = {
     },
     "Other": {
         "keywords": [
-            # Existing
             "lost child", "power outage", "animal trapped",
             "unknown emergency", "public disturbance",
             "nawawalang bata", "brownout", "hayop na na-trap",
             "hindi matukoy na emergency", "gulo sa publiko",
             "may lost child", "brownout sa area", "animal na-trap",
 
-            # Crowd & disturbance
             "crowd panic", "stampede", "riot", "protest turned violent",
             "tao nagwawala", "maraming tao nagkakagulo", "may rally",
 
-            # Environmental / utility
             "gas leak", "chemical spill", "toxic smell", "radiation alert",
             "tagas ng gas", "natapon na kemikal", "amoy na nakakalason",
 
-            # Unusual noises / unknown
             "loud explosion sound", "mysterious noise", "unknown smell",
             "malakas na putok", "hindi matukoy na tunog", "may kakaibang amoy",
 
-            # Missing / stranded
             "missing person", "stranded passengers", "lost hiker",
             "nawawalang tao", "naiwang pasahero", "nawalang mountaineer",
 
-            # Animal / wildlife
             "wild animal loose", "snake sighting", "dog attack",
             "aso nanakit", "may ahas", "hayop gumagala",
 
-            # Infrastructure / misc
             "bridge collapse", "building evacuation", "road blockage",
             "gumuhong tulay", "inilikas ang gusali", "sarado ang kalsada"
         ]
     }
 }
 
+# START triage severity templates
 severity_templates = {
-    "Minor": [
-        "no injuries reported",
-        "situation under control",
-        "minor issue only",
-        "no immediate danger",
-        "walang nasugatan",
-        "kontrolado na ang sitwasyon",
-        "maliit na problema lamang",
-        "walang agarang panganib"
+    "Green": [  # Minor
+        "walking wounded", "no injuries reported", "safe to wait",
+        "konti lang sugat", "walang agarang panganib"
     ],
-    "Moderate": [
-        "needs assistance",
-        "possible injuries",
-        "situation worsening",
-        "requires response",
-        "kailangan ng tulong",
-        "posibleng may nasugatan",
-        "lumalala ang sitwasyon",
-        "kailangan ng agarang tugon"
+    "Yellow": [  # Delayed
+        "needs treatment soon", "possible fracture", "delayed care ok",
+        "posibleng may sugatan", "kailangan ng tulong pero stable"
     ],
-    "Severe": [
-        "serious injuries reported",
-        "people are injured",
-        "danger increasing rapidly",
-        "urgent assistance needed",
-        "may malubhang sugatan",
-        "may mga taong nasaktan",
-        "tumitindi ang panganib",
-        "kailangan ng agarang tulong"
+    "Red": [  # Immediate
+        "not breathing", "severe bleeding", "urgent help needed",
+        "life-threatening injuries", "kailangan ng agarang tugon"
     ],
-    "Critical": [
-        "people trapped",
-        "life-threatening situation",
-        "immediate danger to life",
-        "multiple casualties reported",
-        "may mga taong na-trap",
-        "sitwasyong nagbabanta sa buhay",
-        "agarang panganib sa buhay",
-        "maraming nasugatan"
+    "Black": [  # Expectant
+        "no signs of life", "deceased", "expectant category",
+        "hindi na humihinga", "wala nang buhay"
     ]
 }
 
@@ -181,35 +151,45 @@ def detect_lang(incident_phrase, severity_phrase, sentence_template):
     else:
         return "en"
 
-# Map incident types and severity levels to numeric labels
+# Label mappings
 incident_type_labels = {name: idx for idx, name in enumerate(incident_types.keys())}
 severity_labels = {name: idx for idx, name in enumerate(severity_templates.keys())}
 
+# Generate dataset
 rows = []
 TARGET_ROWS = 6000  # larger dataset for robustness
 id_counter = 1
 
 while len(rows) < TARGET_ROWS:
-    incident_type = random.choice(list(incident_types.keys()))
-    incident_phrase = random.choice(incident_types[incident_type]["keywords"])
+    # Pick 1–2 incident types (multi-label)
+    incident_choices = random.sample(list(incident_types.keys()), k=random.choice([1, 2]))
+    incident_phrases = [random.choice(incident_types[it]["keywords"]) for it in incident_choices]
+
+    # Join phrases for text generation
+    incident_text = " and ".join(incident_phrases)
+
+    # Pick severity
     severity = random.choice(list(severity_templates.keys()))
     severity_phrase = random.choice(severity_templates[severity])
     sentence_template = random.choice(sentence_templates)
 
+    # Build sentence
     text = sentence_template.format(
-        incident=incident_phrase,
+        incident=incident_text,
         severity=severity_phrase
     )
 
-    text = dirty_text(text)  # inject imperfections
-    lang = detect_lang(incident_phrase, severity_phrase, sentence_template)
+    # Add imperfections
+    text = dirty_text(text)
+    lang = detect_lang(incident_text, severity_phrase, sentence_template)
 
+    # Append row with multi-label incident types
     rows.append([
         id_counter,
         text,
-        incident_type,
+        incident_choices,  # list of incident types
         severity,
-        incident_type_labels[incident_type],
+        [incident_type_labels[it] for it in incident_choices],  # list of numeric labels
         severity_labels[severity],
         lang
     ])
@@ -218,10 +198,10 @@ while len(rows) < TARGET_ROWS:
 # Ensure data folder exists
 os.makedirs("data", exist_ok=True)
 
+# Write CSV
 with open(OUTPUT_FILE, mode="w", newline="", encoding="utf-8") as f:
     writer = csv.writer(f)
-    writer.writerow(["id", "text", "incident_type", "severity", "type_label", "severity_label", "lang"])
+    writer.writerow(["id", "text", "incident_types", "severity", "type_labels", "severity_label", "lang"])
     writer.writerows(rows)
 
 print(f"Generated {len(rows)} emergency scenarios in {OUTPUT_FILE}")
-
