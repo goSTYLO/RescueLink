@@ -1,0 +1,157 @@
+# RescueLink Mobile App
+
+Flutter mobile application for RescueLink built with BLoC architecture.
+
+## Prerequisites
+
+- Flutter SDK (3.0.0 or higher)
+- Dart SDK (3.0.0 or higher)
+- Android Studio / Xcode (for mobile development)
+- VS Code or Android Studio (recommended IDE)
+
+## Setup Instructions
+
+1. **Install Flutter**
+   - Follow the official Flutter installation guide: https://flutter.dev/docs/get-started/install
+   - Verify installation: `flutter doctor`
+
+2. **Install Dependencies**
+   ```bash
+   cd Frontend/Mobile
+   flutter pub get
+   ```
+
+3. **Configure API Base URL**
+   - Open `lib/utils/app_config.dart`
+   - Update `apiBaseUrl` to point to your backend server
+   - Default: `http://localhost:3000`
+   - For Android emulator: `http://10.0.2.2:3000`
+   - For iOS simulator: `http://localhost:3000`
+
+4. **Run the App**
+   ```bash
+   flutter run
+   ```
+
+## Project Structure
+
+```
+lib/
+├── bloc/              # BLoC state management
+│   └── example/       # Example BLoC implementation
+├── models/            # Data models
+├── repositories/      # Repository pattern (data layer)
+├── screens/           # UI screens/pages
+├── services/          # API services, network clients
+├── utils/             # Utilities, constants, helpers
+│   ├── constants.dart
+│   └── app_config.dart
+├── widgets/           # Reusable widgets
+└── main.dart          # App entry point
+```
+
+## BLoC Architecture
+
+This project uses the BLoC (Business Logic Component) pattern for state management.
+
+### BLoC Pattern Flow
+
+```
+UI → Event → BLoC → State → UI
+```
+
+### Components
+
+1. **Events**: User actions or system events that trigger state changes
+2. **States**: Represents the current state of the application
+3. **BLoC**: Business logic component that processes events and emits states
+
+### Example BLoC Structure
+
+```dart
+// Event
+class ExampleIncrementEvent extends ExampleEvent {}
+
+// State
+class ExampleLoaded extends ExampleState {
+  final int counter;
+}
+
+// BLoC
+class ExampleBloc extends Bloc<ExampleEvent, ExampleState> {
+  // Handle events and emit states
+}
+```
+
+## Dependencies
+
+- **flutter_bloc**: State management using BLoC pattern
+- **equatable**: Value equality for states and events
+- **http**: HTTP client for API calls
+- **shared_preferences**: Local storage for app data
+
+## API Integration
+
+The app is configured to work with the RescueLink backend API. The `ApiService` class provides methods for:
+
+- GET, POST, PUT, DELETE requests
+- Automatic JSON encoding/decoding
+- Error handling
+- Custom headers support
+
+### Example Usage
+
+```dart
+final apiService = ApiService();
+final response = await apiService.post(
+  AppConstants.endpointEmergency,
+  body: {
+    'latitude': 16.043021,
+    'longitude': 120.3337627,
+  },
+  headers: {
+    'Authorization': 'Bearer $token',
+  },
+);
+```
+
+## Development
+
+### Running Tests
+```bash
+flutter test
+```
+
+### Building for Production
+
+**Android:**
+```bash
+flutter build apk --release
+```
+
+**iOS:**
+```bash
+flutter build ios --release
+```
+
+## Architecture Guidelines
+
+1. **Separation of Concerns**: Keep UI, business logic, and data layers separate
+2. **BLoC Pattern**: Use BLoC for all state management
+3. **Repository Pattern**: Use repositories to abstract data sources
+4. **Dependency Injection**: Inject services and repositories into BLoCs
+5. **Error Handling**: Always handle errors in BLoCs and display user-friendly messages
+
+## Next Steps
+
+- Implement authentication BLoC
+- Create incident reporting screens
+- Integrate with backend API endpoints
+- Add location services
+- Implement push notifications
+
+## Resources
+
+- [Flutter Documentation](https://flutter.dev/docs)
+- [BLoC Library Documentation](https://bloclibrary.dev/)
+- [Dart Language Tour](https://dart.dev/guides/language/language-tour)

@@ -35,6 +35,7 @@ All API endpoints include comprehensive input validation to prevent SQL injectio
 - **Email**: Must be valid email format, max 255 characters
 - **Names** (first/last): 1-100 characters
 - **Passwords**: 8-128 characters, must contain at least one letter and one number
+- **Coordinates**: Latitude must be between -90 and 90 degrees, Longitude must be between -180 and 180 degrees
 - **Strings** (general): Length limits based on database schema (typically 50-500 characters)
 - **Pagination**: `limit` capped at 100, `offset` must be non-negative
 
@@ -837,6 +838,256 @@ Delete a notification record.
 **Validation:**
 
 - `id`: Must be a positive integer
+
+---
+
+## Location API
+
+### Check Location
+
+**POST** `/api/location/check`
+
+Check if a given coordinate point (latitude, longitude) is within Dagupan city boundaries. Does not require authentication.
+
+**Request Body:**
+
+```json
+{
+  "latitude": 16.043021, // required, must be between -90 and 90
+  "longitude": 120.3337627 // required, must be between -180 and 180
+}
+```
+
+**Response:** `200 OK`
+
+```json
+{
+  "success": true,
+  "isInDagupan": true,
+  "coordinates": {
+    "latitude": 16.043021,
+    "longitude": 120.3337627
+  },
+  "message": "The coordinates are within Dagupan city boundaries"
+}
+```
+
+**Example Response (Outside Dagupan):**
+
+```json
+{
+  "success": true,
+  "isInDagupan": false,
+  "coordinates": {
+    "latitude": 14.6042,
+    "longitude": 120.9822
+  },
+  "message": "The coordinates are outside Dagupan city boundaries"
+}
+```
+
+**Error Responses:**
+
+- `400 Bad Request` - Missing required fields (latitude or longitude) or validation errors
+- `500 Internal Server Error` - Failed to check location
+
+**Validation:**
+
+- `latitude`: Must be a valid number between -90 and 90 degrees
+- `longitude`: Must be a valid number between -180 and 180 degrees
+
+**Notes:**
+
+- Uses the ray casting algorithm to determine if a point is inside the polygon
+- Polygon boundaries are loaded from the Dagupan GeoJSON file
+- The endpoint is public and does not require authentication
+- Coordinates are validated before processing
+
+---
+
+## Incidents API
+
+### Create Emergency Incident
+
+**POST** `/api/incidents/emergency`
+
+Create an emergency incident report with only coordinates. This endpoint is optimized for speed and automatically sets high priority. Does not trigger AI classification. Requires authentication.
+
+**Request Body:**
+
+```json
+{
+  "latitude": 16.043021, // required, must be between -90 and 90
+  "longitude": 120.3337627 // required, must be between -180 and 180
+}
+```
+
+**Response:** `201 Created`
+
+```json
+{
+  "success": true,
+  "message": "Emergency incident reported successfully",
+  "incident": {
+    "report_id": 1,
+    "user_id": 1,
+    "incident_type": null,
+    "severity_level": "high",
+    "description": null,
+    "latitude": 16.043021,
+    "longitude": 120.3337627,
+    "media_url": null,
+    "status": "pending",
+    "created_at": "2026-01-20T10:30:00.000Z"
+  }
+}
+```
+
+**Error Responses:**
+
+- `400 Bad Request` - Missing required fields (latitude or longitude) or validation errors
+- `401 Unauthorized` - Missing or invalid authentication token
+- `500 Internal Server Error` - Failed to create emergency incident
+
+**Validation:**
+
+- `latitude`: Must be a valid number between -90 and 90 degrees
+- `longitude`: Must be a valid number between -180 and 180 degrees
+
+**Notes:**
+
+- Automatically sets `severity_level` to "high" for emergency priority
+- `incident_type` is set to `null` (no classification for emergency reports)
+- `user_id` is automatically extracted from JWT authentication token
+- Does NOT trigger AI classification (skips ai_classifications table)
+- Designed for fast reporting in time-critical situations
+- Other fields (description, media_url) are set to null
+
+---
+
+### Get Incident by ID
+
+**GET** `/api/incidents/:id`
+
+Retrieve a specific incident report by ID. Requires authentication.
+
+**Parameters:**
+
+- `id` (integer) - Incident report ID
+
+**Response:** `200 OK`
+
+```json
+{
+  "report_id": 1,
+  "user_id": 1,
+  "incident_type": null,
+  "severity_level": "high",
+  "description": null,
+  "latitude": 16.043021,
+  "longitude": 120.3337627,
+  "media_url": null,
+  "status": "pending",
+  "created_at": "2026-01-20T10:30:00.000Z"
+}
+```
+
+**Error Responses:**
+
+- `400 Bad Request` - Invalid incident ID format
+- `401 Unauthorized` - Missing or invalid authentication token
+- `404 Not Found` - Incident not found
+- `500 Internal Server Error` - Server error
+
+---
+
+### Get All Incidents
+
+**GET** `/api/incidents`
+
+Retrieve a paginated list of all incident reports with optional filtering. Requires authentication.
+
+**Query Parameters:**
+
+- `limit` (integer, optional) - Number of records to return (default: 20, max: 100)
+- `offset` (integer, optional) - Number of records to skip (default: 0)
+- `severity_level` (string, optional) - Filter by severity level (e.g., "high", "medium", "low")
+- `status` (string, optional) - Filter by status (e.g., "pending", "resolved")
+
+**Example:**
+
+```
+GET /api/incidents?limit=10&offset=0&severity_level=high&status=pending
+```
+
+**Response:** `200 OK`
+
+```json
+[
+  {
+    "report_id": 1,
+    "user_id": 1,
+    "incident_type": null,
+    "severity_level": "high",
+    "description": null,
+    "latitude": 16.043021,
+    "longitude": 120.3337627,
+    "media_url": null,
+    "status": "pending",
+    "created_at": "2026-01-20T10:30:00.000Z"
+  }
+]
+```
+
+**Error Responses:**
+
+- `400 Bad Request` - Invalid query parameters
+- `401 Unauthorized` - Missing or invalid authentication token
+- `500 Internal Server Error` - Server error
+
+---
+
+### Get My Incidents
+
+**GET** `/api/incidents/user/my`
+
+Retrieve a paginated list of incidents reported by the authenticated user. Requires authentication.
+
+**Query Parameters:**
+
+- `limit` (integer, optional) - Number of records to return (default: 20, max: 100)
+- `offset` (integer, optional) - Number of records to skip (default: 0)
+
+**Example:**
+
+```
+GET /api/incidents/user/my?limit=10&offset=0
+```
+
+**Response:** `200 OK`
+
+```json
+[
+  {
+    "report_id": 1,
+    "user_id": 1,
+    "incident_type": null,
+    "severity_level": "high",
+    "description": null,
+    "latitude": 16.043021,
+    "longitude": 120.3337627,
+    "media_url": null,
+    "status": "pending",
+    "created_at": "2026-01-20T10:30:00.000Z"
+  }
+]
+```
+
+**Error Responses:**
+
+- `400 Bad Request` - Invalid query parameters
+- `401 Unauthorized` - Missing or invalid authentication token
+- `500 Internal Server Error` - Server error
 
 ---
 

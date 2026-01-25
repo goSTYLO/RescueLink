@@ -20,11 +20,11 @@ CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE TABLE IF NOT EXISTS incident_reports (
   report_id SERIAL PRIMARY KEY,
   user_id INTEGER NOT NULL REFERENCES users(user_id),
-  incident_type VARCHAR(100) NOT NULL,
+  incident_type VARCHAR(100),
   severity_level VARCHAR(50) NOT NULL,
   description TEXT,
-  latitude DOUBLE PRECISION,
-  longitude DOUBLE PRECISION,
+  latitude DOUBLE PRECISION NOT NULL,
+  longitude DOUBLE PRECISION NOT NULL,
   media_url VARCHAR(500),
   status VARCHAR(50) NOT NULL DEFAULT 'pending',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -32,6 +32,20 @@ CREATE TABLE IF NOT EXISTS incident_reports (
 
 -- Index for quick lookups by user
 CREATE INDEX IF NOT EXISTS idx_incident_reports_user_id ON incident_reports(user_id);
+
+-- Index for geospatial queries
+CREATE INDEX IF NOT EXISTS idx_incident_reports_location ON incident_reports(latitude, longitude);
+
+-- Index for filtering by severity level
+CREATE INDEX IF NOT EXISTS idx_incident_reports_severity ON incident_reports(severity_level);
+
+-- Migration SQL for existing databases (run these if table already exists)
+-- Make incident_type nullable
+-- ALTER TABLE incident_reports ALTER COLUMN incident_type DROP NOT NULL;
+
+-- Make latitude and longitude required
+-- ALTER TABLE incident_reports ALTER COLUMN latitude SET NOT NULL;
+-- ALTER TABLE incident_reports ALTER COLUMN longitude SET NOT NULL;
 
 -- Create responders table
 CREATE TABLE IF NOT EXISTS responders (

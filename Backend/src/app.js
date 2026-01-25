@@ -4,6 +4,8 @@ const authRoutes = require('./routes/auth');
 const responderRoutes = require('./routes/responder');
 const dispatchRoutes = require('./routes/dispatch');
 const notificationRoutes = require('./routes/notification');
+const locationRoutes = require('./routes/location');
+const incidentRoutes = require('./routes/incident');
 
 const app = express();
 
@@ -14,6 +16,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/responders', responderRoutes);
 app.use('/api/dispatches', dispatchRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/location', locationRoutes);
+app.use('/api/incidents', incidentRoutes);
 
 // Basic health route
 app.get('/health', (req, res) => res.json({ status: 'ok' }));

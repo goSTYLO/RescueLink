@@ -135,6 +135,30 @@ function validatePassword(password) {
   return trimmed;
 }
 
+// Validate latitude
+function validateLatitude(lat) {
+  const parsed = parseFloat(lat);
+  if (isNaN(parsed)) {
+    throw new Error('Latitude must be a valid number');
+  }
+  if (parsed < -90 || parsed > 90) {
+    throw new Error('Latitude must be between -90 and 90 degrees');
+  }
+  return parsed;
+}
+
+// Validate longitude
+function validateLongitude(lng) {
+  const parsed = parseFloat(lng);
+  if (isNaN(parsed)) {
+    throw new Error('Longitude must be a valid number');
+  }
+  if (parsed < -180 || parsed > 180) {
+    throw new Error('Longitude must be between -180 and 180 degrees');
+  }
+  return parsed;
+}
+
 // Validate pagination parameters
 function validatePagination(limit, offset) {
   const validatedLimit = limit ? validateInteger(limit, 'limit') : 20;
@@ -154,5 +178,7 @@ module.exports = {
   validateOptionalString,
   sanitizeInput,
   validatePassword,
+  validateLatitude,
+  validateLongitude,
   validatePagination
 };
