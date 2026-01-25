@@ -148,15 +148,15 @@ class _SignUpScreenState extends State<SignUpScreen> {
                               horizontal: 32,
                               vertical: 48,
                             ),
-                            child: Column(
+                            child: const Column(
                               children: [
-                                const Icon(
+                                Icon(
                                   Icons.shield,
                                   color: Colors.white,
                                   size: 48,
                                 ),
-                                const SizedBox(height: 16),
-                                const Text(
+                                SizedBox(height: 16),
+                                Text(
                                   'Create Account',
                                   style: TextStyle(
                                     color: Colors.white,
@@ -164,8 +164,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
-                                const SizedBox(height: 8),
-                                const Text(
+                                SizedBox(height: 8),
+                                Text(
                                   'Join RescueLink Dagupan City',
                                   style: TextStyle(
                                     color: Colors.white,
@@ -373,20 +373,20 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                     ),
                                     child: DropdownButtonFormField<String>(
                                       value: _selectedBarangay,
-                                      decoration: InputDecoration(
+                                      decoration: const InputDecoration(
                                         hintText: 'Select your barangay',
-                                        prefixIcon: const Icon(
+                                        prefixIcon: Icon(
                                           Icons.location_on,
                                           color: Color(0xFF9CA3AF),
                                         ),
-                                        suffixIcon: const Icon(
+                                        suffixIcon: Icon(
                                           Icons.arrow_drop_down,
                                           color: Color(0xFF9CA3AF),
                                         ),
                                         border: InputBorder.none,
                                         enabledBorder: InputBorder.none,
                                         focusedBorder: InputBorder.none,
-                                        contentPadding: const EdgeInsets.symmetric(
+                                        contentPadding: EdgeInsets.symmetric(
                                           horizontal: 16,
                                           vertical: 12,
                                         ),

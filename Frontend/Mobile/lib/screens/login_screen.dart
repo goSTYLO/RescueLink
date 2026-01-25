@@ -90,15 +90,15 @@ class _LoginScreenState extends State<LoginScreen> {
                               horizontal: 32,
                               vertical: 48,
                             ),
-                            child: Column(
+                            child: const Column(
                               children: [
-                                const Icon(
+                                Icon(
                                   Icons.shield,
                                   color: Colors.white,
                                   size: 48,
                                 ),
-                                const SizedBox(height: 16),
-                                const Text(
+                                SizedBox(height: 16),
+                                Text(
                                   'Welcome Back',
                                   style: TextStyle(
                                     color: Colors.white,
@@ -106,8 +106,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
-                                const SizedBox(height: 8),
-                                const Text(
+                                SizedBox(height: 8),
+                                Text(
                                   'Log in to RescueLink',
                                   style: TextStyle(
                                     color: Colors.white,
@@ -421,17 +421,17 @@ class _LoginScreenState extends State<LoginScreen> {
                                 color: const Color(0xFFEFF6FF),
                                 borderRadius: BorderRadius.circular(20),
                               ),
-                              child: Row(
+                              child: const Row(
                                 mainAxisSize: MainAxisSize.min,
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  const Icon(
+                                  Icon(
                                     Icons.shield,
                                     color: Color(0xFF2563EB),
                                     size: 16,
                                   ),
-                                  const SizedBox(width: 8),
-                                  const Text(
+                                  SizedBox(width: 8),
+                                  Text(
                                     'Secure Login • Dagupan City Verified',
                                     style: TextStyle(
                                       color: Color(0xFF1E40AF),
