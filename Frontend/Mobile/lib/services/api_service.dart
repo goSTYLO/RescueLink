@@ -93,7 +93,8 @@ class ApiService {
   Uri _buildUri(String endpoint, Map<String, dynamic>? queryParameters) {
     final uri = Uri.parse('$baseUrl$endpoint');
     if (queryParameters != null && queryParameters.isNotEmpty) {
-      return uri.replace(queryParameters: queryParameters.map(
+      return uri.replace(
+          queryParameters: queryParameters.map(
         (key, value) => MapEntry(key, value.toString()),
       ));
     }
@@ -122,8 +123,22 @@ class ApiService {
       }
       return jsonDecode(response.body) as Map<String, dynamic>;
     } else {
+      // Try to extract error message from JSON response
+      String errorMessage = 'Request failed with status ${response.statusCode}';
+      try {
+        final errorBody = jsonDecode(response.body) as Map<String, dynamic>;
+        if (errorBody.containsKey('message')) {
+          errorMessage = errorBody['message'];
+        } else if (errorBody.containsKey('error')) {
+          errorMessage = errorBody['error'];
+        }
+      } catch (_) {
+        // If JSON parsing fails, use the raw body
+        errorMessage = response.body.isNotEmpty ? response.body : errorMessage;
+      }
+
       throw ApiException(
-        'Request failed with status ${response.statusCode}: ${response.body}',
+        errorMessage,
         statusCode: response.statusCode,
       );
     }

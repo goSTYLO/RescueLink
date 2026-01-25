@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import '../services/auth_service.dart';
+import '../utils/validators.dart';
 
 // Dagupan City Barangays
 const List<String> dagupanBarangays = [
@@ -40,8 +42,10 @@ const List<String> dagupanBarangays = [
 
 class SignUpScreen extends StatefulWidget {
   final VoidCallback? onLoginTap;
-  final Function(String firstName, String lastName, String phone, String barangay, String password)? onSignUp;
-  final Function(String phone)? onSignupSuccess; // Callback to navigate to OTP screen
+  final Function(String firstName, String lastName, String phone,
+      String barangay, String password)? onSignUp;
+  final Function(String phone)?
+      onSignupSuccess; // Callback to navigate to OTP screen
 
   const SignUpScreen({
     super.key,
@@ -65,6 +69,41 @@ class _SignUpScreenState extends State<SignUpScreen> {
   String _selectedBarangay = 'Select your barangay';
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
+
+  void _showToast(
+    String message, {
+    Color backgroundColor = const Color(0xFF111827),
+    IconData icon = Icons.info_outline,
+  }) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: backgroundColor,
+        elevation: 6,
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        content: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Icon(icon, color: Colors.white, size: 20),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+        duration: const Duration(seconds: 4),
+      ),
+    );
+  }
   bool _isLoading = false;
 
   @override
@@ -80,42 +119,90 @@ class _SignUpScreenState extends State<SignUpScreen> {
   Future<void> _handleSignUp() async {
     if (_formKey.currentState!.validate()) {
       if (_selectedBarangay == 'Select your barangay') {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please select your barangay'),
-            backgroundColor: Colors.red,
-          ),
+        _showToast(
+          'Please select your barangay',
+          backgroundColor: const Color(0xFFDC2626),
+          icon: Icons.error_outline,
         );
         return;
       }
 
       setState(() => _isLoading = true);
 
-      // Register user with auth service
-      final result = await _authService.register(
-        firstName: _firstNameController.text.trim(),
-        lastName: _lastNameController.text.trim(),
-        phone: _phoneController.text.trim(),
-        barangay: _selectedBarangay,
-        password: _passwordController.text,
-      );
+      try {
+        // Get user's current location
+        final position = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high,
+        );
 
-      if (mounted) {
-        if (result['success']) {
-          // Navigate to OTP request screen
-          if (widget.onSignupSuccess != null) {
-            widget.onSignupSuccess!(_phoneController.text.trim());
+        // Check if location is within Dagupan using API
+        final locationCheckResult = await _authService.checkLocationInDagupan(
+          latitude: position.latitude,
+          longitude: position.longitude,
+        );
+
+        if (!locationCheckResult['success'] || !locationCheckResult['isInDagupan']) {
+          if (mounted) {
+            setState(() => _isLoading = false);
+            _showToast(
+              'Your location is outside Dagupan City. You cannot sign up for this service.',
+              backgroundColor: const Color(0xFFDC2626),
+              icon: Icons.location_off,
+            );
           }
-        } else {
-          // Show error message
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(result['error'] ?? 'Sign up failed'),
-              backgroundColor: Colors.red,
-            ),
+          return;
+        }
+
+        // Format phone number for Firebase (E.164 format: +639171234567)
+        final formattedPhone = Validators.formatPhoneForFirebase(
+          _phoneController.text.trim(),
+        );
+
+        // Register user with location
+        final result = await _authService.register(
+          firstName: _firstNameController.text.trim(),
+          lastName: _lastNameController.text.trim(),
+          phone: formattedPhone,
+          barangay: _selectedBarangay,
+          password: _passwordController.text,
+          latitude: position.latitude,
+          longitude: position.longitude,
+        );
+
+        if (mounted) {
+          if (result['success']) {
+            // Navigate to OTP request screen with formatted phone
+            if (widget.onSignupSuccess != null) {
+              widget.onSignupSuccess!(formattedPhone);
+            }
+          } else {
+            // Show error message
+            String errorMsg = result['error'] ?? 'Sign up failed';
+            // Clean up error message (remove "ApiException: " prefix if present)
+            if (errorMsg.startsWith('ApiException: ')) {
+              errorMsg = errorMsg.substring('ApiException: '.length);
+            }
+            _showToast(
+              errorMsg,
+              backgroundColor: const Color(0xFFDC2626),
+              icon: Icons.error_outline,
+            );
+          }
+          setState(() => _isLoading = false);
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() => _isLoading = false);
+          String errorMsg = 'Failed to get location. Please enable location services.';
+          if (e.toString().contains('PERMISSION_DENIED')) {
+            errorMsg = 'Location permission denied. Please enable it in settings.';
+          }
+          _showToast(
+            errorMsg,
+            backgroundColor: const Color(0xFFDC2626),
+            icon: Icons.location_disabled,
           );
         }
-        setState(() => _isLoading = false);
       }
     }
   }
@@ -236,17 +323,15 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                       ),
                                       filled: true,
                                       fillColor: Colors.white,
-                                      contentPadding: const EdgeInsets.symmetric(
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
                                         horizontal: 16,
                                         vertical: 12,
                                       ),
                                     ),
-                                    validator: (value) {
-                                      if (value == null || value.isEmpty) {
-                                        return 'First name is required';
-                                      }
-                                      return null;
-                                    },
+                                    validator: (value) =>
+                                        Validators.validateName(
+                                            value, 'First name'),
                                   ),
                                   const SizedBox(height: 20),
 
@@ -284,17 +369,15 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                       ),
                                       filled: true,
                                       fillColor: Colors.white,
-                                      contentPadding: const EdgeInsets.symmetric(
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
                                         horizontal: 16,
                                         vertical: 12,
                                       ),
                                     ),
-                                    validator: (value) {
-                                      if (value == null || value.isEmpty) {
-                                        return 'Last name is required';
-                                      }
-                                      return null;
-                                    },
+                                    validator: (value) =>
+                                        Validators.validateName(
+                                            value, 'Last name'),
                                   ),
                                   const SizedBox(height: 20),
 
@@ -347,17 +430,13 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                       ),
                                       filled: true,
                                       fillColor: Colors.white,
-                                      contentPadding: const EdgeInsets.symmetric(
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
                                         horizontal: 16,
                                         vertical: 12,
                                       ),
                                     ),
-                                    validator: (value) {
-                                      if (value == null || value.isEmpty) {
-                                        return 'Phone number is required';
-                                      }
-                                      return null;
-                                    },
+                                    validator: Validators.validatePhoneNumber,
                                   ),
                                   const SizedBox(height: 20),
 
@@ -450,7 +529,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                     controller: _passwordController,
                                     obscureText: _obscurePassword,
                                     decoration: InputDecoration(
-                                      hintText: 'Minimum 8 characters',
+                                      hintText:
+                                          '8+ chars, must include letter & number',
                                       prefixIcon: const Icon(
                                         Icons.lock,
                                         color: Color(0xFF9CA3AF),
@@ -464,7 +544,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                         ),
                                         onPressed: () {
                                           setState(() {
-                                            _obscurePassword = !_obscurePassword;
+                                            _obscurePassword =
+                                                !_obscurePassword;
                                           });
                                         },
                                       ),
@@ -488,20 +569,13 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                       ),
                                       filled: true,
                                       fillColor: Colors.white,
-                                      contentPadding: const EdgeInsets.symmetric(
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
                                         horizontal: 16,
                                         vertical: 12,
                                       ),
                                     ),
-                                    validator: (value) {
-                                      if (value == null || value.isEmpty) {
-                                        return 'Password is required';
-                                      }
-                                      if (value.length < 8) {
-                                        return 'Password must be at least 8 characters';
-                                      }
-                                      return null;
-                                    },
+                                    validator: Validators.validatePassword,
                                   ),
                                   const SizedBox(height: 20),
 
@@ -529,7 +603,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                         ),
                                         onPressed: () {
                                           setState(() {
-                                            _obscureConfirmPassword = !_obscureConfirmPassword;
+                                            _obscureConfirmPassword =
+                                                !_obscureConfirmPassword;
                                           });
                                         },
                                       ),
@@ -553,20 +628,17 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                       ),
                                       filled: true,
                                       fillColor: Colors.white,
-                                      contentPadding: const EdgeInsets.symmetric(
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
                                         horizontal: 16,
                                         vertical: 12,
                                       ),
                                     ),
-                                    validator: (value) {
-                                      if (value == null || value.isEmpty) {
-                                        return 'Please confirm your password';
-                                      }
-                                      if (value != _passwordController.text) {
-                                        return 'Passwords do not match';
-                                      }
-                                      return null;
-                                    },
+                                    validator: (value) =>
+                                        Validators.validatePasswordConfirmation(
+                                      value,
+                                      _passwordController.text,
+                                    ),
                                   ),
                                   const SizedBox(height: 32),
 
@@ -574,7 +646,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                   SizedBox(
                                     width: double.infinity,
                                     child: ElevatedButton(
-                                      onPressed: _isLoading ? null : _handleSignUp,
+                                      onPressed:
+                                          _isLoading ? null : _handleSignUp,
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor: Colors.transparent,
                                         shadowColor: Colors.transparent,
@@ -582,10 +655,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                           vertical: 14,
                                         ),
                                         shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(8),
+                                          borderRadius:
+                                              BorderRadius.circular(8),
                                         ),
                                       ).copyWith(
-                                        backgroundColor: WidgetStateProperty.all(
+                                        backgroundColor:
+                                            WidgetStateProperty.all(
                                           Colors.transparent,
                                         ),
                                       ),
@@ -597,7 +672,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                               Color(0xFF3B82F6),
                                             ],
                                           ),
-                                          borderRadius: BorderRadius.circular(8),
+                                          borderRadius:
+                                              BorderRadius.circular(8),
                                         ),
                                         padding: const EdgeInsets.symmetric(
                                           vertical: 14,
@@ -607,11 +683,13 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                               ? const SizedBox(
                                                   height: 20,
                                                   width: 20,
-                                                  child: CircularProgressIndicator(
+                                                  child:
+                                                      CircularProgressIndicator(
                                                     strokeWidth: 2,
                                                     valueColor:
                                                         AlwaysStoppedAnimation<
-                                                            Color>(Colors.white),
+                                                                Color>(
+                                                            Colors.white),
                                                   ),
                                                 )
                                               : const Text(

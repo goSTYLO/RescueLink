@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -39,23 +40,56 @@ class AuthService {
     await _firebaseAuth.signOut();
   }
 
-  // Register user with backend
+  // Register user with backend (now includes location validation)
+    // Check if location is within Dagupan City
+    Future<Map<String, dynamic>> checkLocationInDagupan({
+      required double latitude,
+      required double longitude,
+    }) async {
+      try {
+        final response = await _apiService.post(
+          '/api/location/check',
+          body: {
+            'latitude': latitude,
+            'longitude': longitude,
+          },
+        );
+
+        return {
+          'success': response['success'] ?? false,
+          'isInDagupan': response['isInDagupan'] ?? false,
+          'message': response['message'] ?? 'Location check failed',
+        };
+      } catch (e) {
+        return {
+          'success': false,
+          'isInDagupan': false,
+          'error': e.toString(),
+        };
+      }
+    }
+
+    // Register user with backend (now includes location validation)
   Future<Map<String, dynamic>> register({
     required String firstName,
     required String lastName,
     required String phone,
     required String barangay,
     required String password,
+    required double latitude,
+    required double longitude,
   }) async {
     try {
       final response = await _apiService.post(
-        '/auth/register',
+        '/api/auth/register',
         body: {
           'firstName': firstName,
           'lastName': lastName,
           'phone': phone,
-          'address': barangay, // Store barangay in address field
+          'address': barangay,
           'password': password,
+          'latitude': latitude,
+          'longitude': longitude,
         },
       );
 
@@ -78,25 +112,37 @@ class AuthService {
     String phoneNumber,
   ) async {
     try {
+      final Completer<Map<String, dynamic>> completer = Completer();
+
       await _firebaseAuth.verifyPhoneNumber(
         phoneNumber: phoneNumber,
+        timeout: const Duration(seconds: 60),
         verificationCompleted: (PhoneAuthCredential credential) {
           // Auto-verification on Android
           print('Phone verification auto-completed');
         },
         verificationFailed: (FirebaseAuthException e) {
           print('Phone verification failed: ${e.message}');
+          if (!completer.isCompleted) {
+            completer.complete({
+              'success': false,
+              'error': e.message ?? 'Phone verification failed',
+            });
+          }
         },
         codeSent: (String verificationId, int? forceResendingToken) {
           _verificationId = verificationId;
           _forceResendingToken = forceResendingToken;
+          if (!completer.isCompleted) {
+            completer.complete({'success': true});
+          }
         },
         codeAutoRetrievalTimeout: (String verificationId) {
           _verificationId = verificationId;
         },
       );
 
-      return {'success': true};
+      return await completer.future;
     } catch (e) {
       return {
         'success': false,
@@ -105,7 +151,7 @@ class AuthService {
     }
   }
 
-  // Verify OTP and location
+  // Verify OTP with Firebase and onboard phone
   Future<Map<String, dynamic>> verifyOtpAndLocation({
     required String otp,
     required double latitude,
@@ -119,13 +165,14 @@ class AuthService {
         };
       }
 
-      // Sign in with OTP
+      // Sign in with OTP to get Firebase ID token
       final credential = PhoneAuthProvider.credential(
         verificationId: _verificationId!,
         smsCode: otp,
       );
 
-      final userCredential = await _firebaseAuth.signInWithCredential(credential);
+      final userCredential =
+          await _firebaseAuth.signInWithCredential(credential);
       final idToken = await userCredential.user?.getIdToken();
 
       if (idToken == null) {
@@ -144,9 +191,9 @@ class AuthService {
         };
       }
 
-      // Call backend onboard-phone endpoint
+      // Call backend onboard-phone endpoint (just verify Firebase token)
       final onboardResponse = await _apiService.post(
-        '/auth/onboard-phone',
+        '/api/auth/onboard-phone',
         body: {'idToken': idToken},
         headers: {'Authorization': 'Bearer $currentToken'},
       );
@@ -155,28 +202,6 @@ class AuthService {
         return {
           'success': false,
           'error': 'Failed to complete phone verification.',
-        };
-      }
-
-      // Verify location with 150m buffer (mid-range of 100-200m)
-      final locationResponse = await _apiService.post(
-        '/location/check',
-        body: {
-          'latitude': latitude,
-          'longitude': longitude,
-          'bufferMeters': 150,
-        },
-        headers: {'Authorization': 'Bearer ${onboardResponse['token']}'},
-      );
-
-      if (locationResponse['isInDagupan'] != true) {
-        // Location is outside Dagupan, reject signup
-        await logout();
-        return {
-          'success': false,
-          'error':
-              'Your location is outside Dagupan. You cannot sign up for this service.',
-          'locationOutside': true,
         };
       }
 
@@ -242,7 +267,8 @@ class AuthService {
             'accuracy': position.accuracy,
           };
         } catch (e) {
-          if (e.toString().contains('timeout') || e.toString().contains('Timeout')) {
+          if (e.toString().contains('timeout') ||
+              e.toString().contains('Timeout')) {
             attempt++;
             if (attempt <= maxRetries) {
               print('Location timeout, retrying... (attempt $attempt)');
@@ -276,28 +302,37 @@ class AuthService {
   // Resend OTP
   Future<Map<String, dynamic>> resendOtp(String phoneNumber) async {
     try {
-      _verificationId = null;
-      _forceResendingToken = null;
+      final Completer<Map<String, dynamic>> completer = Completer();
 
       await _firebaseAuth.verifyPhoneNumber(
         phoneNumber: phoneNumber,
+        timeout: const Duration(seconds: 60),
         forceResendingToken: _forceResendingToken,
         verificationCompleted: (PhoneAuthCredential credential) {
           print('Phone verification auto-completed');
         },
         verificationFailed: (FirebaseAuthException e) {
           print('Phone verification failed: ${e.message}');
+          if (!completer.isCompleted) {
+            completer.complete({
+              'success': false,
+              'error': e.message ?? 'Phone verification failed',
+            });
+          }
         },
         codeSent: (String verificationId, int? forceResendingToken) {
           _verificationId = verificationId;
           _forceResendingToken = forceResendingToken;
+          if (!completer.isCompleted) {
+            completer.complete({'success': true});
+          }
         },
         codeAutoRetrievalTimeout: (String verificationId) {
           _verificationId = verificationId;
         },
       );
 
-      return {'success': true};
+      return await completer.future;
     } catch (e) {
       return {
         'success': false,

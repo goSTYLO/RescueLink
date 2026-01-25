@@ -23,13 +23,18 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
     6,
     (index) => TextEditingController(),
   );
-  final List<FocusNode> _otpFocusNodes = List.generate(6, (index) => FocusNode());
+  final List<FocusNode> _otpFocusNodes =
+      List.generate(6, (index) => FocusNode());
 
   bool _isLoading = false;
-  bool _gettingLocation = false;
-  String? _locationError;
-  double? _currentLatitude;
-  double? _currentLongitude;
+  int _resendCountdown = 60;
+
+  @override
+  void initState() {
+    super.initState();
+    // Start resend countdown
+    _startResendCountdown();
+  }
 
   @override
   void dispose() {
@@ -54,38 +59,55 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
     }
   }
 
-  Future<void> _captureLocationAndVerify() async {
-    // First, capture location
-    setState(() => _gettingLocation = true);
+  void _startResendCountdown() {
+    Future.doWhile(() async {
+      await Future.delayed(const Duration(seconds: 1));
+      if (mounted) {
+        setState(() {
+          if (_resendCountdown > 0) {
+            _resendCountdown--;
+          }
+        });
+      }
+      return _resendCountdown > 0 && mounted;
+    });
+  }
 
-    final locationResult = await _authService.getCurrentLocation(
-      maxRetries: 2,
-      timeoutSeconds: 30,
-    );
+  Future<void> _handleResendOTP() async {
+    if (_resendCountdown > 0) return;
 
-    if (!mounted) return;
+    setState(() => _isLoading = true);
 
-    if (!locationResult['success']) {
-      setState(() {
-        _gettingLocation = false;
-        _locationError = locationResult['error'] ?? 'Failed to get location';
-      });
+    final result = await _authService.resendOtp(widget.phoneNumber);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(_locationError!),
-          backgroundColor: Colors.red,
-          duration: const Duration(seconds: 5),
-        ),
-      );
-      return;
+    if (mounted) {
+      if (result['success']) {
+        setState(() {
+          _resendCountdown = 60;
+          _isLoading = false;
+        });
+        _startResendCountdown();
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('OTP sent successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result['error'] ?? 'Failed to resend OTP'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        setState(() => _isLoading = false);
+      }
     }
+  }
 
-    // Store coordinates
-    _currentLatitude = locationResult['latitude'];
-    _currentLongitude = locationResult['longitude'];
-
-    // Now verify OTP with location
+  Future<void> _captureLocationAndVerify() async {
+    // Verify OTP (location already validated during registration)
     setState(() => _isLoading = true);
 
     final otpCode = _getOTPCode();
@@ -103,8 +125,8 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
 
     final result = await _authService.verifyOtpAndLocation(
       otp: otpCode,
-      latitude: _currentLatitude!,
-      longitude: _currentLongitude!,
+      latitude: 0,
+      longitude: 0,
     );
 
     if (mounted) {
@@ -121,36 +143,13 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
           widget.onVerificationSuccess!();
         }
       } else {
-        if (result['locationOutside'] == true) {
-          setState(() {
-            _locationError =
-                'Your location is outside Dagupan. You cannot complete the sign up.';
-            _gettingLocation = false;
-          });
-
-          showDialog(
-            context: context,
-            builder: (context) => AlertDialog(
-              title: const Text('Location Not Verified'),
-              content: const Text(
-                'Your current location is outside Dagupan City. Only residents of Dagupan can sign up for RescueLink.',
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('OK'),
-                ),
-              ],
-            ),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(result['error'] ?? 'Verification failed'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result['error'] ?? 'Verification failed'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
+        );
         setState(() => _isLoading = false);
       }
     }
@@ -269,7 +268,8 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                                         textAlign: TextAlign.center,
                                         keyboardType: TextInputType.number,
                                         maxLength: 1,
-                                        enabled: !_isLoading && !_gettingLocation,
+                                        enabled:
+                                            !_isLoading,
                                         decoration: InputDecoration(
                                           counterText: '',
                                           border: OutlineInputBorder(
@@ -310,82 +310,13 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                                   }),
                                 ),
 
-                                const SizedBox(height: 24),
-
-                                // Location Status
-                                Container(
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFF0F9FF),
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                      color: const Color(0xFF3B82F6),
-                                      width: 1.5,
-                                    ),
-                                  ),
-                                  padding: const EdgeInsets.all(16),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          Icon(
-                                            _gettingLocation
-                                                ? Icons.location_searching
-                                                : Icons.location_on,
-                                            color: const Color(0xFF3B82F6),
-                                            size: 20,
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Expanded(
-                                            child: Text(
-                                              _gettingLocation
-                                                  ? 'Verifying location...'
-                                                  : _locationError != null
-                                                      ? 'Location verification'
-                                                      : 'Location will be verified',
-                                              style: const TextStyle(
-                                                fontSize: 14,
-                                                fontWeight: FontWeight.w600,
-                                                color: Color(0xFF1F2937),
-                                              ),
-                                            ),
-                                          ),
-                                          if (_gettingLocation)
-                                            const SizedBox(
-                                              height: 16,
-                                              width: 16,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2,
-                                                valueColor:
-                                                    AlwaysStoppedAnimation<Color>(
-                                                  Color(0xFF3B82F6),
-                                                ),
-                                              ),
-                                            ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        _locationError != null
-                                            ? _locationError!
-                                            : 'Your location must be within Dagupan City to complete verification.',
-                                        style: const TextStyle(
-                                          fontSize: 13,
-                                          color: Color(0xFF374151),
-                                          height: 1.5,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-
                                 const SizedBox(height: 32),
 
                                 // Verify Button
                                 SizedBox(
                                   width: double.infinity,
                                   child: ElevatedButton(
-                                    onPressed: _isLoading || _gettingLocation
+                                    onPressed: _isLoading
                                         ? null
                                         : _captureLocationAndVerify,
                                     style: ElevatedButton.styleFrom(
@@ -406,7 +337,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                                     ),
                                     child: Container(
                                       decoration: BoxDecoration(
-                                        gradient: _isLoading || _gettingLocation
+                                        gradient: _isLoading
                                             ? const LinearGradient(
                                                 colors: [
                                                   Color(0xFFD1D5DB),
@@ -425,14 +356,16 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                                         vertical: 14,
                                       ),
                                       child: Center(
-                                        child: _isLoading || _gettingLocation
+                                        child: _isLoading
                                             ? const SizedBox(
                                                 height: 20,
                                                 width: 20,
-                                                child: CircularProgressIndicator(
+                                                child:
+                                                    CircularProgressIndicator(
                                                   strokeWidth: 2,
                                                   valueColor:
-                                                      AlwaysStoppedAnimation<Color>(
+                                                      AlwaysStoppedAnimation<
+                                                          Color>(
                                                     Color(0xFF9CA3AF),
                                                   ),
                                                 ),
@@ -452,16 +385,62 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
 
                                 const SizedBox(height: 24),
 
+                                // Resend OTP Section
+                                Center(
+                                  child: Column(
+                                    children: [
+                                      const Text(
+                                        'Didn\'t receive the code?',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          color: Color(0xFF6B7280),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      if (_resendCountdown > 0)
+                                        Text(
+                                          'Resend OTP in ${_resendCountdown}s',
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            color: Color(0xFF9CA3AF),
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        )
+                                      else
+                                        GestureDetector(
+                                          onTap: _isLoading
+                                              ? null
+                                              : _handleResendOTP,
+                                          child: Text(
+                                            'Resend OTP',
+                                            style: TextStyle(
+                                              fontSize: 13,
+                                              color: _isLoading
+                                                  ? const Color(0xFF9CA3AF)
+                                                  : const Color(0xFF14B8A6),
+                                              fontWeight: FontWeight.w600,
+                                              decoration: _isLoading
+                                                  ? TextDecoration.none
+                                                  : TextDecoration.underline,
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+
+                                const SizedBox(height: 24),
+
                                 // Back Button
                                 Center(
                                   child: GestureDetector(
-                                    onTap: _isLoading || _gettingLocation
+                                    onTap: _isLoading
                                         ? null
                                         : widget.onBackTap,
                                     child: Text(
                                       'Back to OTP Request',
                                       style: TextStyle(
-                                        color: _isLoading || _gettingLocation
+                                        color: _isLoading
                                             ? const Color(0xFFD1D5DB)
                                             : const Color(0xFF6B7280),
                                         fontSize: 13,

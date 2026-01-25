@@ -4,7 +4,8 @@ import '../services/auth_service.dart';
 class RequestOTPScreen extends StatefulWidget {
   final String phoneNumber;
   final VoidCallback? onBackTap;
-  final Function(String phone)? onOTPSent; // Callback to navigate to OTP verification screen
+  final Function(String phone)?
+      onOTPSent; // Callback to navigate to OTP verification screen
 
   const RequestOTPScreen({
     super.key,
@@ -19,14 +20,16 @@ class RequestOTPScreen extends StatefulWidget {
 
 class _RequestOTPScreenState extends State<RequestOTPScreen> {
   final AuthService _authService = AuthService();
+  String _selectedBarangay = 'Select your barangay';
+  bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
   bool _isLoading = false;
-  bool _otpSent = false;
-  int _resendCountdown = 0;
 
   @override
   void initState() {
     super.initState();
-    _requestOTP();
+    // Don't auto-request OTP - wait for user to click button
+    // This allows Firebase's reCAPTCHA to work properly
   }
 
   Future<void> _requestOTP() async {
@@ -38,12 +41,10 @@ class _RequestOTPScreenState extends State<RequestOTPScreen> {
 
     if (mounted) {
       if (result['success']) {
-        setState(() {
-          _otpSent = true;
-          _resendCountdown = 60;
-          _isLoading = false;
-        });
-        _startResendCountdown();
+        // Navigate immediately to OTP verification screen
+        if (widget.onOTPSent != null) {
+          widget.onOTPSent!(widget.phoneNumber);
+        }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -53,59 +54,6 @@ class _RequestOTPScreenState extends State<RequestOTPScreen> {
         );
         setState(() => _isLoading = false);
       }
-    }
-  }
-
-  void _startResendCountdown() {
-    Future.doWhile(() async {
-      await Future.delayed(const Duration(seconds: 1));
-      if (mounted) {
-        setState(() {
-          if (_resendCountdown > 0) {
-            _resendCountdown--;
-          }
-        });
-      }
-      return _resendCountdown > 0;
-    });
-  }
-
-  Future<void> _handleResendOTP() async {
-    if (_resendCountdown == 0) {
-      setState(() => _isLoading = true);
-
-      final result = await _authService.resendOtp(widget.phoneNumber);
-
-      if (mounted) {
-        if (result['success']) {
-          setState(() {
-            _resendCountdown = 60;
-            _isLoading = false;
-          });
-          _startResendCountdown();
-
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('OTP sent successfully'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(result['error'] ?? 'Failed to resend OTP'),
-              backgroundColor: Colors.red,
-            ),
-          );
-          setState(() => _isLoading = false);
-        }
-      }
-    }
-  }
-
-  void _handleProceedToOTPInput() {
-    if (widget.onOTPSent != null) {
-      widget.onOTPSent!(widget.phoneNumber);
     }
   }
 
@@ -201,7 +149,8 @@ class _RequestOTPScreenState extends State<RequestOTPScreen> {
                                   ),
                                   padding: const EdgeInsets.all(16),
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       const Row(
                                         children: [
@@ -222,11 +171,9 @@ class _RequestOTPScreenState extends State<RequestOTPScreen> {
                                         ],
                                       ),
                                       const SizedBox(height: 12),
-                                      Text(
-                                        _otpSent
-                                            ? 'OTP has been sent to ${widget.phoneNumber}'
-                                            : 'Requesting OTP...',
-                                        style: const TextStyle(
+                                      const Text(
+                                        'Click "Send OTP" to receive your verification code',
+                                        style: TextStyle(
                                           fontSize: 13,
                                           color: Color(0xFF374151),
                                           height: 1.5,
@@ -291,7 +238,8 @@ class _RequestOTPScreenState extends State<RequestOTPScreen> {
                                           width: 60,
                                           child: CircularProgressIndicator(
                                             strokeWidth: 3,
-                                            valueColor: AlwaysStoppedAnimation<Color>(
+                                            valueColor:
+                                                AlwaysStoppedAnimation<Color>(
                                               Color(0xFF3B82F6),
                                             ),
                                           ),
@@ -304,35 +252,65 @@ class _RequestOTPScreenState extends State<RequestOTPScreen> {
                                             color: Color(0xFF6B7280),
                                           ),
                                         ),
-                                      ] else if (_otpSent) ...[
-                                        Container(
-                                          decoration: BoxDecoration(
-                                            color: const Color(0xFFDFEDFB),
-                                            shape: BoxShape.circle,
-                                          ),
-                                          padding: const EdgeInsets.all(16),
-                                          child: const Icon(
-                                            Icons.check_circle,
-                                            color: Color(0xFF10B981),
-                                            size: 48,
+                                      ] else ...[
+                                        // Send OTP Button
+                                        SizedBox(
+                                          width: double.infinity,
+                                          child: ElevatedButton(
+                                            onPressed: _requestOTP,
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor:
+                                                  Colors.transparent,
+                                              shadowColor: Colors.transparent,
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                vertical: 14,
+                                              ),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                              ),
+                                            ).copyWith(
+                                              backgroundColor:
+                                                  WidgetStateProperty.all(
+                                                Colors.transparent,
+                                              ),
+                                            ),
+                                            child: Container(
+                                              decoration: BoxDecoration(
+                                                gradient: const LinearGradient(
+                                                  colors: [
+                                                    Color(0xFF3B82F6),
+                                                    Color(0xFF06B6D4),
+                                                  ],
+                                                ),
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                              ),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                vertical: 14,
+                                              ),
+                                              child: const Center(
+                                                child: Text(
+                                                  'Send OTP',
+                                                  style: TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 16,
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
                                           ),
                                         ),
                                         const SizedBox(height: 16),
                                         const Text(
-                                          'OTP Sent Successfully',
-                                          style: TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w600,
-                                            color: Color(0xFF10B981),
-                                          ),
-                                        ),
-                                        const SizedBox(height: 8),
-                                        const Text(
-                                          'Check your SMS for the verification code',
+                                          'Firebase reCAPTCHA verification will be triggered',
                                           textAlign: TextAlign.center,
                                           style: TextStyle(
-                                            fontSize: 13,
-                                            color: Color(0xFF6B7280),
+                                            fontSize: 12,
+                                            color: Color(0xFF9CA3AF),
                                           ),
                                         ),
                                       ],
@@ -341,111 +319,6 @@ class _RequestOTPScreenState extends State<RequestOTPScreen> {
                                 ),
 
                                 const SizedBox(height: 32),
-
-                                // Proceed Button
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: ElevatedButton(
-                                    onPressed: _isLoading || !_otpSent
-                                        ? null
-                                        : _handleProceedToOTPInput,
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.transparent,
-                                      shadowColor: Colors.transparent,
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 14,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      disabledBackgroundColor:
-                                          const Color(0xFFE5E7EB),
-                                    ).copyWith(
-                                      backgroundColor: WidgetStateProperty.all(
-                                        Colors.transparent,
-                                      ),
-                                    ),
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        gradient: _otpSent
-                                            ? const LinearGradient(
-                                                colors: [
-                                                  Color(0xFF10B981),
-                                                  Color(0xFF3B82F6),
-                                                ],
-                                              )
-                                            : const LinearGradient(
-                                                colors: [
-                                                  Color(0xFFD1D5DB),
-                                                  Color(0xFFD1D5DB),
-                                                ],
-                                              ),
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 14,
-                                      ),
-                                      child: Center(
-                                        child: Text(
-                                          'Proceed to OTP Verification',
-                                          style: TextStyle(
-                                            color: _otpSent
-                                                ? Colors.white
-                                                : const Color(0xFF9CA3AF),
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-
-                                const SizedBox(height: 16),
-
-                                // Resend OTP Section
-                                if (_otpSent) ...[
-                                  Center(
-                                    child: Column(
-                                      children: [
-                                        const Text(
-                                          'Didn\'t receive the code?',
-                                          style: TextStyle(
-                                            fontSize: 13,
-                                            color: Color(0xFF6B7280),
-                                          ),
-                                        ),
-                                        const SizedBox(height: 8),
-                                        if (_resendCountdown > 0)
-                                          Text(
-                                            'Resend OTP in ${_resendCountdown}s',
-                                            style: const TextStyle(
-                                              fontSize: 13,
-                                              color: Color(0xFF9CA3AF),
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                          )
-                                        else
-                                          GestureDetector(
-                                            onTap:
-                                                _isLoading ? null : _handleResendOTP,
-                                            child: Text(
-                                              'Resend OTP',
-                                              style: TextStyle(
-                                                fontSize: 13,
-                                                color: _isLoading
-                                                    ? const Color(0xFF9CA3AF)
-                                                    : const Color(0xFF14B8A6),
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                          ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-
-                                const SizedBox(height: 24),
 
                                 // Back Button
                                 Center(

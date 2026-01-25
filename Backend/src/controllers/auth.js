@@ -2,14 +2,16 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/user');
 const { hashPassword, comparePassword } = require('../utils/hash');
 const firebaseAdmin = require('../config/firebase');
-const { validatePhone, validateString, validateEmail, validatePassword, validateAddress } = require('../utils/validation');
+const { validatePhone, validateString, validateEmail, validatePassword, validateAddress, validateLatitude, validateLongitude } = require('../utils/validation');
+const { isLocationInDagupan } = require('../utils/geolocation');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'change_this_secret';
 
 // Register using phone_number
 exports.register = async (req, res) => {
+  console.log('📝 Registration attempt:', { phone: req.body.phone, firstName: req.body.firstName, lastName: req.body.lastName });
   try {
-    const { phone, firstName, lastName, email, address, password } = req.body;
+    const { phone, firstName, lastName, email, address, password, latitude, longitude } = req.body;
     if (!phone || !firstName || !lastName || !password) return res.status(400).json({ message: 'Phone, firstName, lastName, and password are required' });
 
     // Validate and sanitize inputs
@@ -20,6 +22,21 @@ exports.register = async (req, res) => {
     const validatedAddress = validateAddress(address);
     const validatedPassword = validatePassword(password);
 
+    // Validate location if provided
+    if (latitude !== undefined && longitude !== undefined) {
+      const validatedLatitude = validateLatitude(latitude);
+      const validatedLongitude = validateLongitude(longitude);
+      
+      // Check if location is within Dagupan
+      const inDagupan = isLocationInDagupan(validatedLatitude, validatedLongitude);
+      if (!inDagupan) {
+        return res.status(403).json({ 
+          message: 'Your location is outside Dagupan City. Only residents of Dagupan can register.',
+          locationOutside: true
+        });
+      }
+    }
+
     const existing = await User.findByPhone(validatedPhone);
     if (existing) return res.status(409).json({ message: 'User with this phone already exists' });
 
@@ -29,9 +46,10 @@ exports.register = async (req, res) => {
     const user = await User.create({ phone_number: validatedPhone, email: validatedEmail, address: validatedAddress, password: passwordHash, phone_verified: false, first_name: validatedFirstName, last_name: validatedLastName });
 
     const token = jwt.sign({ user_id: user.user_id, phone: user.phone_number, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
+    console.log('✅ Registration successful:', { user_id: user.user_id, phone: user.phone_number });
     res.status(201).json({ user: { user_id: user.user_id, phone: user.phone_number, firstName: user.first_name, lastName: user.last_name, role: user.role }, token });
   } catch (err) {
-    console.error('register error', err);
+    console.error('❌ Registration error:', err.message);
     if (err.message.includes('must be') || err.message.includes('Invalid')) {
       return res.status(400).json({ message: err.message });
     }
@@ -41,6 +59,7 @@ exports.register = async (req, res) => {
 
 // Login using phone_number and password
 exports.login = async (req, res) => {
+  console.log('🔐 Login attempt:', { phone: req.body.phone });
   try {
     const { phone, password } = req.body;
     if (!phone || !password) return res.status(400).json({ message: 'Phone number and password are required' });
@@ -59,9 +78,10 @@ exports.login = async (req, res) => {
     if (!isPasswordValid) return res.status(401).json({ message: 'Invalid credentials' });
 
     const token = jwt.sign({ user_id: user.user_id, phone: user.phone_number, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
+    console.log('✅ Login successful:', { user_id: user.user_id, phone: user.phone_number });
     res.json({ user: { user_id: user.user_id, phone: user.phone_number, role: user.role }, token });
   } catch (err) {
-    console.error('login error', err);
+    console.error('❌ Login error:', err.message);
     if (err.message.includes('must be') || err.message.includes('Invalid')) {
       return res.status(400).json({ message: err.message });
     }
@@ -74,6 +94,7 @@ exports.login = async (req, res) => {
 // The client then sends { idToken, password } to this endpoint. We verify the idToken with
 // Firebase Admin SDK, extract the phone number, and create the local user with phone_verified=true.
 exports.onboardPhone = async (req, res) => {
+  console.log('📱 Phone onboarding attempt');
   try {
     const { idToken, password } = req.body;
     if (!idToken) return res.status(400).json({ message: 'idToken required' });
@@ -102,9 +123,10 @@ exports.onboardPhone = async (req, res) => {
     }
 
     const token = jwt.sign({ user_id: user.user_id, phone: user.phone_number, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
+    console.log('✅ Phone onboarding successful:', { user_id: user.user_id, phone: user.phone_number });
     res.json({ user: { user_id: user.user_id, phone: user.phone_number, firstName: user.first_name, lastName: user.last_name, role: user.role }, token });
   } catch (err) {
-    console.error('onboardPhone error', err);
+    console.error('❌ Phone onboarding error:', err.message);
     if (err.message.includes('must be') || err.message.includes('Invalid')) {
       return res.status(400).json({ message: err.message });
     }
