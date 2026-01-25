@@ -2,21 +2,22 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/user');
 const { hashPassword, comparePassword } = require('../utils/hash');
 const firebaseAdmin = require('../config/firebase');
-const { validatePhone, validateString, validateOptionalString, validatePassword } = require('../utils/validation');
+const { validatePhone, validateString, validateEmail, validatePassword, validateAddress } = require('../utils/validation');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'change_this_secret';
 
 // Register using phone_number
 exports.register = async (req, res) => {
   try {
-    const { phone, firstName, lastName, email, password } = req.body;
+    const { phone, firstName, lastName, email, address, password } = req.body;
     if (!phone || !firstName || !lastName || !password) return res.status(400).json({ message: 'Phone, firstName, lastName, and password are required' });
 
     // Validate and sanitize inputs
     const validatedPhone = validatePhone(phone);
     const validatedFirstName = validateString(firstName, 'firstName', 1, 100);
     const validatedLastName = validateString(lastName, 'lastName', 1, 100);
-    const validatedEmail = email ? validateOptionalString(email, 'email', 255) : null;
+    const validatedEmail = email ? validateEmail(email) : null;
+    const validatedAddress = validateAddress(address);
     const validatedPassword = validatePassword(password);
 
     const existing = await User.findByPhone(validatedPhone);
@@ -25,7 +26,7 @@ exports.register = async (req, res) => {
     // Hash the password
     const passwordHash = await hashPassword(validatedPassword);
 
-    const user = await User.create({ phone_number: validatedPhone, email: validatedEmail, password: passwordHash, phone_verified: false, first_name: validatedFirstName, last_name: validatedLastName });
+    const user = await User.create({ phone_number: validatedPhone, email: validatedEmail, address: validatedAddress, password: passwordHash, phone_verified: false, first_name: validatedFirstName, last_name: validatedLastName });
 
     const token = jwt.sign({ user_id: user.user_id, phone: user.phone_number, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
     res.status(201).json({ user: { user_id: user.user_id, phone: user.phone_number, firstName: user.first_name, lastName: user.last_name, role: user.role }, token });

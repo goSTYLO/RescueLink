@@ -76,7 +76,8 @@ Register a new user with phone number, password, and optional email. Does not re
   "firstName": "John", // required
   "lastName": "Doe", // required
   "password": "SecurePass123", // required
-  "email": "john@example.com" // optional
+  "email": "john@example.com", // optional
+  "address": "123 Main St, City, State 12345" // optional
 }
 ```
 
@@ -108,6 +109,7 @@ Register a new user with phone number, password, and optional email. Does not re
 - `lastName`: 1-100 characters
 - `password`: 8-128 characters, must contain at least one letter and one number
 - `email` (optional): Valid email format, max 255 characters
+- `address` (optional): Max 255 characters
 
 **Notes:**
 

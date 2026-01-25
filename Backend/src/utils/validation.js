@@ -159,6 +159,25 @@ function validateLongitude(lng) {
   return parsed;
 }
 
+// Validate address (optional field)
+function validateAddress(address) {
+  if (address === null || address === undefined || address === '') {
+    return null;
+  }
+  
+  if (typeof address !== 'string') {
+    throw new Error('Address must be a string');
+  }
+  
+  const trimmed = address.trim();
+  
+  if (trimmed.length > 255) {
+    throw new Error('Address must not exceed 255 characters');
+  }
+  
+  return trimmed;
+}
+
 // Validate pagination parameters
 function validatePagination(limit, offset) {
   const validatedLimit = limit ? validateInteger(limit, 'limit') : 20;
@@ -180,5 +199,6 @@ module.exports = {
   validatePassword,
   validateLatitude,
   validateLongitude,
-  validatePagination
+  validatePagination,
+  validateAddress
 };
