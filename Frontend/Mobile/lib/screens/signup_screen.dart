@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/auth_service.dart';
 
 // Dagupan City Barangays
 const List<String> dagupanBarangays = [
@@ -40,11 +41,13 @@ const List<String> dagupanBarangays = [
 class SignUpScreen extends StatefulWidget {
   final VoidCallback? onLoginTap;
   final Function(String firstName, String lastName, String phone, String barangay, String password)? onSignUp;
+  final Function(String phone)? onSignupSuccess; // Callback to navigate to OTP screen
 
   const SignUpScreen({
     super.key,
     this.onLoginTap,
     this.onSignUp,
+    this.onSignupSuccess,
   });
 
   @override
@@ -58,6 +61,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  final AuthService _authService = AuthService();
   String _selectedBarangay = 'Select your barangay';
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
@@ -87,18 +91,32 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
       setState(() => _isLoading = true);
 
-      // Call the onSignUp callback if provided
-      if (widget.onSignUp != null) {
-        await widget.onSignUp!(
-          _firstNameController.text.trim(),
-          _lastNameController.text.trim(),
-          _phoneController.text.trim(),
-          _selectedBarangay,
-          _passwordController.text,
-        );
-      }
+      // Register user with auth service
+      final result = await _authService.register(
+        firstName: _firstNameController.text.trim(),
+        lastName: _lastNameController.text.trim(),
+        phone: _phoneController.text.trim(),
+        barangay: _selectedBarangay,
+        password: _passwordController.text,
+      );
 
-      setState(() => _isLoading = false);
+      if (mounted) {
+        if (result['success']) {
+          // Navigate to OTP request screen
+          if (widget.onSignupSuccess != null) {
+            widget.onSignupSuccess!(_phoneController.text.trim());
+          }
+        } else {
+          // Show error message
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(result['error'] ?? 'Sign up failed'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        setState(() => _isLoading = false);
+      }
     }
   }
 

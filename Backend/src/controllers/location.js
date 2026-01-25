@@ -5,7 +5,7 @@ const locationController = {
   // Check if coordinates are within Dagupan city boundaries
   async checkLocation(req, res) {
     try {
-      const { latitude, longitude } = req.body;
+      const { latitude, longitude, bufferMeters } = req.body;
 
       // Validate required fields
       if (latitude === undefined || latitude === null) {
@@ -19,8 +19,17 @@ const locationController = {
       const validatedLat = validateLatitude(latitude);
       const validatedLng = validateLongitude(longitude);
 
-      // Check if point is in Dagupan polygon
-      const isInDagupan = isPointInDagupan(validatedLat, validatedLng);
+      // Parse buffer meters (optional, default to 0)
+      let buffer = 0;
+      if (bufferMeters !== undefined && bufferMeters !== null) {
+        buffer = parseInt(bufferMeters, 10);
+        if (isNaN(buffer) || buffer < 0) {
+          return res.status(400).json({ error: 'bufferMeters must be a non-negative number' });
+        }
+      }
+
+      // Check if point is in Dagupan polygon with optional buffer
+      const isInDagupan = isPointInDagupan(validatedLat, validatedLng, buffer);
 
       res.status(200).json({
         success: true,
@@ -29,9 +38,10 @@ const locationController = {
           latitude: validatedLat,
           longitude: validatedLng
         },
+        bufferMeters: buffer,
         message: isInDagupan 
-          ? 'The coordinates are within Dagupan city boundaries'
-          : 'The coordinates are outside Dagupan city boundaries'
+          ? `The coordinates are within Dagupan city boundaries${buffer > 0 ? ` (with ${buffer}m buffer)` : ''}`
+          : `The coordinates are outside Dagupan city boundaries${buffer > 0 ? ` (even with ${buffer}m buffer)` : ''}`
       });
     } catch (error) {
       console.error('Error checking location:', error);
