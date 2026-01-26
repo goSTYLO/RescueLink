@@ -27,7 +27,10 @@ def load_metadata():
 
 def load_model_and_tokenizer():
     meta = load_metadata()
-    checkpoint = torch.load(CKPT_PATH, map_location="cpu")
+    
+    # Detect device
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    checkpoint = torch.load(CKPT_PATH, map_location=device)
 
     tokenizer = AutoTokenizer.from_pretrained(meta.get("backbone", "xlm-roberta-base"))
 
@@ -39,12 +42,14 @@ def load_model_and_tokenizer():
 
     state_dict = checkpoint.get("model_state_dict") if isinstance(checkpoint, dict) and "model_state_dict" in checkpoint else checkpoint
     model.load_state_dict(state_dict)
+    model.to(device)
     model.eval()
 
-    return model, tokenizer, meta
+    return model, tokenizer, meta, device
 
 
-model, tokenizer, meta = load_model_and_tokenizer()
+model, tokenizer, meta, device = load_model_and_tokenizer()
+print(f"Inference using: {device}")
 
 
 def classify(text):
@@ -56,8 +61,12 @@ def classify(text):
         max_length=128,
     )
 
+    # Move tokens to the same device as model
+    input_ids = tokens["input_ids"].to(device)
+    attention_mask = tokens["attention_mask"].to(device)
+
     with torch.no_grad():
-        outputs = model(tokens["input_ids"], tokens["attention_mask"])
+        outputs = model(input_ids, attention_mask)
         type_probs = torch.sigmoid(outputs["type_logits"]).squeeze(0)
         severity_probs = torch.softmax(outputs["severity_logits"], dim=1).squeeze(0)
 

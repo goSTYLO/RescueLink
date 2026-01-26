@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS incident_reports (
   report_id SERIAL PRIMARY KEY,
   user_id INTEGER NOT NULL REFERENCES users(user_id),
   incident_type VARCHAR(100),
-  severity_level VARCHAR(50) NOT NULL,
+  severity_level VARCHAR(50),
   description TEXT,
   latitude DOUBLE PRECISION NOT NULL,
   longitude DOUBLE PRECISION NOT NULL,

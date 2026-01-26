@@ -1,11 +1,11 @@
+import json
+import os
 import torch
-import torch.nn.functional as F
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from transformers import DistilBertTokenizerFast
+from transformers import AutoTokenizer
 
 from models.emergency_classifier import EmergencyClassifier
-from utils.encoders import load_encoders
 
 
 CRITICAL_SEVERITY_KEYWORDS = [
@@ -26,14 +26,43 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Load tokenizer and model once
-tokenizer = DistilBertTokenizerFast.from_pretrained("distilbert-base-uncased")
+# Detect device for inference
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f"API Server using device: {device}")
+if torch.cuda.is_available():
+    print(f"GPU: {torch.cuda.get_device_name(0)}")
 
-model = EmergencyClassifier()
-model.load_state_dict(torch.load("models/emergency_model.pt", map_location="cpu"))
+# Load metadata
+META_PATH = "models/label_meta.json"
+CKPT_PATH = "models/emergency_model.pt"
+
+if not os.path.exists(META_PATH) or not os.path.exists(CKPT_PATH):
+    print(f"ERROR: Model files not found!")
+    print(f"  - {META_PATH}: {'✓' if os.path.exists(META_PATH) else '✗'}")
+    print(f"  - {CKPT_PATH}: {'✓' if os.path.exists(CKPT_PATH) else '✗'}")
+    print(f"\nPlease train the model first: python -m training.train")
+    raise FileNotFoundError("Model files not found. Train the model first.")
+
+with open(META_PATH, "r", encoding="utf-8") as f:
+    meta = json.load(f)
+
+# Load tokenizer and model
+tokenizer = AutoTokenizer.from_pretrained(meta.get("backbone", "xlm-roberta-base"))
+checkpoint = torch.load(CKPT_PATH, map_location=device)
+
+model = EmergencyClassifier(
+    num_incident_types=len(meta["incident_type_labels"]),
+    num_severity_classes=len(meta["severity_labels"]),
+    backbone=meta.get("backbone", "xlm-roberta-base"),
+)
+state_dict = checkpoint.get("model_state_dict") if isinstance(checkpoint, dict) and "model_state_dict" in checkpoint else checkpoint
+model.load_state_dict(state_dict)
+model.to(device)
 model.eval()
 
-type_encoder, severity_encoder = load_encoders()
+print(f"✓ Model loaded successfully")
+print(f"  Incident types: {meta['incident_type_labels']}")
+print(f"  Severity levels: {meta['severity_labels']}")
 
 
 # ---------- Schemas ----------
@@ -59,22 +88,41 @@ def classify_emergency(request: EmergencyRequest):
         padding=True,
         max_length=128
     )
+    
+    # Move tokens to device (GPU/CPU)
+    input_ids = tokens["input_ids"].to(device)
+    attention_mask = tokens["attention_mask"].to(device)
 
     with torch.no_grad():
-        outputs = model(**tokens)
+        outputs = model(input_ids, attention_mask)
 
-        # Softmax probabilities
-        type_probs = F.softmax(outputs["type_logits"], dim=1)
-        severity_probs = F.softmax(outputs["severity_logits"], dim=1)
+        # Multi-label incident types (sigmoid) and severity (softmax)
+        type_probs = torch.sigmoid(outputs["type_logits"]).squeeze(0)
+        severity_probs = torch.softmax(outputs["severity_logits"], dim=1).squeeze(0)
 
-        type_pred = type_probs.argmax(dim=1).item()
-        severity_pred = severity_probs.argmax(dim=1).item()
+    # Get incident predictions above threshold
+    threshold = meta.get("threshold", 0.5)
+    incident_predictions = [
+        meta["incident_type_labels"][idx]
+        for idx, prob in enumerate(type_probs.tolist())
+        if prob >= threshold
+    ]
 
-        type_confidence = type_probs[0][type_pred].item()
-        severity_confidence = severity_probs[0][severity_pred].item()
+    # Fallback: if nothing meets threshold, take top-1
+    if not incident_predictions:
+        top_idx = int(type_probs.argmax().item())
+        incident_predictions = [meta["incident_type_labels"][top_idx]]
+        type_confidence = type_probs[top_idx].item()
+    else:
+        # Use max probability from predicted types
+        type_confidence = max([type_probs[meta["incident_type_labels"].index(t)].item() for t in incident_predictions])
 
-    incident_type = type_encoder.inverse_transform([type_pred])[0]
-    severity = severity_encoder.inverse_transform([severity_pred])[0]
+    severity_idx = int(severity_probs.argmax().item())
+    severity = meta["severity_labels"][severity_idx]
+    severity_confidence = severity_probs[severity_idx].item()
+
+    # Use primary incident type (first/highest confidence)
+    incident_type = incident_predictions[0]
 
     # ---------- Rule-based severity override ----------
     text_lower = request.text.lower()

@@ -44,10 +44,11 @@ def train():
     # Detect device
     if torch.cuda.is_available():
         device = torch.device("cuda")
-        print(f"Using GPU: {torch.cuda.get_device_name(0)}")
+        print(f"✓ Using GPU: {torch.cuda.get_device_name(0)}")
+        print(f"  GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.2f} GB")
     else:
         device = torch.device("cpu")
-        print("Using CPU")
+        print("⚠ Using CPU (GPU not available)")
 
     # Ensure folders exist
     os.makedirs("models", exist_ok=True)
@@ -86,8 +87,10 @@ def train():
         num_types=len(incident_type_labels)
     )
 
-    # Larger batch size for GPU, adjust if VRAM is limited
-    dataloader = DataLoader(dataset, batch_size=16, shuffle=True)
+    # Adaptive batch size: larger for GPU, smaller for CPU
+    batch_size = 32 if torch.cuda.is_available() else 8
+    print(f"  Batch size: {batch_size}")
+    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
     model = EmergencyClassifier(
         num_incident_types=len(incident_type_labels),
