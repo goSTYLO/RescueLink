@@ -73,11 +73,29 @@ incident_types = {
             "tagas ng tubig", "brownout", "nagwawala ang tao",
             "gulo sa rally", "ahas sa bahay", "nagkagulo ang mga tao",
             "sarado ang daan", "nakita ang bangkay", "suspek na pakete",
-            "riot", "stampede", "gas leak", "kemikal natapon"
+            "riot", "stampede", "gas leak", "kemikal natapon",
+            "may taong inuuusapan nang walang tigil", "basag na rehistro", "suka ng agua",
+            "mayroon na bukas na iwanan", "nakita ang pera sa daan", "may bayong anghang",
+            "tumutunog na siren", "may kakaibang kadahilan", "taong nakadating na basta-basta",
+            "may isda sa ilog", "gubat na mapapasok", "sira ang tulay",
+            "maraming tao sa isang lugar", "nag-aaksidente ang pulis", "nagsumiklab ang gulo",
+            "may batang umiiyak", "tumubalik na kuryente", "may gutom na tao",
+            "hindi alam kung saan", "may sekswal na guro", "may ligtas na tao",
+            "nawawalang alahas", "nahulog na phone", "basag na baso",
+            "sirang bahay", "sira ang tubig", "maling ulam"
         ],
         "en": [
             "lost child", "power outage", "trapped animal",
-            "water main break", "public disturbance", "gas leak"
+            "water main break", "public disturbance", "gas leak",
+            "loose animal", "broken fence", "lost person",
+            "strange object", "someone acting erratic", "unknown emergency",
+            "collapsed infrastructure", "suspicious activity", "unusual noise",
+            "found belongings", "building damage", "reported confusion",
+            "welfare check needed", "lost pet", "property damage",
+            "door forced open", "broken window", "trespasser",
+            "tree down", "debris blocking road", "fence collapse",
+            "manhole open", "missing person", "noise complaint",
+            "people gathering", "unauthorized entry", "general alarm"
         ]
     }
 }
