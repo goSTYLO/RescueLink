@@ -1,16 +1,35 @@
-torch
-transformers
-datasets
-scikit-learn
-pandas
-numpy
-matplotlib
-seaborn
-fastapi
-uvicorn
-pydantic
-requests
-python-multipart
-librosa
-soundfile
-python-dotenv
+# Deep Learning & ML
+torch>=2.0.0
+transformers>=4.35.0
+scikit-learn>=1.3.0
+datasets>=2.14.0
+
+# Data Processing
+pandas>=2.0.0
+numpy>=1.24.0
+
+# Audio Processing
+librosa>=0.10.0
+soundfile>=0.12.1
+sounddevice>=0.4.6
+
+# API & Server
+fastapi>=0.104.0
+uvicorn>=0.24.0
+pydantic>=2.0.0
+python-multipart>=0.0.6
+
+# HuggingFace Integration (UPDATED)
+huggingface_hub>=0.18.0
+requests>=2.31.0
+
+# Utilities
+python-dotenv>=1.0.0
+
+# Visualization (optional, for notebooks)
+matplotlib>=3.8.0
+seaborn>=0.13.0
+
+# Jupyter (for testing notebooks)
+jupyter>=1.0.0
+ipykernel>=6.26.0

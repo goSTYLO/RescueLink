@@ -11,7 +11,7 @@ import logging
 from datetime import datetime
 from typing import Optional, Dict, Any
 
-import requests
+from huggingface_hub import InferenceClient
 import librosa
 import soundfile as sf
 from pathlib import Path
@@ -48,8 +48,8 @@ class WhisperHandler:
         self.max_file_size_mb = max_file_size_mb
         self.confidence_threshold = confidence_threshold
         
-        # HF Inference API endpoint
-        self.hf_api_url = f"https://api-inference.huggingface.co/models/{model_id}"
+        # Initialize InferenceClient with HF token
+        self.client = InferenceClient(token=hf_api_token)
         
         # Usage statistics
         self.usage_stats = {
@@ -129,38 +129,24 @@ class WhisperHandler:
             # Validate audio file
             validation = self.validate_audio_file(audio_path)
             
-            # Read audio file
-            with open(audio_path, "rb") as f:
-                audio_data = f.read()
+            # Call HF Inference API using official InferenceClient with path string
+            # InferenceClient detects content type from file extension when given a path
+            logger.info(f"Sending audio to Whisper API (duration: {validation['duration']:.1f}s, model: {self.model_id})")
             
-            # Prepare headers
-            headers = {"Authorization": f"Bearer {self.hf_api_token}"}
-            
-            # Call HF Inference API
-            logger.info(f"Sending audio to Whisper API (duration: {validation['duration']:.1f}s)")
-            response = requests.post(
-                self.hf_api_url,
-                headers=headers,
-                data=audio_data,
-                timeout=60,
+            result = self.client.automatic_speech_recognition(
+                audio=str(audio_path),  # Pass path as string for automatic content-type detection
+                model=self.model_id,
             )
             
-            if response.status_code != 200:
-                error_msg = f"HF API error {response.status_code}: {response.text}"
-                logger.error(error_msg)
-                raise RuntimeError(error_msg)
-            
-            result = response.json()
-            
-            # Extract transcription
-            if isinstance(result, list) and len(result) > 0:
-                transcription = result[0].get("generated_text", "")
-            elif isinstance(result, dict):
-                transcription = result.get("generated_text", "")
+            # Extract transcription from InferenceClient response
+            if isinstance(result, dict):
+                transcription = result.get("text") or ""
+            elif isinstance(result, str):
+                transcription = result
             else:
                 raise ValueError(f"Unexpected API response format: {result}")
             
-            if not transcription:
+            if not transcription or not transcription.strip():
                 raise ValueError("Empty transcription returned from API")
             
             elapsed_time = time.time() - start_time
