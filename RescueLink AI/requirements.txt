@@ -4,5 +4,8 @@ datasets
 scikit-learn
 pandas
 numpy
+matplotlib
+seaborn
 fastapi
 uvicorn
+pydantic
