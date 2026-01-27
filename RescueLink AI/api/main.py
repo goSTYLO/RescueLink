@@ -1,153 +1,470 @@
+import torch
 import json
 import os
-import torch
-from fastapi import FastAPI, HTTPException
+import sys
+import logging
+from pathlib import Path
+from typing import Optional
+
+# Add parent directory to path to import models
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from fastapi import FastAPI, HTTPException, File, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from transformers import AutoTokenizer
+from dotenv import load_dotenv
 
 from models.emergency_classifier import EmergencyClassifier
+from audio.whisper_handler import get_whisper_handler
 
+# Load environment variables
+load_dotenv()
 
-CRITICAL_SEVERITY_KEYWORDS = [
-    "shooting", "gun", "firearm", "shots fired", "active shooter",
-    "ongoing shooting", "hostage", "explosion", "bomb",
-    "people trapped", "not breathing", "unconscious", "bleeding heavily"
-]
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-SEVERE_SEVERITY_KEYWORDS = [
-    "stabbed", "knife", "assault", "injured",
-    "serious injury", "collapsed", "chest pain"
-]
-
+# Paths
+MODEL_PATH = "../models/emergency_model.pt"
+META_PATH = "../models/label_meta.json"
 
 app = FastAPI(
     title="RescueLink Emergency Classification AI",
-    description="Microservice for classifying emergency type and severity",
-    version="1.0.0"
+    description="Microservice for classifying emergency type and severity using XLM-RoBERTa",
+    version="2.0.0"
 )
 
-# Detect device for inference
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print(f"API Server using device: {device}")
-if torch.cuda.is_available():
-    print(f"GPU: {torch.cuda.get_device_name(0)}")
-
-# Load metadata
-META_PATH = "models/label_meta.json"
-CKPT_PATH = "models/emergency_model.pt"
-
-if not os.path.exists(META_PATH) or not os.path.exists(CKPT_PATH):
-    print(f"ERROR: Model files not found!")
-    print(f"  - {META_PATH}: {'✓' if os.path.exists(META_PATH) else '✗'}")
-    print(f"  - {CKPT_PATH}: {'✓' if os.path.exists(CKPT_PATH) else '✗'}")
-    print(f"\nPlease train the model first: python -m training.train")
-    raise FileNotFoundError("Model files not found. Train the model first.")
-
-with open(META_PATH, "r", encoding="utf-8") as f:
-    meta = json.load(f)
-
-# Load tokenizer and model
-tokenizer = AutoTokenizer.from_pretrained(meta.get("backbone", "xlm-roberta-base"))
-checkpoint = torch.load(CKPT_PATH, map_location=device)
-
-model = EmergencyClassifier(
-    num_incident_types=len(meta["incident_type_labels"]),
-    num_severity_classes=len(meta["severity_labels"]),
-    backbone=meta.get("backbone", "xlm-roberta-base"),
+# Add CORS middleware for frontend integration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Adjust in production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
-state_dict = checkpoint.get("model_state_dict") if isinstance(checkpoint, dict) and "model_state_dict" in checkpoint else checkpoint
-model.load_state_dict(state_dict)
-model.to(device)
-model.eval()
 
-print(f"✓ Model loaded successfully")
-print(f"  Incident types: {meta['incident_type_labels']}")
-print(f"  Severity levels: {meta['severity_labels']}")
+# ---------- Load Model & Metadata ----------
 
+def load_metadata():
+    if not os.path.exists(META_PATH):
+        raise FileNotFoundError(f"Metadata not found at {META_PATH}")
+    with open(META_PATH, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+def load_model_and_tokenizer():
+    try:
+        meta = load_metadata()
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        
+        # Initialize model
+        model = EmergencyClassifier(
+            num_incident_types=len(meta["incident_type_labels"]),
+            num_severity_classes=len(meta["severity_labels"]),
+            backbone=meta.get("backbone", "xlm-roberta-base"),
+        )
+        
+        # Load weights
+        checkpoint = torch.load(MODEL_PATH, map_location=device)
+        state_dict = checkpoint.get("model_state_dict") if isinstance(checkpoint, dict) else checkpoint
+        model.load_state_dict(state_dict)
+        model.to(device)
+        model.eval()
+        
+        # Load tokenizer
+        tokenizer = AutoTokenizer.from_pretrained(meta.get("backbone", "xlm-roberta-base"))
+        
+        return model, tokenizer, meta, device
+    except Exception as e:
+        raise RuntimeError(f"Failed to load model: {e}")
+
+# Load once at startup
+model, tokenizer, meta, device = load_model_and_tokenizer()
 
 # ---------- Schemas ----------
 
 class EmergencyRequest(BaseModel):
     text: str
+    threshold: float = 0.5  # Multi-label confidence threshold
 
 class EmergencyResponse(BaseModel):
-    incident_type: str
+    incident_types: list[str]
     severity: str
+    severity_color: str
+    confidence_scores: dict[str, float]
+    model_version: str
+
+class HealthResponse(BaseModel):
+    status: str
+    model_loaded: bool
+    device: str
+
+class TranscriptionResponse(BaseModel):
+    transcription: Optional[str]
+    duration: float
+    latency_seconds: float
     confidence: float
-    confidence_basis: str
+    language: str
+    error: Optional[str] = None
 
+class AudioClassificationResponse(BaseModel):
+    transcription: str
+    duration: float
+    transcription_latency_seconds: float
+    incident_types: list[str]
+    severity: str
+    severity_color: str
+    confidence_scores: dict[str, float]
+    low_confidence_flag: bool
+    model_version: str
 
-# ---------- Endpoint ----------
+class UsageStatsResponse(BaseModel):
+    total_requests: int
+    successful_requests: int
+    failed_requests: int
+    success_rate: float
+    total_audio_duration_minutes: float
+    avg_latency_seconds: float
+
+# ---------- Endpoints ----------
+
+@app.get("/health", response_model=HealthResponse)
+def health_check():
+    """Health check endpoint"""
+    return {
+        "status": "healthy",
+        "model_loaded": model is not None,
+        "device": str(device)
+    }
 
 @app.post("/classify", response_model=EmergencyResponse)
 def classify_emergency(request: EmergencyRequest):
-    tokens = tokenizer(
-        request.text,
-        return_tensors="pt",
-        truncation=True,
-        padding=True,
-        max_length=128
-    )
+    """Classify emergency report into incident types and severity"""
+    if not request.text.strip():
+        raise HTTPException(status_code=400, detail="Empty text provided")
     
-    # Move tokens to device (GPU/CPU)
-    input_ids = tokens["input_ids"].to(device)
-    attention_mask = tokens["attention_mask"].to(device)
+    try:
+        # Tokenize
+        encoding = tokenizer(
+            request.text,
+            truncation=True,
+            padding=True,
+            max_length=128,
+            return_tensors="pt"
+        )
+        
+        input_ids = encoding["input_ids"].to(device)
+        attention_mask = encoding["attention_mask"].to(device)
+        
+        # Predict
+        with torch.no_grad():
+            outputs = model(input_ids, attention_mask)
+            
+            # Multi-label incident type predictions
+            type_probs = torch.sigmoid(outputs["type_logits"]).cpu().numpy()[0]
+            predicted_types = [
+                meta["incident_type_labels"][i] 
+                for i, prob in enumerate(type_probs) 
+                if prob >= request.threshold
+            ]
+            
+            # Severity prediction (single-label)
+            severity_idx = torch.argmax(outputs["severity_logits"], dim=1).item()
+            predicted_severity = meta["severity_labels"][severity_idx]
+        
+        # Default to "Other" if no types predicted
+        if not predicted_types:
+            predicted_types = ["Other"]
+        
+        # Severity color mapping
+        severity_colors = {
+            "Green": "🟢 Non-urgent",
+            "Yellow": "🟡 Delayed",
+            "Red": "🔴 Immediate",
+            "Black": "⚫ Deceased"
+        }
+        
+        # Confidence scores for all incident types
+        confidence_scores = {
+            meta["incident_type_labels"][i]: round(float(prob), 4)
+            for i, prob in enumerate(type_probs)
+        }
+        
+        return {
+            "incident_types": predicted_types,
+            "severity": predicted_severity,
+            "severity_color": severity_colors.get(predicted_severity, "⚪ Unknown"),
+            "confidence_scores": confidence_scores,
+            "model_version": "2.0.0-xlm-roberta-filipino"
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Prediction error: {str(e)}")
 
-    with torch.no_grad():
-        outputs = model(input_ids, attention_mask)
-
-        # Multi-label incident types (sigmoid) and severity (softmax)
-        type_probs = torch.sigmoid(outputs["type_logits"]).squeeze(0)
-        severity_probs = torch.softmax(outputs["severity_logits"], dim=1).squeeze(0)
-
-    # Get incident predictions above threshold
-    threshold = meta.get("threshold", 0.5)
-    incident_predictions = [
-        meta["incident_type_labels"][idx]
-        for idx, prob in enumerate(type_probs.tolist())
-        if prob >= threshold
-    ]
-
-    # Fallback: if nothing meets threshold, take top-1
-    if not incident_predictions:
-        top_idx = int(type_probs.argmax().item())
-        incident_predictions = [meta["incident_type_labels"][top_idx]]
-        type_confidence = type_probs[top_idx].item()
-    else:
-        # Use max probability from predicted types
-        type_confidence = max([type_probs[meta["incident_type_labels"].index(t)].item() for t in incident_predictions])
-
-    severity_idx = int(severity_probs.argmax().item())
-    severity = meta["severity_labels"][severity_idx]
-    severity_confidence = severity_probs[severity_idx].item()
-
-    # Use primary incident type (first/highest confidence)
-    incident_type = incident_predictions[0]
-
-    # ---------- Rule-based severity override ----------
-    text_lower = request.text.lower()
-    rule_triggered = False
-
-    if any(k in text_lower for k in CRITICAL_SEVERITY_KEYWORDS):
-        severity = "Critical"
-        rule_triggered = True
-    elif any(k in text_lower for k in SEVERE_SEVERITY_KEYWORDS):
-        severity = "Severe"
-        rule_triggered = True
-
-    # ---------- Confidence computation ----------
-    base_confidence = (type_confidence + severity_confidence) / 2
-
-    if rule_triggered:
-        final_confidence = min(1.0, base_confidence + 0.3)
-        confidence_basis = "rule-based escalation"
-    else:
-        final_confidence = base_confidence
-        confidence_basis = "model prediction"
-
+@app.get("/labels")
+def get_labels():
+    """Get all available incident type and severity labels"""
     return {
-        "incident_type": incident_type,
-        "severity": severity,
-        "confidence": round(final_confidence, 2),
-        "confidence_basis": confidence_basis
+        "incident_types": meta["incident_type_labels"],
+        "severities": meta["severity_labels"]
     }
+
+# ---------- Audio Endpoints ----------
+
+@app.post("/v1/transcribe", response_model=TranscriptionResponse)
+async def transcribe_audio_endpoint(file: UploadFile = File(...)):
+    """
+    Transcribe audio file using Whisper Large V3 Turbo via HF Inference API
+    
+    Supported formats: .wav, .mp3, .m4a, .flac
+    Duration: 30-60 seconds
+    Max file size: 25MB
+    """
+    try:
+        whisper = get_whisper_handler()
+        
+        # Validate file size
+        contents = await file.read()
+        file_size_mb = len(contents) / (1024 * 1024)
+        
+        if file_size_mb > whisper.max_file_size_mb:
+            raise HTTPException(
+                status_code=400,
+                detail=f"File too large: {file_size_mb:.1f}MB (max: {whisper.max_file_size_mb}MB)"
+            )
+        
+        # Save and transcribe
+        import tempfile
+        with tempfile.NamedTemporaryFile(suffix=Path(file.filename).suffix, delete=False) as tmp:
+            tmp.write(contents)
+            tmp_path = tmp.name
+        
+        try:
+            result = whisper.transcribe_audio(tmp_path)
+            
+            if not result["success"]:
+                # Fallback to text-only endpoint if transcription fails
+                logger.warning(f"Transcription failed: {result.get('error')}")
+                return TranscriptionResponse(
+                    transcription=None,
+                    duration=result.get("duration", 0.0),
+                    latency_seconds=result.get("latency_seconds", 0.0),
+                    confidence=0.0,
+                    language="unknown",
+                    error=result.get("error", "Transcription failed. Please try again or use text-only endpoint.")
+                )
+            
+            return TranscriptionResponse(
+                transcription=result["transcription"],
+                duration=result["duration"],
+                latency_seconds=result["latency_seconds"],
+                confidence=result["confidence"],
+                language=result["language"],
+            )
+        
+        finally:
+            # Cleanup
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Transcription endpoint error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Transcription error: {str(e)}"
+        )
+
+@app.post("/v1/classify-audio", response_model=AudioClassificationResponse)
+async def classify_audio_endpoint(file: UploadFile = File(...), threshold: float = 0.5):
+    """
+    End-to-end audio classification pipeline:
+    1. Transcribe audio (Whisper Large V3 Turbo)
+    2. Classify transcription (Emergency Classifier)
+    
+    Returns: Transcription + Incident Types + Severity
+    """
+    try:
+        whisper = get_whisper_handler()
+        
+        # Step 1: Validate and transcribe audio
+        contents = await file.read()
+        file_size_mb = len(contents) / (1024 * 1024)
+        
+        if file_size_mb > whisper.max_file_size_mb:
+            raise HTTPException(
+                status_code=400,
+                detail=f"File too large: {file_size_mb:.1f}MB (max: {whisper.max_file_size_mb}MB)"
+            )
+        
+        import tempfile
+        with tempfile.NamedTemporaryFile(suffix=Path(file.filename).suffix, delete=False) as tmp:
+            tmp.write(contents)
+            tmp_path = tmp.name
+        
+        try:
+            transcription_result = whisper.transcribe_audio(tmp_path)
+            
+            if not transcription_result["success"]:
+                # Fallback to text-only
+                logger.warning(f"Transcription failed, returning 503")
+                raise HTTPException(
+                    status_code=503,
+                    detail=f"Speech-to-text service unavailable: {transcription_result.get('error')}. "
+                           "Please use text-only endpoint (/classify) or try again."
+                )
+            
+            transcription = transcription_result["transcription"].strip()
+            
+            if not transcription:
+                raise HTTPException(
+                    status_code=400,
+                    detail="No speech detected in audio. Please provide clear audio."
+                )
+            
+            transcription_latency = transcription_result["latency_seconds"]
+            duration = transcription_result["duration"]
+            
+            # Step 2: Classify transcription
+            if not transcription.strip():
+                raise HTTPException(status_code=400, detail="Empty transcription from audio")
+            
+            # Tokenize
+            encoding = tokenizer(
+                transcription,
+                truncation=True,
+                padding=True,
+                max_length=128,
+                return_tensors="pt"
+            )
+            
+            input_ids = encoding["input_ids"].to(device)
+            attention_mask = encoding["attention_mask"].to(device)
+            
+            # Predict
+            with torch.no_grad():
+                outputs = model(input_ids, attention_mask)
+                
+                # Multi-label incident type predictions
+                type_probs = torch.sigmoid(outputs["type_logits"]).cpu().numpy()[0]
+                predicted_types = [
+                    meta["incident_type_labels"][i] 
+                    for i, prob in enumerate(type_probs) 
+                    if prob >= threshold
+                ]
+                
+                # Severity prediction (single-label)
+                severity_idx = torch.argmax(outputs["severity_logits"], dim=1).item()
+                predicted_severity = meta["severity_labels"][severity_idx]
+            
+            # Default to "Other" if no types predicted
+            if not predicted_types:
+                predicted_types = ["Other"]
+            
+            # Severity color mapping
+            severity_colors = {
+                "Green": "🟢 Non-urgent",
+                "Yellow": "🟡 Delayed",
+                "Red": "🔴 Immediate",
+                "Black": "⚫ Deceased"
+            }
+            
+            # Confidence scores
+            confidence_scores = {
+                meta["incident_type_labels"][i]: round(float(prob), 4)
+                for i, prob in enumerate(type_probs)
+            }
+            
+            # Check if any incident type confidence is low
+            max_confidence = max(confidence_scores.values()) if confidence_scores else 0.0
+            low_confidence_flag = max_confidence < whisper.confidence_threshold
+            
+            if low_confidence_flag:
+                logger.warning(
+                    f"Low confidence classification: {max_confidence:.2f} "
+                    f"(threshold: {whisper.confidence_threshold})"
+                )
+            
+            return AudioClassificationResponse(
+                transcription=transcription,
+                duration=duration,
+                transcription_latency_seconds=transcription_latency,
+                incident_types=predicted_types,
+                severity=predicted_severity,
+                severity_color=severity_colors.get(predicted_severity, "⚪ Unknown"),
+                confidence_scores=confidence_scores,
+                low_confidence_flag=low_confidence_flag,
+                model_version="2.0.0-xlm-roberta-whisper"
+            )
+        
+        finally:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Audio classification endpoint error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Classification error: {str(e)}"
+        )
+
+@app.get("/v1/audio/stats", response_model=UsageStatsResponse)
+def get_audio_stats():
+    """Get Whisper API usage statistics (monitoring)"""
+    try:
+        whisper = get_whisper_handler()
+        stats = whisper.get_usage_stats()
+        return UsageStatsResponse(
+            total_requests=stats["total_requests"],
+            successful_requests=stats["successful_requests"],
+            failed_requests=stats["failed_requests"],
+            success_rate=stats["success_rate"],
+            total_audio_duration_minutes=stats["total_audio_duration_minutes"],
+            avg_latency_seconds=stats["avg_latency_seconds"],
+        )
+    except Exception as e:
+        logger.error(f"Error fetching stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/v1/audio/stats/reset")
+def reset_audio_stats():
+    """Reset usage statistics (admin only)"""
+    try:
+        whisper = get_whisper_handler()
+        whisper.reset_usage_stats()
+        return {"status": "success", "message": "Audio statistics reset"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ---------- Startup ----------
+
+@app.on_event("startup")
+async def startup_event():
+    print("=" * 60)
+    print("RescueLink AI - Emergency Classifier API (v2.1.0)")
+    print("=" * 60)
+    print(f"Model: {meta.get('backbone', 'xlm-roberta-base')}")
+    print(f"Incident Types: {meta['incident_type_labels']}")
+    print(f"Severities: {meta['severity_labels']}")
+    print(f"Device: {device}")
+    print(f"Threshold: {meta.get('threshold', 0.5)}")
+    print("")
+    print("✓ Emergency Classifier loaded")
+    
+    # Initialize Whisper handler
+    try:
+        whisper = get_whisper_handler()
+        print(f"✓ Whisper Handler initialized (HF Inference API)")
+        print(f"  - Max duration: {whisper.max_duration}s")
+        print(f"  - Min duration: {whisper.min_duration}s")
+        print(f"  - Max file size: {whisper.max_file_size_mb}MB")
+        print(f"  - Confidence threshold: {whisper.confidence_threshold}")
+    except Exception as e:
+        print(f"⚠ Whisper Handler NOT available: {e}")
+        print("  - Audio endpoints will return errors until configured")
+    
+    print("=" * 60)
+

@@ -5,151 +5,174 @@ import os
 # Always save inside the data folder of RescueLink AI
 OUTPUT_FILE = os.path.join("data", "emergency_dataset.csv")
 
-# Incident types with expanded "Other"
+# Incident types - Prioritize Filipino for city use
 incident_types = {
     "Fire": {
-        "keywords": [
-            "house fire", "building on fire", "smoke coming out",
-            "kitchen fire", "electrical fire", "burning structure",
-            "sunog sa bahay", "nasusunog na gusali", "may usok na lumalabas",
-            "sunog sa kusina", "sunog sa kuryente", "nasusunog na istruktura",
-            "may fire sa bahay", "building on fire na", "smoke lumalabas"
+        "fil": [
+            "sunog sa bahay", "nasusunog na building", "may usok sa kusina",
+            "kuryente sunog", "nagliliyab na bahay", "tumatakbo ang apoy",
+            "nasusunog yung store", "may nag-aapoy na kotse", "gasoline sunog",
+            "chemical fire", "sunog sa factory", "bodega nasusunog"
+        ],
+        "en": [
+            "house fire", "building burning", "kitchen smoke",
+            "electrical fire", "structure fire", "car fire"
         ]
     },
     "Crime": {
-        "keywords": [
-            "armed robbery", "assault", "man with a knife",
-            "gun threat", "domestic violence", "break-in",
-            "armadong pagnanakaw", "pananakit", "lalaking may kutsilyo",
-            "banta ng baril", "karahasan sa bahay", "sapilitang pasok",
-            "may holdap", "nag-assault", "may break-in sa bahay"
+        "fil": [
+            "holdap sa tindahan", "pananakit sa kalsada", "may kutsilyo",
+            "binaril ang tao", "nakawan sa bahay", "hostage situation",
+            "nag-aaway ng malakas", "bugbugan", "may nagnakaw",
+            "pagpatay", "kidnapping", "gulo sa bar"
+        ],
+        "en": [
+            "robbery", "assault on street", "stabbing",
+            "shooting incident", "burglary", "hostage"
         ]
     },
     "Accident": {
-        "keywords": [
-            "car accident", "motorcycle crash", "vehicle collision",
-            "hit and run", "truck accident", "road crash",
-            "aksidente sa kotse", "banggaan ng motorsiklo", "salpukan ng sasakyan",
-            "aksidente sa trak", "banggaan sa kalsada",
-            "nag-crash yung kotse", "may accident sa road", "truck bangga"
+        "fil": [
+            "bangga ng kotse", "motor crash", "jeep tumama sa poste",
+            "truck nasagasaan ang tao", "hit and run", "nasagasaan",
+            "nahulog sa kanal", "nadulas", "naaksidente sa construction",
+            "nadaganan ng gamit", "banggaan sa highway", "rollover"
+        ],
+        "en": [
+            "car crash", "motorcycle collision", "vehicle accident",
+            "hit and run", "truck accident", "road collision"
         ]
     },
     "Medical": {
-        "keywords": [
-            "person collapsed", "not breathing", "chest pain",
-            "seizure", "unconscious patient", "difficulty breathing",
-            "may taong bumagsak", "hindi humihinga", "pananakit ng dibdib",
-            "kombulsyon", "walang malay na pasyente", "nahihirapang huminga",
-            "tao bumagsak", "nahihirapan huminga", "may seizure yung pasyente"
+        "fil": [
+            "nahimatay", "hindi humihinga", "heart attack", 
+            "kombulsyon", "stroke", "nahihirapang huminga",
+            "duguan", "sugatan", "buntis manganak", 
+            "diabetic emergency", "overdose", "allergic reaction"
+        ],
+        "en": [
+            "collapsed person", "not breathing", "chest pain",
+            "seizure", "stroke", "bleeding"
         ]
     },
     "Natural Disaster": {
-        "keywords": [
-            "flooding", "earthquake damage", "landslide",
-            "typhoon impact", "storm surge", "heavy rainfall",
-            "baha", "pinsala mula sa lindol", "pagguho ng lupa",
-            "epekto ng bagyo", "malakas na ulan",
-            "may flood", "earthquake damage na", "landslide nangyari"
+        "fil": [
+            "baha sa kalsada", "lindol", "landslide sa bundok",
+            "bagyo wasak ang bubong", "malakas na ulan", "storm surge",
+            "lupa gumuho", "puno tumama sa bahay", "hangin nilipat ang yero",
+            "tubig baha sa loob", "flash flood", "ulan di tumitigil"
+        ],
+        "en": [
+            "flooding", "earthquake", "landslide",
+            "typhoon damage", "heavy rain", "storm"
         ]
     },
     "Other": {
-        "keywords": [
-            "lost child", "power outage", "animal trapped",
-            "unknown emergency", "public disturbance",
-            "nawawalang bata", "brownout", "hayop na na-trap",
-            "hindi matukoy na emergency", "gulo sa publiko",
-            "may lost child", "brownout sa area", "animal na-trap",
-
-            "crowd panic", "stampede", "riot", "protest turned violent",
-            "tao nagwawala", "maraming tao nagkakagulo", "may rally",
-
-            "gas leak", "chemical spill", "toxic smell", "radiation alert",
-            "tagas ng gas", "natapon na kemikal", "amoy na nakakalason",
-
-            "loud explosion sound", "mysterious noise", "unknown smell",
-            "malakas na putok", "hindi matukoy na tunog", "may kakaibang amoy",
-
-            "missing person", "stranded passengers", "lost hiker",
-            "nawawalang tao", "naiwang pasahero", "nawalang mountaineer",
-
-            "wild animal loose", "snake sighting", "dog attack",
-            "aso nanakit", "may ahas", "hayop gumagala",
-
-            "bridge collapse", "building evacuation", "road blockage",
-            "gumuhong tulay", "inilikas ang gusali", "sarado ang kalsada"
+        "fil": [
+            "bata nawawala", "walang kuryente", "aso na-trap",
+            "tagas ng tubig", "brownout", "nagwawala ang tao",
+            "gulo sa rally", "ahas sa bahay", "nagkagulo ang mga tao",
+            "sarado ang daan", "nakita ang bangkay", "suspek na pakete",
+            "riot", "stampede", "gas leak", "kemikal natapon",
+            "may taong inuuusapan nang walang tigil", "basag na rehistro", "suka ng agua",
+            "mayroon na bukas na iwanan", "nakita ang pera sa daan", "may bayong anghang",
+            "tumutunog na siren", "may kakaibang kadahilan", "taong nakadating na basta-basta",
+            "may isda sa ilog", "gubat na mapapasok", "sira ang tulay",
+            "maraming tao sa isang lugar", "nag-aaksidente ang pulis", "nagsumiklab ang gulo",
+            "may batang umiiyak", "tumubalik na kuryente", "may gutom na tao",
+            "hindi alam kung saan", "may sekswal na guro", "may ligtas na tao",
+            "nawawalang alahas", "nahulog na phone", "basag na baso",
+            "sirang bahay", "sira ang tubig", "maling ulam"
+        ],
+        "en": [
+            "lost child", "power outage", "trapped animal",
+            "water main break", "public disturbance", "gas leak",
+            "loose animal", "broken fence", "lost person",
+            "strange object", "someone acting erratic", "unknown emergency",
+            "collapsed infrastructure", "suspicious activity", "unusual noise",
+            "found belongings", "building damage", "reported confusion",
+            "welfare check needed", "lost pet", "property damage",
+            "door forced open", "broken window", "trespasser",
+            "tree down", "debris blocking road", "fence collapse",
+            "manhole open", "missing person", "noise complaint",
+            "people gathering", "unauthorized entry", "general alarm"
         ]
     }
 }
 
-# START triage severity templates
+# START triage severity templates - Filipino prioritized
 severity_templates = {
-    "Green": [  # Minor
-        "walking wounded", "no injuries reported", "safe to wait",
-        "konti lang sugat", "walang agarang panganib"
-    ],
-    "Yellow": [  # Delayed
-        "needs treatment soon", "possible fracture", "delayed care ok",
-        "posibleng may sugatan", "kailangan ng tulong pero stable"
-    ],
-    "Red": [  # Immediate
-        "not breathing", "severe bleeding", "urgent help needed",
-        "life-threatening injuries", "kailangan ng agarang tugon"
-    ],
-    "Black": [  # Expectant
-        "no signs of life", "deceased", "expectant category",
-        "hindi na humihinga", "wala nang buhay"
-    ]
+    "Green": {  # Minor
+        "fil": [
+            "walang sugat", "safe naman", "konting galos lang",
+            "kaya pang maghintay", "ok lang", "minor lang"
+        ],
+        "en": ["no injuries", "safe to wait", "minor only"]
+    },
+    "Yellow": {  # Delayed
+        "fil": [
+            "kailangan ng tulong pero stable", "posibleng bali", 
+            "kailangan tignan", "medyo masakit", "puwedeng delayed"
+        ],
+        "en": ["needs treatment soon", "possible fracture", "can wait"]
+    },
+    "Red": {  # Immediate
+        "fil": [
+            "malakas na dugo", "hindi makahinga", "kailangan agad",
+            "critical na", "buhay ang nakataya", "agarang emergency"
+        ],
+        "en": ["severe bleeding", "not breathing", "life-threatening", "urgent"]
+    },
+    "Black": {  # Expectant  
+        "fil": [
+            "walang buhay", "hindi na umaandar", "patay na",
+            "wala nang pulso", "deceased"
+        ],
+        "en": ["no signs of life", "deceased", "no pulse"]
+    }
 }
 
-sentence_templates = [
-    "There is a {incident} reported, {severity}.",
-    "Emergency reported involving {incident}, {severity}.",
-    "Responders needed for {incident}, {severity}.",
-    "Urgent situation: {incident}, {severity}.",
-    "Incident reported: {incident}, {severity}.",
-    "Authorities alerted: {incident}, {severity}.",
-    "Dispatch units for {incident}, {severity}.",
-    "Critical alert: {incident}, {severity}.",
-    "May naiulat na {incident}, {severity}.",
-    "Emergency na kinasasangkutan ng {incident}, {severity}.",
-    "Kailangan ng responders para sa {incident}, {severity}.",
-    "Agarang sitwasyon: {incident}, {severity}.",
-    "Insidente: {incident}, {severity}.",
-    "Inalerto ang mga awtoridad: {incident}, {severity}.",
-    "Ipadala ang mga yunit para sa {incident}, {severity}.",
-    "Kritikal na alerto: {incident}, {severity}.",
-    "Grabe, {incident}! {severity}.",
-    "Help! {incident}, {severity}.",
-    "Narinig ko ang {incident}, {severity}.",
-    "Parang may {incident}, {severity}."
+# Realistic emergency report templates - 1-2 sentences, Filipino priority (70%)
+sentence_templates_fil = [
+    "May {incident}, {severity}.",
+    "{incident} dito sa {location}, {severity}!",
+    "Emergency! {incident}, {severity}.",
+    "Tulong! {incident}, {severity}.",
+    "{incident} nangyari, {severity}. Padala agad.",
+    "Grabe {incident}! {severity}. Bilisan!",
+    "Boss may {incident}, {severity}.",
+    "{incident} sa {location}. {severity}.",
+    "Nag-report ng {incident}, {severity}.",
+    "Biglaang {incident}, {severity}!"
 ]
 
-# Imperfection injection
-def dirty_text(text):
-    noise_options = [
-        lambda s: s.replace("a", ""),               # drop a letter
-        lambda s: s + " uhm",                       # add filler
-        lambda s: s.replace(" ", ""),               # remove spaces
-        lambda s: s.replace("fire", "fyr"),         # typo
-        lambda s: "may " + s,                       # prepend Tagalog filler
-        lambda s: s.split(" ")[0],                  # truncate to first word
-        lambda s: s + " pls help",                  # add casual plea
-        lambda s: "uhm " + s,                       # spoken filler
-        lambda s: s.replace("accident", "aksdn")    # heavy typo
+sentence_templates_en = [
+    "{incident}, {severity}.",
+    "Emergency: {incident}, {severity}.",
+    "{incident} at {location}, {severity}.",
+    "Urgent - {incident}, {severity}!"
+]
+
+# Location names (Filipino city context)
+locations = [
+    "Barangay Centro", "Poblacion", "San Jose", "Bagong Silang",
+    "highway", "palengke", "plaza", "elementary school",
+    "kanto", "tabi ng simbahan", "sakayan", "market"
+]
+
+# Light imperfection injection for realism (reduced for quality)
+def add_natural_variation(text):
+    variations = [
+        lambda s: s + " po",                        # polite marker
+        lambda s: s + " pls",                       # casual
+        lambda s: s.replace("!", "."),              # punctuation
+        lambda s: s.lower(),                        # lowercase
+        lambda s: s.upper()                         # urgent caps
     ]
-    if random.random() < 0.4:  # 40% chance to dirty text
-        func = random.choice(noise_options)
+    if random.random() < 0.15:  # Only 15% variation for higher quality
+        func = random.choice(variations)
         return func(text)
     return text
-
-# Detect language based on keywords
-def detect_lang(incident_phrase, severity_phrase, sentence_template):
-    if any(word in incident_phrase for word in ["sunog", "aksidente", "baha", "karahasan", "kombulsyon", "walang", "nawawalang", "brownout", "gumuhong"]):
-        return "fil"
-    elif any(word in incident_phrase for word in ["may", "nag", "uhm"]) or "Help!" in sentence_template or "Grabe" in sentence_template:
-        return "tag"
-    else:
-        return "en"
 
 # Label mappings
 incident_type_labels = {name: idx for idx, name in enumerate(incident_types.keys())}
@@ -157,31 +180,38 @@ severity_labels = {name: idx for idx, name in enumerate(severity_templates.keys(
 
 # Generate dataset
 rows = []
-TARGET_ROWS = 6000  # larger dataset for robustness
+TARGET_ROWS = 15000  # High-quality synthetic dataset
 id_counter = 1
 
 while len(rows) < TARGET_ROWS:
-    # Pick 1–2 incident types (multi-label)
-    incident_choices = random.sample(list(incident_types.keys()), k=random.choice([1, 2]))
-    incident_phrases = [random.choice(incident_types[it]["keywords"]) for it in incident_choices]
+    # Pick 1–2 incident types (multi-label) - weighted toward single label (70%)
+    num_incidents = 1 if random.random() < 0.7 else 2
+    incident_choices = random.sample(list(incident_types.keys()), k=num_incidents)
+    
+    # 80% Filipino, 20% English
+    use_filipino = random.random() < 0.8
+    lang = "fil" if use_filipino else "en"
+    
+    # Get incident phrases in chosen language
+    incident_phrases = [random.choice(incident_types[it][lang]) for it in incident_choices]
+    incident_text = " at ".join(incident_phrases) if lang == "fil" else " and ".join(incident_phrases)
 
-    # Join phrases for text generation
-    incident_text = " and ".join(incident_phrases)
-
-    # Pick severity
+    # Pick severity in same language
     severity = random.choice(list(severity_templates.keys()))
-    severity_phrase = random.choice(severity_templates[severity])
-    sentence_template = random.choice(sentence_templates)
+    severity_phrase = random.choice(severity_templates[severity][lang])
+    
+    # Choose template from appropriate language
+    sentence_template = random.choice(sentence_templates_fil if lang == "fil" else sentence_templates_en)
 
     # Build sentence
     text = sentence_template.format(
         incident=incident_text,
-        severity=severity_phrase
+        severity=severity_phrase,
+        location=random.choice(locations) if "{location}" in sentence_template else ""
     )
 
-    # Add imperfections
-    text = dirty_text(text)
-    lang = detect_lang(incident_text, severity_phrase, sentence_template)
+    # Add light natural variation
+    text = add_natural_variation(text)
 
     # Append row with multi-label incident types
     rows.append([
