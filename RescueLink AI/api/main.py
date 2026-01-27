@@ -2,20 +2,28 @@ import torch
 import json
 import os
 import sys
-import os
-import json
-import torch
+import logging
 from pathlib import Path
+from typing import Optional
 
 # Add parent directory to path to import models
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from transformers import AutoTokenizer
+from dotenv import load_dotenv
 
 from models.emergency_classifier import EmergencyClassifier
+from audio.whisper_handler import get_whisper_handler
+
+# Load environment variables
+load_dotenv()
+
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Paths
 MODEL_PATH = "../models/emergency_model.pt"
@@ -90,6 +98,33 @@ class HealthResponse(BaseModel):
     status: str
     model_loaded: bool
     device: str
+
+class TranscriptionResponse(BaseModel):
+    transcription: Optional[str]
+    duration: float
+    latency_seconds: float
+    confidence: float
+    language: str
+    error: Optional[str] = None
+
+class AudioClassificationResponse(BaseModel):
+    transcription: str
+    duration: float
+    transcription_latency_seconds: float
+    incident_types: list[str]
+    severity: str
+    severity_color: str
+    confidence_scores: dict[str, float]
+    low_confidence_flag: bool
+    model_version: str
+
+class UsageStatsResponse(BaseModel):
+    total_requests: int
+    successful_requests: int
+    failed_requests: int
+    success_rate: float
+    total_audio_duration_minutes: float
+    avg_latency_seconds: float
 
 # ---------- Endpoints ----------
 
@@ -174,16 +209,262 @@ def get_labels():
         "severities": meta["severity_labels"]
     }
 
+# ---------- Audio Endpoints ----------
+
+@app.post("/v1/transcribe", response_model=TranscriptionResponse)
+async def transcribe_audio_endpoint(file: UploadFile = File(...)):
+    """
+    Transcribe audio file using Whisper Large V3 Turbo via HF Inference API
+    
+    Supported formats: .wav, .mp3, .m4a, .flac
+    Duration: 30-60 seconds
+    Max file size: 25MB
+    """
+    try:
+        whisper = get_whisper_handler()
+        
+        # Validate file size
+        contents = await file.read()
+        file_size_mb = len(contents) / (1024 * 1024)
+        
+        if file_size_mb > whisper.max_file_size_mb:
+            raise HTTPException(
+                status_code=400,
+                detail=f"File too large: {file_size_mb:.1f}MB (max: {whisper.max_file_size_mb}MB)"
+            )
+        
+        # Save and transcribe
+        import tempfile
+        with tempfile.NamedTemporaryFile(suffix=Path(file.filename).suffix, delete=False) as tmp:
+            tmp.write(contents)
+            tmp_path = tmp.name
+        
+        try:
+            result = whisper.transcribe_audio(tmp_path)
+            
+            if not result["success"]:
+                # Fallback to text-only endpoint if transcription fails
+                logger.warning(f"Transcription failed: {result.get('error')}")
+                return TranscriptionResponse(
+                    transcription=None,
+                    duration=result.get("duration", 0.0),
+                    latency_seconds=result.get("latency_seconds", 0.0),
+                    confidence=0.0,
+                    language="unknown",
+                    error=result.get("error", "Transcription failed. Please try again or use text-only endpoint.")
+                )
+            
+            return TranscriptionResponse(
+                transcription=result["transcription"],
+                duration=result["duration"],
+                latency_seconds=result["latency_seconds"],
+                confidence=result["confidence"],
+                language=result["language"],
+            )
+        
+        finally:
+            # Cleanup
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Transcription endpoint error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Transcription error: {str(e)}"
+        )
+
+@app.post("/v1/classify-audio", response_model=AudioClassificationResponse)
+async def classify_audio_endpoint(file: UploadFile = File(...), threshold: float = 0.5):
+    """
+    End-to-end audio classification pipeline:
+    1. Transcribe audio (Whisper Large V3 Turbo)
+    2. Classify transcription (Emergency Classifier)
+    
+    Returns: Transcription + Incident Types + Severity
+    """
+    try:
+        whisper = get_whisper_handler()
+        
+        # Step 1: Validate and transcribe audio
+        contents = await file.read()
+        file_size_mb = len(contents) / (1024 * 1024)
+        
+        if file_size_mb > whisper.max_file_size_mb:
+            raise HTTPException(
+                status_code=400,
+                detail=f"File too large: {file_size_mb:.1f}MB (max: {whisper.max_file_size_mb}MB)"
+            )
+        
+        import tempfile
+        with tempfile.NamedTemporaryFile(suffix=Path(file.filename).suffix, delete=False) as tmp:
+            tmp.write(contents)
+            tmp_path = tmp.name
+        
+        try:
+            transcription_result = whisper.transcribe_audio(tmp_path)
+            
+            if not transcription_result["success"]:
+                # Fallback to text-only
+                logger.warning(f"Transcription failed, returning 503")
+                raise HTTPException(
+                    status_code=503,
+                    detail=f"Speech-to-text service unavailable: {transcription_result.get('error')}. "
+                           "Please use text-only endpoint (/classify) or try again."
+                )
+            
+            transcription = transcription_result["transcription"].strip()
+            
+            if not transcription:
+                raise HTTPException(
+                    status_code=400,
+                    detail="No speech detected in audio. Please provide clear audio."
+                )
+            
+            transcription_latency = transcription_result["latency_seconds"]
+            duration = transcription_result["duration"]
+            
+            # Step 2: Classify transcription
+            if not transcription.strip():
+                raise HTTPException(status_code=400, detail="Empty transcription from audio")
+            
+            # Tokenize
+            encoding = tokenizer(
+                transcription,
+                truncation=True,
+                padding=True,
+                max_length=128,
+                return_tensors="pt"
+            )
+            
+            input_ids = encoding["input_ids"].to(device)
+            attention_mask = encoding["attention_mask"].to(device)
+            
+            # Predict
+            with torch.no_grad():
+                outputs = model(input_ids, attention_mask)
+                
+                # Multi-label incident type predictions
+                type_probs = torch.sigmoid(outputs["type_logits"]).cpu().numpy()[0]
+                predicted_types = [
+                    meta["incident_type_labels"][i] 
+                    for i, prob in enumerate(type_probs) 
+                    if prob >= threshold
+                ]
+                
+                # Severity prediction (single-label)
+                severity_idx = torch.argmax(outputs["severity_logits"], dim=1).item()
+                predicted_severity = meta["severity_labels"][severity_idx]
+            
+            # Default to "Other" if no types predicted
+            if not predicted_types:
+                predicted_types = ["Other"]
+            
+            # Severity color mapping
+            severity_colors = {
+                "Green": "🟢 Non-urgent",
+                "Yellow": "🟡 Delayed",
+                "Red": "🔴 Immediate",
+                "Black": "⚫ Deceased"
+            }
+            
+            # Confidence scores
+            confidence_scores = {
+                meta["incident_type_labels"][i]: round(float(prob), 4)
+                for i, prob in enumerate(type_probs)
+            }
+            
+            # Check if any incident type confidence is low
+            max_confidence = max(confidence_scores.values()) if confidence_scores else 0.0
+            low_confidence_flag = max_confidence < whisper.confidence_threshold
+            
+            if low_confidence_flag:
+                logger.warning(
+                    f"Low confidence classification: {max_confidence:.2f} "
+                    f"(threshold: {whisper.confidence_threshold})"
+                )
+            
+            return AudioClassificationResponse(
+                transcription=transcription,
+                duration=duration,
+                transcription_latency_seconds=transcription_latency,
+                incident_types=predicted_types,
+                severity=predicted_severity,
+                severity_color=severity_colors.get(predicted_severity, "⚪ Unknown"),
+                confidence_scores=confidence_scores,
+                low_confidence_flag=low_confidence_flag,
+                model_version="2.0.0-xlm-roberta-whisper"
+            )
+        
+        finally:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Audio classification endpoint error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Classification error: {str(e)}"
+        )
+
+@app.get("/v1/audio/stats", response_model=UsageStatsResponse)
+def get_audio_stats():
+    """Get Whisper API usage statistics (monitoring)"""
+    try:
+        whisper = get_whisper_handler()
+        stats = whisper.get_usage_stats()
+        return UsageStatsResponse(
+            total_requests=stats["total_requests"],
+            successful_requests=stats["successful_requests"],
+            failed_requests=stats["failed_requests"],
+            success_rate=stats["success_rate"],
+            total_audio_duration_minutes=stats["total_audio_duration_minutes"],
+            avg_latency_seconds=stats["avg_latency_seconds"],
+        )
+    except Exception as e:
+        logger.error(f"Error fetching stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/v1/audio/stats/reset")
+def reset_audio_stats():
+    """Reset usage statistics (admin only)"""
+    try:
+        whisper = get_whisper_handler()
+        whisper.reset_usage_stats()
+        return {"status": "success", "message": "Audio statistics reset"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 # ---------- Startup ----------
 
 @app.on_event("startup")
 async def startup_event():
     print("=" * 60)
-    print("RescueLink AI - Emergency Classifier API")
+    print("RescueLink AI - Emergency Classifier API (v2.1.0)")
     print("=" * 60)
     print(f"Model: {meta.get('backbone', 'xlm-roberta-base')}")
     print(f"Incident Types: {meta['incident_type_labels']}")
     print(f"Severities: {meta['severity_labels']}")
     print(f"Device: {device}")
     print(f"Threshold: {meta.get('threshold', 0.5)}")
+    print("")
+    print("✓ Emergency Classifier loaded")
+    
+    # Initialize Whisper handler
+    try:
+        whisper = get_whisper_handler()
+        print(f"✓ Whisper Handler initialized (HF Inference API)")
+        print(f"  - Max duration: {whisper.max_duration}s")
+        print(f"  - Min duration: {whisper.min_duration}s")
+        print(f"  - Max file size: {whisper.max_file_size_mb}MB")
+        print(f"  - Confidence threshold: {whisper.confidence_threshold}")
+    except Exception as e:
+        print(f"⚠ Whisper Handler NOT available: {e}")
+        print("  - Audio endpoints will return errors until configured")
+    
     print("=" * 60)
+

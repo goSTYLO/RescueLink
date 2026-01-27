@@ -9,3 +9,8 @@ seaborn
 fastapi
 uvicorn
 pydantic
+requests
+python-multipart
+librosa
+soundfile
+python-dotenv
