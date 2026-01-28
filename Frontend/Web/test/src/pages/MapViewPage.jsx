@@ -1,0 +1,360 @@
+import { Layout } from '../components/Layout';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
+import { Badge } from '../components/ui/Badge';
+import { Button } from '../components/ui/Button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/Select';
+import { MapPin, Filter } from 'lucide-react';
+import { incidents, barangays } from '../data/mockData';
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+
+export function MapViewPage() {
+  const navigate = useNavigate();
+  const [filterDepartment, setFilterDepartment] = useState('All');
+  const [filterBarangay, setFilterBarangay] = useState('All');
+  const [selectedIncident, setSelectedIncident] = useState(incidents[0] || null);
+  const [showPopup, setShowPopup] = useState(false);
+  const popupTimerRef = useRef(null);
+  const [selectStates, setSelectStates] = useState({
+    department: false,
+    barangay: false,
+  });
+
+  // Handle marker click with toggle and auto-hide
+  const handleMarkerClick = (incident) => {
+    if (selectedIncident?.id === incident.id && showPopup) {
+      // Toggle off if same incident and popup is showing
+      setShowPopup(false);
+      if (popupTimerRef.current) {
+        clearTimeout(popupTimerRef.current);
+        popupTimerRef.current = null;
+      }
+    } else {
+      // Select new incident and show popup
+      setSelectedIncident(incident);
+      setShowPopup(true);
+      
+      // Clear existing timer
+      if (popupTimerRef.current) {
+        clearTimeout(popupTimerRef.current);
+      }
+      
+      // Auto-hide after 5 seconds
+      popupTimerRef.current = setTimeout(() => {
+        setShowPopup(false);
+        popupTimerRef.current = null;
+      }, 5000);
+    }
+  };
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (popupTimerRef.current) {
+        clearTimeout(popupTimerRef.current);
+      }
+    };
+  }, []);
+
+  const filteredIncidents = incidents.filter(inc => {
+    if (filterBarangay !== 'All' && inc.barangay !== filterBarangay) return false;
+    return true;
+  });
+
+  const getTypeEmoji = (type) => {
+    switch (type) {
+      case 'Fire': return '🔥';
+      case 'Medical': return '🏥';
+      case 'Police': return '👮';
+      case 'Disaster': return '⚠️';
+      default: return '';
+    }
+  };
+
+  const getSeverityColor = (severity) => {
+    switch (severity) {
+      case 'Critical': return 'bg-red-500';
+      case 'Warning': return 'bg-amber-500';
+      case 'Resolved': return 'bg-green-500';
+      default: return 'bg-gray-500';
+    }
+  };
+
+  const getSeverityBadgeColor = (severity) => {
+    switch (severity) {
+      case 'Critical': return 'bg-[#fecaca] text-[#b91c1c] border-[#b91c1c]';
+      case 'Warning': return 'bg-[#fef08a] text-[#a16207] border-[#a16207]';
+      case 'Resolved': return 'bg-[#d9f99d] text-[#3f6212] border-[#3f6212]';
+      default: return 'bg-gray-100 text-gray-700 border-gray-200';
+    }
+  };
+
+
+  const departmentOptions = [
+    { value: 'All', label: 'All Departments' },
+    { value: 'Fire', label: 'Fire Department' },
+    { value: 'Medical', label: 'Medical Services' },
+    { value: 'Police', label: 'Police' },
+    { value: 'Disaster', label: 'DRRMO' },
+  ];
+
+  const barangayOptions = [
+    { value: 'All', label: 'All Barangays' },
+    ...barangays.map(b => ({ value: b, label: b })),
+  ];
+
+  return (
+    <Layout>
+      <div className="p-6">
+        <div className="mb-4">
+          <h1 className="text-2xl font-semibold text-gray-900">Live Emergency Map</h1>
+          <p className="text-gray-600 mt-1 text-sm">Real-time incident locations across Dagupan City</p>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 h-[calc(100vh-200px)]">
+          {/* Left Column - Filters and Legend */}
+          <div className="lg:col-span-3 space-y-3 order-1 flex flex-col">
+            <Card hover={false} className="flex-shrink-0">
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-2">
+                  <Filter className="w-5 h-5 text-gray-600" />
+                  <CardTitle className="text-base">Filters</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4 p-4">
+                <div>
+                  <label className="text-sm text-gray-600 mb-1.5 block">Department</label>
+                  <Select value={filterDepartment} onValueChange={setFilterDepartment}>
+                    {({ isOpen, setIsOpen, value, onValueChange }) => (
+                      <>
+                        <SelectTrigger onClick={() => setSelectStates({ ...selectStates, department: !selectStates.department })}>
+                          <SelectValue placeholder="All Departments" value={value} options={departmentOptions} />
+                        </SelectTrigger>
+                        <SelectContent isOpen={selectStates.department}>
+                          {departmentOptions.map(option => (
+                            <SelectItem 
+                              key={option.value} 
+                              value={option.value} 
+                              onSelect={(val) => { setFilterDepartment(val); setSelectStates({ ...selectStates, department: false }); }}
+                            >
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </>
+                    )}
+                  </Select>
+                </div>
+                <div>
+                  <label className="text-sm text-gray-600 mb-1.5 block">Barangay</label>
+                  <Select value={filterBarangay} onValueChange={setFilterBarangay}>
+                    {({ isOpen, setIsOpen, value, onValueChange }) => (
+                      <>
+                        <SelectTrigger onClick={() => setSelectStates({ ...selectStates, barangay: !selectStates.barangay })}>
+                          <SelectValue placeholder="All Barangays" value={value} options={barangayOptions} />
+                        </SelectTrigger>
+                        <SelectContent isOpen={selectStates.barangay} className="max-h-[300px]">
+                          {barangayOptions.map(option => (
+                            <SelectItem 
+                              key={option.value} 
+                              value={option.value} 
+                              onSelect={(val) => { setFilterBarangay(val); setSelectStates({ ...selectStates, barangay: false }); }}
+                            >
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </>
+                    )}
+                  </Select>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Legend */}
+            <Card hover={false} className="flex-shrink-0">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Severity Legend</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 p-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded-full bg-red-500 flex-shrink-0"></div>
+                  <span className="text-sm text-gray-700">Critical</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded-full bg-amber-500 flex-shrink-0"></div>
+                  <span className="text-sm text-gray-700">Warning</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded-full bg-green-500 flex-shrink-0"></div>
+                  <span className="text-sm text-gray-700">Resolved</span>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Middle Column - Map */}
+          <div className="lg:col-span-6 order-2 lg:order-none flex flex-col">
+            <Card hover={false} className="flex-1 flex flex-col min-h-0">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Dagupan City Map</CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 flex-1 min-h-0">
+                <div className="relative w-full h-full bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg overflow-hidden">
+                  {/* Map Background */}
+                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                    <p className="text-lg font-medium text-gray-700">Dagupan City Map</p>
+                    <p className="text-sm text-gray-500 mt-1">Interactive incident markers</p>
+                  </div>
+                  
+                  {/* Incident Markers Container */}
+                  <div className="absolute inset-0">
+                    {filteredIncidents.map((incident, index) => {
+                      const isSelected = selectedIncident?.id === incident.id;
+                      const markerLeft = 15 + (index % 4) * 25;
+                      const markerTop = 20 + Math.floor(index / 4) * 30;
+                      
+                      return (
+                        <div
+                          key={incident.id}
+                          className="absolute cursor-pointer"
+                          style={{
+                            left: `${markerLeft}%`,
+                            top: `${markerTop}%`,
+                            transform: 'translate(-50%, -50%)'
+                          }}
+                          onClick={() => handleMarkerClick(incident)}
+                        >
+                          <div className={`relative w-6 h-6 rounded-full ${getSeverityColor(incident.severity)} shadow-lg flex items-center justify-center transition-transform hover:scale-110 ${isSelected && showPopup ? 'ring-2 ring-offset-2 ring-gray-400 z-20' : 'z-10'}`}>
+                            <MapPin className="w-4 h-4 text-white" />
+                          </div>
+                          
+                          {/* Pop-up Card - Shows when clicked, auto-hides after 5 seconds */}
+                          {isSelected && showPopup && (
+                            <div 
+                              className="absolute z-30 animate-in fade-in slide-in-from-top-2 duration-200"
+                              style={{
+                                left: '50%',
+                                top: 'calc(100% + 12px)',
+                                transform: 'translateX(-50%)',
+                                width: '240px'
+                              }}
+                            >
+                              <Card className="w-full shadow-xl border border-gray-200">
+                                <CardContent className="p-3">
+                                  <p className="font-semibold text-gray-900 mb-1.5 text-sm">{incident.id}</p>
+                                  <p className="text-sm text-gray-700 mb-1">{incident.emergencyType}</p>
+                                  <p className="text-xs text-gray-600 mb-1">Barangay: {incident.barangay}</p>
+                                  <p className="text-xs text-gray-600 mb-2">Time: {incident.timeReported}</p>
+                                  <Badge className={`${getSeverityBadgeColor(incident.severity)} border rounded px-2 py-1 text-xs font-semibold`}>
+                                    {incident.severity.toUpperCase()}
+                                  </Badge>
+                                </CardContent>
+                              </Card>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Right Column - Active Incidents and Details */}
+          <div className="lg:col-span-3 space-y-4 order-3 lg:order-none flex flex-col h-full">
+            {/* Active Incidents */}
+            <Card hover={false} className="flex-shrink-0">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Active Incidents</CardTitle>
+              </CardHeader>
+              <CardContent className="p-4">
+                <div className="space-y-2 max-h-[180px] overflow-y-auto">
+                  {filteredIncidents.slice(0, 4).map((incident) => (
+                    <div
+                      key={incident.id}
+                      className={`p-2.5 bg-white border rounded-lg cursor-pointer hover:shadow-sm transition-all ${
+                        selectedIncident?.id === incident.id 
+                          ? 'border-[#134178] bg-green-50' 
+                          : 'border-gray-200'
+                      }`}
+                      onClick={() => {
+                        setSelectedIncident(incident);
+                        setShowPopup(true);
+                        if (popupTimerRef.current) {
+                          clearTimeout(popupTimerRef.current);
+                        }
+                        popupTimerRef.current = setTimeout(() => {
+                          setShowPopup(false);
+                          popupTimerRef.current = null;
+                        }, 5000);
+                      }}
+                    >
+                      <p className="text-sm font-semibold text-gray-900 mb-0.5">{incident.id}</p>
+                      <p className="text-xs text-gray-600 mb-1.5">
+                        {getTypeEmoji(incident.emergencyType)} {incident.emergencyType} • {incident.barangay}
+                      </p>
+                      <div className="flex items-center justify-end">
+                        <div className={`w-2 h-2 rounded-full ${getSeverityColor(incident.severity)}`}></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Incident Details */}
+            <Card hover={false} className="flex-1 flex flex-col min-h-0">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Incident Details</CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 space-y-2.5 flex-1 flex flex-col min-h-0">
+                {selectedIncident ? (
+                  <>
+                    <div>
+                      <p className="text-xs text-gray-600 mb-0.5">Incident ID</p>
+                      <p className="text-sm font-semibold text-[#134178]">{selectedIncident.id}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-600 mb-0.5">Type</p>
+                      <p className="text-sm text-gray-900">{selectedIncident.emergencyType}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-600 mb-0.5">Severity</p>
+                      <Badge className={`${getSeverityBadgeColor(selectedIncident.severity)} border rounded px-2 py-1 text-xs font-semibold inline-block`}>
+                        {selectedIncident.severity.toUpperCase()}
+                      </Badge>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-600 mb-0.5">Barangay</p>
+                      <p className="text-sm text-gray-900">{selectedIncident.barangay}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-600 mb-0.5">Time Reported</p>
+                      <p className="text-sm text-gray-900">{selectedIncident.timeReported}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-600 mb-0.5">Location</p>
+                      <p className="text-sm text-gray-900 break-words">Corner AB Fernandez Ave and Perez Blvd</p>
+                    </div>
+                    <Button 
+                      className="w-full bg-[#134178] hover:bg-[#0f3256] text-white mt-auto"
+                      onClick={() => navigate(`/incidents/${selectedIncident.id}`)}
+                    >
+                      View Full Details
+                    </Button>
+                  </>
+                ) : (
+                  <div className="flex items-center justify-center flex-1">
+                    <p className="text-sm text-gray-500">Select an incident to view details</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+    </Layout>
+  );
+}
