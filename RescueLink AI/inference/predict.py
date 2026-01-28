@@ -19,7 +19,7 @@ def load_metadata():
             "incident_type_labels": checkpoint.get("incident_type_labels"),
             "severity_labels": checkpoint.get("severity_labels"),
             "backbone": checkpoint.get("backbone", "xlm-roberta-base"),
-            "threshold": checkpoint.get("threshold", 0.5),
+            "threshold": checkpoint.get("threshold", 0.3),
         }
 
     raise ValueError("Metadata not found. Train the model to generate label_meta.json and checkpoint with metadata.")
@@ -70,7 +70,7 @@ def classify(text):
         type_probs = torch.sigmoid(outputs["type_logits"]).squeeze(0)
         severity_probs = torch.softmax(outputs["severity_logits"], dim=1).squeeze(0)
 
-    threshold = meta.get("threshold", 0.5)
+    threshold = meta.get("threshold", 0.3)
     incident_predictions = [
         meta["incident_type_labels"][idx]
         for idx, prob in enumerate(type_probs.tolist())

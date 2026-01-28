@@ -26,8 +26,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Paths
-MODEL_PATH = "../models/emergency_model.pt"
-META_PATH = "../models/label_meta.json"
+MODEL_PATH = "models/emergency_model.pt"
+META_PATH = "models/label_meta.json"
 
 app = FastAPI(
     title="RescueLink Emergency Classification AI",
@@ -55,7 +55,26 @@ def load_metadata():
 def load_model_and_tokenizer():
     try:
         meta = load_metadata()
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        
+        # GPU Detection and initialization
+        if torch.cuda.is_available():
+            device = torch.device("cuda")
+            print(f"\n{'='*60}")
+            print(f"🎮 GPU DETECTED - Using CUDA")
+            print(f"{'='*60}")
+            print(f"GPU Device: {torch.cuda.get_device_name(0)}")
+            print(f"CUDA Version: {torch.version.cuda}")
+            print(f"GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f}GB")
+            print(f"cuDNN Version: {torch.backends.cudnn.version()}")
+            print(f"{'='*60}\n")
+        else:
+            device = torch.device("cpu")
+            print(f"\n{'='*60}")
+            print(f"⚠️  GPU NOT AVAILABLE - Using CPU")
+            print(f"{'='*60}")
+            print(f"Device: CPU")
+            print(f"PyTorch Version: {torch.__version__}")
+            print(f"{'='*60}\n")
         
         # Initialize model
         model = EmergencyClassifier(
@@ -409,6 +428,196 @@ async def classify_audio_endpoint(file: UploadFile = File(...), threshold: float
         raise HTTPException(
             status_code=500,
             detail=f"Classification error: {str(e)}"
+        )
+
+@app.post("/v1/classify-mic", response_model=AudioClassificationResponse)
+async def classify_microphone(duration_seconds: int = 30, sample_rate: int = 16000, threshold: float = 0.3):
+    """
+    Combined microphone recording + auto-classification endpoint.
+    
+    Records from microphone, transcribes, and automatically classifies.
+    Provides live feedback at each step.
+    """
+    try:
+        import sounddevice as sd
+        import soundfile as sf
+        import tempfile
+        import time
+        
+        whisper = get_whisper_handler()
+        
+        if duration_seconds < whisper.min_duration or duration_seconds > whisper.max_duration:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Duration {duration_seconds}s out of bounds ({whisper.min_duration}-{whisper.max_duration}s)"
+            )
+        
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+            tmp_path = tmp.name
+        
+        # === STEP 1: RECORD AUDIO ===
+        logger.info(f"🎤 RECORDING STARTED - Duration: {duration_seconds}s")
+        print(f"\n{'='*70}")
+        print(f"🎤 MICROPHONE RECORDING STARTED")
+        print(f"{'='*70}")
+        print(f"Duration: {duration_seconds} seconds")
+        print(f"Sample Rate: {sample_rate} Hz")
+        print(f"Channels: 1 (Mono)")
+        print(f"Status: Recording in progress...")
+        print(f"{'='*70}")
+        
+        # Record with progress feedback
+        audio = sd.rec(int(duration_seconds * sample_rate), samplerate=sample_rate, channels=1, dtype='float32')
+        start_time = time.time()
+        
+        while sd.get_stream().active:
+            elapsed = time.time() - start_time
+            if elapsed >= duration_seconds:
+                break
+            progress = int((elapsed / duration_seconds) * 50)
+            bar = "█" * progress + "░" * (50 - progress)
+            print(f"  Recording: [{bar}] {elapsed:.1f}s / {duration_seconds}s", end="\r")
+            time.sleep(0.1)
+        
+        sd.wait()
+        print(f"\n✅ Recording complete: {duration_seconds}s captured\n")
+        
+        sf.write(tmp_path, audio, sample_rate)
+        logger.info(f"✅ Audio saved to {tmp_path}")
+        
+        # === STEP 2: TRANSCRIBE AUDIO ===
+        logger.info(f"📝 Transcribing audio...")
+        print(f"📝 Transcribing audio from microphone...\n")
+        
+        transcription_result = whisper.transcribe_audio(tmp_path)
+        
+        if not transcription_result.get("success", False):
+            error_msg = transcription_result.get("error", "Transcription failed")
+            logger.error(f"❌ Transcription error: {error_msg}")
+            print(f"❌ Transcription failed: {error_msg}\n")
+            raise HTTPException(
+                status_code=503,
+                detail=f"Transcription failed: {error_msg}"
+            )
+        
+        transcription = transcription_result.get("transcription", "").strip()
+        transcription_latency = transcription_result.get("latency_seconds", 0.0)
+        duration_recorded = transcription_result.get("duration", float(duration_seconds))
+        
+        logger.info(f"✅ Transcription: {transcription}")
+        print(f"✅ Transcription complete")
+        print(f"   Text: {transcription}")
+        print(f"   Latency: {transcription_latency:.2f}s")
+        print(f"   Duration: {duration_recorded:.2f}s\n")
+        
+        if not transcription:
+            raise HTTPException(
+                status_code=400,
+                detail="No speech detected in microphone audio."
+            )
+        
+        # === STEP 3: CLASSIFY TRANSCRIPTION ===
+        logger.info(f"🚨 Classifying transcription...")
+        print(f"🚨 Classifying emergency incident...\n")
+        
+        # Tokenize
+        encoding = tokenizer(
+            transcription,
+            truncation=True,
+            padding=True,
+            max_length=128,
+            return_tensors="pt"
+        )
+        
+        input_ids = encoding["input_ids"].to(device)
+        attention_mask = encoding["attention_mask"].to(device)
+        
+        # Predict
+        with torch.no_grad():
+            outputs = model(input_ids, attention_mask)
+            
+            # Multi-label incident type predictions
+            type_probs = torch.sigmoid(outputs["type_logits"]).cpu().numpy()[0]
+            predicted_types = [
+                meta["incident_type_labels"][i]
+                for i, prob in enumerate(type_probs)
+                if prob >= threshold
+            ]
+            
+            # Severity prediction (single-label)
+            severity_idx = torch.argmax(outputs["severity_logits"], dim=1).item()
+            predicted_severity = meta["severity_labels"][severity_idx]
+        
+        # Default to "Other" if no types predicted
+        if not predicted_types:
+            predicted_types = ["Other"]
+        
+        # Severity color mapping
+        severity_colors = {
+            "Green": "🟢 Non-urgent",
+            "Yellow": "🟡 Delayed",
+            "Red": "🔴 Immediate",
+            "Black": "⚫ Deceased"
+        }
+        
+        # Confidence scores
+        confidence_scores = {
+            meta["incident_type_labels"][i]: round(float(prob), 4)
+            for i, prob in enumerate(type_probs)
+        }
+        
+        # Check if any incident type confidence is low
+        max_confidence = max(confidence_scores.values()) if confidence_scores else 0.0
+        low_confidence_flag = max_confidence < whisper.confidence_threshold
+        
+        # === DISPLAY RESULTS ===
+        logger.info(f"✅ Classification complete: {predicted_types} / {predicted_severity}")
+        print(f"✅ Classification complete\n")
+        print(f"{'='*70}")
+        print(f"CLASSIFICATION RESULTS")
+        print(f"{'='*70}")
+        print(f"\n📋 Original Message:")
+        print(f"   {transcription}")
+        print(f"\n🚨 Incident Types: {', '.join(predicted_types)}")
+        print(f"{severity_colors.get(predicted_severity, '⚪ Unknown')} Severity Level")
+        print(f"\n🤖 Model: {meta.get('backbone', 'xlm-roberta-base')}")
+        print(f"⚠️  Threshold: {threshold} | Max Confidence: {max_confidence:.2%}")
+        print(f"\n📊 Confidence Scores:")
+        for incident_type, score in confidence_scores.items():
+            bar = "█" * int(score * 20)
+            print(f"  {incident_type:.<20} {score:>6.2%} {bar}")
+        
+        if low_confidence_flag:
+            print(f"\n⚠️  LOW CONFIDENCE FLAG: Max confidence {max_confidence:.2%} < {whisper.confidence_threshold:.2%}")
+        
+        print(f"\n{'='*70}\n")
+        
+        if low_confidence_flag:
+            logger.warning(
+                f"Low confidence classification: {max_confidence:.2f} "
+                f"(threshold: {whisper.confidence_threshold})"
+            )
+        
+        return AudioClassificationResponse(
+            transcription=transcription,
+            duration=duration_recorded,
+            transcription_latency_seconds=transcription_latency,
+            incident_types=predicted_types,
+            severity=predicted_severity,
+            severity_color=severity_colors.get(predicted_severity, "⚪ Unknown"),
+            confidence_scores=confidence_scores,
+            low_confidence_flag=low_confidence_flag,
+            model_version="2.0.0-xlm-roberta-whisper"
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Microphone classification failed: {e}")
+        print(f"\n❌ Error: {e}\n")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Microphone classification failed: {str(e)}"
         )
 
 @app.get("/v1/audio/stats", response_model=UsageStatsResponse)
