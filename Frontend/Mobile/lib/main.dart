@@ -40,6 +40,12 @@ class _AuthNavigatorState extends State<AuthNavigator> {
     });
   }
 
+  void _handleSkip() {
+    // TODO: Implement skip functionality
+    // Navigate to main app or dashboard
+    print('Skip pressed');
+  }
+
   Future<void> _handleLogin(String phone, String password) async {
     // TODO: Implement login functionality
     // This is a placeholder - you can integrate with your BLoC or API service
@@ -80,6 +86,7 @@ class _AuthNavigatorState extends State<AuthNavigator> {
     } else {
       return LoginScreen(
         onSignUpTap: _toggleView,
+        onSkip: _handleSkip,
         onLogin: _handleLogin,
       );
     }

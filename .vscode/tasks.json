@@ -1,0 +1,46 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Flutter: Pub Get",
+      "type": "shell",
+      "command": "flutter",
+      "args": ["pub", "get"],
+      "options": {
+        "cwd": "${workspaceFolder}/Frontend/Mobile"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Flutter: Run",
+      "type": "shell",
+      "command": "flutter",
+      "args": ["run"],
+      "options": {
+        "cwd": "${workspaceFolder}/Frontend/Mobile"
+      },
+      "problemMatcher": [],
+      "dependsOn": "Flutter: Pub Get"
+    },
+    {
+      "label": "Flutter: Clean",
+      "type": "shell",
+      "command": "flutter",
+      "args": ["clean"],
+      "options": {
+        "cwd": "${workspaceFolder}/Frontend/Mobile"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Flutter: Build APK",
+      "type": "shell",
+      "command": "flutter",
+      "args": ["build", "apk"],
+      "options": {
+        "cwd": "${workspaceFolder}/Frontend/Mobile"
+      },
+      "problemMatcher": []
+    }
+  ]
+}
