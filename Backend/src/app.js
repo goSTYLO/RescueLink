@@ -6,6 +6,7 @@ const dispatchRoutes = require('./routes/dispatch');
 const notificationRoutes = require('./routes/notification');
 const locationRoutes = require('./routes/location');
 const incidentRoutes = require('./routes/incident');
+const { startRetryService } = require('./services/retryAiClassification');
 
 const app = express();
 
@@ -37,5 +38,12 @@ app.use((err, req, res, next) => {
   console.error(err);
   res.status(500).json({ error: 'Internal Server Error' });
 });
+
+// Start AI classification retry service
+console.log('\n🤖 Initializing AI services...');
+const retryTask = startRetryService();
+
+// Store retry task for graceful shutdown
+app.locals.retryTask = retryTask;
 
 module.exports = app;
