@@ -36,3 +36,10 @@ flutter:
     - assets/logo/logo.png
     - assets/images/login_illustrations.png
     - assets/images/createaccount_illustration.png
+    - assets/images/forgotpassword_illustration.png
+    - assets/images/verifynumber_illustration.png
+    - assets/images/verificationdone_illustration.png
+    - assets/images/passwordupdated_illustration.png
+    - assets/images/maps_illustration.png
+    - assets/images/outsidearea_illustration.png
+    - assets/images/accountcreateddone_-illustration.png

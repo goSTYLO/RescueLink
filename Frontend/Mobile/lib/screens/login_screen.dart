@@ -3,12 +3,14 @@ import 'package:flutter/material.dart';
 class LoginScreen extends StatefulWidget {
   final VoidCallback? onSignUpTap;
   final VoidCallback? onSkip;
+  final VoidCallback? onForgotPasswordTap;
   final Function(String phone, String password)? onLogin;
 
   const LoginScreen({
     super.key,
     this.onSignUpTap,
     this.onSkip,
+    this.onForgotPasswordTap,
     this.onLogin,
   });
 
@@ -279,9 +281,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       Align(
                         alignment: Alignment.centerRight,
                         child: TextButton(
-                          onPressed: () {
-                            // Forgot password functionality (placeholder)
-                          },
+                          onPressed: widget.onForgotPasswordTap,
                           child: const Text(
                             'Forgot Password?',
                             style: TextStyle(
