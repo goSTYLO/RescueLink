@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
-import '../services/auth_service.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../bloc/auth/auth_bloc.dart';
+import '../bloc/auth/auth_event.dart';
+import '../bloc/auth/auth_state.dart';
 
 class OTPVerificationScreen extends StatefulWidget {
   final String phoneNumber;
@@ -18,7 +21,6 @@ class OTPVerificationScreen extends StatefulWidget {
 }
 
 class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
-  final AuthService _authService = AuthService();
   final List<TextEditingController> _otpControllers = List.generate(
     6,
     (index) => TextEditingController(),
@@ -26,8 +28,9 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
   final List<FocusNode> _otpFocusNodes =
       List.generate(6, (index) => FocusNode());
 
-  bool _isLoading = false;
   int _resendCountdown = 60;
+  static const double _defaultLat = 16.043;
+  static const double _defaultLng = 120.334;
 
   @override
   void initState() {
@@ -73,45 +76,15 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
     });
   }
 
-  Future<void> _handleResendOTP() async {
+  void _handleResendOTP(BuildContext context) {
     if (_resendCountdown > 0) return;
-
-    setState(() => _isLoading = true);
-
-    final result = await _authService.resendOtp(widget.phoneNumber);
-
-    if (mounted) {
-      if (result['success']) {
-        setState(() {
-          _resendCountdown = 60;
-          _isLoading = false;
-        });
-        _startResendCountdown();
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('OTP sent successfully'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(result['error'] ?? 'Failed to resend OTP'),
-            backgroundColor: Colors.red,
-          ),
-        );
-        setState(() => _isLoading = false);
-      }
-    }
+    context.read<AuthBloc>().add(ResendOtpRequested(widget.phoneNumber));
+    setState(() => _resendCountdown = 60);
+    _startResendCountdown();
   }
 
-  Future<void> _captureLocationAndVerify() async {
-    // Verify OTP (location already validated during registration)
-    setState(() => _isLoading = true);
-
+  void _captureLocationAndVerify(BuildContext context) {
     final otpCode = _getOTPCode();
-
     if (otpCode.length != 6) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -119,45 +92,31 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
           backgroundColor: Colors.orange,
         ),
       );
-      setState(() => _isLoading = false);
       return;
     }
-
-    final result = await _authService.verifyOtpAndLocation(
-      otp: otpCode,
-      latitude: 0,
-      longitude: 0,
-    );
-
-    if (mounted) {
-      if (result['success']) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Verification successful!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-
-        // Navigate to home screen
-        if (widget.onVerificationSuccess != null) {
-          widget.onVerificationSuccess!();
-        }
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(result['error'] ?? 'Verification failed'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 5),
-          ),
-        );
-        setState(() => _isLoading = false);
-      }
-    }
+    context.read<AuthBloc>().add(OtpVerified(
+          otp: otpCode,
+          latitude: _defaultLat,
+          longitude: _defaultLng,
+        ));
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return BlocConsumer<AuthBloc, AuthState>(
+      listener: (context, state) {
+        if (state is AuthError) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(state.message), backgroundColor: Colors.red),
+          );
+        }
+        if (state is Authenticated) {
+          widget.onVerificationSuccess?.call();
+        }
+      },
+      builder: (context, authState) {
+        final isLoading = authState is AuthLoading;
+        return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -269,7 +228,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                                         keyboardType: TextInputType.number,
                                         maxLength: 1,
                                         enabled:
-                                            !_isLoading,
+                                            !isLoading,
                                         decoration: InputDecoration(
                                           counterText: '',
                                           border: OutlineInputBorder(
@@ -316,9 +275,9 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                                 SizedBox(
                                   width: double.infinity,
                                   child: ElevatedButton(
-                                    onPressed: _isLoading
+                                    onPressed: isLoading
                                         ? null
-                                        : _captureLocationAndVerify,
+                                        : () => _captureLocationAndVerify(context),
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: Colors.transparent,
                                       shadowColor: Colors.transparent,
@@ -337,7 +296,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                                     ),
                                     child: Container(
                                       decoration: BoxDecoration(
-                                        gradient: _isLoading
+                                        gradient: isLoading
                                             ? const LinearGradient(
                                                 colors: [
                                                   Color(0xFFD1D5DB),
@@ -356,7 +315,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                                         vertical: 14,
                                       ),
                                       child: Center(
-                                        child: _isLoading
+                                        child: isLoading
                                             ? const SizedBox(
                                                 height: 20,
                                                 width: 20,
@@ -408,18 +367,18 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                                         )
                                       else
                                         GestureDetector(
-                                          onTap: _isLoading
+                                          onTap: isLoading
                                               ? null
-                                              : _handleResendOTP,
+                                              : () => _handleResendOTP(context),
                                           child: Text(
                                             'Resend OTP',
                                             style: TextStyle(
                                               fontSize: 13,
-                                              color: _isLoading
+                                              color: isLoading
                                                   ? const Color(0xFF9CA3AF)
                                                   : const Color(0xFF14B8A6),
                                               fontWeight: FontWeight.w600,
-                                              decoration: _isLoading
+                                              decoration: isLoading
                                                   ? TextDecoration.none
                                                   : TextDecoration.underline,
                                             ),
@@ -434,13 +393,13 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                                 // Back Button
                                 Center(
                                   child: GestureDetector(
-                                    onTap: _isLoading
+                                    onTap: isLoading
                                         ? null
                                         : widget.onBackTap,
                                     child: Text(
                                       'Back to OTP Request',
                                       style: TextStyle(
-                                        color: _isLoading
+                                        color: isLoading
                                             ? const Color(0xFFD1D5DB)
                                             : const Color(0xFF6B7280),
                                         fontSize: 13,
@@ -463,6 +422,8 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
           ),
         ),
       ),
+    );
+      },
     );
   }
 }

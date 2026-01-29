@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../services/geolocation_service.dart';
 
 class VerifyDagupanResidencyScreen extends StatefulWidget {
   final Function(double lat, double lng)? onVerificationComplete;
