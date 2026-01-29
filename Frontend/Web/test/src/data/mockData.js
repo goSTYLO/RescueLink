@@ -572,11 +572,18 @@ export const personnel = {
 };
 
 export const auditLogs = [
-  { incidentHash: "0x7a9f2e4b8c1d", timestamp: "2026-01-20 08:45:23", verificationStatus: "Verified", department: "BFP Dagupan", barangay: "Bonuan Binloc", severity: "Critical" },
-  { incidentHash: "0x3b6e1c9a2f5d", timestamp: "2026-01-20 09:15:47", verificationStatus: "Verified", department: "City Health Office", barangay: "Pantal", severity: "Warning" },
-  { incidentHash: "0x8c4f2a7e3b1d", timestamp: "2026-01-20 10:00:12", verificationStatus: "Pending", department: "PNP Dagupan", barangay: "Poblacion Oeste", severity: "Warning" },
-  { incidentHash: "0x2d9e6f1a5c8b", timestamp: "2026-01-20 07:30:56", verificationStatus: "Verified", department: "DRRMO Dagupan", barangay: "Bonuan Boquig", severity: "Warning" },
-  { incidentHash: "0x5f3a8e2b9c1d", timestamp: "2026-01-19 23:30:41", verificationStatus: "Verified", department: "City Health Office", barangay: "Carael", severity: "Resolved" },
+  { incidentId: "INC-2026-001", incidentHash: "0x7a9f2e4b8c1d", timestamp: "2026-01-20 08:45:23", verificationStatus: "Verified", department: "Dagupan Fire Department", barangay: "Bonuan Binloc", severity: "Critical" },
+  { incidentId: "INC-2026-002", incidentHash: "0x3b6e1c9a2f5d", timestamp: "2026-01-20 09:15:47", verificationStatus: "Verified", department: "City Health Office", barangay: "Pantal", severity: "Warning" },
+  { incidentId: "INC-2026-003", incidentHash: "0x8c4f2a7e3b1d", timestamp: "2026-01-20 10:00:12", verificationStatus: "Verified", department: "PNP Dagupan", barangay: "Poblacion Oeste", severity: "Warning" },
+  { incidentId: "INC-2026-004", incidentHash: "0x2d9e6f1a5c8b", timestamp: "2026-01-20 07:30:56", verificationStatus: "Verified", department: "DRRMO Dagupan", barangay: "Bonuan Boquig", severity: "Warning" },
+  { incidentId: "INC-2026-005", incidentHash: "0x5f3a8e2b9c1d", timestamp: "2026-01-19 23:30:41", verificationStatus: "Verified", department: "City Health Office", barangay: "Carael", severity: "Resolved" },
+  { incidentId: "INC-2026-006", incidentHash: "0x1a2b3c4d5e6f", timestamp: "2026-01-20 09:35:00", verificationStatus: "Verified", department: "Dagupan Fire Department", barangay: "Bonuan Binloc", severity: "Critical" },
+  { incidentId: "INC-2026-007", incidentHash: "0x9e8d7c6b5a4f", timestamp: "2026-01-20 11:20:15", verificationStatus: "Verified", department: "City Health Office", barangay: "Lucao", severity: "Resolved" },
+  { incidentId: "INC-2026-008", incidentHash: "0x4f5e6d7c8b9a", timestamp: "2026-01-19 14:00:00", verificationStatus: "Verified", department: "DRRMO Dagupan", barangay: "Tapuac", severity: "Critical" },
+  { incidentId: "INC-2026-009", incidentHash: "0x2b3c4d5e6f7a", timestamp: "2026-01-20 08:00:22", verificationStatus: "Verified", department: "PNP Dagupan", barangay: "Poblacion Oeste", severity: "Warning" },
+  { incidentId: "INC-2026-010", incidentHash: "0x7c8d9e0f1a2b", timestamp: "2026-01-19 18:45:33", verificationStatus: "Verified", department: "City Health Office", barangay: "Carael", severity: "Resolved" },
+  { incidentId: "INC-2026-011", incidentHash: "0x3d4e5f6a7b8c", timestamp: "2026-01-20 07:15:10", verificationStatus: "Verified", department: "Dagupan Fire Department", barangay: "Bonuan Boquig", severity: "Critical" },
+  { incidentId: "INC-2026-012", incidentHash: "0x8e9f0a1b2c3d", timestamp: "2026-01-20 12:30:00", verificationStatus: "Verified", department: "DRRMO Dagupan", barangay: "Pantal", severity: "Resolved" },
 ];
 
 // Admin Action Logs (separate from blockchain audit logs)
