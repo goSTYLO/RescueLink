@@ -62,6 +62,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _isLoading = false;
+  String _passwordStrength = 'weak'; // weak, medium, strong
 
   @override
   void dispose() {
@@ -71,6 +72,74 @@ class _SignUpScreenState extends State<SignUpScreen> {
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
+  }
+
+  // Calculate password strength
+  void _updatePasswordStrength(String password) {
+    setState(() {
+      if (password.isEmpty) {
+        _passwordStrength = 'weak';
+      } else if (password.length < 8 || !RegExp(r'[0-9]').hasMatch(password)) {
+        _passwordStrength = 'weak';
+      } else if (password.length >= 8 &&
+          RegExp(r'[0-9]').hasMatch(password) &&
+          RegExp(r'[a-z]').hasMatch(password) &&
+          RegExp(r'[A-Z]').hasMatch(password)) {
+        _passwordStrength = 'strong';
+      } else {
+        _passwordStrength = 'medium';
+      }
+    });
+  }
+
+  // Validate password requirements
+  String? _validatePassword(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Password is required';
+    }
+    if (value.length < 8) {
+      return 'Password must be at least 8 characters';
+    }
+    if (!RegExp(r'[0-9]').hasMatch(value)) {
+      return 'Password must contain at least one number';
+    }
+    return null;
+  }
+
+  // Validate phone number (Philippine format)
+  String? _validatePhone(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Phone number is required';
+    }
+    // Remove all non-digit characters
+    final digitsOnly = value.replaceAll(RegExp(r'[^\d]'), '');
+    
+    // Philippine phone number formats:
+    // 10 digits: 9XXXXXXXXX (without 0 prefix)
+    // 11 digits: 09XXXXXXXXX (with 0 prefix)
+    // 12 digits: 639XXXXXXXXX (with +63 country code, no +)
+    if (digitsOnly.length == 10 && digitsOnly.startsWith('9')) {
+      return null; // Valid: 9XXXXXXXXX
+    }
+    if (digitsOnly.length == 11 && digitsOnly.startsWith('09')) {
+      return null; // Valid: 09XXXXXXXXX
+    }
+    if (digitsOnly.length == 12 && digitsOnly.startsWith('639')) {
+      return null; // Valid: 639XXXXXXXXX
+    }
+    
+    return 'Please enter a valid Philippine phone number (e.g., 09XX-XXXX-XXXX)';
+  }
+
+  // Validate name
+  String? _validateName(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'This field is required';
+    }
+    if (value.length < 2) {
+      return 'Name must be at least 2 characters';
+    }
+    return null;
   }
 
   Future<void> _handleSignUp() async {
@@ -216,12 +285,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             vertical: 14,
                           ),
                         ),
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'First name is required';
-                          }
-                          return null;
-                        },
+                        validator: _validateName,
                       ),
                       const SizedBox(height: 20),
 
@@ -264,12 +328,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             vertical: 14,
                           ),
                         ),
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Last name is required';
-                          }
-                          return null;
-                        },
+                        validator: _validateName,
                       ),
                       const SizedBox(height: 20),
 
@@ -327,12 +386,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             vertical: 14,
                           ),
                         ),
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Phone number is required';
-                          }
-                          return null;
-                        },
+                        validator: _validatePhone,
                       ),
                       const SizedBox(height: 20),
 
@@ -424,6 +478,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       TextFormField(
                         controller: _passwordController,
                         obscureText: _obscurePassword,
+                        onChanged: (value) {
+                          _updatePasswordStrength(value);
+                        },
                         decoration: InputDecoration(
                           hintText: 'Minimum 8 characters',
                           prefixIcon: const Icon(
@@ -468,15 +525,51 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             vertical: 14,
                           ),
                         ),
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Password is required';
-                          }
-                          if (value.length < 8) {
-                            return 'Password must be at least 8 characters';
-                          }
-                          return null;
-                        },
+                        validator: _validatePassword,
+                      ),
+                      const SizedBox(height: 12),
+                      // Password Strength Indicator
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: LinearProgressIndicator(
+                                value: _passwordStrength == 'weak'
+                                    ? 0.33
+                                    : _passwordStrength == 'medium'
+                                        ? 0.66
+                                        : 1.0,
+                                minHeight: 6,
+                                backgroundColor: const Color(0xFFE5E7EB),
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  _passwordStrength == 'weak'
+                                      ? const Color(0xFFEF4444)
+                                      : _passwordStrength == 'medium'
+                                          ? const Color(0xFFFB923C)
+                                          : const Color(0xFF22C55E),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            _passwordStrength == 'weak'
+                                ? 'Weak'
+                                : _passwordStrength == 'medium'
+                                    ? 'Medium'
+                                    : 'Strong',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: _passwordStrength == 'weak'
+                                  ? const Color(0xFFEF4444)
+                                  : _passwordStrength == 'medium'
+                                      ? const Color(0xFFFB923C)
+                                      : const Color(0xFF22C55E),
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 20),
 

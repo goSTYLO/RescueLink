@@ -3,7 +3,7 @@ const User = require('../models/user');
 const { hashPassword, comparePassword } = require('../utils/hash');
 const firebaseAdmin = require('../config/firebase');
 const { validatePhone, validateString, validateEmail, validatePassword, validateAddress, validateLatitude, validateLongitude } = require('../utils/validation');
-const { isLocationInDagupan } = require('../utils/geolocation');
+const { isPointInDagupan } = require('../utils/geolocation');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'change_this_secret';
 
@@ -28,7 +28,7 @@ exports.register = async (req, res) => {
       const validatedLongitude = validateLongitude(longitude);
       
       // Check if location is within Dagupan
-      const inDagupan = isLocationInDagupan(validatedLatitude, validatedLongitude);
+      const inDagupan = isPointInDagupan(validatedLatitude, validatedLongitude);
       if (!inDagupan) {
         return res.status(403).json({ 
           message: 'Your location is outside Dagupan City. Only residents of Dagupan can register.',
@@ -91,45 +91,69 @@ exports.login = async (req, res) => {
 
 // Onboard using phone number verification via Firebase
 // Flow: client performs Firebase phone verification (client SDK) and obtains a Firebase ID token.
-// The client then sends { idToken, password } to this endpoint. We verify the idToken with
-// Firebase Admin SDK, extract the phone number, and create the local user with phone_verified=true.
+// The client then sends { idToken } to this endpoint. We verify the idToken with
+// Firebase Admin SDK, extract the phone number, and mark the user as phone_verified=true.
 exports.onboardPhone = async (req, res) => {
   console.log('📱 Phone onboarding attempt');
+  console.log('📤 Request headers:', req.headers);
+  console.log('📤 Request body:', req.body);
+  
   try {
-    const { idToken, password } = req.body;
-    if (!idToken) return res.status(400).json({ message: 'idToken required' });
+    const { idToken } = req.body;
+    if (!idToken) {
+      console.log('❌ Missing idToken in request');
+      return res.status(400).json({ message: 'idToken required' });
+    }
 
     // Validate idToken is a string
     const validatedToken = validateString(idToken, 'idToken', 1, 2048);
+    console.log('✅ idToken validated, length:', validatedToken.length);
 
     // Verify the Firebase ID token
+    console.log('🔐 Verifying Firebase ID token...');
     const decoded = await firebaseAdmin.auth().verifyIdToken(validatedToken);
+    console.log('✅ Firebase ID token verified. Decoded:', { uid: decoded.uid, phone_number: decoded.phone_number });
+    
     // Firebase phone auth places phone number on the token
     const phone = decoded.phone_number;
-    if (!phone) return res.status(400).json({ message: 'ID token does not contain a phone number' });
+    if (!phone) {
+      console.log('❌ ID token does not contain a phone number');
+      return res.status(400).json({ message: 'ID token does not contain a phone number' });
+    }
 
+    console.log('👤 Looking for user with phone:', phone);
     // Check if user exists with that phone
     const existing = await User.findByPhone(phone);
-    if (!existing) return res.status(404).json({ message: 'User not found. Please register first.' });
+    if (!existing) {
+      console.log('❌ User not found with phone:', phone);
+      return res.status(404).json({ message: 'User not found. Please register first.' });
+    }
+
+    console.log('✅ User found:', { user_id: existing.user_id, phone: existing.phone_number });
 
     // Update phone_verified to true
+    console.log('🔄 Updating phone_verified to true for user:', existing.user_id);
     let user = await User.updatePhoneVerified(phone, true);
-
-    // If password is provided, validate, hash, and store it
-    if (password) {
-      const validatedPassword = validatePassword(password);
-      const passwordHash = await hashPassword(validatedPassword);
-      user = await User.updatePassword(user.user_id, passwordHash);
-    }
+    console.log('✅ phone_verified updated. User:', { user_id: user.user_id, phone_verified: user.phone_verified });
 
     const token = jwt.sign({ user_id: user.user_id, phone: user.phone_number, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
     console.log('✅ Phone onboarding successful:', { user_id: user.user_id, phone: user.phone_number });
     res.json({ user: { user_id: user.user_id, phone: user.phone_number, firstName: user.first_name, lastName: user.last_name, role: user.role }, token });
   } catch (err) {
     console.error('❌ Phone onboarding error:', err.message);
+    console.error('❌ Error stack:', err.stack);
     if (err.message.includes('must be') || err.message.includes('Invalid')) {
       return res.status(400).json({ message: err.message });
     }
-    res.status(500).json({ message: 'Phone onboarding failed' });
+    // Firebase-specific errors
+    if (err.code === 'auth/invalid-id-token') {
+      console.error('❌ Firebase error: Invalid ID token');
+      return res.status(401).json({ message: 'Invalid or expired Firebase ID token' });
+    }
+    if (err.code === 'auth/id-token-expired') {
+      console.error('❌ Firebase error: ID token expired');
+      return res.status(401).json({ message: 'Firebase ID token has expired' });
+    }
+    res.status(500).json({ message: 'Phone onboarding failed', error: err.message });
   }
 };

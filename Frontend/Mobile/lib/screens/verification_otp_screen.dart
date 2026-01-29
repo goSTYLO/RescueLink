@@ -1,10 +1,12 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../services/auth_service.dart';
 
 /// Second step: Enter OTP Code + Verify & Continue.
 class VerificationOtpScreen extends StatefulWidget {
   final String phoneNumber;
-  final VoidCallback? onVerifyAndContinue;
+  final Function(Map<String, dynamic>)? onVerifyAndContinue;
   final VoidCallback? onBack;
   final String? selectedBarangay;
   final String? cityRegion;
@@ -27,6 +29,8 @@ class _VerificationOtpScreenState extends State<VerificationOtpScreen> {
   final List<FocusNode> _focusNodes = List.generate(6, (_) => FocusNode());
   int _resendCountdown = 30;
   bool _canResend = false;
+  bool _isVerifying = false;
+  final AuthService _authService = AuthService();
 
   @override
   void initState() {
@@ -62,6 +66,104 @@ class _VerificationOtpScreenState extends State<VerificationOtpScreen> {
   }
 
   String get _otpCode => _controllers.map((c) => c.text).join();
+
+  Future<void> _verifyOtp() async {
+    if (_isVerifying || _otpCode.length != 6) return;
+
+    print('🔐 Starting OTP verification with code: $_otpCode');
+    setState(() => _isVerifying = true);
+
+    try {
+      // Validate OTP is exactly 6 digits
+      if (_otpCode.length != 6 || !RegExp(r'^[0-9]{6}$').hasMatch(_otpCode)) {
+        throw Exception('Invalid OTP format');
+      }
+
+      print('📱 Calling verifyOtpAndLocation...');
+      final result = await _authService.verifyOtpAndLocation(
+        otp: _otpCode,
+        latitude: 16.043,
+        longitude: 120.334,
+      );
+
+      print('📊 Verification result: $result');
+
+      if (!mounted) {
+        print('⚠️ Widget disposed, skipping callback');
+        return;
+      }
+
+      if (result['success'] == true) {
+        print('✅ OTP verification SUCCESSFUL, calling callback');
+        // Call the callback with the result - ONLY on success
+        if (widget.onVerifyAndContinue != null) {
+          widget.onVerifyAndContinue!(result);
+        }
+      } else {
+        print('❌ OTP verification FAILED: ${result['error']}');
+        // DO NOT call callback on failure
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result['error'] ?? 'Unable to verify the code. Please try again.'),
+            backgroundColor: const Color(0xFFEF4444),
+            duration: const Duration(seconds: 4),
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.all(16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+        );
+      }
+    } on FirebaseAuthException catch (e) {
+      print('❌ FirebaseAuthException: ${e.code} - ${e.message}');
+      if (mounted) {
+        String errorMsg = 'The code you entered is incorrect. Please try again.';
+        if (e.code == 'invalid-verification-code') {
+          errorMsg = 'The verification code is incorrect. Please double-check and try again.';
+        } else if (e.code == 'session-expired') {
+          errorMsg = 'Your verification session has expired. Please request a new code.';
+        } else if (e.code == 'invalid-verification-id') {
+          errorMsg = 'Verification session not found. Please request a new code.';
+        } else if (e.code == 'code-expired') {
+          errorMsg = 'This code has expired. Please request a new one.';
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMsg),
+            backgroundColor: const Color(0xFFEF4444),
+            duration: const Duration(seconds: 4),
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.all(16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+        );
+      }
+    } catch (e) {
+      print('❌ Exception during OTP verification: $e');
+      if (mounted) {
+        String friendlyMsg = 'Unable to verify the code. Please try again.';
+        if (e.toString().contains('Invalid OTP format')) {
+          friendlyMsg = 'Please enter a valid 6-digit code.';
+        } else if (e.toString().contains('network')) {
+          friendlyMsg = 'Network error. Please check your connection and try again.';
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(friendlyMsg),
+            backgroundColor: const Color(0xFFEF4444),
+            duration: const Duration(seconds: 4),
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.all(16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        print('🔄 Setting verifying state to false');
+        setState(() => _isVerifying = false);
+      }
+    }
+  }
 
   Widget _buildLogo() {
     return Column(
@@ -325,16 +427,29 @@ class _VerificationOtpScreenState extends State<VerificationOtpScreen> {
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: _otpCode.length == 6 ? widget.onVerifyAndContinue : null,
+                        onPressed: _isVerifying || _otpCode.length != 6
+                            ? null
+                            : () async {
+                                await _verifyOtp();
+                              },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFFEF4444),
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
-                        child: const Text(
-                          'Verify & Continue',
-                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 16),
-                        ),
+                        child: _isVerifying
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Text(
+                                'Verify & Continue',
+                                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 16),
+                              ),
                       ),
                     ),
                   ],

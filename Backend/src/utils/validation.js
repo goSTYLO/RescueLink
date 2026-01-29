@@ -28,7 +28,7 @@ function validateString(value, fieldName, minLength = 0, maxLength = 500) {
   return trimmed;
 }
 
-// Validate phone number format
+// Validate phone number format and convert to E.164 format
 function validatePhone(phone) {
   if (typeof phone !== 'string') {
     throw new Error('Phone number must be a string');
@@ -47,7 +47,26 @@ function validatePhone(phone) {
     throw new Error('Phone number must not exceed 20 characters');
   }
   
-  return trimmed;
+  // Convert to E.164 format for Philippine numbers
+  // Remove all non-digit characters
+  let digitsOnly = trimmed.replace(/\D/g, '');
+  
+  // If starts with 0 (local format like 09123456789), replace with 63
+  if (digitsOnly.startsWith('0')) {
+    digitsOnly = '63' + digitsOnly.substring(1);
+  }
+  
+  // If doesn't start with country code 63, add it
+  if (!digitsOnly.startsWith('63')) {
+    digitsOnly = '63' + digitsOnly;
+  }
+  
+  // Add + prefix for E.164 format
+  const e164Format = '+' + digitsOnly;
+  
+  console.log(`📱 Phone formatting: ${trimmed} → ${e164Format}`);
+  
+  return e164Format;
 }
 
 // Validate email format
