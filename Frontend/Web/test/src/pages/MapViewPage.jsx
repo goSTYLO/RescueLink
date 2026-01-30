@@ -105,23 +105,23 @@ export function MapViewPage() {
 
   return (
     <Layout>
-      <div className="p-6">
-        <div className="mb-4">
-          <h1 className="text-2xl font-semibold text-gray-900">Live Emergency Map</h1>
-          <p className="text-gray-600 mt-1 text-sm">Real-time incident locations across Dagupan City</p>
+      <div className="p-8">
+        <div className="mb-6">
+          <h1 className="text-3xl font-semibold text-gray-900">Live Emergency Map</h1>
+          <p className="text-gray-600 mt-1">Real-time incident locations across Dagupan City</p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 h-[calc(100vh-200px)]">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Left Column - Filters and Legend */}
-          <div className="lg:col-span-3 space-y-3 order-1 flex flex-col">
-            <Card hover={false} className="flex-shrink-0">
-              <CardHeader className="pb-3">
+          <div className="lg:col-span-3 space-y-4 order-1">
+            <Card hover={false}>
+              <CardHeader>
                 <div className="flex items-center gap-2">
                   <Filter className="w-5 h-5 text-gray-600" />
                   <CardTitle className="text-base">Filters</CardTitle>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-4 p-4">
+              <CardContent className="space-y-4">
                 <div>
                   <label className="text-sm text-gray-600 mb-1.5 block">Department</label>
                   <Select value={filterDepartment} onValueChange={setFilterDepartment}>
@@ -172,11 +172,11 @@ export function MapViewPage() {
             </Card>
 
             {/* Legend */}
-            <Card hover={false} className="flex-shrink-0">
-              <CardHeader className="pb-3">
+            <Card hover={false}>
+              <CardHeader>
                 <CardTitle className="text-base">Severity Legend</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2 p-4">
+              <CardContent className="space-y-2">
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-4 rounded-full bg-red-500 flex-shrink-0"></div>
                   <span className="text-sm text-gray-700">Critical</span>
@@ -194,13 +194,13 @@ export function MapViewPage() {
           </div>
 
           {/* Middle Column - Map */}
-          <div className="lg:col-span-6 order-2 lg:order-none flex flex-col">
-            <Card hover={false} className="flex-1 flex flex-col min-h-0">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">Dagupan City Map</CardTitle>
+          <div className="lg:col-span-6 order-2 lg:order-none">
+            <Card hover={false}>
+              <CardHeader>
+                <CardTitle>Dagupan City Map</CardTitle>
               </CardHeader>
-              <CardContent className="p-4 flex-1 min-h-0">
-                <div className="relative w-full h-full bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg overflow-hidden">
+              <CardContent className="p-6">
+                <div className="relative w-full h-[500px] md:h-[600px] bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg overflow-hidden">
                   {/* Map Background */}
                   <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                     <p className="text-lg font-medium text-gray-700">Dagupan City Map</p>
@@ -263,18 +263,18 @@ export function MapViewPage() {
           </div>
 
           {/* Right Column - Active Incidents and Details */}
-          <div className="lg:col-span-3 space-y-4 order-3 lg:order-none flex flex-col h-full">
+          <div className="lg:col-span-3 space-y-6">
             {/* Active Incidents */}
-            <Card hover={false} className="flex-shrink-0">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">Active Incidents</CardTitle>
+            <Card hover={false}>
+              <CardHeader>
+                <CardTitle>Active Incidents</CardTitle>
               </CardHeader>
-              <CardContent className="p-4">
-                <div className="space-y-2 max-h-[180px] overflow-y-auto">
-                  {filteredIncidents.slice(0, 4).map((incident) => (
+              <CardContent>
+                <div className="space-y-2">
+                  {filteredIncidents.slice(0, 6).map((incident) => (
                     <div
                       key={incident.id}
-                      className={`p-2.5 bg-white border rounded-lg cursor-pointer hover:shadow-sm transition-all ${
+                      className={`p-3 bg-white border rounded-lg cursor-pointer hover:shadow-sm transition-all ${
                         selectedIncident?.id === incident.id 
                           ? 'border-[#134178] bg-green-50' 
                           : 'border-gray-200'
@@ -291,8 +291,8 @@ export function MapViewPage() {
                         }, 5000);
                       }}
                     >
-                      <p className="text-sm font-semibold text-gray-900 mb-0.5">{incident.id}</p>
-                      <p className="text-xs text-gray-600 mb-1.5">
+                      <p className="text-sm font-semibold text-gray-900 mb-1">{incident.id}</p>
+                      <p className="text-xs text-gray-600 mb-2">
                         {getTypeEmoji(incident.emergencyType)} {incident.emergencyType} • {incident.barangay}
                       </p>
                       <div className="flex items-center justify-end">
@@ -305,48 +305,48 @@ export function MapViewPage() {
             </Card>
 
             {/* Incident Details */}
-            <Card hover={false} className="flex-1 flex flex-col min-h-0">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">Incident Details</CardTitle>
+            <Card hover={false}>
+              <CardHeader>
+                <CardTitle>Incident Details</CardTitle>
               </CardHeader>
-              <CardContent className="p-4 space-y-2.5 flex-1 flex flex-col min-h-0">
+              <CardContent className="space-y-3">
                 {selectedIncident ? (
                   <>
                     <div>
-                      <p className="text-xs text-gray-600 mb-0.5">Incident ID</p>
-                      <p className="text-sm font-semibold text-[#134178]">{selectedIncident.id}</p>
+                      <p className="text-xs text-gray-600 mb-1">Incident ID</p>
+                      <p className="text-sm font-semibold text-gray-900">{selectedIncident.id}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-600 mb-0.5">Type</p>
+                      <p className="text-xs text-gray-600 mb-1">Type</p>
                       <p className="text-sm text-gray-900">{selectedIncident.emergencyType}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-600 mb-0.5">Severity</p>
+                      <p className="text-xs text-gray-600 mb-1">Severity</p>
                       <Badge className={`${getSeverityBadgeColor(selectedIncident.severity)} border rounded px-2 py-1 text-xs font-semibold inline-block`}>
                         {selectedIncident.severity.toUpperCase()}
                       </Badge>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-600 mb-0.5">Barangay</p>
+                      <p className="text-xs text-gray-600 mb-1">Barangay</p>
                       <p className="text-sm text-gray-900">{selectedIncident.barangay}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-600 mb-0.5">Time Reported</p>
+                      <p className="text-xs text-gray-600 mb-1">Time Reported</p>
                       <p className="text-sm text-gray-900">{selectedIncident.timeReported}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-600 mb-0.5">Location</p>
-                      <p className="text-sm text-gray-900 break-words">Corner AB Fernandez Ave and Perez Blvd</p>
+                      <p className="text-xs text-gray-600 mb-1">Location</p>
+                      <p className="text-sm text-gray-900">Corner AB Fernandez Ave and Perez Blvd</p>
                     </div>
                     <Button 
-                      className="w-full bg-[#134178] hover:bg-[#0f3256] text-white mt-auto"
+                      className="w-full bg-[#134178] hover:bg-[#0f3256] text-white mt-4"
                       onClick={() => navigate(`/incidents/${selectedIncident.id}`)}
                     >
                       View Full Details
                     </Button>
                   </>
                 ) : (
-                  <div className="flex items-center justify-center flex-1">
+                  <div className="flex items-center justify-center h-full min-h-[200px]">
                     <p className="text-sm text-gray-500">Select an incident to view details</p>
                   </div>
                 )}

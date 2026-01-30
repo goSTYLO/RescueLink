@@ -15,7 +15,7 @@ export default function Notification({ message, type = 'success', onClose, durat
   const iconColor = type === 'success' ? 'text-green-600' : 'text-red-600';
 
   return (
-    <div className={`fixed top-4 right-4 z-50 animate-slide-in-right ${bgColor} border rounded-lg shadow-lg p-4 min-w-[300px] max-w-md`}>
+    <div className={`fixed top-4 right-4 z-50 animate-slide-in-right ${bgColor} border rounded-xl shadow-lg p-4 min-w-[300px] max-w-md`}>
       <div className="flex items-start gap-3">
         {type === 'success' ? (
           <svg className={`w-5 h-5 ${iconColor} flex-shrink-0 mt-0.5`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
