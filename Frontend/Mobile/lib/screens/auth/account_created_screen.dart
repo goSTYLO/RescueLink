@@ -52,7 +52,7 @@ class AccountCreatedScreen extends StatelessWidget {
                     ),
                   ),
                   Image.asset(
-                    'assets/logo/logo.png',
+                    'assets/logo/logo2.png',
                     width: 32,
                     height: 32,
                     fit: BoxFit.contain,

@@ -1,18 +1,30 @@
 import 'package:flutter/material.dart';
-import 'screens/login_screen.dart';
-import 'screens/signup_screen.dart';
-import 'screens/forgot_password_screen.dart';
-import 'screens/verify_number_screen.dart';
-import 'screens/verified_screen.dart';
-import 'screens/identity_error_screen.dart';
-import 'screens/create_new_password_screen.dart';
-import 'screens/password_updated_screen.dart';
-import 'screens/verify_dagupan_residency_screen.dart';
-import 'screens/verification_screen.dart';
-import 'screens/verification_otp_screen.dart';
-import 'screens/outside_service_area_screen.dart';
-import 'screens/home_placeholder_screen.dart';
-import 'screens/account_created_screen.dart';
+import 'screens/auth/login_screen.dart';
+import 'screens/auth/signup_screen.dart';
+import 'screens/auth/account_created_screen.dart';
+import 'screens/auth/forgot_password_screen.dart';
+import 'screens/auth/verify_number_screen.dart';
+import 'screens/auth/verified_screen.dart';
+import 'screens/auth/identity_error_screen.dart';
+import 'screens/auth/create_new_password_screen.dart';
+import 'screens/auth/password_updated_screen.dart';
+import 'screens/verification/verify_dagupan_residency_screen.dart';
+import 'screens/verification/verification_screen.dart';
+import 'screens/verification/verification_otp_screen.dart';
+import 'screens/verification/outside_service_area_screen.dart';
+import 'screens/home/home_placeholder_screen.dart';
+import 'screens/home/emergency_report_screen.dart';
+import 'screens/home/emergency_tracking_screen.dart';
+import 'screens/home/report_details_screen.dart';
+import 'screens/home/change_phone_number_screen.dart';
+import 'screens/home/enter_new_phone_number_screen.dart';
+import 'screens/home/verify_new_phone_otp_screen.dart';
+import 'screens/home/phone_number_updated_screen.dart';
+import 'screens/home/barangay_information_screen.dart';
+import 'screens/home/emergency_contacts_screen.dart';
+import 'screens/home/change_password_screen.dart';
+import 'screens/home/privacy_security_screen.dart';
+import 'screens/home/logout_confirmation_screen.dart';
 
 void main() {
   runApp(const RescueLinkApp());
@@ -54,6 +66,21 @@ class _AuthNavigatorState extends State<AuthNavigator> {
   bool _showResidencyCheck = false;
   bool _isInsideDagupan = true; // Replace with real location/API check
   bool _showDashboard = false;
+  bool _showEmergencyReport = false;
+  bool _showEmergencyTracking = false;
+  bool _showReportDetails = false;
+  bool _showChangePhoneNumber = false;
+  bool _showEnterNewPhoneNumber = false;
+  bool _showVerifyNewPhoneOtp = false;
+  bool _showPhoneNumberUpdated = false;
+  bool _showBarangayInformation = false;
+  bool _showEmergencyContacts = false;
+  bool _showChangePassword = false;
+  bool _showPasswordUpdatedFromSettings = false;
+  bool _showPrivacySecurity = false;
+  bool _showLogoutConfirmation = false;
+  bool _returnToSettingsTab = false;
+  String _newPhoneNumberForOtp = '';
 
   // Verification flow: null -> human (Request OTP) -> otp (Enter OTP) -> dashboard
   String? _verificationStep;
@@ -80,6 +107,21 @@ class _AuthNavigatorState extends State<AuthNavigator> {
       _showAccountCreated = false;
       _showResidencyCheck = false;
       _showDashboard = false;
+      _showEmergencyReport = false;
+      _showEmergencyTracking = false;
+      _showReportDetails = false;
+      _showChangePhoneNumber = false;
+      _showEnterNewPhoneNumber = false;
+      _showVerifyNewPhoneOtp = false;
+      _showPhoneNumberUpdated = false;
+      _showBarangayInformation = false;
+      _showEmergencyContacts = false;
+      _showChangePassword = false;
+      _showPasswordUpdatedFromSettings = false;
+      _showPrivacySecurity = false;
+      _showLogoutConfirmation = false;
+      _returnToSettingsTab = false;
+      _newPhoneNumberForOtp = '';
       _verificationStep = null;
     });
   }
@@ -88,14 +130,27 @@ class _AuthNavigatorState extends State<AuthNavigator> {
     print('Skip pressed');
   }
 
-  Future<void> _handleLogin(String phone, String password) async {
-    print('Login: $phone, $password');
-    // On login success, show residency verification.
-    // Replace _isInsideDagupan with real API call: e.g. POST /api/location/check with lat/lng
+  /// Returns true if login succeeded, false if credentials are invalid.
+  /// Replace with real API call (e.g. POST /api/auth/login) and return based on response.
+  Future<bool> _handleLogin(String phone, String password) async {
+    final trimmedPhone = phone.trim();
+    if (trimmedPhone.isEmpty || password.isEmpty) {
+      return false;
+    }
+    // Demo validation: replace with real API call.
+    // For demo, accept e.g. phone 09171234567 and password "password123"
+    final normalizedPhone = trimmedPhone.replaceAll(RegExp(r'[\s\-\(\)]'), '');
+    final isDemoValid = (normalizedPhone == '09171234567' || normalizedPhone == '639171234567') &&
+        password == 'password123';
+    if (!isDemoValid) {
+      return false;
+    }
+    print('Login success: $trimmedPhone');
     setState(() {
       _showResidencyCheck = true;
-      _isInsideDagupan = true; // Set false to test Outside Service Area screen
+      _isInsideDagupan = true; // Replace with real location/API check
     });
+    return true;
   }
 
   Future<void> _handleSignUp(
@@ -121,7 +176,135 @@ class _AuthNavigatorState extends State<AuthNavigator> {
   Widget build(BuildContext context) {
     // Dashboard (after residency verified)
     if (_showDashboard) {
-      return HomePlaceholderScreen(onLogout: _backToLogin);
+      if (_showEmergencyReport) {
+        return EmergencyReportScreen(
+          onBack: () => setState(() => _showEmergencyReport = false),
+          onSubmit: () {
+            // TODO: submit report to API
+            setState(() {
+              _showEmergencyReport = false;
+              _showEmergencyTracking = true;
+            });
+          },
+        );
+      }
+      if (_showEmergencyTracking) {
+        return EmergencyTrackingScreen(
+          onBack: () => setState(() => _showEmergencyTracking = false),
+        );
+      }
+      if (_showReportDetails) {
+        return ReportDetailsScreen(
+          onBack: () => setState(() => _showReportDetails = false),
+        );
+      }
+      if (_showChangePhoneNumber) {
+        return ChangePhoneNumberScreen(
+          onBack: () => setState(() => _showChangePhoneNumber = false),
+          onChangePhoneNumber: () => setState(() {
+            _showChangePhoneNumber = false;
+            _showEnterNewPhoneNumber = true;
+          }),
+        );
+      }
+      if (_showEnterNewPhoneNumber) {
+        return EnterNewPhoneNumberScreen(
+          onBack: () => setState(() {
+            _showEnterNewPhoneNumber = false;
+            _showChangePhoneNumber = true;
+          }),
+          onSendOtp: (newNumber) {
+            setState(() {
+              _newPhoneNumberForOtp = newNumber;
+              _showEnterNewPhoneNumber = false;
+              _showVerifyNewPhoneOtp = true;
+            });
+          },
+        );
+      }
+      if (_showVerifyNewPhoneOtp) {
+        return VerifyNewPhoneOtpScreen(
+          phoneNumber: _newPhoneNumberForOtp,
+          onBack: () => setState(() {
+            _showVerifyNewPhoneOtp = false;
+            _showEnterNewPhoneNumber = true;
+          }),
+          onVerifySuccess: () {
+            setState(() {
+              _showVerifyNewPhoneOtp = false;
+              _showPhoneNumberUpdated = true;
+            });
+          },
+        );
+      }
+      if (_showPhoneNumberUpdated) {
+        return PhoneNumberUpdatedScreen(
+          onDone: () => setState(() => _showPhoneNumberUpdated = false),
+        );
+      }
+      if (_showBarangayInformation) {
+        return BarangayInformationScreen(
+          onBack: () => setState(() => _showBarangayInformation = false),
+        );
+      }
+      if (_showEmergencyContacts) {
+        return EmergencyContactsScreen(
+          onBack: () => setState(() {
+            _showEmergencyContacts = false;
+            _returnToSettingsTab = true;
+          }),
+        );
+      }
+      if (_showPasswordUpdatedFromSettings) {
+        return PasswordUpdatedScreen(
+          onBackToLogin: _backToLogin,
+        );
+      }
+      if (_showChangePassword) {
+        return ChangePasswordScreen(
+          onBack: () => setState(() {
+            _showChangePassword = false;
+            _returnToSettingsTab = true;
+          }),
+          onUpdatePassword: () => setState(() {
+            _showChangePassword = false;
+            _showPasswordUpdatedFromSettings = true;
+          }),
+        );
+      }
+      if (_showPrivacySecurity) {
+        return PrivacySecurityScreen(
+          onBack: () => setState(() {
+            _showPrivacySecurity = false;
+            _returnToSettingsTab = true;
+          }),
+        );
+      }
+      if (_showLogoutConfirmation) {
+        return LogoutConfirmationScreen(
+          onBack: () => setState(() {
+            _showLogoutConfirmation = false;
+            _returnToSettingsTab = true;
+          }),
+          onCancel: () => setState(() {
+            _showLogoutConfirmation = false;
+            _returnToSettingsTab = true;
+          }),
+          onConfirm: _backToLogin,
+        );
+      }
+      return HomePlaceholderScreen(
+        initialTabIndex: _returnToSettingsTab ? 3 : null,
+        onInitialTabApplied: _returnToSettingsTab ? () => setState(() => _returnToSettingsTab = false) : null,
+        onLogout: () => setState(() => _showLogoutConfirmation = true),
+        onSosPressed: () => setState(() => _showEmergencyReport = true),
+        onReportTap: () => setState(() => _showReportDetails = true),
+        onPhoneNumberTap: () => setState(() => _showChangePhoneNumber = true),
+        onBarangayTap: () => setState(() => _showBarangayInformation = true),
+        onEmergencyContactsTap: () => setState(() => _showEmergencyContacts = true),
+        onChangePasswordTap: () => setState(() => _showChangePassword = true),
+        onPrivacySecurityTap: () => setState(() => _showPrivacySecurity = true),
+      );
     }
 
     // Residency check (after login): inside Dagupan vs outside service area

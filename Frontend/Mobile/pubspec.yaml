@@ -34,6 +34,7 @@ flutter:
 
   assets:
     - assets/logo/logo.png
+    - assets/logo/logo2.png
     - assets/images/login_illustrations.png
     - assets/images/createaccount_illustration.png
     - assets/images/forgotpassword_illustration.png
@@ -43,3 +44,12 @@ flutter:
     - assets/images/maps_illustration.png
     - assets/images/outsidearea_illustration.png
     - assets/images/accountcreateddone_-illustration.png
+    - assets/images/profilepicture_illustration.png
+    - assets/images/changephonenumber_illustration.png
+    - assets/images/phonenumberverify_illustration.png
+    - assets/images/phonenumberOTP_illustration.png
+    - assets/images/phonenumberupdated_illustration.png
+    - assets/images/barangayinformation_illustration.png
+    - assets/images/deleteemergencycontacts_illustration.png
+    - "assets/images/privacy&policy_illustration.png"
+    - assets/images/logoutconfirmation_illustration.png

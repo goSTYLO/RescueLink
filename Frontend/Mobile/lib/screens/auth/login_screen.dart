@@ -4,7 +4,8 @@ class LoginScreen extends StatefulWidget {
   final VoidCallback? onSignUpTap;
   final VoidCallback? onSkip;
   final VoidCallback? onForgotPasswordTap;
-  final Function(String phone, String password)? onLogin;
+  /// Called with phone and password. Returns true if login succeeded, false if invalid credentials.
+  final Future<bool> Function(String phone, String password)? onLogin;
 
   const LoginScreen({
     super.key,
@@ -33,17 +34,23 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _handleLogin() async {
-    if (_formKey.currentState!.validate()) {
-      setState(() => _isLoading = true);
-      
-      if (widget.onLogin != null) {
-        await widget.onLogin!(
-          _phoneController.text.trim(),
-          _passwordController.text,
-        );
-      }
-      
-      setState(() => _isLoading = false);
+    if (!_formKey.currentState!.validate()) return;
+    if (widget.onLogin == null) return;
+    setState(() => _isLoading = true);
+    final success = await widget.onLogin!(
+      _phoneController.text.trim(),
+      _passwordController.text,
+    );
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+    if (!success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Invalid phone number or password. Please try again.'),
+          backgroundColor: Color(0xFFEF4444),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
   }
 
