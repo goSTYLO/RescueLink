@@ -1,6 +1,7 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'firebase_options.dart';
 import 'bloc/auth/auth_bloc.dart';
 import 'bloc/auth/auth_event.dart';
@@ -35,6 +36,7 @@ import 'screens/home/logout_confirmation_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load(fileName: '.env');
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await AuthService().init();
   runApp(const RescueLinkApp());
@@ -71,6 +73,7 @@ class _AuthNavigatorState extends State<AuthNavigator> {
   bool _showSignUp = false;
   String? _forgotFlowScreen;
   String _forgotPhoneNumber = '';
+  String? _forgotPasswordIdToken;
 
   // Sign-up flow: form first, then Verify Dagupan on Create Account
   Map<String, String>? _pendingSignUpData;
@@ -158,11 +161,8 @@ class _AuthNavigatorState extends State<AuthNavigator> {
       _returnToSettingsTab = false;
       _newPhoneNumberForOtp = '';
       _verificationStep = null;
+      _forgotPasswordIdToken = null;
     });
-  }
-
-  void _handleSkip() {
-    print('Skip pressed');
   }
 
   void _onResidencyRetry() {
@@ -180,7 +180,8 @@ class _AuthNavigatorState extends State<AuthNavigator> {
         if (state is RegisterSuccess) {
           setState(() {
             _registeredPhone = state.phone;
-            _showVerificationRequestOtp = true;
+            _showSignUp = false;
+            _showAccountCreated = true; // Account Created first; OTP when they tap "Continue to verify phone"
           });
           context.read<AuthBloc>().add(const AuthReset());
         }
@@ -343,6 +344,7 @@ class _AuthNavigatorState extends State<AuthNavigator> {
       return VerifyDagupanResidencyScreen(
         onVerificationComplete: (double lat, double lng) {
           final data = _pendingSignUpData!;
+          _registeredBarangay = data['address'] ?? 'Barangay Poblacion Oeste';
           context.read<AuthBloc>().add(RegisterRequested(
                 firstName: data['firstName']!,
                 lastName: data['lastName']!,
@@ -369,17 +371,20 @@ class _AuthNavigatorState extends State<AuthNavigator> {
       );
     }
 
-    // Request OTP screen (sign-up flow; right after location verification + register)
+    // Request OTP screen (sign-up flow; after Account Created -> "Continue to verify phone")
     if (_showVerificationRequestOtp) {
       return VerificationScreen(
         phone: _registeredPhone,
-        onBack: () => setState(() => _showVerificationRequestOtp = false),
+        onBack: () => setState(() {
+          _showVerificationRequestOtp = false;
+          _showAccountCreated = true; // back to Account Created
+        }),
         selectedBarangay: _registeredBarangay,
         cityRegion: 'Dagupan City, Pangasinan',
       );
     }
 
-    // Enter OTP screen (sign-up flow; after OTP verified show Account Created, do not store token)
+    // Enter OTP screen (sign-up flow; after OTP verified go to Login, do not store token)
     if (_showVerificationOtp) {
       return VerificationOtpScreen(
         phoneNumber: _registeredPhone,
@@ -387,7 +392,9 @@ class _AuthNavigatorState extends State<AuthNavigator> {
         onPhoneVerified: () {
           setState(() {
             _showVerificationOtp = false;
-            _showAccountCreated = true;
+            _showSignUp = false;
+            _showAccountCreated = false;
+            _showLoginAfterPhoneVerified = true; // go to Login after OTP success
           });
           context.read<AuthBloc>().add(const AuthReset());
         },
@@ -433,6 +440,7 @@ class _AuthNavigatorState extends State<AuthNavigator> {
         registeredPhone: _registeredPhone,
         onContinueToVerifyPhone: () {
           setState(() {
+            _showAccountCreated = false;
             _showVerificationRequestOtp = true;
           });
         },
@@ -443,7 +451,6 @@ class _AuthNavigatorState extends State<AuthNavigator> {
     if (_showLoginAfterPhoneVerified) {
       return LoginScreen(
         onSignUpTap: _toggleView,
-        onSkip: _handleSkip,
         onForgotPasswordTap: _showForgotPassword,
         onLoginSuccess: () {
           setState(() {
@@ -500,19 +507,53 @@ class _AuthNavigatorState extends State<AuthNavigator> {
         case 'forgot_password':
           return ForgotPasswordScreen(
             onBackToLogin: _backToLogin,
-            onRequestCode: (phone) {
-              setState(() {
-                _forgotPhoneNumber = phone;
-                _forgotFlowScreen = 'verify_number';
-              });
+            onRequestCode: (phone) async {
+              final r = await AuthService().initializePhoneVerification(phone);
+              if (r['success'] != true) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(r['error'] as String? ?? 'Could not send code. Check the number and try again.'),
+                      backgroundColor: const Color(0xFFEF4444),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+                return false;
+              }
+              if (context.mounted) {
+                setState(() {
+                  _forgotPhoneNumber = phone;
+                  _forgotFlowScreen = 'verify_number';
+                });
+              }
+              return true;
             },
           );
         case 'verify_number':
           return VerifyNumberScreen(
             phoneNumber: _forgotPhoneNumber,
             onBack: () => setState(() => _forgotFlowScreen = 'forgot_password'),
-            onVerifyCode: (code) {
-              setState(() => _forgotFlowScreen = 'verified');
+            onVerifyCode: (code) async {
+              final r = await AuthService().verifyOtpAndGetIdToken(code);
+              if (r['success'] != true) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(r['error'] as String? ?? 'Invalid code. Please try again.'),
+                      backgroundColor: const Color(0xFFEF4444),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+                return;
+              }
+              if (context.mounted) {
+                setState(() {
+                  _forgotPasswordIdToken = r['idToken'] as String?;
+                  _forgotFlowScreen = 'verified';
+                });
+              }
             },
           );
         case 'verified':
@@ -526,9 +567,13 @@ class _AuthNavigatorState extends State<AuthNavigator> {
         case 'create_new_password':
           return CreateNewPasswordScreen(
             phoneNumber: _forgotPhoneNumber,
+            idToken: _forgotPasswordIdToken,
             onBack: () => setState(() => _forgotFlowScreen = 'verified'),
             onResetPassword: (newPassword) {
-              setState(() => _forgotFlowScreen = 'password_updated');
+              setState(() {
+                _forgotPasswordIdToken = null;
+                _forgotFlowScreen = 'password_updated';
+              });
             },
           );
         case 'password_updated':
@@ -543,7 +588,6 @@ class _AuthNavigatorState extends State<AuthNavigator> {
     // Default: Login screen
     return LoginScreen(
       onSignUpTap: _toggleView,
-      onSkip: _handleSkip,
       onForgotPasswordTap: _showForgotPassword,
       onLoginSuccess: () {
         setState(() => _showDashboard = true);

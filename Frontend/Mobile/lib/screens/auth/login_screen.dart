@@ -3,10 +3,10 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../bloc/auth/auth_bloc.dart';
 import '../../bloc/auth/auth_event.dart';
 import '../../bloc/auth/auth_state.dart';
+import '../../utils/validators.dart';
 
 class LoginScreen extends StatefulWidget {
   final VoidCallback? onSignUpTap;
-  final VoidCallback? onSkip;
   final VoidCallback? onForgotPasswordTap;
   /// Called when login succeeds (parent navigates to dashboard).
   final VoidCallback? onLoginSuccess;
@@ -14,7 +14,6 @@ class LoginScreen extends StatefulWidget {
   const LoginScreen({
     super.key,
     this.onSignUpTap,
-    this.onSkip,
     this.onForgotPasswordTap,
     this.onLoginSuccess,
   });
@@ -83,16 +82,24 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return BlocConsumer<AuthBloc, AuthState>(
+      listenWhen: (previous, current) {
+        // Only react when we transition to LoginError (avoid duplicate snackbars)
+        return current is LoginError && previous is! LoginError;
+      },
       listener: (context, state) {
         if (state is LoginSuccess) {
           widget.onLoginSuccess?.call();
         }
         if (state is LoginError) {
+          final message = state.message.trim().isEmpty
+              ? 'Incorrect password or number.'
+              : state.message;
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(state.message),
+              content: Text(message),
               backgroundColor: const Color(0xFFEF4444),
               behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 4),
             ),
           );
         }
@@ -107,21 +114,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 24.0),
                 child: Column(
                   children: [
-                const SizedBox(height: 20),
-                // Skip Button
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(
-                    onPressed: widget.onSkip,
-                    child: const Text(
-                      'Skip',
-                      style: TextStyle(
-                        color: Color(0xFF6B7280),
-                        fontSize: 14,
-                      ),
-                    ),
-                  ),
-                ),
                 const SizedBox(height: 20),
                 // Logo Section
                 _buildLogo(),
@@ -207,12 +199,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             vertical: 14,
                           ),
                         ),
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Phone number is required';
-                          }
-                          return null;
-                        },
+                        validator: Validators.validatePhoneNumber,
                       ),
                       const SizedBox(height: 20),
 
@@ -286,6 +273,9 @@ class _LoginScreenState extends State<LoginScreen> {
                         validator: (value) {
                           if (value == null || value.isEmpty) {
                             return 'Password is required';
+                          }
+                          if (value.length < 6) {
+                            return 'Password must be at least 6 characters';
                           }
                           return null;
                         },

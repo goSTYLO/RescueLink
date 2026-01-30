@@ -3,6 +3,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../bloc/auth/auth_bloc.dart';
 import '../../bloc/auth/auth_event.dart';
 import '../../bloc/auth/auth_state.dart';
+import '../../utils/app_config.dart';
+import '../../widgets/recaptcha_webview.dart';
 
 /// First step: Location Verified + Human Verification (reCAPTCHA + Request OTP).
 class VerificationScreen extends StatefulWidget {
@@ -27,6 +29,64 @@ class VerificationScreen extends StatefulWidget {
 
 class _VerificationScreenState extends State<VerificationScreen> {
   bool _recaptchaChecked = false;
+
+  void _showRecaptchaDialog(BuildContext context) {
+    if (AppConfig.recaptchaSiteKey.isEmpty) {
+      setState(() => _recaptchaChecked = true);
+      return;
+    }
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => PopScope(
+        canPop: true,
+        child: Dialog(
+          insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 400, maxHeight: 480),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  child: Row(
+                    children: [
+                      const Text(
+                        "Verify you're human",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF111827),
+                        ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        onPressed: () => Navigator.of(ctx).pop(),
+                        icon: const Icon(Icons.close, color: Color(0xFF6B7280)),
+                      ),
+                    ],
+                  ),
+                ),
+                Flexible(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: RecaptchaWebView(
+                      siteKey: AppConfig.recaptchaSiteKey,
+                      onSuccess: (token) {
+                        if (!ctx.mounted) return;
+                        Navigator.of(ctx).pop();
+                        setState(() => _recaptchaChecked = true);
+                      },
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
   Widget _buildLogo() {
     return Column(
@@ -236,7 +296,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
                     ),
                     const SizedBox(height: 14),
                     InkWell(
-                      onTap: () => setState(() => _recaptchaChecked = !_recaptchaChecked),
+                      onTap: _recaptchaChecked ? null : () => _showRecaptchaDialog(context),
                       borderRadius: BorderRadius.circular(8),
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),

@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 class VerifyNumberScreen extends StatefulWidget {
   final String phoneNumber;
   final VoidCallback? onBack;
-  final void Function(String code)? onVerifyCode;
+  final Future<void> Function(String code)? onVerifyCode;
   final void Function()? onResendCode;
 
   const VerifyNumberScreen({
@@ -51,8 +51,16 @@ class _VerifyNumberScreenState extends State<VerifyNumberScreen> {
 
   String get _code => _controllers.map((c) => c.text).join();
 
+  Future<void> _verifyCode() async {
+    if (_code.length != 6 || widget.onVerifyCode == null) return;
+    setState(() => _isLoading = true);
+    await widget.onVerifyCode!(_code);
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+  }
+
   void _onCodeComplete() {
-    if (_code.length == 6) widget.onVerifyCode?.call(_code);
+    if (_code.length == 6) _verifyCode();
   }
 
   Widget _buildLogo() {
@@ -163,15 +171,19 @@ class _VerifyNumberScreenState extends State<VerifyNumberScreen> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: _isLoading || _code.length != 6
-                      ? null
-                      : () => widget.onVerifyCode?.call(_code),
+                  onPressed: _isLoading || _code.length != 6 ? null : _verifyCode,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFEF4444),
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
-                  child: const Text('Verify Code', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                  child: _isLoading
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(Colors.white)),
+                        )
+                      : const Text('Verify Code', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
                 ),
               ),
               const SizedBox(height: 40),

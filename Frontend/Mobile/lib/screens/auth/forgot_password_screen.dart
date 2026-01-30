@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import '../../utils/app_config.dart';
+import '../../widgets/recaptcha_webview.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   final VoidCallback? onBackToLogin;
-  final void Function(String phone)? onRequestCode;
+  final Future<bool> Function(String phone)? onRequestCode;
 
   const ForgotPasswordScreen({
     super.key,
@@ -44,7 +46,65 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     );
   }
 
-  void _handleRequestCode() {
+  void _showRecaptchaDialog(BuildContext context) {
+    if (AppConfig.recaptchaSiteKey.isEmpty) {
+      setState(() => _recaptchaChecked = true);
+      return;
+    }
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => PopScope(
+        canPop: true,
+        child: Dialog(
+          insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 400, maxHeight: 480),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  child: Row(
+                    children: [
+                      const Text(
+                        "Verify you're human",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF111827),
+                        ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        onPressed: () => Navigator.of(ctx).pop(),
+                        icon: const Icon(Icons.close, color: Color(0xFF6B7280)),
+                      ),
+                    ],
+                  ),
+                ),
+                Flexible(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: RecaptchaWebView(
+                      siteKey: AppConfig.recaptchaSiteKey,
+                      onSuccess: (token) {
+                        if (!ctx.mounted) return;
+                        Navigator.of(ctx).pop();
+                        setState(() => _recaptchaChecked = true);
+                      },
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleRequestCode() async {
     final phone = _phoneController.text.trim();
     if (phone.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -59,8 +119,19 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       return;
     }
     setState(() => _isLoading = true);
-    widget.onRequestCode?.call(phone.startsWith('+') ? phone : '+63$phone');
+    final formattedPhone = phone.startsWith('+') ? phone : '+63$phone';
+    final ok = await widget.onRequestCode?.call(formattedPhone) ?? false;
+    if (!mounted) return;
     setState(() => _isLoading = false);
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not send code. Check the number and try again.'),
+          backgroundColor: Color(0xFFEF4444),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   @override
@@ -177,40 +248,45 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 ),
               ),
               const SizedBox(height: 24),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFE5E7EB)),
-                ),
-                child: Row(
-                  children: [
-                    Checkbox(
-                      value: _recaptchaChecked,
-                      onChanged: (v) => setState(() => _recaptchaChecked = v ?? false),
-                      activeColor: const Color(0xFFEF4444),
-                    ),
-                    const Text(
-                      'I\'m not a robot',
-                      style: TextStyle(color: Color(0xFF374151), fontSize: 14),
-                    ),
-                    const Spacer(),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text(
-                          'reCAPTCHA',
-                          style: TextStyle(color: Color(0xFF6B7280), fontSize: 12),
-                        ),
-                        const Text(
-                          'Privacy - Terms',
-                          style: TextStyle(color: Color(0xFF9CA3AF), fontSize: 11),
-                        ),
-                      ],
-                    ),
-                  ],
+              InkWell(
+                onTap: _recaptchaChecked ? null : () => _showRecaptchaDialog(context),
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFE5E7EB)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        _recaptchaChecked ? Icons.check_box : Icons.check_box_outline_blank,
+                        size: 24,
+                        color: _recaptchaChecked ? const Color(0xFFEF4444) : const Color(0xFF374151),
+                      ),
+                      const SizedBox(width: 12),
+                      const Text(
+                        "I'm not a robot",
+                        style: TextStyle(color: Color(0xFF374151), fontSize: 14),
+                      ),
+                      const Spacer(),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text(
+                            'reCAPTCHA',
+                            style: TextStyle(color: Color(0xFF6B7280), fontSize: 12),
+                          ),
+                          const Text(
+                            'Privacy - Terms',
+                            style: TextStyle(color: Color(0xFF9CA3AF), fontSize: 11),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(height: 8),
@@ -225,7 +301,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  onPressed: _isLoading ? null : _handleRequestCode,
+                  onPressed: (_recaptchaChecked && !_isLoading) ? _handleRequestCode : null,
                   icon: const Icon(Icons.phone, color: Colors.white, size: 20),
                   label: const Text(
                     'Request Verification Code',

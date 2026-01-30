@@ -1,11 +1,21 @@
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+
 class AppConfig {
-  // API base URL from env (--dart-define=API_BASE_URL=...)
-  // Emulator: flutter run (defaults to 10.0.2.2:3000)
-  // Real device: flutter run --dart-define=API_BASE_URL=http://YOUR_PC_IP:3000
-  static const String apiBaseUrl = String.fromEnvironment(
-    'API_BASE_URL',
-    defaultValue: 'http://10.0.2.2:3000',
-  );
+  // API base URL: from .env (API_BASE_URL) or --dart-define=API_BASE_URL=...
+  // Emulator: defaults to 10.0.2.2:3000. Real device: use your PC's LAN IP in .env
+  static String get apiBaseUrl =>
+      dotenv.env['API_BASE_URL']?.trim() ??
+      const String.fromEnvironment(
+        'API_BASE_URL',
+        defaultValue: 'http://10.0.2.2:3000',
+      );
+
+  // Google reCAPTCHA v2 site key: from .env (RECAPTCHA_SITE_KEY) or --dart-define.
+  // Get keys at https://www.google.com/recaptcha/admin (reCAPTCHA v2 "I'm not a robot").
+  // If not set, verification screen falls back to a simple checkbox (no real reCAPTCHA).
+  static String get recaptchaSiteKey =>
+      dotenv.env['RECAPTCHA_SITE_KEY']?.trim() ??
+      const String.fromEnvironment('RECAPTCHA_SITE_KEY', defaultValue: '');
 
   // API Timeout
   static const Duration apiTimeout = Duration(seconds: 30);

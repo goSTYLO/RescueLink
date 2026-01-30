@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
+import '../../services/auth_service.dart';
 
 class CreateNewPasswordScreen extends StatefulWidget {
   final String phoneNumber;
+  final String? idToken;
   final VoidCallback? onBack;
   final void Function(String newPassword)? onResetPassword;
 
   const CreateNewPasswordScreen({
     super.key,
     required this.phoneNumber,
+    this.idToken,
     this.onBack,
     this.onResetPassword,
   });
@@ -57,7 +60,7 @@ class _CreateNewPasswordScreenState extends State<CreateNewPasswordScreen> {
     );
   }
 
-  void _handleReset() {
+  Future<void> _handleReset() async {
     if (_passwordController.text.length < 8) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Password must be at least 8 characters')),
@@ -70,9 +73,31 @@ class _CreateNewPasswordScreenState extends State<CreateNewPasswordScreen> {
       );
       return;
     }
+    if (widget.idToken == null || widget.idToken!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Verification expired. Please start over.'),
+          backgroundColor: Color(0xFFEF4444),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
     setState(() => _isLoading = true);
-    widget.onResetPassword?.call(_passwordController.text);
+    final result = await AuthService().resetPassword(widget.idToken!, _passwordController.text);
+    if (!mounted) return;
     setState(() => _isLoading = false);
+    if (result['success'] == true) {
+      widget.onResetPassword?.call(_passwordController.text);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result['error'] as String? ?? 'Could not reset password. Please try again.'),
+          backgroundColor: const Color(0xFFEF4444),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   @override

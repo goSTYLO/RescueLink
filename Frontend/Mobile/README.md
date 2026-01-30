@@ -28,9 +28,10 @@ Flutter mobile application for RescueLink built with BLoC architecture.
    - **iOS simulator**: `flutter run --dart-define=API_BASE_URL=http://localhost:3000`  
    See `.env.example` for details.
 
-4. **Optional: Google reCAPTCHA v2**  
-   The verification screen uses real Google reCAPTCHA. By default the app uses Google's test site key (always passes). For production, get keys at https://www.google.com/recaptcha and run with:  
-   `flutter run --dart-define=RECAPTCHA_SITE_KEY=your_site_key`
+4. **Google reCAPTCHA v2 (for real verification)**  
+   To use real Google reCAPTCHA on the verification screen, get your site key at https://www.google.com/recaptcha/admin (reCAPTCHA v2 "I'm not a robot"), then run:  
+   `flutter run --dart-define=RECAPTCHA_SITE_KEY=your_site_key`  
+   If you don't set this, the app shows a simple checkbox instead (no real reCAPTCHA).
 
 5. **Run the App**
    ```bash
