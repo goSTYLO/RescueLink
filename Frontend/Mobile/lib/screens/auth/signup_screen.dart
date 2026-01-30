@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../bloc/auth/auth_bloc.dart';
+import '../../bloc/auth/auth_state.dart';
 
 // Dagupan City Barangays
 const List<String> dagupanBarangays = [
@@ -39,12 +42,12 @@ const List<String> dagupanBarangays = [
 
 class SignUpScreen extends StatefulWidget {
   final VoidCallback? onLoginTap;
-  final Function(String firstName, String lastName, String phone, String barangay, String password)? onSignUp;
+  final void Function(String firstName, String lastName, String phone, String address, String password)? onRequestLocationVerification;
 
   const SignUpScreen({
     super.key,
     this.onLoginTap,
-    this.onSignUp,
+    this.onRequestLocationVerification,
   });
 
   @override
@@ -142,32 +145,24 @@ class _SignUpScreenState extends State<SignUpScreen> {
     return null;
   }
 
-  Future<void> _handleSignUp() async {
-    if (_formKey.currentState!.validate()) {
-      if (_selectedBarangay == 'Select your barangay') {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please select your barangay'),
-            backgroundColor: Colors.red,
-          ),
-        );
-        return;
-      }
-
-      setState(() => _isLoading = true);
-
-      if (widget.onSignUp != null) {
-        await widget.onSignUp!(
-          _firstNameController.text.trim(),
-          _lastNameController.text.trim(),
-          _phoneController.text.trim(),
-          _selectedBarangay,
-          _passwordController.text,
-        );
-      }
-
-      setState(() => _isLoading = false);
+  void _handleSignUp(BuildContext context) {
+    if (!_formKey.currentState!.validate()) return;
+    if (_selectedBarangay == 'Select your barangay') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select your barangay'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
     }
+    widget.onRequestLocationVerification?.call(
+      _firstNameController.text.trim(),
+      _lastNameController.text.trim(),
+      _phoneController.text.trim(),
+      _selectedBarangay,
+      _passwordController.text,
+    );
   }
 
   Widget _buildLogo() {
@@ -207,17 +202,30 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0),
-            child: Column(
-              children: [
-                const SizedBox(height: 20),
-                // Logo Section
-                _buildLogo(),
+    return BlocConsumer<AuthBloc, AuthState>(
+      listener: (context, state) {
+        if (state is RegisterError) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(state.message),
+              backgroundColor: const Color(0xFFEF4444),
+            ),
+          );
+        }
+      },
+      builder: (context, state) {
+        final isLoading = state is AuthLoading || _isLoading;
+        return Scaffold(
+          backgroundColor: Colors.white,
+          body: SafeArea(
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 20),
+                    // Logo Section
+                    _buildLogo(),
                 const SizedBox(height: 20),
                 // Illustration
                 _buildIllustration(),
@@ -642,7 +650,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
-                          onPressed: _isLoading ? null : _handleSignUp,
+                          onPressed: isLoading ? null : () => _handleSignUp(context),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFFEF4444),
                             padding: const EdgeInsets.symmetric(vertical: 16),
@@ -651,7 +659,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             ),
                             elevation: 2,
                           ),
-                          child: _isLoading
+                          child: isLoading
                               ? const SizedBox(
                                   height: 20,
                                   width: 20,
@@ -701,12 +709,14 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     ],
                   ),
                 ),
-                const SizedBox(height: 40),
-              ],
+                    const SizedBox(height: 40),
+                  ],
+                ),
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }

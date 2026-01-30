@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../bloc/auth/auth_bloc.dart';
+import '../../bloc/auth/auth_event.dart';
+import '../../bloc/auth/auth_state.dart';
 
 /// First step: Location Verified + Human Verification (reCAPTCHA + Request OTP).
 class VerificationScreen extends StatefulWidget {
+  final String phone;
   final VoidCallback? onRequestOtp;
   final VoidCallback? onBack;
   final String? selectedBarangay;
@@ -9,6 +14,7 @@ class VerificationScreen extends StatefulWidget {
 
   const VerificationScreen({
     super.key,
+    required this.phone,
     this.onRequestOtp,
     this.onBack,
     this.selectedBarangay,
@@ -50,19 +56,38 @@ class _VerificationScreenState extends State<VerificationScreen> {
     );
   }
 
+  void _requestOtp(BuildContext context) {
+    context.read<AuthBloc>().add(OtpRequested(widget.phone));
+  }
+
   @override
   Widget build(BuildContext context) {
     final barangay = widget.selectedBarangay ?? 'Barangay Poblacion Oeste';
     final cityRegion = widget.cityRegion ?? 'Dagupan City, Pangasinan';
 
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
+    return BlocConsumer<AuthBloc, AuthState>(
+      listener: (context, state) {
+        if (state is OtpError) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(state.message),
+              backgroundColor: const Color(0xFFEF4444),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+        // Parent (main) listens for OtpSent and navigates to VerificationOtpScreen
+      },
+      builder: (context, state) {
+        final isLoading = state is AuthLoading;
+        return Scaffold(
+          backgroundColor: Colors.white,
+          body: SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
               if (widget.onBack != null) ...[
                 const SizedBox(height: 8),
                 Align(
@@ -245,16 +270,25 @@ class _VerificationScreenState extends State<VerificationScreen> {
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: _recaptchaChecked ? widget.onRequestOtp : null,
+                        onPressed: (_recaptchaChecked && !isLoading) ? () => _requestOtp(context) : null,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFFEF4444),
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
-                        child: const Text(
-                          'Request OTP',
-                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 16),
-                        ),
+                        child: isLoading
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                ),
+                              )
+                            : const Text(
+                                'Request OTP',
+                                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 16),
+                              ),
                       ),
                     ),
                   ],
@@ -282,10 +316,12 @@ class _VerificationScreenState extends State<VerificationScreen> {
                 ),
               ),
               const SizedBox(height: 40),
-            ],
+                ],
+              ),
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }

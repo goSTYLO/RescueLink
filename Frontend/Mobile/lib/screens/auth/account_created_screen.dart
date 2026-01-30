@@ -3,11 +3,15 @@ import 'package:flutter/material.dart';
 class AccountCreatedScreen extends StatelessWidget {
   final VoidCallback? onBackToLogin;
   final VoidCallback? onDone;
+  final String? registeredPhone;
+  final VoidCallback? onContinueToVerifyPhone;
 
   const AccountCreatedScreen({
     super.key,
     this.onBackToLogin,
     this.onDone,
+    this.registeredPhone,
+    this.onContinueToVerifyPhone,
   });
 
   void _goBack() {
@@ -102,23 +106,55 @@ class AccountCreatedScreen extends StatelessWidget {
                               color: Color(0xFF22C55E),
                             ),
                           ),
+                          const SizedBox(height: 12),
+                          const Text(
+                            'Verify your phone to continue.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Color(0xFF6B7280),
+                            ),
+                          ),
                           const SizedBox(height: 24),
+                          if (onContinueToVerifyPhone != null)
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton(
+                                onPressed: onContinueToVerifyPhone,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFFEF4444),
+                                  padding: const EdgeInsets.symmetric(vertical: 16),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                                child: const Text(
+                                  'Continue to verify phone',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          if (onContinueToVerifyPhone != null) const SizedBox(height: 12),
                           SizedBox(
                             width: double.infinity,
-                            child: ElevatedButton(
+                            child: OutlinedButton(
                               onPressed: _goBack,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF22C55E),
+                              style: OutlinedButton.styleFrom(
                                 padding: const EdgeInsets.symmetric(vertical: 16),
+                                side: const BorderSide(color: Color(0xFF22C55E)),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                               ),
                               child: const Text(
-                                'DONE',
+                                'Back to Log In',
                                 style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF22C55E),
+                                  fontWeight: FontWeight.w600,
                                   fontSize: 16,
                                 ),
                               ),
@@ -129,7 +165,7 @@ class AccountCreatedScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 24),
                     const Text(
-                      'Your identity has been confirmed!',
+                      'Verify your phone to complete registration.',
                       style: TextStyle(
                         fontSize: 14,
                         color: Color(0xFF6B7280),

@@ -1,0 +1,167 @@
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../services/auth_service.dart';
+import 'auth_event.dart';
+import 'auth_state.dart';
+
+class AuthBloc extends Bloc<AuthEvent, AuthState> {
+  AuthBloc(this._authService) : super(const AuthInitial()) {
+    on<LocationCheckRequested>(_onLocationCheckRequested);
+    on<RegisterRequested>(_onRegisterRequested);
+    on<OtpRequested>(_onOtpRequested);
+    on<OtpVerified>(_onOtpVerified);
+    on<ResendOtpRequested>(_onResendOtpRequested);
+    on<LoginRequested>(_onLoginRequested);
+    on<AuthReset>(_onAuthReset);
+  }
+
+  final AuthService _authService;
+
+  Future<void> _onLocationCheckRequested(
+    LocationCheckRequested event,
+    Emitter<AuthState> emit,
+  ) async {
+    emit(const AuthLoading());
+    try {
+      final result = await _authService.checkLocationInDagupan(
+        latitude: event.latitude,
+        longitude: event.longitude,
+      );
+      final success = result['success'] as bool? ?? false;
+      final isInDagupan = result['isInDagupan'] as bool? ?? false;
+      final message = result['message'] as String? ??
+          result['error'] as String? ??
+          'Location check failed';
+      if (success) {
+        emit(LocationVerified(isInDagupan: isInDagupan, message: message));
+      } else {
+        emit(LocationError(message));
+      }
+    } catch (e) {
+      emit(LocationError(e.toString()));
+    }
+  }
+
+  Future<void> _onRegisterRequested(
+    RegisterRequested event,
+    Emitter<AuthState> emit,
+  ) async {
+    emit(const AuthLoading());
+    try {
+      final result = await _authService.register(
+        firstName: event.firstName,
+        lastName: event.lastName,
+        phone: event.phone,
+        barangay: event.address,
+        password: event.password,
+        latitude: event.latitude,
+        longitude: event.longitude,
+        storeToken: false,
+      );
+      if (result['success'] == true) {
+        final data = result['data'] as Map<String, dynamic>?;
+        final user = data?['user'] as Map<String, dynamic>?;
+        final phone = user?['phone'] as String? ?? event.phone;
+        emit(RegisterSuccess(phone));
+      } else {
+        final error = result['error'] as String? ?? 'Registration failed';
+        emit(RegisterError(error));
+      }
+    } catch (e) {
+      emit(RegisterError(e.toString()));
+    }
+  }
+
+  Future<void> _onOtpRequested(
+    OtpRequested event,
+    Emitter<AuthState> emit,
+  ) async {
+    emit(const AuthLoading());
+    try {
+      final result =
+          await _authService.initializePhoneVerification(event.phone);
+      if (result['success'] == true) {
+        emit(const OtpSent());
+      } else {
+        final error = result['error'] as String? ?? 'Failed to send OTP';
+        emit(OtpError(error));
+      }
+    } catch (e) {
+      emit(OtpError(e.toString()));
+    }
+  }
+
+  Future<void> _onOtpVerified(
+    OtpVerified event,
+    Emitter<AuthState> emit,
+  ) async {
+    emit(const AuthLoading());
+    try {
+      final result = await _authService.verifyOtpAndLocation(
+        otp: event.otp,
+        latitude: event.latitude,
+        longitude: event.longitude,
+        storeToken: event.storeToken,
+      );
+      if (result['success'] == true) {
+        if (event.storeToken) {
+          final data = result['data'] as Map<String, dynamic>?;
+          final user = data?['user'] as Map<String, dynamic>? ?? {};
+          final token = data?['token'] as String? ?? '';
+          emit(LoginSuccess(user: user, token: token));
+        } else {
+          emit(const PhoneVerified());
+        }
+      } else {
+        final error = result['error'] as String? ?? 'Verification failed';
+        emit(AuthError(error));
+      }
+    } catch (e) {
+      emit(AuthError(e.toString()));
+    }
+  }
+
+  Future<void> _onResendOtpRequested(
+    ResendOtpRequested event,
+    Emitter<AuthState> emit,
+  ) async {
+    emit(const AuthLoading());
+    try {
+      final result = await _authService.resendOtp(event.phone);
+      if (result['success'] == true) {
+        emit(const OtpSent());
+      } else {
+        final error = result['error'] as String? ?? 'Failed to resend OTP';
+        emit(OtpError(error));
+      }
+    } catch (e) {
+      emit(OtpError(e.toString()));
+    }
+  }
+
+  Future<void> _onLoginRequested(
+    LoginRequested event,
+    Emitter<AuthState> emit,
+  ) async {
+    emit(const AuthLoading());
+    try {
+      final result = await _authService.login(
+        phone: event.phone,
+        password: event.password,
+      );
+      if (result['success'] == true) {
+        final user = result['user'] as Map<String, dynamic>? ?? {};
+        final token = result['token'] as String? ?? '';
+        emit(LoginSuccess(user: user, token: token));
+      } else {
+        final error = result['error'] as String? ?? 'Login failed';
+        emit(LoginError(error));
+      }
+    } catch (e) {
+      emit(LoginError(e.toString()));
+    }
+  }
+
+  void _onAuthReset(AuthReset event, Emitter<AuthState> emit) {
+    emit(const AuthInitial());
+  }
+}

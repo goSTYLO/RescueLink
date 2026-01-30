@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import '../bloc/auth/auth_bloc.dart';
-import '../bloc/auth/auth_event.dart';
-import '../bloc/auth/auth_state.dart';
+import '../../bloc/auth/auth_bloc.dart';
+import '../../bloc/auth/auth_event.dart';
+import '../../bloc/auth/auth_state.dart';
 
 /// Second step: Enter OTP Code + Verify & Continue.
 class VerificationOtpScreen extends StatefulWidget {
@@ -12,6 +12,10 @@ class VerificationOtpScreen extends StatefulWidget {
   final VoidCallback? onBack;
   final String? selectedBarangay;
   final String? cityRegion;
+  /// When false (signup flow), backend sets phone_verified but app does not store token; navigate to Login.
+  final bool storeTokenAfterVerify;
+  /// Called when OTP verified and storeTokenAfterVerify is false (signup flow); navigate to Login.
+  final VoidCallback? onPhoneVerified;
 
   const VerificationOtpScreen({
     super.key,
@@ -20,6 +24,8 @@ class VerificationOtpScreen extends StatefulWidget {
     this.onBack,
     this.selectedBarangay,
     this.cityRegion,
+    this.storeTokenAfterVerify = true,
+    this.onPhoneVerified,
   });
 
   @override
@@ -84,6 +90,7 @@ class _VerificationOtpScreenState extends State<VerificationOtpScreen> {
           otp: _otpCode,
           latitude: _defaultLat,
           longitude: _defaultLng,
+          storeToken: widget.storeTokenAfterVerify,
         ));
   }
 
@@ -141,6 +148,9 @@ class _VerificationOtpScreenState extends State<VerificationOtpScreen> {
                   borderRadius: BorderRadius.circular(8)),
             ),
           );
+        }
+        if (state is PhoneVerified) {
+          widget.onPhoneVerified?.call();
         }
       },
       builder: (context, authState) {

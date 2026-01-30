@@ -78,6 +78,7 @@ class AuthService {
     required String password,
     required double latitude,
     required double longitude,
+    bool storeToken = true,
   }) async {
     try {
       final response = await _apiService.post(
@@ -93,8 +94,8 @@ class AuthService {
         },
       );
 
-      // Store token but don't set as authenticated yet (phone verification required)
-      if (response['token'] != null) {
+      // Only store token if requested (signup flow uses storeToken: false)
+      if (storeToken && response['token'] != null) {
         await _storeToken(response['token']);
       }
 
@@ -221,6 +222,7 @@ class AuthService {
     required String otp,
     required double latitude,
     required double longitude,
+    bool storeToken = true,
   }) async {
     try {
       if (_verificationId == null) {
@@ -304,9 +306,11 @@ class AuthService {
         };
       }
 
-      // Store the new JWT token after successful verification
-      await _storeToken(onboardResponse['token']);
-      print('✅ JWT token stored successfully');
+      // Only store token if requested (signup flow uses storeToken: false, then navigate to Login)
+      if (storeToken) {
+        await _storeToken(onboardResponse['token']);
+        print('✅ JWT token stored successfully');
+      }
       print('✅ Phone verification complete!');
 
       return {

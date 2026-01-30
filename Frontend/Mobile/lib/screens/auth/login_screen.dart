@@ -1,18 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../bloc/auth/auth_bloc.dart';
+import '../../bloc/auth/auth_event.dart';
+import '../../bloc/auth/auth_state.dart';
 
 class LoginScreen extends StatefulWidget {
   final VoidCallback? onSignUpTap;
   final VoidCallback? onSkip;
   final VoidCallback? onForgotPasswordTap;
-  /// Called with phone and password. Returns true if login succeeded, false if invalid credentials.
-  final Future<bool> Function(String phone, String password)? onLogin;
+  /// Called when login succeeds (parent navigates to dashboard).
+  final VoidCallback? onLoginSuccess;
 
   const LoginScreen({
     super.key,
     this.onSignUpTap,
     this.onSkip,
     this.onForgotPasswordTap,
-    this.onLogin,
+    this.onLoginSuccess,
   });
 
   @override
@@ -33,25 +37,12 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  Future<void> _handleLogin() async {
+  void _handleLogin(BuildContext context) {
     if (!_formKey.currentState!.validate()) return;
-    if (widget.onLogin == null) return;
-    setState(() => _isLoading = true);
-    final success = await widget.onLogin!(
-      _phoneController.text.trim(),
-      _passwordController.text,
-    );
-    if (!mounted) return;
-    setState(() => _isLoading = false);
-    if (!success) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Invalid phone number or password. Please try again.'),
-          backgroundColor: Color(0xFFEF4444),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    }
+    context.read<AuthBloc>().add(LoginRequested(
+          phone: _phoneController.text.trim(),
+          password: _passwordController.text,
+        ));
   }
 
   Widget _buildLogo() {
@@ -91,14 +82,31 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0),
-            child: Column(
-              children: [
+    return BlocConsumer<AuthBloc, AuthState>(
+      listener: (context, state) {
+        if (state is LoginSuccess) {
+          widget.onLoginSuccess?.call();
+        }
+        if (state is LoginError) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(state.message),
+              backgroundColor: const Color(0xFFEF4444),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      },
+      builder: (context, state) {
+        final isLoading = state is AuthLoading || _isLoading;
+        return Scaffold(
+          backgroundColor: Colors.white,
+          body: SafeArea(
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                child: Column(
+                  children: [
                 const SizedBox(height: 20),
                 // Skip Button
                 Align(
@@ -304,7 +312,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
-                          onPressed: _isLoading ? null : _handleLogin,
+                          onPressed: isLoading ? null : () => _handleLogin(context),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFFEF4444),
                             padding: const EdgeInsets.symmetric(vertical: 16),
@@ -313,7 +321,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                             elevation: 2,
                           ),
-                          child: _isLoading
+                          child: isLoading
                               ? const SizedBox(
                                   height: 20,
                                   width: 20,
@@ -447,11 +455,13 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 40),
-              ],
+                  ],
+                ),
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }

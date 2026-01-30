@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import '../../services/auth_service.dart';
+
+/// Set to true to skip real GPS/API check and use fixed Dagupan coords (for testing outside area).
+const bool _bypassLocationCheck = true;
 
 class VerifyDagupanResidencyScreen extends StatefulWidget {
   final Function(double lat, double lng)? onVerificationComplete;
@@ -37,54 +41,82 @@ class _VerifyDagupanResidencyScreenState
   Future<void> _verifyLocation() async {
     setState(() => _isVerifying = true);
 
-    try {
-      // DEVELOPMENT BYPASS - Remove in production
-      // Automatically pass verification for testing
-      await Future.delayed(const Duration(seconds: 1));
-
+    if (_bypassLocationCheck) {
+      await Future.delayed(const Duration(milliseconds: 500));
+      if (!mounted) return;
       setState(() {
-        _currentLat = 16.043; // Dagupan City approximate coordinates
+        _currentLat = 16.043;
         _currentLng = 120.334;
-        _isInsideDagupan = true; // Always true for development
+        _isInsideDagupan = true;
         _isVerified = true;
-        _verificationMessage =
-            'Location verified! (Development Mode - Bypass Active)';
+        _verificationMessage = 'Location verified (bypass mode for testing).';
         _isVerifying = false;
       });
+      return;
+    }
 
-      /* PRODUCTION CODE - Uncomment when ready to use real location
-      // Get current position
-      final position = await GeolocationService.getCurrentPosition();
-      
-      setState(() {
-        _currentLat = position.latitude;
-        _currentLng = position.longitude;
-      });
+    try {
+      final authService = AuthService();
+      final locResult = await authService.getCurrentLocation();
 
-      // Check if the location is within Dagupan boundaries
-      final isInDagupan = await GeolocationService.isPointInDagupan(
-        position.latitude,
-        position.longitude,
-        bufferMeters: 100, // 100m buffer zone
+      if (!mounted) return;
+      if (locResult['success'] != true) {
+        setState(() {
+          _isVerifying = false;
+          _isVerified = false;
+          _verificationMessage =
+              locResult['error'] as String? ?? 'Could not get location.';
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(locResult['error'] as String? ?? 'Location error'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      final lat = locResult['latitude'] as double?;
+      final lng = locResult['longitude'] as double?;
+      if (lat == null || lng == null) {
+        setState(() {
+          _isVerifying = false;
+          _isVerified = false;
+          _verificationMessage = 'Invalid location coordinates.';
+        });
+        return;
+      }
+
+      final checkResult = await authService.checkLocationInDagupan(
+        latitude: lat,
+        longitude: lng,
       );
 
+      if (!mounted) return;
+      final isInDagupan = checkResult['isInDagupan'] as bool? ?? false;
+      final message = checkResult['message'] as String? ??
+          checkResult['error'] as String? ??
+          (isInDagupan
+              ? 'Location verified! You are in Dagupan City.'
+              : 'Location verification failed. You are outside Dagupan City.');
+
       setState(() {
+        _currentLat = lat;
+        _currentLng = lng;
         _isInsideDagupan = isInDagupan;
         _isVerified = true;
-        _verificationMessage = isInDagupan
-            ? 'Location verified! You are in Dagupan City.'
-            : 'Location verification failed. You are outside Dagupan City.';
+        _verificationMessage = message;
         _isVerifying = false;
       });
-      */
     } catch (e) {
-      setState(() {
-        _isVerifying = false;
-        _verificationMessage = 'Error verifying location: $e';
-        _isVerified = false;
-      });
-
       if (mounted) {
+        setState(() {
+          _isVerifying = false;
+          _verificationMessage = 'Error verifying location: $e';
+          _isVerified = false;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Location Error: $e'),

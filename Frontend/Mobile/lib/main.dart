@@ -1,4 +1,11 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'firebase_options.dart';
+import 'bloc/auth/auth_bloc.dart';
+import 'bloc/auth/auth_event.dart';
+import 'bloc/auth/auth_state.dart';
+import 'services/auth_service.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/signup_screen.dart';
 import 'screens/auth/account_created_screen.dart';
@@ -26,7 +33,10 @@ import 'screens/home/change_password_screen.dart';
 import 'screens/home/privacy_security_screen.dart';
 import 'screens/home/logout_confirmation_screen.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await AuthService().init();
   runApp(const RescueLinkApp());
 }
 
@@ -42,7 +52,10 @@ class RescueLinkApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
         useMaterial3: true,
       ),
-      home: const AuthNavigator(),
+      home: BlocProvider<AuthBloc>(
+        create: (_) => AuthBloc(AuthService()),
+        child: const AuthNavigator(),
+      ),
     );
   }
 }
@@ -59,12 +72,25 @@ class _AuthNavigatorState extends State<AuthNavigator> {
   String? _forgotFlowScreen;
   String _forgotPhoneNumber = '';
 
-  // After signup: show Account Created confirmation
-  bool _showAccountCreated = false;
+  // Sign-up flow: form first, then Verify Dagupan on Create Account
+  Map<String, String>? _pendingSignUpData;
+  bool _showVerifyDagupanForSignup = false;
 
-  // After login: show residency verification (inside or outside Dagupan)
+  // After signup (BLoC RegisterSuccess): show Account Created
+  bool _showAccountCreated = false;
+  String _registeredPhone = '';
+  String _registeredBarangay = 'Barangay Poblacion Oeste';
+
+  // After Account Created -> Continue to verify phone: Request OTP -> Enter OTP
+  bool _showVerificationRequestOtp = false;
+  bool _showVerificationOtp = false;
+
+  // After OTP verified (PhoneVerified): show Login
+  bool _showLoginAfterPhoneVerified = false;
+
+  // After login (BLoC LoginSuccess): dashboard
   bool _showResidencyCheck = false;
-  bool _isInsideDagupan = true; // Replace with real location/API check
+  bool _isInsideDagupan = true;
   bool _showDashboard = false;
   bool _showEmergencyReport = false;
   bool _showEmergencyTracking = false;
@@ -82,14 +108,16 @@ class _AuthNavigatorState extends State<AuthNavigator> {
   bool _returnToSettingsTab = false;
   String _newPhoneNumberForOtp = '';
 
-  // Verification flow: null -> human (Request OTP) -> otp (Enter OTP) -> dashboard
+  // Login path verification flow (after login): Request OTP -> Enter OTP -> dashboard
   String? _verificationStep;
-  static const String _verificationPhone = '+63 917 123 4567'; // TODO: use logged-in user phone
+  static const String _verificationPhone = '+63 917 123 4567';
 
   void _toggleView() {
     setState(() {
       _showSignUp = !_showSignUp;
       _forgotFlowScreen = null;
+      _pendingSignUpData = null;
+      _showVerifyDagupanForSignup = false;
     });
   }
 
@@ -104,7 +132,14 @@ class _AuthNavigatorState extends State<AuthNavigator> {
     setState(() {
       _forgotFlowScreen = null;
       _showSignUp = false;
+      _pendingSignUpData = null;
+      _showVerifyDagupanForSignup = false;
       _showAccountCreated = false;
+      _registeredPhone = '';
+      _registeredBarangay = 'Barangay Poblacion Oeste';
+      _showVerificationRequestOtp = false;
+      _showVerificationOtp = false;
+      _showLoginAfterPhoneVerified = false;
       _showResidencyCheck = false;
       _showDashboard = false;
       _showEmergencyReport = false;
@@ -130,41 +165,6 @@ class _AuthNavigatorState extends State<AuthNavigator> {
     print('Skip pressed');
   }
 
-  /// Returns true if login succeeded, false if credentials are invalid.
-  /// Replace with real API call (e.g. POST /api/auth/login) and return based on response.
-  Future<bool> _handleLogin(String phone, String password) async {
-    final trimmedPhone = phone.trim();
-    if (trimmedPhone.isEmpty || password.isEmpty) {
-      return false;
-    }
-    // Demo validation: replace with real API call.
-    // For demo, accept e.g. phone 09171234567 and password "password123"
-    final normalizedPhone = trimmedPhone.replaceAll(RegExp(r'[\s\-\(\)]'), '');
-    final isDemoValid = (normalizedPhone == '09171234567' || normalizedPhone == '639171234567') &&
-        password == 'password123';
-    if (!isDemoValid) {
-      return false;
-    }
-    print('Login success: $trimmedPhone');
-    setState(() {
-      _showResidencyCheck = true;
-      _isInsideDagupan = true; // Replace with real location/API check
-    });
-    return true;
-  }
-
-  Future<void> _handleSignUp(
-    String firstName,
-    String lastName,
-    String phone,
-    String barangay,
-    String password,
-  ) async {
-    print('SignUp: $firstName $lastName, $phone, $barangay, $password');
-    // When account is created successfully, show Account Created screen
-    setState(() => _showAccountCreated = true);
-  }
-
   void _onResidencyRetry() {
     // Re-check location; for demo you can toggle to see the other screen
     setState(() {
@@ -174,7 +174,38 @@ class _AuthNavigatorState extends State<AuthNavigator> {
 
   @override
   Widget build(BuildContext context) {
-    // Dashboard (after residency verified)
+    // Listen to AuthBloc for sign-up and login flow
+    return BlocListener<AuthBloc, AuthState>(
+      listener: (context, state) {
+        if (state is RegisterSuccess) {
+          setState(() {
+            _registeredPhone = state.phone;
+            _showVerificationRequestOtp = true;
+          });
+          context.read<AuthBloc>().add(const AuthReset());
+        }
+        if (state is OtpSent) {
+          setState(() {
+            _showVerificationRequestOtp = false;
+            _showVerificationOtp = true;
+          });
+          context.read<AuthBloc>().add(const AuthReset());
+        }
+        if (state is LoginSuccess) {
+          setState(() {
+            _showDashboard = true;
+            _showLoginAfterPhoneVerified = false;
+            _showResidencyCheck = false;
+          });
+          context.read<AuthBloc>().add(const AuthReset());
+        }
+      },
+      child: _buildContent(context),
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
+    // Dashboard (after login success)
     if (_showDashboard) {
       if (_showEmergencyReport) {
         return EmergencyReportScreen(
@@ -307,12 +338,128 @@ class _AuthNavigatorState extends State<AuthNavigator> {
       );
     }
 
-    // Residency check (after login): inside Dagupan vs outside service area
+    // Sign-up flow: Verify Dagupan (only after Create Account from form)
+    if (_showSignUp && _showVerifyDagupanForSignup && _pendingSignUpData != null) {
+      return VerifyDagupanResidencyScreen(
+        onVerificationComplete: (double lat, double lng) {
+          final data = _pendingSignUpData!;
+          context.read<AuthBloc>().add(RegisterRequested(
+                firstName: data['firstName']!,
+                lastName: data['lastName']!,
+                phone: data['phone']!,
+                address: data['address']!,
+                password: data['password']!,
+                latitude: lat,
+                longitude: lng,
+              ));
+          setState(() {
+            _showVerifyDagupanForSignup = false;
+            _pendingSignUpData = null;
+          });
+        },
+        onRefreshGps: () => setState(() {}),
+        onLocationVerificationFailed: () {
+          setState(() {
+            _registeredBarangay = _pendingSignUpData?['address'] ?? 'Barangay Poblacion Oeste';
+            _showVerifyDagupanForSignup = false;
+            _pendingSignUpData = null;
+          });
+        },
+        selectedBarangay: _pendingSignUpData!['address'] ?? 'Barangay Poblacion Oeste',
+      );
+    }
+
+    // Request OTP screen (sign-up flow; right after location verification + register)
+    if (_showVerificationRequestOtp) {
+      return VerificationScreen(
+        phone: _registeredPhone,
+        onBack: () => setState(() => _showVerificationRequestOtp = false),
+        selectedBarangay: _registeredBarangay,
+        cityRegion: 'Dagupan City, Pangasinan',
+      );
+    }
+
+    // Enter OTP screen (sign-up flow; after OTP verified show Account Created, do not store token)
+    if (_showVerificationOtp) {
+      return VerificationOtpScreen(
+        phoneNumber: _registeredPhone,
+        storeTokenAfterVerify: false,
+        onPhoneVerified: () {
+          setState(() {
+            _showVerificationOtp = false;
+            _showAccountCreated = true;
+          });
+          context.read<AuthBloc>().add(const AuthReset());
+        },
+        onBack: () => setState(() {
+          _showVerificationOtp = false;
+          _showVerificationRequestOtp = true;
+        }),
+        selectedBarangay: _registeredBarangay,
+        cityRegion: 'Dagupan City, Pangasinan',
+      );
+    }
+
+    // Sign-up form (no location check here; Verify Dagupan is shown after Create Account)
+    if (_showSignUp) {
+      return SignUpScreen(
+        onLoginTap: _toggleView,
+        onRequestLocationVerification: (firstName, lastName, phone, address, password) {
+          setState(() {
+            _pendingSignUpData = {
+              'firstName': firstName,
+              'lastName': lastName,
+              'phone': phone,
+              'address': address,
+              'password': password,
+            };
+            _showVerifyDagupanForSignup = true;
+          });
+        },
+      );
+    }
+
+    // Account Created (optional; e.g. if user navigates from OTP back to login and re-enters)
+    if (_showAccountCreated) {
+      return AccountCreatedScreen(
+        onBackToLogin: () {
+          context.read<AuthBloc>().add(const AuthReset());
+          _backToLogin();
+        },
+        onDone: () {
+          context.read<AuthBloc>().add(const AuthReset());
+          _backToLogin();
+        },
+        registeredPhone: _registeredPhone,
+        onContinueToVerifyPhone: () {
+          setState(() {
+            _showVerificationRequestOtp = true;
+          });
+        },
+      );
+    }
+
+    // Login screen (after phone verified in sign-up flow, or direct login)
+    if (_showLoginAfterPhoneVerified) {
+      return LoginScreen(
+        onSignUpTap: _toggleView,
+        onSkip: _handleSkip,
+        onForgotPasswordTap: _showForgotPassword,
+        onLoginSuccess: () {
+          setState(() {
+            _showLoginAfterPhoneVerified = false;
+            _showDashboard = true;
+          });
+        },
+      );
+    }
+
+    // Residency check (after login - optional; currently go straight to dashboard)
     if (_showResidencyCheck) {
       if (_isInsideDagupan) {
-        // Verification flow: Dagupan screen -> Verification (Request OTP) -> Enter OTP -> dashboard
         if (_verificationStep == 'human') {
           return VerificationScreen(
+            phone: _verificationPhone,
             onRequestOtp: () => setState(() => _verificationStep = 'otp'),
             onBack: () => setState(() => _verificationStep = null),
             selectedBarangay: 'Barangay Poblacion Oeste',
@@ -322,7 +469,7 @@ class _AuthNavigatorState extends State<AuthNavigator> {
         if (_verificationStep == 'otp') {
           return VerificationOtpScreen(
             phoneNumber: _verificationPhone,
-            onVerifyAndContinue: () {
+            onVerifyAndContinue: (Map<String, dynamic> data) {
               setState(() {
                 _verificationStep = null;
                 _showResidencyCheck = false;
@@ -335,11 +482,8 @@ class _AuthNavigatorState extends State<AuthNavigator> {
           );
         }
         return VerifyDagupanResidencyScreen(
-          onVerificationComplete: () => setState(() => _verificationStep = 'human'),
-          onRefreshGps: () {
-            // TODO: re-fetch GPS and update _isInsideDagupan via API
-            setState(() {});
-          },
+          onVerificationComplete: (double lat, double lng) => setState(() => _verificationStep = 'human'),
+          onRefreshGps: () => setState(() {}),
           selectedBarangay: 'Barangay Poblacion Oeste',
         );
       } else {
@@ -348,14 +492,6 @@ class _AuthNavigatorState extends State<AuthNavigator> {
           onGoBack: _backToLogin,
         );
       }
-    }
-
-    // Account Created (after signup success)
-    if (_showAccountCreated) {
-      return AccountCreatedScreen(
-        onBackToLogin: _backToLogin,
-        onDone: _backToLogin,
-      );
     }
 
     // Forgot password flow
@@ -404,19 +540,14 @@ class _AuthNavigatorState extends State<AuthNavigator> {
       }
     }
 
-    // Login / SignUp
-    if (_showSignUp) {
-      return SignUpScreen(
-        onLoginTap: _toggleView,
-        onSignUp: _handleSignUp,
-      );
-    }
-
+    // Default: Login screen
     return LoginScreen(
       onSignUpTap: _toggleView,
       onSkip: _handleSkip,
       onForgotPasswordTap: _showForgotPassword,
-      onLogin: _handleLogin,
+      onLoginSuccess: () {
+        setState(() => _showDashboard = true);
+      },
     );
   }
 }

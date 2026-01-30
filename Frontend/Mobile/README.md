@@ -21,14 +21,18 @@ Flutter mobile application for RescueLink built with BLoC architecture.
    flutter pub get
    ```
 
-3. **Configure API Base URL**
-   - Open `lib/utils/app_config.dart`
-   - Update `apiBaseUrl` to point to your backend server
-   - Default: `http://localhost:3000`
-   - For Android emulator: `http://10.0.2.2:3000`
-   - For iOS simulator: `http://localhost:3000`
+3. **Configure API Base URL (emulator vs real device)**
+   - **Android emulator** (default): `flutter run` — uses `http://10.0.2.2:3000`
+   - **Real device**: use your PC’s LAN IP, e.g.  
+     `flutter run --dart-define=API_BASE_URL=http://192.168.1.5:3000`
+   - **iOS simulator**: `flutter run --dart-define=API_BASE_URL=http://localhost:3000`  
+   See `.env.example` for details.
 
-4. **Run the App**
+4. **Optional: Google reCAPTCHA v2**  
+   The verification screen uses real Google reCAPTCHA. By default the app uses Google's test site key (always passes). For production, get keys at https://www.google.com/recaptcha and run with:  
+   `flutter run --dart-define=RECAPTCHA_SITE_KEY=your_site_key`
+
+5. **Run the App**
    ```bash
    flutter run
    ```
