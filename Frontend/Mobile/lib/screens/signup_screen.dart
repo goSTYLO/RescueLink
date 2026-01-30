@@ -129,32 +129,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
       setState(() => _isLoading = true);
 
-      try {
-        // Get user's current location
-        final position = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.high,
-        );
-
-        // Check if location is within Dagupan using API
-        final locationCheckResult = await _authService.checkLocationInDagupan(
-          latitude: position.latitude,
-          longitude: position.longitude,
-        );
-
-        if (!locationCheckResult['success'] || !locationCheckResult['isInDagupan']) {
-          if (mounted) {
-            setState(() => _isLoading = false);
-            _showToast(
-              'Your location is outside Dagupan City. You cannot sign up for this service.',
-              backgroundColor: const Color(0xFFDC2626),
-              icon: Icons.location_off,
-            );
-          }
-          return;
-        }
-
-        // Format phone number for Firebase (E.164 format: +639171234567)
-        final formattedPhone = Validators.formatPhoneForFirebase(
+      if (widget.onSignUp != null) {
+        await widget.onSignUp!(
+          _firstNameController.text.trim(),
+          _lastNameController.text.trim(),
           _phoneController.text.trim(),
         );
 
@@ -207,10 +185,45 @@ class _SignUpScreenState extends State<SignUpScreen> {
     }
   }
 
+  Widget _buildLogo() {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        // Logo PNG - Larger size
+        Image.asset(
+          'assets/logo/logo.png',
+          width: 80,
+          height: 80,
+          fit: BoxFit.contain,
+        ),
+        const SizedBox(height: 12),
+        // Tagline
+        const Text(
+          'Emergency Response & Safety',
+          style: TextStyle(
+            color: Color(0xFF6B7280),
+            fontSize: 12,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildIllustration() {
+    return SizedBox(
+      height: 200,
+      child: Image.asset(
+        'assets/images/createaccount_illustration.png',
+        height: 200,
+        fit: BoxFit.contain,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: SingleChildScrollView(
           child: Center(
@@ -253,15 +266,15 @@ class _SignUpScreenState extends State<SignUpScreen> {
                               horizontal: 32,
                               vertical: 48,
                             ),
-                            child: const Column(
+                            child: Column(
                               children: [
-                                Icon(
+                                const Icon(
                                   Icons.shield,
                                   color: Colors.white,
                                   size: 48,
                                 ),
-                                SizedBox(height: 16),
-                                Text(
+                                const SizedBox(height: 16),
+                                const Text(
                                   'Create Account',
                                   style: TextStyle(
                                     color: Colors.white,
@@ -269,8 +282,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
-                                SizedBox(height: 8),
-                                Text(
+                                const SizedBox(height: 8),
+                                const Text(
                                   'Join RescueLink Dagupan City',
                                   style: TextStyle(
                                     color: Colors.white,
@@ -323,15 +336,17 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                       ),
                                       filled: true,
                                       fillColor: Colors.white,
-                                      contentPadding:
-                                          const EdgeInsets.symmetric(
+                                      contentPadding: const EdgeInsets.symmetric(
                                         horizontal: 16,
                                         vertical: 12,
                                       ),
                                     ),
-                                    validator: (value) =>
-                                        Validators.validateName(
-                                            value, 'First name'),
+                                    validator: (value) {
+                                      if (value == null || value.isEmpty) {
+                                        return 'First name is required';
+                                      }
+                                      return null;
+                                    },
                                   ),
                                   const SizedBox(height: 20),
 
@@ -369,15 +384,17 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                       ),
                                       filled: true,
                                       fillColor: Colors.white,
-                                      contentPadding:
-                                          const EdgeInsets.symmetric(
+                                      contentPadding: const EdgeInsets.symmetric(
                                         horizontal: 16,
                                         vertical: 12,
                                       ),
                                     ),
-                                    validator: (value) =>
-                                        Validators.validateName(
-                                            value, 'Last name'),
+                                    validator: (value) {
+                                      if (value == null || value.isEmpty) {
+                                        return 'Last name is required';
+                                      }
+                                      return null;
+                                    },
                                   ),
                                   const SizedBox(height: 20),
 
@@ -430,13 +447,17 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                       ),
                                       filled: true,
                                       fillColor: Colors.white,
-                                      contentPadding:
-                                          const EdgeInsets.symmetric(
+                                      contentPadding: const EdgeInsets.symmetric(
                                         horizontal: 16,
                                         vertical: 12,
                                       ),
                                     ),
-                                    validator: Validators.validatePhoneNumber,
+                                    validator: (value) {
+                                      if (value == null || value.isEmpty) {
+                                        return 'Phone number is required';
+                                      }
+                                      return null;
+                                    },
                                   ),
                                   const SizedBox(height: 20),
 
@@ -470,20 +491,20 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                     ),
                                     child: DropdownButtonFormField<String>(
                                       value: _selectedBarangay,
-                                      decoration: const InputDecoration(
+                                      decoration: InputDecoration(
                                         hintText: 'Select your barangay',
-                                        prefixIcon: Icon(
+                                        prefixIcon: const Icon(
                                           Icons.location_on,
                                           color: Color(0xFF9CA3AF),
                                         ),
-                                        suffixIcon: Icon(
+                                        suffixIcon: const Icon(
                                           Icons.arrow_drop_down,
                                           color: Color(0xFF9CA3AF),
                                         ),
                                         border: InputBorder.none,
                                         enabledBorder: InputBorder.none,
                                         focusedBorder: InputBorder.none,
-                                        contentPadding: EdgeInsets.symmetric(
+                                        contentPadding: const EdgeInsets.symmetric(
                                           horizontal: 16,
                                           vertical: 12,
                                         ),
@@ -529,8 +550,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                     controller: _passwordController,
                                     obscureText: _obscurePassword,
                                     decoration: InputDecoration(
-                                      hintText:
-                                          '8+ chars, must include letter & number',
+                                      hintText: 'Minimum 8 characters',
                                       prefixIcon: const Icon(
                                         Icons.lock,
                                         color: Color(0xFF9CA3AF),
@@ -544,8 +564,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                         ),
                                         onPressed: () {
                                           setState(() {
-                                            _obscurePassword =
-                                                !_obscurePassword;
+                                            _obscurePassword = !_obscurePassword;
                                           });
                                         },
                                       ),
@@ -569,13 +588,20 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                       ),
                                       filled: true,
                                       fillColor: Colors.white,
-                                      contentPadding:
-                                          const EdgeInsets.symmetric(
+                                      contentPadding: const EdgeInsets.symmetric(
                                         horizontal: 16,
                                         vertical: 12,
                                       ),
                                     ),
-                                    validator: Validators.validatePassword,
+                                    validator: (value) {
+                                      if (value == null || value.isEmpty) {
+                                        return 'Password is required';
+                                      }
+                                      if (value.length < 8) {
+                                        return 'Password must be at least 8 characters';
+                                      }
+                                      return null;
+                                    },
                                   ),
                                   const SizedBox(height: 20),
 
@@ -603,8 +629,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                         ),
                                         onPressed: () {
                                           setState(() {
-                                            _obscureConfirmPassword =
-                                                !_obscureConfirmPassword;
+                                            _obscureConfirmPassword = !_obscureConfirmPassword;
                                           });
                                         },
                                       ),
@@ -628,17 +653,20 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                       ),
                                       filled: true,
                                       fillColor: Colors.white,
-                                      contentPadding:
-                                          const EdgeInsets.symmetric(
+                                      contentPadding: const EdgeInsets.symmetric(
                                         horizontal: 16,
                                         vertical: 12,
                                       ),
                                     ),
-                                    validator: (value) =>
-                                        Validators.validatePasswordConfirmation(
-                                      value,
-                                      _passwordController.text,
-                                    ),
+                                    validator: (value) {
+                                      if (value == null || value.isEmpty) {
+                                        return 'Please confirm your password';
+                                      }
+                                      if (value != _passwordController.text) {
+                                        return 'Passwords do not match';
+                                      }
+                                      return null;
+                                    },
                                   ),
                                   const SizedBox(height: 32),
 
@@ -646,8 +674,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                   SizedBox(
                                     width: double.infinity,
                                     child: ElevatedButton(
-                                      onPressed:
-                                          _isLoading ? null : _handleSignUp,
+                                      onPressed: _isLoading ? null : _handleSignUp,
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor: Colors.transparent,
                                         shadowColor: Colors.transparent,
@@ -655,12 +682,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                           vertical: 14,
                                         ),
                                         shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(8),
+                                          borderRadius: BorderRadius.circular(8),
                                         ),
                                       ).copyWith(
-                                        backgroundColor:
-                                            WidgetStateProperty.all(
+                                        backgroundColor: WidgetStateProperty.all(
                                           Colors.transparent,
                                         ),
                                       ),
@@ -672,8 +697,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                               Color(0xFF3B82F6),
                                             ],
                                           ),
-                                          borderRadius:
-                                              BorderRadius.circular(8),
+                                          borderRadius: BorderRadius.circular(8),
                                         ),
                                         padding: const EdgeInsets.symmetric(
                                           vertical: 14,
@@ -683,13 +707,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                               ? const SizedBox(
                                                   height: 20,
                                                   width: 20,
-                                                  child:
-                                                      CircularProgressIndicator(
+                                                  child: CircularProgressIndicator(
                                                     strokeWidth: 2,
                                                     valueColor:
                                                         AlwaysStoppedAnimation<
-                                                                Color>(
-                                                            Colors.white),
+                                                            Color>(Colors.white),
                                                   ),
                                                 )
                                               : const Text(
@@ -706,45 +728,35 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                   ),
                                   const SizedBox(height: 24),
 
-                                  // Login Link
-                                  Center(
-                                    child: RichText(
-                                      text: TextSpan(
-                                        style: const TextStyle(
-                                          color: Color(0xFF6B7280),
-                                          fontSize: 14,
-                                        ),
-                                        children: [
-                                          const TextSpan(
-                                            text: 'Already have an account? ',
-                                          ),
-                                          WidgetSpan(
-                                            child: GestureDetector(
-                                              onTap: widget.onLoginTap,
-                                              child: const Text(
-                                                'Log in',
-                                                style: TextStyle(
-                                                  color: Color(0xFF14B8A6),
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ],
+                      // Login Link
+                      Center(
+                        child: GestureDetector(
+                          onTap: widget.onLoginTap,
+                          child: RichText(
+                            text: const TextSpan(
+                              style: TextStyle(
+                                color: Color(0xFF6B7280),
+                                fontSize: 14,
                               ),
+                              children: [
+                                TextSpan(text: 'Already have an account? '),
+                                TextSpan(
+                                  text: 'Log in',
+                                  style: TextStyle(
+                                    color: Color(0xFFEF4444),
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                        ],
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 40),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
+                const SizedBox(height: 40),
+              ],
             ),
           ),
         ),
@@ -752,3 +764,4 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
   }
 }
+

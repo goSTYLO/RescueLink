@@ -1,0 +1,14 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Flutter: Run Mobile App",
+      "type": "dart",
+      "request": "launch",
+      "program": "${workspaceFolder}/Frontend/Mobile/lib/main.dart",
+      "cwd": "${workspaceFolder}/Frontend/Mobile",
+      "args": [],
+      "flutterMode": "debug"
+    }
+  ]
+}

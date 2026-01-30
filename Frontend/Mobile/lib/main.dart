@@ -1,11 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'firebase_options.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'screens/login_screen.dart';
 import 'screens/signup_screen.dart';
-import 'screens/request_otp_screen.dart';
-import 'screens/otp_verification_screen.dart';
-import 'services/auth_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -43,79 +39,40 @@ class AuthNavigator extends StatefulWidget {
 
 class _AuthNavigatorState extends State<AuthNavigator> {
   bool _showSignUp = false;
-  bool _showRequestOTP = false;
-  bool _showOTPVerification = false;
-  String? _phoneNumberForOTP;
-
-  @override
-  void initState() {
-    super.initState();
-  }
 
   void _toggleView() {
     setState(() {
       _showSignUp = !_showSignUp;
-      _showRequestOTP = false;
-      _showOTPVerification = false;
     });
   }
 
-  void _goToRequestOTP(String phoneNumber) {
-    setState(() {
-      _showSignUp = false;
-      _showRequestOTP = true;
-      _showOTPVerification = false;
-      _phoneNumberForOTP = phoneNumber;
-    });
-  }
-
-  void _goToOTPVerification(String phoneNumber) {
-    setState(() {
-      _showSignUp = false;
-      _showRequestOTP = false;
-      _showOTPVerification = true;
-      _phoneNumberForOTP = phoneNumber;
-    });
-  }
-
-  void _goBackToSignUp() {
-    setState(() {
-      _showSignUp = true;
-      _showRequestOTP = false;
-      _showOTPVerification = false;
-    });
-  }
-
-  void _goBackToRequestOTP() {
-    setState(() {
-      _showSignUp = false;
-      _showRequestOTP = true;
-      _showOTPVerification = false;
-    });
-  }
-
-  void _handleVerificationSuccess() {
-    // User has successfully completed the entire verification process
-    // Navigate to home screen or dashboard
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Welcome to RescueLink!'),
-        backgroundColor: Colors.green,
-        duration: Duration(seconds: 2),
-      ),
-    );
-
-    // Reset state and return to login screen
-    setState(() {
-      _showSignUp = false;
-      _showRequestOTP = false;
-      _showOTPVerification = false;
-    });
-
-    // TODO: Navigate to home/dashboard screen
+  Future<void> _handleLogin(String phone, String password) async {
+    // TODO: Implement login functionality
+    // This is a placeholder - you can integrate with your BLoC or API service
+    print('Login: $phone, $password');
+    
+    // Example: Navigate to dashboard after successful login
     // Navigator.pushReplacement(
     //   context,
-    //   MaterialPageRoute(builder: (context) => HomeScreen()),
+    //   MaterialPageRoute(builder: (context) => DashboardScreen()),
+    // );
+  }
+
+  Future<void> _handleSignUp(
+    String firstName,
+    String lastName,
+    String phone,
+    String barangay,
+    String password,
+  ) async {
+    // TODO: Implement sign up functionality
+    // This is a placeholder - you can integrate with your BLoC or API service
+    print('SignUp: $firstName $lastName, $phone, $barangay, $password');
+    
+    // Example: Navigate to phone verification or dashboard
+    // Navigator.pushReplacement(
+    //   context,
+    //   MaterialPageRoute(builder: (context) => PhoneVerificationScreen()),
     // );
   }
 
@@ -126,28 +83,18 @@ class _AuthNavigatorState extends State<AuthNavigator> {
 
   @override
   Widget build(BuildContext context) {
-    if (_showOTPVerification && _phoneNumberForOTP != null) {
-      return OTPVerificationScreen(
-        phoneNumber: _phoneNumberForOTP!,
-        onBackTap: _goBackToRequestOTP,
-        onVerificationSuccess: _handleVerificationSuccess,
-      );
-    } else if (_showRequestOTP && _phoneNumberForOTP != null) {
-      return RequestOTPScreen(
-        phoneNumber: _phoneNumberForOTP!,
-        onBackTap: _goBackToSignUp,
-        onOTPSent: _goToOTPVerification,
-      );
-    } else if (_showSignUp) {
+    if (_showSignUp) {
       return SignUpScreen(
         onLoginTap: _toggleView,
         onSignupSuccess: _goToRequestOTP,
       );
-    } else {
-      return LoginScreen(
-        onSignUpTap: _toggleView,
-        onLogin: _handleLogin,
-      );
     }
+
+    return LoginScreen(
+      onSignUpTap: _toggleView,
+      onSkip: _handleSkip,
+      onForgotPasswordTap: _showForgotPassword,
+      onLogin: _handleLogin,
+    );
   }
 }
