@@ -165,15 +165,15 @@ class _LoginScreenState extends State<LoginScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // Phone Number Input
-                      Row(
+                      const Row(
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.phone,
                             size: 18,
                             color: Color(0xFF374151),
                           ),
-                          const SizedBox(width: 8),
-                          const Text(
+                          SizedBox(width: 8),
+                          Text(
                             'Phone Number',
                             style: TextStyle(
                               fontSize: 14,
@@ -215,15 +215,15 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       const SizedBox(height: 24),
                       // Password Input
-                      Row(
+                      const Row(
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.lock_outline,
                             size: 18,
                             color: Color(0xFF374151),
                           ),
-                          const SizedBox(width: 8),
-                          const Text(
+                          SizedBox(width: 8),
+                          Text(
                             'Password',
                             style: TextStyle(
                               fontSize: 14,

@@ -181,7 +181,7 @@ class AuthRepository {
           return AuthSuccess(user, token: data['token'] as String?);
         }
         return AuthSuccess(
-          User(id: 0, phone: ''),
+          const User(id: 0, phone: ''),
           token: data['token'] as String?,
         );
       }

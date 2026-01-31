@@ -119,9 +119,9 @@ class _VerifyDagupanResidencyScreenState extends State<VerifyDagupanResidencyScr
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: const Color(0xFFFCD34D)),
         ),
-        child: Row(
+        child: const Row(
           children: [
-            const SizedBox(
+            SizedBox(
               width: 28,
               height: 28,
               child: CircularProgressIndicator(
@@ -129,8 +129,8 @@ class _VerifyDagupanResidencyScreenState extends State<VerifyDagupanResidencyScr
                 strokeWidth: 2,
               ),
             ),
-            const SizedBox(width: 12),
-            const Expanded(
+            SizedBox(width: 12),
+            Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -315,18 +315,18 @@ class _VerifyDagupanResidencyScreenState extends State<VerifyDagupanResidencyScr
                         height: double.infinity,
                       ),
                     ),
-                    Positioned(
+                    const Positioned(
                       top: 12,
                       left: 12,
                       right: 12,
                       child: Row(
                         children: [
-                          const Icon(Icons.location_on, color: Color(0xFFEF4444), size: 24),
-                          const SizedBox(width: 8),
+                          Icon(Icons.location_on, color: Color(0xFFEF4444), size: 24),
+                          SizedBox(width: 8),
                           Expanded(
                             child: Text(
                               'Poblacion Oeste, Barangay Hall',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
                                 color: Color(0xFF111827),

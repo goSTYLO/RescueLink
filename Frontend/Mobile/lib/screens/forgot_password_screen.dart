@@ -111,12 +111,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: const Color(0xFFBFDBFE)),
                 ),
-                child: Row(
+                child: const Row(
                   children: [
-                    const Icon(Icons.shield_outlined, color: Color(0xFF2563EB), size: 24),
-                    const SizedBox(width: 12),
+                    Icon(Icons.shield_outlined, color: Color(0xFF2563EB), size: 24),
+                    SizedBox(width: 12),
                     Expanded(
-                      child: const Text(
+                      child: Text(
                         "We'll verify your identity using the phone number registered to your account.",
                         style: TextStyle(color: Color(0xFF1E40AF), fontSize: 13),
                       ),
@@ -196,15 +196,15 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       style: TextStyle(color: Color(0xFF374151), fontSize: 14),
                     ),
                     const Spacer(),
-                    Column(
+                    const Column(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Text(
+                        Text(
                           'reCAPTCHA',
                           style: TextStyle(color: Color(0xFF6B7280), fontSize: 12),
                         ),
-                        const Text(
+                        Text(
                           'Privacy - Terms',
                           style: TextStyle(color: Color(0xFF9CA3AF), fontSize: 11),
                         ),

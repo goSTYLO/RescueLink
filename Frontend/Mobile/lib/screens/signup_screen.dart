@@ -333,15 +333,15 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       const SizedBox(height: 20),
 
                       // Phone Number
-                      Row(
+                      const Row(
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.phone,
                             size: 18,
                             color: Color(0xFF374151),
                           ),
-                          const SizedBox(width: 8),
-                          const Text(
+                          SizedBox(width: 8),
+                          Text(
                             'Phone Number',
                             style: TextStyle(
                               fontSize: 14,
@@ -391,15 +391,15 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       const SizedBox(height: 20),
 
                       // Barangay Dropdown
-                      Row(
+                      const Row(
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.location_on,
                             size: 18,
                             color: Color(0xFF374151),
                           ),
-                          const SizedBox(width: 8),
-                          const Text(
+                          SizedBox(width: 8),
+                          Text(
                             'Barangay (Dagupan City)',
                             style: TextStyle(
                               fontSize: 14,
@@ -419,21 +419,21 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           color: Colors.white,
                         ),
                         child: DropdownButtonFormField<String>(
-                          value: _selectedBarangay,
-                          decoration: InputDecoration(
+                          initialValue: _selectedBarangay,
+                          decoration: const InputDecoration(
                             hintText: 'Select your barangay',
-                            prefixIcon: const Icon(
+                            prefixIcon: Icon(
                               Icons.location_on,
                               color: Color(0xFF9CA3AF),
                             ),
-                            suffixIcon: const Icon(
+                            suffixIcon: Icon(
                               Icons.arrow_drop_down,
                               color: Color(0xFF9CA3AF),
                             ),
                             border: InputBorder.none,
                             enabledBorder: InputBorder.none,
                             focusedBorder: InputBorder.none,
-                            contentPadding: const EdgeInsets.symmetric(
+                            contentPadding: EdgeInsets.symmetric(
                               horizontal: 16,
                               vertical: 14,
                             ),
@@ -456,15 +456,15 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       const SizedBox(height: 20),
 
                       // Password
-                      Row(
+                      const Row(
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.lock,
                             size: 18,
                             color: Color(0xFF374151),
                           ),
-                          const SizedBox(width: 8),
-                          const Text(
+                          SizedBox(width: 8),
+                          Text(
                             'Password',
                             style: TextStyle(
                               fontSize: 14,

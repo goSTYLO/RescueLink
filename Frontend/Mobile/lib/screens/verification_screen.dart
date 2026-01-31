@@ -146,11 +146,11 @@ class _VerificationScreenState extends State<VerificationScreen> {
                                 style: const TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
                               ),
                               const SizedBox(height: 8),
-                              Row(
+                              const Row(
                                 children: [
-                                  const Icon(Icons.check_circle, color: Color(0xFF22C55E), size: 18),
-                                  const SizedBox(width: 6),
-                                  const Text(
+                                  Icon(Icons.check_circle, color: Color(0xFF22C55E), size: 18),
+                                  SizedBox(width: 6),
+                                  Text(
                                     'Within city boundary',
                                     style: TextStyle(fontSize: 13, color: Color(0xFF22C55E), fontWeight: FontWeight.w500),
                                   ),
@@ -168,17 +168,17 @@ class _VerificationScreenState extends State<VerificationScreen> {
                         color: const Color(0xFFF3F4F6),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Center(
+                      child: const Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(Icons.location_on, color: Color(0xFFEC4899), size: 32),
-                            const SizedBox(height: 6),
-                            const Text(
+                            Icon(Icons.location_on, color: Color(0xFFEC4899), size: 32),
+                            SizedBox(height: 6),
+                            Text(
                               'Map Preview',
                               style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
                             ),
-                            const Text(
+                            Text(
                               'Dagupan City',
                               style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF374151)),
                             ),
@@ -268,12 +268,12 @@ class _VerificationScreenState extends State<VerificationScreen> {
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: const Color(0xFFBFDBFE)),
                 ),
-                child: Row(
+                child: const Row(
                   children: [
-                    const Icon(Icons.check_circle, color: Color(0xFF2563EB), size: 22),
-                    const SizedBox(width: 10),
+                    Icon(Icons.check_circle, color: Color(0xFF2563EB), size: 22),
+                    SizedBox(width: 10),
                     Expanded(
-                      child: const Text(
+                      child: Text(
                         'Verification ensures only Dagupan City residents can report emergencies',
                         style: TextStyle(fontSize: 13, color: Color(0xFF1E40AF)),
                       ),
