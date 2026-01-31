@@ -78,6 +78,7 @@ class AuthService {
     required String password,
     required double latitude,
     required double longitude,
+    bool storeToken = true,
   }) async {
     try {
       final response = await _apiService.post(
@@ -93,8 +94,8 @@ class AuthService {
         },
       );
 
-      // Store token but don't set as authenticated yet (phone verification required)
-      if (response['token'] != null) {
+      // Only store token if requested (signup flow uses storeToken: false)
+      if (storeToken && response['token'] != null) {
         await _storeToken(response['token']);
       }
 
@@ -138,9 +139,23 @@ class AuthService {
       };
     } catch (e) {
       print('❌ Login error: $e');
+      String errorMessage = 'Incorrect password or number.';
+      if (e is ApiException) {
+        final code = e.statusCode;
+        final msg = e.message.toLowerCase();
+        if (code == 401 || msg.contains('invalid credentials') || msg.contains('invalid phone') || msg.contains('invalid password')) {
+          errorMessage = 'Incorrect password or number.';
+        } else {
+          errorMessage = e.message;
+        }
+      } else if (e.toString().contains('SocketException') ||
+          e.toString().contains('Connection') ||
+          e.toString().contains('Failed host lookup')) {
+        errorMessage = 'Unable to connect. Please check your network and try again.';
+      }
       return {
         'success': false,
-        'error': e.toString(),
+        'error': errorMessage,
       };
     }
   }
@@ -221,6 +236,7 @@ class AuthService {
     required String otp,
     required double latitude,
     required double longitude,
+    bool storeToken = true,
   }) async {
     try {
       if (_verificationId == null) {
@@ -304,9 +320,11 @@ class AuthService {
         };
       }
 
-      // Store the new JWT token after successful verification
-      await _storeToken(onboardResponse['token']);
-      print('✅ JWT token stored successfully');
+      // Only store token if requested (signup flow uses storeToken: false, then navigate to Login)
+      if (storeToken) {
+        await _storeToken(onboardResponse['token']);
+        print('✅ JWT token stored successfully');
+      }
       print('✅ Phone verification complete!');
 
       return {
@@ -327,6 +345,58 @@ class AuthService {
         'success': false,
         'error': 'Verification error: ${e.toString()}',
       };
+    }
+  }
+
+  /// Verify OTP and return Firebase idToken only (for forgot-password flow). Does not call backend.
+  Future<Map<String, dynamic>> verifyOtpAndGetIdToken(String otp) async {
+    try {
+      if (_verificationId == null) {
+        return {
+          'success': false,
+          'error': 'Verification ID not found. Please request a new code.',
+        };
+      }
+      final credential = PhoneAuthProvider.credential(
+        verificationId: _verificationId!,
+        smsCode: otp,
+      );
+      final userCredential = await _firebaseAuth.signInWithCredential(credential);
+      final user = userCredential.user;
+      if (user == null) {
+        return { 'success': false, 'error': 'Verification failed.' };
+      }
+      final idToken = await user.getIdToken();
+      if (idToken == null || idToken.isEmpty) {
+        return { 'success': false, 'error': 'Failed to get verification token.' };
+      }
+      return { 'success': true, 'idToken': idToken };
+    } on FirebaseAuthException catch (e) {
+      return {
+        'success': false,
+        'error': e.message ?? 'Invalid or expired code. Please try again.',
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'error': e.toString().contains('invalid') ? 'Invalid code. Please try again.' : 'Verification failed. Please try again.',
+      };
+    }
+  }
+
+  /// Reset password (forgot-password flow). Does not store any token.
+  Future<Map<String, dynamic>> resetPassword(String idToken, String newPassword) async {
+    try {
+      await _apiService.post(
+        '/api/auth/reset-password',
+        body: { 'idToken': idToken, 'newPassword': newPassword },
+      );
+      return { 'success': true };
+    } catch (e) {
+      if (e is ApiException) {
+        return { 'success': false, 'error': e.message };
+      }
+      return { 'success': false, 'error': 'Could not reset password. Please try again.' };
     }
   }
 

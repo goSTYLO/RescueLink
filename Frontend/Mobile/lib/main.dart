@@ -1,35 +1,44 @@
-import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'firebase_options.dart';
-import 'bloc/app_flow/app_flow_bloc.dart';
-import 'bloc/app_flow/app_flow_event.dart';
-import 'bloc/app_flow/app_flow_state.dart';
 import 'bloc/auth/auth_bloc.dart';
 import 'bloc/auth/auth_event.dart';
 import 'bloc/auth/auth_state.dart';
-import 'repositories/auth_repository.dart';
 import 'services/auth_service.dart';
-import 'screens/login_screen.dart';
-import 'screens/signup_screen.dart';
-import 'screens/forgot_password_screen.dart';
-import 'screens/verify_number_screen.dart';
-import 'screens/verified_screen.dart';
-import 'screens/identity_error_screen.dart';
-import 'screens/create_new_password_screen.dart';
-import 'screens/password_updated_screen.dart';
-import 'screens/verify_dagupan_residency_screen.dart';
-import 'screens/verification_screen.dart';
-import 'screens/verification_otp_screen.dart';
-import 'screens/outside_service_area_screen.dart';
-import 'screens/home_placeholder_screen.dart';
-import 'screens/account_created_screen.dart';
+import 'screens/auth/login_screen.dart';
+import 'screens/auth/signup_screen.dart';
+import 'screens/auth/account_created_screen.dart';
+import 'screens/auth/forgot_password_screen.dart';
+import 'screens/auth/verify_number_screen.dart';
+import 'screens/auth/verified_screen.dart';
+import 'screens/auth/identity_error_screen.dart';
+import 'screens/auth/create_new_password_screen.dart';
+import 'screens/auth/password_updated_screen.dart';
+import 'screens/verification/verify_dagupan_residency_screen.dart';
+import 'screens/verification/verification_screen.dart';
+import 'screens/verification/verification_otp_screen.dart';
+import 'screens/verification/outside_service_area_screen.dart';
+import 'screens/home/home_placeholder_screen.dart';
+import 'screens/home/emergency_report_screen.dart';
+import 'screens/home/emergency_tracking_screen.dart';
+import 'screens/home/report_details_screen.dart';
+import 'screens/home/change_phone_number_screen.dart';
+import 'screens/home/enter_new_phone_number_screen.dart';
+import 'screens/home/verify_new_phone_otp_screen.dart';
+import 'screens/home/phone_number_updated_screen.dart';
+import 'screens/home/barangay_information_screen.dart';
+import 'screens/home/emergency_contacts_screen.dart';
+import 'screens/home/change_password_screen.dart';
+import 'screens/home/privacy_security_screen.dart';
+import 'screens/home/logout_confirmation_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await dotenv.load(fileName: '.env');
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await AuthService().init();
   runApp(const RescueLinkApp());
 }
 
@@ -38,26 +47,16 @@ class RescueLinkApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return RepositoryProvider<AuthRepository>(
-      create: (_) => AuthRepository(authService: AuthService()),
-      child: MultiBlocProvider(
-        providers: [
-          BlocProvider<AuthBloc>(
-            create: (context) => AuthBloc(authRepository: context.read<AuthRepository>())..add(const AuthInit()),
-          ),
-          BlocProvider<AppFlowBloc>(
-            create: (_) => AppFlowBloc()..add(const ShowLogin()),
-          ),
-        ],
-        child: MaterialApp(
-          title: 'RescueLink',
-          debugShowCheckedModeBanner: false,
-          theme: ThemeData(
-            colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-            useMaterial3: true,
-          ),
-          home: const AppNavigator(),
-        ),
+    return MaterialApp(
+      title: 'RescueLink',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+        useMaterial3: true,
+      ),
+      home: BlocProvider<AuthBloc>(
+        create: (_) => AuthBloc(AuthService()),
+        child: const AuthNavigator(),
       ),
     );
   }
@@ -67,177 +66,532 @@ class AppNavigator extends StatelessWidget {
   const AppNavigator({super.key});
 
   @override
+  State<AuthNavigator> createState() => _AuthNavigatorState();
+}
+
+class _AuthNavigatorState extends State<AuthNavigator> {
+  bool _showSignUp = false;
+  String? _forgotFlowScreen;
+  String _forgotPhoneNumber = '';
+  String? _forgotPasswordIdToken;
+
+  // Sign-up flow: form first, then Verify Dagupan on Create Account
+  Map<String, String>? _pendingSignUpData;
+  bool _showVerifyDagupanForSignup = false;
+
+  // After signup (BLoC RegisterSuccess): show Account Created
+  bool _showAccountCreated = false;
+  String _registeredPhone = '';
+  String _registeredBarangay = 'Barangay Poblacion Oeste';
+
+  // After Account Created -> Continue to verify phone: Request OTP -> Enter OTP
+  bool _showVerificationRequestOtp = false;
+  bool _showVerificationOtp = false;
+
+  // After OTP verified (PhoneVerified): show Login
+  bool _showLoginAfterPhoneVerified = false;
+
+  // After login (BLoC LoginSuccess): dashboard
+  bool _showResidencyCheck = false;
+  bool _isInsideDagupan = true;
+  bool _showDashboard = false;
+  bool _showEmergencyReport = false;
+  bool _showEmergencyTracking = false;
+  bool _showReportDetails = false;
+  bool _showChangePhoneNumber = false;
+  bool _showEnterNewPhoneNumber = false;
+  bool _showVerifyNewPhoneOtp = false;
+  bool _showPhoneNumberUpdated = false;
+  bool _showBarangayInformation = false;
+  bool _showEmergencyContacts = false;
+  bool _showChangePassword = false;
+  bool _showPasswordUpdatedFromSettings = false;
+  bool _showPrivacySecurity = false;
+  bool _showLogoutConfirmation = false;
+  bool _returnToSettingsTab = false;
+  String _newPhoneNumberForOtp = '';
+
+  // Login path verification flow (after login): Request OTP -> Enter OTP -> dashboard
+  String? _verificationStep;
+  static const String _verificationPhone = '+63 917 123 4567';
+
+  void _toggleView() {
+    setState(() {
+      _showSignUp = !_showSignUp;
+      _forgotFlowScreen = null;
+      _pendingSignUpData = null;
+      _showVerifyDagupanForSignup = false;
+    });
+  }
+
+  void _showForgotPassword() {
+    setState(() {
+      _forgotFlowScreen = 'forgot_password';
+      _forgotPhoneNumber = '';
+    });
+  }
+
+  void _backToLogin() {
+    setState(() {
+      _forgotFlowScreen = null;
+      _showSignUp = false;
+      _pendingSignUpData = null;
+      _showVerifyDagupanForSignup = false;
+      _showAccountCreated = false;
+      _registeredPhone = '';
+      _registeredBarangay = 'Barangay Poblacion Oeste';
+      _showVerificationRequestOtp = false;
+      _showVerificationOtp = false;
+      _showLoginAfterPhoneVerified = false;
+      _showResidencyCheck = false;
+      _showDashboard = false;
+      _showEmergencyReport = false;
+      _showEmergencyTracking = false;
+      _showReportDetails = false;
+      _showChangePhoneNumber = false;
+      _showEnterNewPhoneNumber = false;
+      _showVerifyNewPhoneOtp = false;
+      _showPhoneNumberUpdated = false;
+      _showBarangayInformation = false;
+      _showEmergencyContacts = false;
+      _showChangePassword = false;
+      _showPasswordUpdatedFromSettings = false;
+      _showPrivacySecurity = false;
+      _showLogoutConfirmation = false;
+      _returnToSettingsTab = false;
+      _newPhoneNumberForOtp = '';
+      _verificationStep = null;
+      _forgotPasswordIdToken = null;
+    });
+  }
+
+  void _onResidencyRetry() {
+    // Re-check location; for demo you can toggle to see the other screen
+    setState(() {
+      _isInsideDagupan = !_isInsideDagupan;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    // Listen to AuthBloc for sign-up and login flow
     return BlocListener<AuthBloc, AuthState>(
-      listenWhen: (previous, current) => current is Authenticated || current is AuthError,
-      listener: (context, authState) {
-        if (authState is Authenticated) {
-          final step = context.read<AppFlowBloc>().state.step;
-          if (step == AppFlowStep.signupLocation) {
-            context.read<AppFlowBloc>().add(const RegisterSuccessNavigateToPhoneVerify());
-          } else if (step == AppFlowStep.signupPhoneEnterOtp) {
-            context.read<AppFlowBloc>().add(const OtpVerifiedNavigateToAccountCreated());
-          } else if (step == AppFlowStep.residencyEnterOtp) {
-            context.read<AppFlowBloc>().add(const OtpVerifiedNavigateToDashboard());
-          }
+      listener: (context, state) {
+        if (state is RegisterSuccess) {
+          setState(() {
+            _registeredPhone = state.phone;
+            _showSignUp = false;
+            _showAccountCreated = true; // Account Created first; OTP when they tap "Continue to verify phone"
+          });
+          context.read<AuthBloc>().add(const AuthReset());
         }
-        if (authState is AuthError) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(authState.message),
-              backgroundColor: Colors.red,
-            ),
-          );
+        if (state is OtpSent) {
+          setState(() {
+            _showVerificationRequestOtp = false;
+            _showVerificationOtp = true;
+          });
+          context.read<AuthBloc>().add(const AuthReset());
+        }
+        if (state is LoginSuccess) {
+          setState(() {
+            _showDashboard = true;
+            _showLoginAfterPhoneVerified = false;
+            _showResidencyCheck = false;
+          });
+          context.read<AuthBloc>().add(const AuthReset());
         }
       },
-      child: BlocBuilder<AppFlowBloc, AppFlowState>(
-        builder: (context, flowState) {
-          switch (flowState.step) {
-            case AppFlowStep.dashboard:
-              return const HomePlaceholderScreen();
+      child: _buildContent(context),
+    );
+  }
 
-            case AppFlowStep.signupLocation:
-              return VerifyDagupanResidencyScreen(
-                onVerificationComplete: (lat, lng) {
-                  context.read<AuthBloc>().add(
-                        RegisterRequested(
-                          firstName: flowState.signupFirstName!,
-                          lastName: flowState.signupLastName!,
-                          phone: flowState.signupPhone!,
-                          barangay: flowState.signupBarangay!,
-                          password: flowState.signupPassword!,
-                          latitude: lat,
-                          longitude: lng,
-                        ),
-                      );
-                },
-              onRefreshGps: () {},
-              selectedBarangay: flowState.signupBarangay,
-              onLocationVerificationFailed: () {
-                context.read<AppFlowBloc>().add(const SignUpLocationFailed());
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('You must be in Dagupan City to create an account'),
-                    backgroundColor: Colors.red,
-                  ),
-                );
-              },
-            );
+  Widget _buildContent(BuildContext context) {
+    // Dashboard (after login success)
+    if (_showDashboard) {
+      if (_showEmergencyReport) {
+        return EmergencyReportScreen(
+          onBack: () => setState(() => _showEmergencyReport = false),
+          onSubmit: () {
+            // TODO: submit report to API
+            setState(() {
+              _showEmergencyReport = false;
+              _showEmergencyTracking = true;
+            });
+          },
+        );
+      }
+      if (_showEmergencyTracking) {
+        return EmergencyTrackingScreen(
+          onBack: () => setState(() => _showEmergencyTracking = false),
+        );
+      }
+      if (_showReportDetails) {
+        return ReportDetailsScreen(
+          onBack: () => setState(() => _showReportDetails = false),
+        );
+      }
+      if (_showChangePhoneNumber) {
+        return ChangePhoneNumberScreen(
+          onBack: () => setState(() => _showChangePhoneNumber = false),
+          onChangePhoneNumber: () => setState(() {
+            _showChangePhoneNumber = false;
+            _showEnterNewPhoneNumber = true;
+          }),
+        );
+      }
+      if (_showEnterNewPhoneNumber) {
+        return EnterNewPhoneNumberScreen(
+          onBack: () => setState(() {
+            _showEnterNewPhoneNumber = false;
+            _showChangePhoneNumber = true;
+          }),
+          onSendOtp: (newNumber) {
+            setState(() {
+              _newPhoneNumberForOtp = newNumber;
+              _showEnterNewPhoneNumber = false;
+              _showVerifyNewPhoneOtp = true;
+            });
+          },
+        );
+      }
+      if (_showVerifyNewPhoneOtp) {
+        return VerifyNewPhoneOtpScreen(
+          phoneNumber: _newPhoneNumberForOtp,
+          onBack: () => setState(() {
+            _showVerifyNewPhoneOtp = false;
+            _showEnterNewPhoneNumber = true;
+          }),
+          onVerifySuccess: () {
+            setState(() {
+              _showVerifyNewPhoneOtp = false;
+              _showPhoneNumberUpdated = true;
+            });
+          },
+        );
+      }
+      if (_showPhoneNumberUpdated) {
+        return PhoneNumberUpdatedScreen(
+          onDone: () => setState(() => _showPhoneNumberUpdated = false),
+        );
+      }
+      if (_showBarangayInformation) {
+        return BarangayInformationScreen(
+          onBack: () => setState(() => _showBarangayInformation = false),
+        );
+      }
+      if (_showEmergencyContacts) {
+        return EmergencyContactsScreen(
+          onBack: () => setState(() {
+            _showEmergencyContacts = false;
+            _returnToSettingsTab = true;
+          }),
+        );
+      }
+      if (_showPasswordUpdatedFromSettings) {
+        return PasswordUpdatedScreen(
+          onBackToLogin: _backToLogin,
+        );
+      }
+      if (_showChangePassword) {
+        return ChangePasswordScreen(
+          onBack: () => setState(() {
+            _showChangePassword = false;
+            _returnToSettingsTab = true;
+          }),
+          onUpdatePassword: () => setState(() {
+            _showChangePassword = false;
+            _showPasswordUpdatedFromSettings = true;
+          }),
+        );
+      }
+      if (_showPrivacySecurity) {
+        return PrivacySecurityScreen(
+          onBack: () => setState(() {
+            _showPrivacySecurity = false;
+            _returnToSettingsTab = true;
+          }),
+        );
+      }
+      if (_showLogoutConfirmation) {
+        return LogoutConfirmationScreen(
+          onBack: () => setState(() {
+            _showLogoutConfirmation = false;
+            _returnToSettingsTab = true;
+          }),
+          onCancel: () => setState(() {
+            _showLogoutConfirmation = false;
+            _returnToSettingsTab = true;
+          }),
+          onConfirm: _backToLogin,
+        );
+      }
+      return HomePlaceholderScreen(
+        initialTabIndex: _returnToSettingsTab ? 3 : null,
+        onInitialTabApplied: _returnToSettingsTab ? () => setState(() => _returnToSettingsTab = false) : null,
+        onLogout: () => setState(() => _showLogoutConfirmation = true),
+        onSosPressed: () => setState(() => _showEmergencyReport = true),
+        onReportTap: () => setState(() => _showReportDetails = true),
+        onPhoneNumberTap: () => setState(() => _showChangePhoneNumber = true),
+        onBarangayTap: () => setState(() => _showBarangayInformation = true),
+        onEmergencyContactsTap: () => setState(() => _showEmergencyContacts = true),
+        onChangePasswordTap: () => setState(() => _showChangePassword = true),
+        onPrivacySecurityTap: () => setState(() => _showPrivacySecurity = true),
+      );
+    }
 
-          case AppFlowStep.signupPhoneRequestOtp:
-            return VerifyNumberScreen(
-              phoneNumber: flowState.signupPhone ?? '',
-              isRequestingOTP: true,
-              onBack: () => context.read<AppFlowBloc>().add(const BackToLogin()),
-            );
-
-          case AppFlowStep.signupPhoneEnterOtp:
-            return VerificationOtpScreen(
-              phoneNumber: flowState.signupPhone ?? '',
-              onBack: () => context.read<AppFlowBloc>().add(const SignUpPhoneOtpBack()),
-              onVerifyAndContinue: (_) {},
-              selectedBarangay: flowState.signupBarangay,
-              cityRegion: 'Dagupan City, Pangasinan',
-            );
-
-          case AppFlowStep.residencyCheck:
-            return VerifyDagupanResidencyScreen(
-              onVerificationComplete: (lat, lng) {
-                context.read<AppFlowBloc>().add(const SetResidencyVerificationStep('human'));
-              },
-              onRefreshGps: () {},
-              selectedBarangay: flowState.residencyBarangay ?? 'Barangay Poblacion Oeste',
-            );
-
-          case AppFlowStep.residencyRequestOtp:
-            return VerificationScreen(
-              onRequestOtp: () => context.read<AppFlowBloc>().add(const SetResidencyVerificationStep('otp')),
-              onBack: () => context.read<AppFlowBloc>().add(const SetResidencyVerificationStep('back')),
-              selectedBarangay: flowState.residencyBarangay ?? 'Barangay Poblacion Oeste',
-              cityRegion: flowState.residencyCityRegion ?? 'Dagupan City, Pangasinan',
-            );
-
-          case AppFlowStep.residencyEnterOtp:
-            return VerificationOtpScreen(
-              phoneNumber: flowState.residencyVerificationPhone ?? '+63 917 123 4567',
-              onVerifyAndContinue: (_) {},
-              onBack: () => context.read<AppFlowBloc>().add(const SetResidencyVerificationStep('human')),
-              selectedBarangay: flowState.residencyBarangay ?? 'Barangay Poblacion Oeste',
-              cityRegion: flowState.residencyCityRegion ?? 'Dagupan City, Pangasinan',
-            );
-
-          case AppFlowStep.residencyOutsideArea:
-            return OutsideServiceAreaScreen(
-              onRetry: () => context.read<AppFlowBloc>().add(const SetResidencyInsideDagupan(true)),
-              onGoBack: () => context.read<AppFlowBloc>().add(const BackToLogin()),
-            );
-
-          case AppFlowStep.accountCreated:
-            return const AccountCreatedScreen();
-
-          case AppFlowStep.forgotPassword:
-            return ForgotPasswordScreen(
-              onBackToLogin: () => context.read<AppFlowBloc>().add(const BackToLogin()),
-              onRequestCode: (phone) => context.read<AppFlowBloc>().add(SetForgotPhone(phone)),
-            );
-
-          case AppFlowStep.forgotVerifyNumber:
-            return VerifyNumberScreen(
-              phoneNumber: flowState.forgotPhoneNumber ?? '',
-              isRequestingOTP: true,
-              onBack: () => context.read<AppFlowBloc>().add(const SetForgotStep('forgot_password')),
-            );
-
-          case AppFlowStep.forgotVerified:
-            return VerifiedScreen(
-              onDone: () => context.read<AppFlowBloc>().add(const SetForgotStep('create_new_password')),
-            );
-
-          case AppFlowStep.forgotIdentityError:
-            return IdentityErrorScreen(
-              onTryAgain: () => context.read<AppFlowBloc>().add(const SetForgotStep('verify_number')),
-            );
-
-          case AppFlowStep.forgotCreateNewPassword:
-            return CreateNewPasswordScreen(
-              phoneNumber: flowState.forgotPhoneNumber ?? '',
-              onBack: () => context.read<AppFlowBloc>().add(const SetForgotStep('verified')),
-              onResetPassword: (_) => context.read<AppFlowBloc>().add(const SetForgotStep('password_updated')),
-            );
-
-          case AppFlowStep.forgotPasswordUpdated:
-            return PasswordUpdatedScreen(
-              onBackToLogin: () => context.read<AppFlowBloc>().add(const BackToLogin()),
-            );
-
-          case AppFlowStep.signup:
-            return SignUpScreen(
-              onLoginTap: () => context.read<AppFlowBloc>().add(const ShowLogin()),
-              onSignUp: (firstName, lastName, phone, barangay, password) {
-                context.read<AppFlowBloc>().add(
-                      SignUpFormSubmitted(
-                        firstName: firstName,
-                        lastName: lastName,
-                        phone: phone,
-                        barangay: barangay,
-                        password: password,
-                      ),
-                    );
-              },
-            );
-
-            case AppFlowStep.login:
-            return LoginScreen(
-              onSignUpTap: () => context.read<AppFlowBloc>().add(const ShowSignUp()),
-              onSkip: () {},
-              onForgotPasswordTap: () => context.read<AppFlowBloc>().add(const ShowForgotPassword()),
-              onLogin: (phone, password) {
-                context.read<AuthBloc>().add(LoginRequested(phone: phone, password: password));
-              },
-            );
-        }
+    // Sign-up flow: Verify Dagupan (only after Create Account from form)
+    if (_showSignUp && _showVerifyDagupanForSignup && _pendingSignUpData != null) {
+      return VerifyDagupanResidencyScreen(
+        onVerificationComplete: (double lat, double lng) {
+          final data = _pendingSignUpData!;
+          _registeredBarangay = data['address'] ?? 'Barangay Poblacion Oeste';
+          context.read<AuthBloc>().add(RegisterRequested(
+                firstName: data['firstName']!,
+                lastName: data['lastName']!,
+                phone: data['phone']!,
+                address: data['address']!,
+                password: data['password']!,
+                latitude: lat,
+                longitude: lng,
+              ));
+          setState(() {
+            _showVerifyDagupanForSignup = false;
+            _pendingSignUpData = null;
+          });
         },
-      ),
+        onRefreshGps: () => setState(() {}),
+        onLocationVerificationFailed: () {
+          setState(() {
+            _registeredBarangay = _pendingSignUpData?['address'] ?? 'Barangay Poblacion Oeste';
+            _showVerifyDagupanForSignup = false;
+            _pendingSignUpData = null;
+          });
+        },
+        selectedBarangay: _pendingSignUpData!['address'] ?? 'Barangay Poblacion Oeste',
+      );
+    }
+
+    // Request OTP screen (sign-up flow; after Account Created -> "Continue to verify phone")
+    if (_showVerificationRequestOtp) {
+      return VerificationScreen(
+        phone: _registeredPhone,
+        onBack: () => setState(() {
+          _showVerificationRequestOtp = false;
+          _showAccountCreated = true; // back to Account Created
+        }),
+        selectedBarangay: _registeredBarangay,
+        cityRegion: 'Dagupan City, Pangasinan',
+      );
+    }
+
+    // Enter OTP screen (sign-up flow; after OTP verified go to Login, do not store token)
+    if (_showVerificationOtp) {
+      return VerificationOtpScreen(
+        phoneNumber: _registeredPhone,
+        storeTokenAfterVerify: false,
+        onPhoneVerified: () {
+          setState(() {
+            _showVerificationOtp = false;
+            _showSignUp = false;
+            _showAccountCreated = false;
+            _showLoginAfterPhoneVerified = true; // go to Login after OTP success
+          });
+          context.read<AuthBloc>().add(const AuthReset());
+        },
+        onBack: () => setState(() {
+          _showVerificationOtp = false;
+          _showVerificationRequestOtp = true;
+        }),
+        selectedBarangay: _registeredBarangay,
+        cityRegion: 'Dagupan City, Pangasinan',
+      );
+    }
+
+    // Sign-up form (no location check here; Verify Dagupan is shown after Create Account)
+    if (_showSignUp) {
+      return SignUpScreen(
+        onLoginTap: _toggleView,
+        onRequestLocationVerification: (firstName, lastName, phone, address, password) {
+          setState(() {
+            _pendingSignUpData = {
+              'firstName': firstName,
+              'lastName': lastName,
+              'phone': phone,
+              'address': address,
+              'password': password,
+            };
+            _showVerifyDagupanForSignup = true;
+          });
+        },
+      );
+    }
+
+    // Account Created (optional; e.g. if user navigates from OTP back to login and re-enters)
+    if (_showAccountCreated) {
+      return AccountCreatedScreen(
+        onBackToLogin: () {
+          context.read<AuthBloc>().add(const AuthReset());
+          _backToLogin();
+        },
+        onDone: () {
+          context.read<AuthBloc>().add(const AuthReset());
+          _backToLogin();
+        },
+        registeredPhone: _registeredPhone,
+        onContinueToVerifyPhone: () {
+          setState(() {
+            _showAccountCreated = false;
+            _showVerificationRequestOtp = true;
+          });
+        },
+      );
+    }
+
+    // Login screen (after phone verified in sign-up flow, or direct login)
+    if (_showLoginAfterPhoneVerified) {
+      return LoginScreen(
+        onSignUpTap: _toggleView,
+        onForgotPasswordTap: _showForgotPassword,
+        onLoginSuccess: () {
+          setState(() {
+            _showLoginAfterPhoneVerified = false;
+            _showDashboard = true;
+          });
+        },
+      );
+    }
+
+    // Residency check (after login - optional; currently go straight to dashboard)
+    if (_showResidencyCheck) {
+      if (_isInsideDagupan) {
+        if (_verificationStep == 'human') {
+          return VerificationScreen(
+            phone: _verificationPhone,
+            onRequestOtp: () => setState(() => _verificationStep = 'otp'),
+            onBack: () => setState(() => _verificationStep = null),
+            selectedBarangay: 'Barangay Poblacion Oeste',
+            cityRegion: 'Dagupan City, Pangasinan',
+          );
+        }
+        if (_verificationStep == 'otp') {
+          return VerificationOtpScreen(
+            phoneNumber: _verificationPhone,
+            onVerifyAndContinue: (Map<String, dynamic> data) {
+              setState(() {
+                _verificationStep = null;
+                _showResidencyCheck = false;
+                _showDashboard = true;
+              });
+            },
+            onBack: () => setState(() => _verificationStep = 'human'),
+            selectedBarangay: 'Barangay Poblacion Oeste',
+            cityRegion: 'Dagupan City, Pangasinan',
+          );
+        }
+        return VerifyDagupanResidencyScreen(
+          onVerificationComplete: (double lat, double lng) => setState(() => _verificationStep = 'human'),
+          onRefreshGps: () => setState(() {}),
+          selectedBarangay: 'Barangay Poblacion Oeste',
+        );
+      } else {
+        return OutsideServiceAreaScreen(
+          onRetry: _onResidencyRetry,
+          onGoBack: _backToLogin,
+        );
+      }
+    }
+
+    // Forgot password flow
+    if (_forgotFlowScreen != null) {
+      switch (_forgotFlowScreen!) {
+        case 'forgot_password':
+          return ForgotPasswordScreen(
+            onBackToLogin: _backToLogin,
+            onRequestCode: (phone) async {
+              final r = await AuthService().initializePhoneVerification(phone);
+              if (r['success'] != true) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(r['error'] as String? ?? 'Could not send code. Check the number and try again.'),
+                      backgroundColor: const Color(0xFFEF4444),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+                return false;
+              }
+              if (context.mounted) {
+                setState(() {
+                  _forgotPhoneNumber = phone;
+                  _forgotFlowScreen = 'verify_number';
+                });
+              }
+              return true;
+            },
+          );
+        case 'verify_number':
+          return VerifyNumberScreen(
+            phoneNumber: _forgotPhoneNumber,
+            onBack: () => setState(() => _forgotFlowScreen = 'forgot_password'),
+            onVerifyCode: (code) async {
+              final r = await AuthService().verifyOtpAndGetIdToken(code);
+              if (r['success'] != true) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(r['error'] as String? ?? 'Invalid code. Please try again.'),
+                      backgroundColor: const Color(0xFFEF4444),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+                return;
+              }
+              if (context.mounted) {
+                setState(() {
+                  _forgotPasswordIdToken = r['idToken'] as String?;
+                  _forgotFlowScreen = 'verified';
+                });
+              }
+            },
+          );
+        case 'verified':
+          return VerifiedScreen(
+            onDone: () => setState(() => _forgotFlowScreen = 'create_new_password'),
+          );
+        case 'identity_error':
+          return IdentityErrorScreen(
+            onTryAgain: () => setState(() => _forgotFlowScreen = 'verify_number'),
+          );
+        case 'create_new_password':
+          return CreateNewPasswordScreen(
+            phoneNumber: _forgotPhoneNumber,
+            idToken: _forgotPasswordIdToken,
+            onBack: () => setState(() => _forgotFlowScreen = 'verified'),
+            onResetPassword: (newPassword) {
+              setState(() {
+                _forgotPasswordIdToken = null;
+                _forgotFlowScreen = 'password_updated';
+              });
+            },
+          );
+        case 'password_updated':
+          return PasswordUpdatedScreen(
+            onBackToLogin: _backToLogin,
+          );
+        default:
+          _backToLogin();
+      }
+    }
+
+    // Default: Login screen
+    return LoginScreen(
+      onSignUpTap: _toggleView,
+      onForgotPasswordTap: _showForgotPassword,
+      onLoginSuccess: () {
+        setState(() => _showDashboard = true);
+      },
     );
   }
 }

@@ -7,8 +7,76 @@ abstract class AuthEvent extends Equatable {
   List<Object?> get props => [];
 }
 
-class AuthInit extends AuthEvent {
-  const AuthInit();
+class LocationCheckRequested extends AuthEvent {
+  final double latitude;
+  final double longitude;
+
+  const LocationCheckRequested({
+    required this.latitude,
+    required this.longitude,
+  });
+
+  @override
+  List<Object?> get props => [latitude, longitude];
+}
+
+class RegisterRequested extends AuthEvent {
+  final String firstName;
+  final String lastName;
+  final String phone;
+  final String address;
+  final String password;
+  final double latitude;
+  final double longitude;
+
+  const RegisterRequested({
+    required this.firstName,
+    required this.lastName,
+    required this.phone,
+    required this.address,
+    required this.password,
+    required this.latitude,
+    required this.longitude,
+  });
+
+  @override
+  List<Object?> get props =>
+      [firstName, lastName, phone, address, password, latitude, longitude];
+}
+
+class OtpRequested extends AuthEvent {
+  final String phone;
+
+  const OtpRequested(this.phone);
+
+  @override
+  List<Object?> get props => [phone];
+}
+
+class OtpVerified extends AuthEvent {
+  final String otp;
+  final double latitude;
+  final double longitude;
+  final bool storeToken;
+
+  const OtpVerified({
+    required this.otp,
+    required this.latitude,
+    required this.longitude,
+    this.storeToken = true,
+  });
+
+  @override
+  List<Object?> get props => [otp, latitude, longitude, storeToken];
+}
+
+class ResendOtpRequested extends AuthEvent {
+  final String phone;
+
+  const ResendOtpRequested(this.phone);
+
+  @override
+  List<Object?> get props => [phone];
 }
 
 class LoginRequested extends AuthEvent {
@@ -21,63 +89,6 @@ class LoginRequested extends AuthEvent {
   List<Object?> get props => [phone, password];
 }
 
-class RegisterRequested extends AuthEvent {
-  final String firstName;
-  final String lastName;
-  final String phone;
-  final String barangay;
-  final String password;
-  final double latitude;
-  final double longitude;
-
-  const RegisterRequested({
-    required this.firstName,
-    required this.lastName,
-    required this.phone,
-    required this.barangay,
-    required this.password,
-    required this.latitude,
-    required this.longitude,
-  });
-
-  @override
-  List<Object?> get props =>
-      [firstName, lastName, phone, barangay, password, latitude, longitude];
-}
-
-class LogoutRequested extends AuthEvent {
-  const LogoutRequested();
-}
-
-class OtpRequested extends AuthEvent {
-  final String phoneNumber;
-
-  const OtpRequested(this.phoneNumber);
-
-  @override
-  List<Object?> get props => [phoneNumber];
-}
-
-class OtpVerified extends AuthEvent {
-  final String otp;
-  final double latitude;
-  final double longitude;
-
-  const OtpVerified({
-    required this.otp,
-    required this.latitude,
-    required this.longitude,
-  });
-
-  @override
-  List<Object?> get props => [otp, latitude, longitude];
-}
-
-class ResendOtpRequested extends AuthEvent {
-  final String phoneNumber;
-
-  const ResendOtpRequested(this.phoneNumber);
-
-  @override
-  List<Object?> get props => [phoneNumber];
+class AuthReset extends AuthEvent {
+  const AuthReset();
 }

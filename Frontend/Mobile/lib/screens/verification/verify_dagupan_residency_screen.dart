@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import '../../services/auth_service.dart';
+
+/// Set to true to skip real GPS/API check and use fixed Dagupan coords (for testing outside area).
+const bool _bypassLocationCheck = true;
 
 class VerifyDagupanResidencyScreen extends StatefulWidget {
   final Function(double lat, double lng)? onVerificationComplete;
@@ -15,10 +19,12 @@ class VerifyDagupanResidencyScreen extends StatefulWidget {
   });
 
   @override
-  State<VerifyDagupanResidencyScreen> createState() => _VerifyDagupanResidencyScreenState();
+  State<VerifyDagupanResidencyScreen> createState() =>
+      _VerifyDagupanResidencyScreenState();
 }
 
-class _VerifyDagupanResidencyScreenState extends State<VerifyDagupanResidencyScreen> {
+class _VerifyDagupanResidencyScreenState
+    extends State<VerifyDagupanResidencyScreen> {
   bool _isVerifying = false;
   bool _isVerified = false;
   bool _isInsideDagupan = false;
@@ -35,53 +41,82 @@ class _VerifyDagupanResidencyScreenState extends State<VerifyDagupanResidencyScr
   Future<void> _verifyLocation() async {
     setState(() => _isVerifying = true);
 
-    try {
-      // DEVELOPMENT BYPASS - Remove in production
-      // Automatically pass verification for testing
-      await Future.delayed(const Duration(seconds: 1));
-      
+    if (_bypassLocationCheck) {
+      await Future.delayed(const Duration(milliseconds: 500));
+      if (!mounted) return;
       setState(() {
-        _currentLat = 16.043; // Dagupan City approximate coordinates
+        _currentLat = 16.043;
         _currentLng = 120.334;
-        _isInsideDagupan = true; // Always true for development
+        _isInsideDagupan = true;
         _isVerified = true;
-        _verificationMessage = 'Location verified! (Development Mode - Bypass Active)';
+        _verificationMessage = 'Location verified (bypass mode for testing).';
         _isVerifying = false;
       });
-      
-      /* PRODUCTION CODE - Uncomment when ready to use real location
-      // Get current position
-      final position = await GeolocationService.getCurrentPosition();
-      
-      setState(() {
-        _currentLat = position.latitude;
-        _currentLng = position.longitude;
-      });
+      return;
+    }
 
-      // Check if the location is within Dagupan boundaries
-      final isInDagupan = await GeolocationService.isPointInDagupan(
-        position.latitude,
-        position.longitude,
-        bufferMeters: 100, // 100m buffer zone
+    try {
+      final authService = AuthService();
+      final locResult = await authService.getCurrentLocation();
+
+      if (!mounted) return;
+      if (locResult['success'] != true) {
+        setState(() {
+          _isVerifying = false;
+          _isVerified = false;
+          _verificationMessage =
+              locResult['error'] as String? ?? 'Could not get location.';
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(locResult['error'] as String? ?? 'Location error'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      final lat = locResult['latitude'] as double?;
+      final lng = locResult['longitude'] as double?;
+      if (lat == null || lng == null) {
+        setState(() {
+          _isVerifying = false;
+          _isVerified = false;
+          _verificationMessage = 'Invalid location coordinates.';
+        });
+        return;
+      }
+
+      final checkResult = await authService.checkLocationInDagupan(
+        latitude: lat,
+        longitude: lng,
       );
 
+      if (!mounted) return;
+      final isInDagupan = checkResult['isInDagupan'] as bool? ?? false;
+      final message = checkResult['message'] as String? ??
+          checkResult['error'] as String? ??
+          (isInDagupan
+              ? 'Location verified! You are in Dagupan City.'
+              : 'Location verification failed. You are outside Dagupan City.');
+
       setState(() {
+        _currentLat = lat;
+        _currentLng = lng;
         _isInsideDagupan = isInDagupan;
         _isVerified = true;
-        _verificationMessage = isInDagupan
-            ? 'Location verified! You are in Dagupan City.'
-            : 'Location verification failed. You are outside Dagupan City.';
+        _verificationMessage = message;
         _isVerifying = false;
       });
-      */
     } catch (e) {
-      setState(() {
-        _isVerifying = false;
-        _verificationMessage = 'Error verifying location: $e';
-        _isVerified = false;
-      });
-
       if (mounted) {
+        setState(() {
+          _isVerifying = false;
+          _verificationMessage = 'Error verifying location: $e';
+          _isVerified = false;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Location Error: $e'),
@@ -100,7 +135,8 @@ class _VerifyDagupanResidencyScreenState extends State<VerifyDagupanResidencyScr
   Widget _buildLogo() {
     return Column(
       children: [
-        Image.asset('assets/logo/logo.png', width: 80, height: 80, fit: BoxFit.contain),
+        Image.asset('assets/logo/logo.png',
+            width: 80, height: 80, fit: BoxFit.contain),
         const SizedBox(height: 12),
         const Text(
           'Emergency Response & Safety',
@@ -119,9 +155,9 @@ class _VerifyDagupanResidencyScreenState extends State<VerifyDagupanResidencyScr
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: const Color(0xFFFCD34D)),
         ),
-        child: const Row(
+        child: Row(
           children: [
-            SizedBox(
+            const SizedBox(
               width: 28,
               height: 28,
               child: CircularProgressIndicator(
@@ -129,8 +165,8 @@ class _VerifyDagupanResidencyScreenState extends State<VerifyDagupanResidencyScr
                 strokeWidth: 2,
               ),
             ),
-            SizedBox(width: 12),
-            Expanded(
+            const SizedBox(width: 12),
+            const Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -180,7 +216,8 @@ class _VerifyDagupanResidencyScreenState extends State<VerifyDagupanResidencyScr
                   ),
                   Text(
                     _verificationMessage ?? 'Unable to verify location',
-                    style: const TextStyle(fontSize: 13, color: Color(0xFFB91C1C)),
+                    style:
+                        const TextStyle(fontSize: 13, color: Color(0xFFB91C1C)),
                   ),
                 ],
               ),
@@ -216,7 +253,8 @@ class _VerifyDagupanResidencyScreenState extends State<VerifyDagupanResidencyScr
                   ),
                   Text(
                     _verificationMessage ?? 'Location verified',
-                    style: const TextStyle(fontSize: 13, color: Color(0xFF15803D)),
+                    style:
+                        const TextStyle(fontSize: 13, color: Color(0xFF15803D)),
                   ),
                 ],
               ),
@@ -251,7 +289,8 @@ class _VerifyDagupanResidencyScreenState extends State<VerifyDagupanResidencyScr
                 ),
                 Text(
                   _verificationMessage ?? 'You are outside service area',
-                  style: const TextStyle(fontSize: 13, color: Color(0xFFB91C1C)),
+                  style:
+                      const TextStyle(fontSize: 13, color: Color(0xFFB91C1C)),
                 ),
               ],
             ),
@@ -315,18 +354,19 @@ class _VerifyDagupanResidencyScreenState extends State<VerifyDagupanResidencyScr
                         height: double.infinity,
                       ),
                     ),
-                    const Positioned(
+                    Positioned(
                       top: 12,
                       left: 12,
                       right: 12,
                       child: Row(
                         children: [
-                          Icon(Icons.location_on, color: Color(0xFFEF4444), size: 24),
-                          SizedBox(width: 8),
+                          const Icon(Icons.location_on,
+                              color: Color(0xFFEF4444), size: 24),
+                          const SizedBox(width: 8),
                           Expanded(
                             child: Text(
                               'Poblacion Oeste, Barangay Hall',
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
                                 color: Color(0xFF111827),
@@ -341,24 +381,34 @@ class _VerifyDagupanResidencyScreenState extends State<VerifyDagupanResidencyScr
                       left: 12,
                       right: 12,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 8),
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(8),
-                          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 8)],
+                          boxShadow: [
+                            BoxShadow(
+                                color: Colors.black.withOpacity(0.08),
+                                blurRadius: 8)
+                          ],
                         ),
                         child: const Row(
                           children: [
-                            Icon(Icons.map_outlined, size: 18, color: Color(0xFF6B7280)),
+                            Icon(Icons.map_outlined,
+                                size: 18, color: Color(0xFF6B7280)),
                             SizedBox(width: 8),
                             Text(
                               'Dagupan City Boundaries',
-                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Color(0xFF374151)),
+                              style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                  color: Color(0xFF374151)),
                             ),
                             Spacer(),
                             Text(
                               'Pangasinan, Philippines',
-                              style: TextStyle(fontSize: 11, color: Color(0xFF6B7280)),
+                              style: TextStyle(
+                                  fontSize: 11, color: Color(0xFF6B7280)),
                             ),
                           ],
                         ),
@@ -387,7 +437,8 @@ class _VerifyDagupanResidencyScreenState extends State<VerifyDagupanResidencyScr
                         children: [
                           const Text(
                             'Selected Barangay',
-                            style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+                            style: TextStyle(
+                                fontSize: 12, color: Color(0xFF6B7280)),
                           ),
                           const SizedBox(height: 4),
                           Text(
@@ -428,15 +479,18 @@ class _VerifyDagupanResidencyScreenState extends State<VerifyDagupanResidencyScr
                           height: 20,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Icon(Icons.refresh, size: 20, color: Color(0xFF374151)),
+                      : const Icon(Icons.refresh,
+                          size: 20, color: Color(0xFF374151)),
                   label: Text(
                     _isVerifying ? 'Verifying...' : 'Refresh GPS',
-                    style: const TextStyle(color: Color(0xFF374151), fontWeight: FontWeight.w500),
+                    style: const TextStyle(
+                        color: Color(0xFF374151), fontWeight: FontWeight.w500),
                   ),
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     side: const BorderSide(color: Color(0xFFE5E7EB)),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
               ),
@@ -447,10 +501,11 @@ class _VerifyDagupanResidencyScreenState extends State<VerifyDagupanResidencyScr
                 child: ElevatedButton(
                   onPressed: (_isVerified && _isInsideDagupan && !_isVerifying)
                       ? () {
-                          if (widget.onVerificationComplete != null && 
-                              _currentLat != null && 
+                          if (widget.onVerificationComplete != null &&
+                              _currentLat != null &&
                               _currentLng != null) {
-                            widget.onVerificationComplete!(_currentLat!, _currentLng!);
+                            widget.onVerificationComplete!(
+                                _currentLat!, _currentLng!);
                           }
                         }
                       : null,
@@ -458,7 +513,8 @@ class _VerifyDagupanResidencyScreenState extends State<VerifyDagupanResidencyScr
                     backgroundColor: const Color(0xFFEF4444),
                     disabledBackgroundColor: const Color(0xFFD1D5DB),
                     padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
                   ),
                   child: Text(
                     _isVerifying
@@ -475,7 +531,9 @@ class _VerifyDagupanResidencyScreenState extends State<VerifyDagupanResidencyScr
                 ),
               ),
               // Go Back button (shown when verification failed)
-              if (_isVerified && !_isInsideDagupan && widget.onLocationVerificationFailed != null) ...[
+              if (_isVerified &&
+                  !_isInsideDagupan &&
+                  widget.onLocationVerificationFailed != null) ...[
                 const SizedBox(height: 12),
                 SizedBox(
                   width: double.infinity,
@@ -484,7 +542,8 @@ class _VerifyDagupanResidencyScreenState extends State<VerifyDagupanResidencyScr
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       side: const BorderSide(color: Color(0xFFEF4444)),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
                     ),
                     child: const Text(
                       'Go Back to Sign Up',

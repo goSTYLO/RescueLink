@@ -157,3 +157,42 @@ exports.onboardPhone = async (req, res) => {
     res.status(500).json({ message: 'Phone onboarding failed', error: err.message });
   }
 };
+
+// Reset password (forgot password flow): verify Firebase idToken, find user by phone, update password.
+exports.resetPassword = async (req, res) => {
+  console.log('🔑 Reset password attempt');
+  try {
+    const { idToken, newPassword } = req.body;
+    if (!idToken || !newPassword) {
+      return res.status(400).json({ message: 'idToken and newPassword are required' });
+    }
+
+    const validatedToken = validateString(idToken, 'idToken', 1, 2048);
+    const validatedPassword = validatePassword(newPassword);
+
+    const decoded = await firebaseAdmin.auth().verifyIdToken(validatedToken);
+    const phone = decoded.phone_number;
+    if (!phone) {
+      return res.status(400).json({ message: 'ID token does not contain a phone number' });
+    }
+
+    const user = await User.findByPhone(phone);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const passwordHash = await hashPassword(validatedPassword);
+    await User.updatePassword(user.user_id, passwordHash);
+    console.log('✅ Password updated for user:', user.user_id);
+    res.json({ message: 'Password updated successfully' });
+  } catch (err) {
+    console.error('❌ Reset password error:', err.message);
+    if (err.message.includes('must be') || err.message.includes('Invalid') || err.message.includes('at least')) {
+      return res.status(400).json({ message: err.message });
+    }
+    if (err.code === 'auth/invalid-id-token' || err.code === 'auth/id-token-expired') {
+      return res.status(401).json({ message: 'Invalid or expired verification. Please request a new code.' });
+    }
+    res.status(500).json({ message: 'Password reset failed' });
+  }
+};

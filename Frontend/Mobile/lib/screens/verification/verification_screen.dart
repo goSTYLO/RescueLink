@@ -1,7 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../bloc/auth/auth_bloc.dart';
+import '../../bloc/auth/auth_event.dart';
+import '../../bloc/auth/auth_state.dart';
+import '../../utils/app_config.dart';
+import '../../widgets/recaptcha_webview.dart';
 
 /// First step: Location Verified + Human Verification (reCAPTCHA + Request OTP).
 class VerificationScreen extends StatefulWidget {
+  final String phone;
   final VoidCallback? onRequestOtp;
   final VoidCallback? onBack;
   final String? selectedBarangay;
@@ -9,6 +16,7 @@ class VerificationScreen extends StatefulWidget {
 
   const VerificationScreen({
     super.key,
+    required this.phone,
     this.onRequestOtp,
     this.onBack,
     this.selectedBarangay,
@@ -21,6 +29,64 @@ class VerificationScreen extends StatefulWidget {
 
 class _VerificationScreenState extends State<VerificationScreen> {
   bool _recaptchaChecked = false;
+
+  void _showRecaptchaDialog(BuildContext context) {
+    if (AppConfig.recaptchaSiteKey.isEmpty) {
+      setState(() => _recaptchaChecked = true);
+      return;
+    }
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => PopScope(
+        canPop: true,
+        child: Dialog(
+          insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 400, maxHeight: 480),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  child: Row(
+                    children: [
+                      const Text(
+                        "Verify you're human",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF111827),
+                        ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        onPressed: () => Navigator.of(ctx).pop(),
+                        icon: const Icon(Icons.close, color: Color(0xFF6B7280)),
+                      ),
+                    ],
+                  ),
+                ),
+                Flexible(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: RecaptchaWebView(
+                      siteKey: AppConfig.recaptchaSiteKey,
+                      onSuccess: (token) {
+                        if (!ctx.mounted) return;
+                        Navigator.of(ctx).pop();
+                        setState(() => _recaptchaChecked = true);
+                      },
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
   Widget _buildLogo() {
     return Column(
@@ -50,19 +116,38 @@ class _VerificationScreenState extends State<VerificationScreen> {
     );
   }
 
+  void _requestOtp(BuildContext context) {
+    context.read<AuthBloc>().add(OtpRequested(widget.phone));
+  }
+
   @override
   Widget build(BuildContext context) {
     final barangay = widget.selectedBarangay ?? 'Barangay Poblacion Oeste';
     final cityRegion = widget.cityRegion ?? 'Dagupan City, Pangasinan';
 
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
+    return BlocConsumer<AuthBloc, AuthState>(
+      listener: (context, state) {
+        if (state is OtpError) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(state.message),
+              backgroundColor: const Color(0xFFEF4444),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+        // Parent (main) listens for OtpSent and navigates to VerificationOtpScreen
+      },
+      builder: (context, state) {
+        final isLoading = state is AuthLoading;
+        return Scaffold(
+          backgroundColor: Colors.white,
+          body: SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
               if (widget.onBack != null) ...[
                 const SizedBox(height: 8),
                 Align(
@@ -211,7 +296,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
                     ),
                     const SizedBox(height: 14),
                     InkWell(
-                      onTap: () => setState(() => _recaptchaChecked = !_recaptchaChecked),
+                      onTap: _recaptchaChecked ? null : () => _showRecaptchaDialog(context),
                       borderRadius: BorderRadius.circular(8),
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -245,16 +330,25 @@ class _VerificationScreenState extends State<VerificationScreen> {
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: _recaptchaChecked ? widget.onRequestOtp : null,
+                        onPressed: (_recaptchaChecked && !isLoading) ? () => _requestOtp(context) : null,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFFEF4444),
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
-                        child: const Text(
-                          'Request OTP',
-                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 16),
-                        ),
+                        child: isLoading
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                ),
+                              )
+                            : const Text(
+                                'Request OTP',
+                                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 16),
+                              ),
                       ),
                     ),
                   ],
@@ -282,10 +376,12 @@ class _VerificationScreenState extends State<VerificationScreen> {
                 ),
               ),
               const SizedBox(height: 40),
-            ],
+                ],
+              ),
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }

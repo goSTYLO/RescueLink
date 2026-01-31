@@ -26,10 +26,16 @@ dependencies:
   
   # Local Storage
   shared_preferences: ^2.2.2
-  
+
+  # Environment (.env)
+  flutter_dotenv: ^5.1.0
+
   # UI
   cupertino_icons: ^1.0.6
   flutter_svg: ^2.0.9
+
+  # WebView (for reCAPTCHA v2; avoids conflict with Firebase)
+  webview_flutter: ^4.4.2
 
 dev_dependencies:
   flutter_test:
@@ -40,6 +46,7 @@ flutter:
   uses-material-design: true
 
   assets:
+    - .env
     - assets/logo/logo.png
     - assets/images/login_illustrations.png
     - assets/images/createaccount_illustration.png

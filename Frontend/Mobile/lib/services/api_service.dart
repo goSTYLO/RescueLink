@@ -55,6 +55,7 @@ class ApiService {
       return _handleResponse(response);
     } catch (e) {
       print('❌ [API POST] Request failed: $e');
+      if (e is ApiException) rethrow;
       throw ApiException('POST request failed: $e');
     }
   }

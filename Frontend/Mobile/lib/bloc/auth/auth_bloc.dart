@@ -1,47 +1,43 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
-import '../../models/auth_result.dart';
-import '../../models/otp_result.dart';
-import '../../repositories/auth_repository.dart';
+import '../../services/auth_service.dart';
 import 'auth_event.dart';
 import 'auth_state.dart';
 
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
-  final AuthRepository authRepository;
-
-  AuthBloc({required this.authRepository}) : super(const AuthInitial()) {
-    on<AuthInit>(_onAuthInit);
-    on<LoginRequested>(_onLoginRequested);
+  AuthBloc(this._authService) : super(const AuthInitial()) {
+    on<LocationCheckRequested>(_onLocationCheckRequested);
     on<RegisterRequested>(_onRegisterRequested);
-    on<LogoutRequested>(_onLogoutRequested);
     on<OtpRequested>(_onOtpRequested);
     on<OtpVerified>(_onOtpVerified);
     on<ResendOtpRequested>(_onResendOtpRequested);
+    on<LoginRequested>(_onLoginRequested);
+    on<AuthReset>(_onAuthReset);
   }
 
-  Future<void> _onAuthInit(AuthInit event, Emitter<AuthState> emit) async {
-    await authRepository.init();
-    final token = authRepository.getToken();
-    if (token != null && token.isNotEmpty) {
-      emit(const Unauthenticated());
-    } else {
-      emit(const Unauthenticated());
-    }
-  }
+  final AuthService _authService;
 
-  Future<void> _onLoginRequested(
-    LoginRequested event,
+  Future<void> _onLocationCheckRequested(
+    LocationCheckRequested event,
     Emitter<AuthState> emit,
   ) async {
     emit(const AuthLoading());
-    final result = await authRepository.login(
-      phone: event.phone,
-      password: event.password,
-    );
-
-    if (result is AuthSuccess) {
-      emit(Authenticated(result.user, token: result.token));
-    } else if (result is AuthFailure) {
-      emit(AuthError(result.message));
+    try {
+      final result = await _authService.checkLocationInDagupan(
+        latitude: event.latitude,
+        longitude: event.longitude,
+      );
+      final success = result['success'] as bool? ?? false;
+      final isInDagupan = result['isInDagupan'] as bool? ?? false;
+      final message = result['message'] as String? ??
+          result['error'] as String? ??
+          'Location check failed';
+      if (success) {
+        emit(LocationVerified(isInDagupan: isInDagupan, message: message));
+      } else {
+        emit(LocationError(message));
+      }
+    } catch (e) {
+      emit(LocationError(e.toString()));
     }
   }
 
@@ -50,29 +46,29 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     Emitter<AuthState> emit,
   ) async {
     emit(const AuthLoading());
-    final result = await authRepository.register(
-      firstName: event.firstName,
-      lastName: event.lastName,
-      phone: event.phone,
-      barangay: event.barangay,
-      password: event.password,
-      latitude: event.latitude,
-      longitude: event.longitude,
-    );
-
-    if (result is AuthSuccess) {
-      emit(Authenticated(result.user, token: result.token));
-    } else if (result is AuthFailure) {
-      emit(AuthError(result.message));
+    try {
+      final result = await _authService.register(
+        firstName: event.firstName,
+        lastName: event.lastName,
+        phone: event.phone,
+        barangay: event.address,
+        password: event.password,
+        latitude: event.latitude,
+        longitude: event.longitude,
+        storeToken: false,
+      );
+      if (result['success'] == true) {
+        final data = result['data'] as Map<String, dynamic>?;
+        final user = data?['user'] as Map<String, dynamic>?;
+        final phone = user?['phone'] as String? ?? event.phone;
+        emit(RegisterSuccess(phone));
+      } else {
+        final error = result['error'] as String? ?? 'Registration failed';
+        emit(RegisterError(error));
+      }
+    } catch (e) {
+      emit(RegisterError(e.toString()));
     }
-  }
-
-  Future<void> _onLogoutRequested(
-    LogoutRequested event,
-    Emitter<AuthState> emit,
-  ) async {
-    await authRepository.logout();
-    emit(const Unauthenticated());
   }
 
   Future<void> _onOtpRequested(
@@ -80,12 +76,17 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     Emitter<AuthState> emit,
   ) async {
     emit(const AuthLoading());
-    final result = await authRepository.requestOtp(event.phoneNumber);
-
-    if (result is OtpSuccess) {
-      emit(const Unauthenticated());
-    } else if (result is OtpFailure) {
-      emit(AuthError(result.error));
+    try {
+      final result =
+          await _authService.initializePhoneVerification(event.phone);
+      if (result['success'] == true) {
+        emit(const OtpSent());
+      } else {
+        final error = result['error'] as String? ?? 'Failed to send OTP';
+        emit(OtpError(error));
+      }
+    } catch (e) {
+      emit(OtpError(e.toString()));
     }
   }
 
@@ -94,16 +95,28 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     Emitter<AuthState> emit,
   ) async {
     emit(const AuthLoading());
-    final result = await authRepository.verifyOtp(
-      otp: event.otp,
-      latitude: event.latitude,
-      longitude: event.longitude,
-    );
-
-    if (result is AuthSuccess) {
-      emit(Authenticated(result.user, token: result.token));
-    } else if (result is AuthFailure) {
-      emit(AuthError(result.message));
+    try {
+      final result = await _authService.verifyOtpAndLocation(
+        otp: event.otp,
+        latitude: event.latitude,
+        longitude: event.longitude,
+        storeToken: event.storeToken,
+      );
+      if (result['success'] == true) {
+        if (event.storeToken) {
+          final data = result['data'] as Map<String, dynamic>?;
+          final user = data?['user'] as Map<String, dynamic>? ?? {};
+          final token = data?['token'] as String? ?? '';
+          emit(LoginSuccess(user: user, token: token));
+        } else {
+          emit(const PhoneVerified());
+        }
+      } else {
+        final error = result['error'] as String? ?? 'Verification failed';
+        emit(AuthError(error));
+      }
+    } catch (e) {
+      emit(AuthError(e.toString()));
     }
   }
 
@@ -112,12 +125,43 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     Emitter<AuthState> emit,
   ) async {
     emit(const AuthLoading());
-    final result = await authRepository.resendOtp(event.phoneNumber);
-
-    if (result is OtpSuccess) {
-      emit(const Unauthenticated());
-    } else if (result is OtpFailure) {
-      emit(AuthError(result.error));
+    try {
+      final result = await _authService.resendOtp(event.phone);
+      if (result['success'] == true) {
+        emit(const OtpSent());
+      } else {
+        final error = result['error'] as String? ?? 'Failed to resend OTP';
+        emit(OtpError(error));
+      }
+    } catch (e) {
+      emit(OtpError(e.toString()));
     }
+  }
+
+  Future<void> _onLoginRequested(
+    LoginRequested event,
+    Emitter<AuthState> emit,
+  ) async {
+    emit(const AuthLoading());
+    try {
+      final result = await _authService.login(
+        phone: event.phone,
+        password: event.password,
+      );
+      if (result['success'] == true) {
+        final user = result['user'] as Map<String, dynamic>? ?? {};
+        final token = result['token'] as String? ?? '';
+        emit(LoginSuccess(user: user, token: token));
+      } else {
+        final error = result['error'] as String? ?? 'Login failed';
+        emit(LoginError(error));
+      }
+    } catch (e) {
+      emit(LoginError(e.toString()));
+    }
+  }
+
+  void _onAuthReset(AuthReset event, Emitter<AuthState> emit) {
+    emit(const AuthInitial());
   }
 }
