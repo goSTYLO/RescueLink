@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../bloc/auth/auth_bloc.dart';
+import '../bloc/auth/auth_event.dart';
+import '../bloc/auth/auth_state.dart';
 
 /// Second step: Enter OTP Code + Verify & Continue.
 class VerificationOtpScreen extends StatefulWidget {
   final String phoneNumber;
-  final VoidCallback? onVerifyAndContinue;
+  final Function(Map<String, dynamic>)? onVerifyAndContinue;
   final VoidCallback? onBack;
   final String? selectedBarangay;
   final String? cityRegion;
@@ -27,6 +31,8 @@ class _VerificationOtpScreenState extends State<VerificationOtpScreen> {
   final List<FocusNode> _focusNodes = List.generate(6, (_) => FocusNode());
   int _resendCountdown = 30;
   bool _canResend = false;
+  static const double _defaultLat = 16.043;
+  static const double _defaultLng = 120.334;
 
   @override
   void initState() {
@@ -63,6 +69,29 @@ class _VerificationOtpScreenState extends State<VerificationOtpScreen> {
 
   String get _otpCode => _controllers.map((c) => c.text).join();
 
+  void _verifyOtp(BuildContext context) {
+    if (_otpCode.length != 6 || !RegExp(r'^[0-9]{6}$').hasMatch(_otpCode)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a valid 6-digit code.'),
+          backgroundColor: Color(0xFFEF4444),
+        ),
+      );
+      return;
+    }
+    context.read<AuthBloc>().add(OtpVerified(
+          otp: _otpCode,
+          latitude: _defaultLat,
+          longitude: _defaultLng,
+        ));
+  }
+
+  void _resendOtp(BuildContext context) {
+    if (!_canResend) return;
+    context.read<AuthBloc>().add(ResendOtpRequested(widget.phoneNumber));
+    _startResendTimer();
+  }
+
   Widget _buildLogo() {
     return Column(
       children: [
@@ -93,10 +122,27 @@ class _VerificationOtpScreenState extends State<VerificationOtpScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final barangay = widget.selectedBarangay ?? 'Barangay Poblacion Oeste';
-    final cityRegion = widget.cityRegion ?? 'Dagupan City, Pangasinan';
+    return BlocConsumer<AuthBloc, AuthState>(
+      listener: (context, state) {
+        if (state is AuthError) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(state.message),
+              backgroundColor: const Color(0xFFEF4444),
+              duration: const Duration(seconds: 4),
+              behavior: SnackBarBehavior.floating,
+              margin: const EdgeInsets.all(16),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+          );
+        }
+      },
+      builder: (context, authState) {
+        final isVerifying = authState is AuthLoading;
+        final barangay = widget.selectedBarangay ?? 'Barangay Poblacion Oeste';
+        final cityRegion = widget.cityRegion ?? 'Dagupan City, Pangasinan';
 
-    return Scaffold(
+        return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
         child: SingleChildScrollView(
@@ -306,9 +352,7 @@ class _VerificationOtpScreenState extends State<VerificationOtpScreen> {
                         const SizedBox(width: 6),
                         TextButton(
                           onPressed: _canResend
-                              ? () {
-                                  _startResendTimer();
-                                }
+                              ? () => _resendOtp(context)
                               : null,
                           child: Text(
                             _canResend ? 'Resend OTP' : 'Resend OTP in ${_resendCountdown}s',
@@ -325,16 +369,27 @@ class _VerificationOtpScreenState extends State<VerificationOtpScreen> {
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: _otpCode.length == 6 ? widget.onVerifyAndContinue : null,
+                        onPressed: isVerifying || _otpCode.length != 6
+                            ? null
+                            : () => _verifyOtp(context),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFFEF4444),
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
-                        child: const Text(
-                          'Verify & Continue',
-                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 16),
-                        ),
+                        child: isVerifying
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Text(
+                                'Verify & Continue',
+                                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 16),
+                              ),
                       ),
                     ),
                   ],
@@ -366,6 +421,8 @@ class _VerificationOtpScreenState extends State<VerificationOtpScreen> {
           ),
         ),
       ),
+    );
+      },
     );
   }
 }

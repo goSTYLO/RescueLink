@@ -50,3 +50,4 @@ flutter:
     - assets/images/maps_illustration.png
     - assets/images/outsidearea_illustration.png
     - assets/images/accountcreateddone_-illustration.png
+    - assets/geojson/dagupan.geojson

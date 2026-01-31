@@ -39,14 +39,22 @@ class ApiService {
   }) async {
     try {
       final uri = Uri.parse('$baseUrl$endpoint');
+      print('🌐 [API POST] URL: $uri');
+      print('🌐 [API POST] Headers: ${_buildHeaders(headers)}');
+      print('🌐 [API POST] Body: ${body != null ? jsonEncode(body) : "null"}');
+      
       final response = await client.post(
         uri,
         headers: _buildHeaders(headers),
         body: body != null ? jsonEncode(body) : null,
       );
 
+      print('🌐 [API POST] Response status: ${response.statusCode}');
+      print('🌐 [API POST] Response body: ${response.body}');
+
       return _handleResponse(response);
     } catch (e) {
+      print('❌ [API POST] Request failed: $e');
       throw ApiException('POST request failed: $e');
     }
   }
