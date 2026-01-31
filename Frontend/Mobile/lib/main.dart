@@ -62,8 +62,8 @@ class RescueLinkApp extends StatelessWidget {
   }
 }
 
-class AppNavigator extends StatelessWidget {
-  const AppNavigator({super.key});
+class AuthNavigator extends StatefulWidget {
+  const AuthNavigator({super.key});
 
   @override
   State<AuthNavigator> createState() => _AuthNavigatorState();

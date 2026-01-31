@@ -99,3 +99,11 @@ class AuthError extends AuthState {
   @override
   List<Object?> get props => [message];
 }
+
+class Authenticated extends AuthState {
+  const Authenticated();
+}
+
+class Unauthenticated extends AuthState {
+  const Unauthenticated();
+}

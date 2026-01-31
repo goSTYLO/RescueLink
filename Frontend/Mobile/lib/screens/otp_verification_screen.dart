@@ -110,7 +110,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
             SnackBar(content: Text(state.message), backgroundColor: Colors.red),
           );
         }
-        if (state is Authenticated) {
+        if (state is PhoneVerified) {
           widget.onVerificationSuccess?.call();
         }
       },

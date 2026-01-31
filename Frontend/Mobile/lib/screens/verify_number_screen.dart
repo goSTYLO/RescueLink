@@ -27,13 +27,13 @@ class VerifyNumberScreen extends StatelessWidget {
     if (isRequestingOTP) {
       return BlocConsumer<AuthBloc, AuthState>(
         listenWhen: (previous, current) =>
-            current is AuthError || (previous is AuthLoading && current is Unauthenticated),
+            current is AuthError || (previous is AuthLoading && current is OtpSent),
         listener: (context, state) {
           if (state is AuthError) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text(state.message), backgroundColor: Colors.red),
             );
-          } else if (state is Unauthenticated) {
+          } else if (state is OtpSent) {
             context.read<AppFlowBloc>().add(const SignUpPhoneOtpSent());
             onOTPSent?.call();
           }
