@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../services/auth_service.dart';
 
-/// Set to true to skip real GPS/API check and use fixed Dagupan coords (for testing outside area).
-const bool _bypassLocationCheck = true;
-
 class VerifyDagupanResidencyScreen extends StatefulWidget {
   final Function(double lat, double lng)? onVerificationComplete;
   final VoidCallback? onRefreshGps;
@@ -40,20 +37,6 @@ class _VerifyDagupanResidencyScreenState
 
   Future<void> _verifyLocation() async {
     setState(() => _isVerifying = true);
-
-    if (_bypassLocationCheck) {
-      await Future.delayed(const Duration(milliseconds: 500));
-      if (!mounted) return;
-      setState(() {
-        _currentLat = 16.043;
-        _currentLng = 120.334;
-        _isInsideDagupan = true;
-        _isVerified = true;
-        _verificationMessage = 'Location verified (bypass mode for testing).';
-        _isVerifying = false;
-      });
-      return;
-    }
 
     try {
       final authService = AuthService();

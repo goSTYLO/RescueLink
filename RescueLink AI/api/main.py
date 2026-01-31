@@ -25,9 +25,10 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Paths
-MODEL_PATH = "models/emergency_model.pt"
-META_PATH = "models/label_meta.json"
+# Paths - Use absolute paths based on script location
+SCRIPT_DIR = Path(__file__).parent.parent  # RescueLink AI directory
+MODEL_PATH = SCRIPT_DIR / "models" / "emergency_model.pt"
+META_PATH = SCRIPT_DIR / "models" / "label_meta.json"
 
 app = FastAPI(
     title="RescueLink Emergency Classification AI",
@@ -47,9 +48,9 @@ app.add_middleware(
 # ---------- Load Model & Metadata ----------
 
 def load_metadata():
-    if not os.path.exists(META_PATH):
+    if not os.path.exists(str(META_PATH)):
         raise FileNotFoundError(f"Metadata not found at {META_PATH}")
-    with open(META_PATH, "r", encoding="utf-8") as f:
+    with open(str(META_PATH), "r", encoding="utf-8") as f:
         return json.load(f)
 
 def load_model_and_tokenizer():
@@ -84,7 +85,7 @@ def load_model_and_tokenizer():
         )
         
         # Load weights
-        checkpoint = torch.load(MODEL_PATH, map_location=device)
+        checkpoint = torch.load(str(MODEL_PATH), map_location=device)
         state_dict = checkpoint.get("model_state_dict") if isinstance(checkpoint, dict) else checkpoint
         model.load_state_dict(state_dict)
         model.to(device)
@@ -431,7 +432,7 @@ async def classify_audio_endpoint(file: UploadFile = File(...), threshold: float
         )
 
 @app.post("/v1/classify-mic", response_model=AudioClassificationResponse)
-async def classify_microphone(duration_seconds: int = 30, sample_rate: int = 16000, threshold: float = 0.3):
+async def classify_microphone(duration_seconds: int = 30, sample_rate: int = 16000, threshold: float = 0.5):
     """
     Combined microphone recording + auto-classification endpoint.
     
