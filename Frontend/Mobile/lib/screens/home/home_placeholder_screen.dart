@@ -8,7 +8,8 @@ class HomePlaceholderScreen extends StatefulWidget {
   final VoidCallback? onInitialTabApplied;
   final VoidCallback onLogout;
   final VoidCallback? onSosPressed;
-  final VoidCallback? onReportTap;
+  final VoidCallback? onEmergencyNoAiPressed;
+  final void Function(int reportId)? onReportTap;
   final VoidCallback? onPhoneNumberTap;
   final VoidCallback? onBarangayTap;
   final VoidCallback? onEmergencyContactsTap;
@@ -21,6 +22,7 @@ class HomePlaceholderScreen extends StatefulWidget {
     this.onInitialTabApplied,
     required this.onLogout,
     this.onSosPressed,
+    this.onEmergencyNoAiPressed,
     this.onReportTap,
     this.onPhoneNumberTap,
     this.onBarangayTap,
@@ -164,55 +166,34 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
             ),
           ),
           const SizedBox(height: 28),
-          // SOS Button
-          Center(
-            child: Column(
-              children: [
-                Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: widget.onSosPressed,
-                    onLongPress: widget.onSosPressed,
-                    borderRadius: BorderRadius.circular(60),
-                    child: Container(
-                      width: 120,
-                      height: 120,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFEF4444),
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFFEF4444).withOpacity(0.4),
-                            blurRadius: 20,
-                            spreadRadius: 2,
-                          ),
-                        ],
-                      ),
-                      child: const Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.error_outline, color: Colors.white, size: 36),
-                          SizedBox(height: 4),
-                          Text(
-                            'SOS',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 22,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+          // Report Emergency: primary AI CTA, then panic (location-only) secondary
+          Row(
+            children: [
+              const Icon(Icons.emergency, color: Color(0xFFEF4444), size: 22),
+              const SizedBox(width: 6),
+              const Text(
+                'Report Emergency',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF111827),
                 ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Long press for emergency',
-                  style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
-                ),
-              ],
-            ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _primaryEmergencyCard(
+            icon: Icons.mic,
+            label: 'Report emergency',
+            subtitle: 'Describe with voice — AI classifies and routes',
+            color: const Color(0xFFEF4444),
+            onTap: widget.onSosPressed,
+          ),
+          const SizedBox(height: 10),
+          _panicActionCard(
+            label: 'Life in danger?',
+            subtitle: 'Send location only — immediate alert',
+            onTap: widget.onEmergencyNoAiPressed,
           ),
           const SizedBox(height: 28),
           // Quick Access
@@ -298,6 +279,140 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
           ),
           const SizedBox(height: 24),
         ],
+      ),
+    );
+  }
+
+  /// Primary CTA: full-width, prominent "Report with AI" card.
+  Widget _primaryEmergencyCard({
+    required IconData icon,
+    required String label,
+    required String subtitle,
+    required Color color,
+    VoidCallback? onTap,
+  }) {
+    final enabled = onTap != null;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: enabled ? onTap : null,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: color.withOpacity(0.7), width: 1.5),
+            boxShadow: [
+              BoxShadow(
+                color: color.withOpacity(0.15),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: enabled ? color : const Color(0xFF9CA3AF), size: 36),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
+                        color: enabled ? const Color(0xFF111827) : const Color(0xFF9CA3AF),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: enabled ? const Color(0xFF6B7280) : const Color(0xFF9CA3AF),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.arrow_forward_ios, size: 16, color: enabled ? color : const Color(0xFF9CA3AF)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Secondary: subdued "panic / life in danger" — location-only immediate alert.
+  Widget _panicActionCard({
+    required String label,
+    required String subtitle,
+    VoidCallback? onTap,
+  }) {
+    final enabled = onTap != null;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: enabled ? onTap : null,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFE5E7EB)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.03),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: enabled ? const Color(0xFFDC2626) : const Color(0xFF9CA3AF), size: 24),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: enabled ? const Color(0xFF374151) : const Color(0xFF9CA3AF),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: enabled ? const Color(0xFF6B7280) : const Color(0xFF9CA3AF),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

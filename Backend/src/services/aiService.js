@@ -82,15 +82,16 @@ const transcribeAudio = async (audioBuffer, filename) => {
 };
 
 /**
- * Classify incident from audio (transcription + classification)
+ * Classify incident from audio (transcription + classification).
+ * Expects WAV from the app (no server-side conversion).
  * @param {Buffer} audioBuffer - Audio file buffer
- * @param {string} filename - Original filename
+ * @param {string} filename - Original filename (e.g. recording.wav)
  * @returns {Promise<Object>} Classification result
  */
 const classifyAudio = async (audioBuffer, filename) => {
   try {
     const formData = new FormData();
-    formData.append('file', audioBuffer, { filename }); // FastAPI expects 'file', not 'audio'
+    formData.append('file', audioBuffer, { filename });
     
     const response = await axios.post(
       `${AI_SERVICE_URL}/v1/classify-audio`,

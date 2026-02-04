@@ -4,19 +4,18 @@ Handles speech-to-text transcription with file validation, error handling, and u
 """
 
 import os
-import io
-import json
 import time
 import logging
 from datetime import datetime
+from pathlib import Path
 from typing import Optional, Dict, Any
 
 from huggingface_hub import InferenceClient
 import librosa
 import soundfile as sf
-from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
 
 class WhisperHandler:
     """Handle Whisper transcription via Hugging Face Inference API"""
@@ -26,7 +25,7 @@ class WhisperHandler:
         hf_api_token: str,
         model_id: str = "openai/whisper-large-v3-turbo",
         max_duration: int = 60,
-        min_duration: int = 30,
+        min_duration: int = 1,
         max_file_size_mb: int = 25,
         confidence_threshold: float = 0.7,
     ):
@@ -61,7 +60,7 @@ class WhisperHandler:
         }
         
         logger.info(f"✓ Whisper Handler initialized (Model: {model_id})")
-    
+
     def validate_audio_file(self, audio_path: str) -> Dict[str, Any]:
         """
         Validate audio file for transcription
@@ -85,12 +84,12 @@ class WhisperHandler:
                 f"File too large: {file_size_mb:.1f}MB (max: {self.max_file_size_mb}MB)"
             )
         
-        # Load and check duration
+        # Load and check duration (path may already be WAV from conversion in transcribe_audio)
         try:
             y, sr = librosa.load(str(audio_path), sr=None)
             duration = librosa.get_duration(y=y, sr=sr)
         except Exception as e:
-            raise ValueError(f"Could not process audio file: {e}")
+            raise ValueError(f"Could not process audio file: {e!r}")
         
         # Check duration constraints
         if duration < self.min_duration:
@@ -125,16 +124,17 @@ class WhisperHandler:
         start_time = time.time()
         self.usage_stats["total_requests"] += 1
         
+        path_to_use = Path(audio_path)
+        
         try:
-            # Validate audio file
-            validation = self.validate_audio_file(audio_path)
+            # Validate audio file (duration, size)
+            validation = self.validate_audio_file(str(path_to_use))
             
             # Call HF Inference API using official InferenceClient with path string
-            # InferenceClient detects content type from file extension when given a path
             logger.info(f"Sending audio to Whisper API (duration: {validation['duration']:.1f}s, model: {self.model_id})")
             
             result = self.client.automatic_speech_recognition(
-                audio=str(audio_path),  # Pass path as string for automatic content-type detection
+                audio=str(path_to_use),
                 model=self.model_id,
             )
             
@@ -259,7 +259,7 @@ def get_whisper_handler() -> WhisperHandler:
             hf_api_token=hf_token,
             model_id=os.getenv("WHISPER_MODEL_ID", "openai/whisper-large-v3-turbo"),
             max_duration=int(os.getenv("MAX_AUDIO_DURATION_SECONDS", 60)),
-            min_duration=int(os.getenv("MIN_AUDIO_DURATION_SECONDS", 30)),
+            min_duration=int(os.getenv("MIN_AUDIO_DURATION_SECONDS", 1)),
             max_file_size_mb=int(os.getenv("MAX_AUDIO_FILE_SIZE_MB", 25)),
             confidence_threshold=float(os.getenv("WHISPER_CONFIDENCE_THRESHOLD", 0.7)),
         )

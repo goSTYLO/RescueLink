@@ -33,6 +33,7 @@ import 'screens/home/emergency_contacts_screen.dart';
 import 'screens/home/change_password_screen.dart';
 import 'screens/home/privacy_security_screen.dart';
 import 'screens/home/logout_confirmation_screen.dart';
+import 'services/incident_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -98,6 +99,8 @@ class _AuthNavigatorState extends State<AuthNavigator> {
   bool _showEmergencyReport = false;
   bool _showEmergencyTracking = false;
   bool _showReportDetails = false;
+  int? _selectedReportId;
+  bool _emergencyNoAiInProgress = false;
   bool _showChangePhoneNumber = false;
   bool _showEnterNewPhoneNumber = false;
   bool _showVerifyNewPhoneOtp = false;
@@ -148,6 +151,8 @@ class _AuthNavigatorState extends State<AuthNavigator> {
       _showEmergencyReport = false;
       _showEmergencyTracking = false;
       _showReportDetails = false;
+      _selectedReportId = null;
+      _emergencyNoAiInProgress = false;
       _showChangePhoneNumber = false;
       _showEnterNewPhoneNumber = false;
       _showVerifyNewPhoneOtp = false;
@@ -170,6 +175,53 @@ class _AuthNavigatorState extends State<AuthNavigator> {
     setState(() {
       _isInsideDagupan = !_isInsideDagupan;
     });
+  }
+
+  Future<void> _onEmergencyNoAiPressed(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Send emergency report?'),
+        content: const Text(
+          'Your location will be sent immediately. Responders will be notified. Continue?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Send'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _emergencyNoAiInProgress = true);
+
+    try {
+      await IncidentService().reportEmergency();
+      if (!mounted) return;
+      setState(() {
+        _emergencyNoAiInProgress = false;
+        _showEmergencyTracking = true;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Report submitted.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _emergencyNoAiInProgress = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e is IncidentServiceException ? e.message : e.toString()),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   @override
@@ -227,7 +279,11 @@ class _AuthNavigatorState extends State<AuthNavigator> {
       }
       if (_showReportDetails) {
         return ReportDetailsScreen(
-          onBack: () => setState(() => _showReportDetails = false),
+          reportId: _selectedReportId,
+          onBack: () => setState(() {
+            _showReportDetails = false;
+            _selectedReportId = null;
+          }),
         );
       }
       if (_showChangePhoneNumber) {
@@ -325,17 +381,32 @@ class _AuthNavigatorState extends State<AuthNavigator> {
           onConfirm: _backToLogin,
         );
       }
-      return HomePlaceholderScreen(
-        initialTabIndex: _returnToSettingsTab ? 3 : null,
-        onInitialTabApplied: _returnToSettingsTab ? () => setState(() => _returnToSettingsTab = false) : null,
-        onLogout: () => setState(() => _showLogoutConfirmation = true),
-        onSosPressed: () => setState(() => _showEmergencyReport = true),
-        onReportTap: () => setState(() => _showReportDetails = true),
-        onPhoneNumberTap: () => setState(() => _showChangePhoneNumber = true),
-        onBarangayTap: () => setState(() => _showBarangayInformation = true),
-        onEmergencyContactsTap: () => setState(() => _showEmergencyContacts = true),
-        onChangePasswordTap: () => setState(() => _showChangePassword = true),
-        onPrivacySecurityTap: () => setState(() => _showPrivacySecurity = true),
+      return Stack(
+        children: [
+          HomePlaceholderScreen(
+            initialTabIndex: _returnToSettingsTab ? 3 : null,
+            onInitialTabApplied: _returnToSettingsTab ? () => setState(() => _returnToSettingsTab = false) : null,
+            onLogout: () => setState(() => _showLogoutConfirmation = true),
+            onSosPressed: () => setState(() => _showEmergencyReport = true),
+            onEmergencyNoAiPressed: () => _onEmergencyNoAiPressed(context),
+            onReportTap: (reportId) => setState(() {
+          _showReportDetails = true;
+          _selectedReportId = reportId;
+        }),
+            onPhoneNumberTap: () => setState(() => _showChangePhoneNumber = true),
+            onBarangayTap: () => setState(() => _showBarangayInformation = true),
+            onEmergencyContactsTap: () => setState(() => _showEmergencyContacts = true),
+            onChangePasswordTap: () => setState(() => _showChangePassword = true),
+            onPrivacySecurityTap: () => setState(() => _showPrivacySecurity = true),
+          ),
+          if (_emergencyNoAiInProgress)
+            Container(
+              color: Colors.black26,
+              child: const Center(
+                child: CircularProgressIndicator(),
+              ),
+            ),
+        ],
       );
     }
 

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import '../../services/incident_service.dart';
 
 class ReportDetailsScreen extends StatefulWidget {
+  final int? reportId;
   final VoidCallback? onBack;
 
-  const ReportDetailsScreen({super.key, this.onBack});
+  const ReportDetailsScreen({super.key, this.reportId, this.onBack});
 
   @override
   State<ReportDetailsScreen> createState() => _ReportDetailsScreenState();
@@ -12,6 +14,64 @@ class ReportDetailsScreen extends StatefulWidget {
 class _ReportDetailsScreenState extends State<ReportDetailsScreen> {
   bool _isPlaying = false;
   double _playbackProgress = 0.45 / 1.38; // 0:45 / 1:38
+  Map<String, dynamic>? _incident;
+  Map<String, dynamic>? _aiClassification;
+  bool _loading = true;
+  String? _loadError;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.reportId != null) {
+      _loadIncident();
+    } else {
+      setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _loadIncident() async {
+    if (widget.reportId == null) return;
+    setState(() {
+      _loading = true;
+      _loadError = null;
+    });
+    try {
+      final data = await IncidentService().getIncidentById(widget.reportId!, withAi: true);
+      if (!mounted) return;
+      setState(() {
+        _incident = data['incident'] as Map<String, dynamic>?;
+        _aiClassification = data['ai_classification'] as Map<String, dynamic>?;
+        _loading = false;
+        _loadError = null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _loadError = e is IncidentServiceException ? e.message : e.toString();
+      });
+    }
+  }
+
+  String _reportIdDisplay() {
+    if (widget.reportId != null) return 'DGP-${widget.reportId}';
+    return 'DGP-2026-0118-045';
+  }
+
+  String _formatDate(String? dateStr) {
+    if (dateStr == null) return '—';
+    try {
+      final dt = DateTime.parse(dateStr);
+      return '${_month(dt.month)} ${dt.day}, ${dt.year} • ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    } catch (_) {
+      return dateStr;
+    }
+  }
+
+  String _month(int m) {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return months[m - 1];
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -55,8 +115,8 @@ class _ReportDetailsScreenState extends State<ReportDetailsScreen> {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          'DGP-2026-0118-045',
-                          style: TextStyle(color: Colors.white.withOpacity(0.95), fontSize: 12),
+                          _reportIdDisplay(),
+                          style: TextStyle(color: Colors.white.withValues(alpha: 0.95), fontSize: 12),
                         ),
                       ],
                     ),
@@ -74,44 +134,35 @@ class _ReportDetailsScreenState extends State<ReportDetailsScreen> {
               ),
             ),
             Expanded(
-              child: SingleChildScrollView(
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _loadError != null
+                      ? Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(_loadError!, style: const TextStyle(color: Color(0xFFDC2626)), textAlign: TextAlign.center),
+                              const SizedBox(height: 12),
+                              TextButton(
+                                onPressed: _loadIncident,
+                                child: const Text('Retry'),
+                              ),
+                            ],
+                          ),
+                        )
+                      : SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Successfully Resolved card
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFDCFCE7),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFF86EFAC)),
-                      ),
-                      child: Column(
-                        children: [
-                          const Icon(Icons.check_circle, color: Color(0xFF22C55E), size: 48),
-                          const SizedBox(height: 12),
-                          const Text(
-                            'Successfully Resolved',
-                            style: TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF22C55E),
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          const Text(
-                            'Emergency handled by City Health',
-                            style: TextStyle(fontSize: 13, color: Color(0xFF16A34A)),
-                          ),
-                        ],
-                      ),
-                    ),
+                    // Status card
+                    _buildStatusCard(),
                     const SizedBox(height: 16),
                     // Incident Summary card
                     _whiteCard(
                       title: 'Incident Summary',
-                      icon: Icons.local_fire_department,
+                      icon: Icons.emergency,
                       iconColor: const Color(0xFFEA580C),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -120,23 +171,34 @@ class _ReportDetailsScreenState extends State<ReportDetailsScreen> {
                             icon: Icons.whatshot_outlined,
                             iconBg: const Color(0xFFFFEDD5),
                             label: 'Emergency Type',
-                            value: 'Medical Emergency',
+                            value: _incident?['incident_type'] as String? ?? 'Emergency',
                           ),
                           const SizedBox(height: 12),
                           _detailRow(
                             icon: Icons.calendar_today,
                             iconBg: const Color(0xFFDBEAFE),
                             label: 'Date & Time',
-                            value: 'January 18, 2026 • 10:15 AM',
+                            value: _formatDate(_incident?['created_at'] as String?),
                           ),
                           const SizedBox(height: 12),
                           _detailRow(
                             icon: Icons.location_on,
                             iconBg: const Color(0xFFDBEAFE),
                             label: 'Location',
-                            value: 'Poblacion Oeste, Dagupan City',
-                            subtitle: '16.0422° N, 120.3337° E',
+                            value: 'Dagupan City',
+                            subtitle: _incident != null && _incident!['latitude'] != null && _incident!['longitude'] != null
+                                ? '${(_incident!['latitude'] as num).toStringAsFixed(4)}° N, ${(_incident!['longitude'] as num).toStringAsFixed(4)}° E'
+                                : null,
                           ),
+                          if (_incident?['description'] != null && (_incident!['description'] as String).isNotEmpty) ...[
+                            const SizedBox(height: 12),
+                            _detailRow(
+                              icon: Icons.description,
+                              iconBg: const Color(0xFFF3F4F6),
+                              label: 'Description',
+                              value: _incident!['description'] as String,
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -180,6 +242,13 @@ class _ReportDetailsScreenState extends State<ReportDetailsScreen> {
                             'Duration 0:45 / 1:38',
                             style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
                           ),
+                          if (_incident?['transcription'] != null || _aiClassification?['transcription'] != null) ...[
+                            const SizedBox(height: 12),
+                            Text(
+                              _incident?['transcription'] as String? ?? _aiClassification?['transcription'] as String? ?? '',
+                              style: const TextStyle(fontSize: 13, color: Color(0xFF374151), fontStyle: FontStyle.italic),
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -314,6 +383,45 @@ class _ReportDetailsScreenState extends State<ReportDetailsScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildStatusCard() {
+    final status = _incident?['status'] as String?;
+    final isResolved = status != null && (status.toLowerCase() == 'resolved' || status.toLowerCase() == 'closed');
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      decoration: BoxDecoration(
+        color: isResolved ? const Color(0xFFDCFCE7) : const Color(0xFFDBEAFE),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: isResolved ? const Color(0xFF86EFAC) : const Color(0xFF93C5FD)),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            isResolved ? Icons.check_circle : Icons.schedule,
+            color: isResolved ? const Color(0xFF22C55E) : const Color(0xFF2563EB),
+            size: 48,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            isResolved ? 'Successfully Resolved' : (status ?? 'Pending'),
+            style: TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.bold,
+              color: isResolved ? const Color(0xFF22C55E) : const Color(0xFF2563EB),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            isResolved ? 'Emergency handled' : 'Report is being processed',
+            style: TextStyle(
+              fontSize: 13,
+              color: isResolved ? const Color(0xFF16A34A) : const Color(0xFF3B82F6),
+            ),
+          ),
+        ],
       ),
     );
   }

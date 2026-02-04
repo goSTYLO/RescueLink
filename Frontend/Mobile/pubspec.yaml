@@ -23,6 +23,11 @@ dependencies:
   
   # Location Services
   geolocator: ^10.1.0
+
+  # Audio recording and media
+  record: ^6.0.0
+  image_picker: ^1.0.7
+  path_provider: ^2.1.2
   
   # Local Storage
   shared_preferences: ^2.2.2

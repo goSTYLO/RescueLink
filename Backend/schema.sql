@@ -28,6 +28,11 @@ CREATE TABLE IF NOT EXISTS incident_reports (
   longitude DOUBLE PRECISION NOT NULL,
   media_url VARCHAR(500),
   status VARCHAR(50) NOT NULL DEFAULT 'pending',
+  transcription TEXT,
+  audio_path VARCHAR(500),
+  media_paths JSONB,
+  ai_pending BOOLEAN DEFAULT FALSE,
+  ai_attempted BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -41,12 +46,17 @@ CREATE INDEX IF NOT EXISTS idx_incident_reports_location ON incident_reports(lat
 CREATE INDEX IF NOT EXISTS idx_incident_reports_severity ON incident_reports(severity_level);
 
 -- Migration SQL for existing databases (run these if table already exists)
--- Make incident_type nullable
--- ALTER TABLE incident_reports ALTER COLUMN incident_type DROP NOT NULL;
+-- Add AI/audio columns to incident_reports
+ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS transcription TEXT;
+ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS audio_path VARCHAR(500);
+ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS media_paths JSONB;
+ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS ai_pending BOOLEAN DEFAULT FALSE;
+ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS ai_attempted BOOLEAN DEFAULT FALSE;
 
--- Make latitude and longitude required
--- ALTER TABLE incident_reports ALTER COLUMN latitude SET NOT NULL;
--- ALTER TABLE incident_reports ALTER COLUMN longitude SET NOT NULL;
+-- Add AI classification columns to ai_classifications
+ALTER TABLE ai_classifications ADD COLUMN IF NOT EXISTS low_confidence_flag BOOLEAN DEFAULT FALSE;
+ALTER TABLE ai_classifications ADD COLUMN IF NOT EXISTS is_override BOOLEAN DEFAULT FALSE;
+ALTER TABLE ai_classifications ADD COLUMN IF NOT EXISTS retry_count INTEGER DEFAULT 0;
 
 -- Create responders table
 CREATE TABLE IF NOT EXISTS responders (
@@ -64,7 +74,10 @@ CREATE TABLE IF NOT EXISTS ai_classifications (
   predicted_type VARCHAR(100),
   predicted_severity VARCHAR(50),
   confidence_score DOUBLE PRECISION,
+  low_confidence_flag BOOLEAN DEFAULT FALSE,
   is_duplicate BOOLEAN DEFAULT FALSE,
+  is_override BOOLEAN DEFAULT FALSE,
+  retry_count INTEGER DEFAULT 0,
   processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
