@@ -182,7 +182,7 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          _primaryEmergencyCard(
+          _primaryEmergencyCircularButton(
             icon: Icons.mic,
             label: 'Report emergency',
             subtitle: 'Describe with voice — AI classifies and routes',
@@ -196,57 +196,6 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
             onTap: widget.onEmergencyNoAiPressed,
           ),
           const SizedBox(height: 28),
-          // Quick Access
-          Row(
-            children: [
-              const Icon(Icons.shield_outlined, color: Color(0xFFEF4444), size: 22),
-              const SizedBox(width: 6),
-              const Text(
-                'Quick Access',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF111827),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          GridView.count(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 2,
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
-            childAspectRatio: 1.15,
-            children: [
-              _serviceCard(
-                icon: Icons.local_fire_department,
-                iconColor: const Color(0xFFF97316),
-                title: 'Fire',
-                subtitle: 'Dagupan Fire Dept',
-              ),
-              _serviceCard(
-                icon: Icons.favorite_border,
-                iconColor: const Color(0xFFEC4899),
-                title: 'Medical',
-                subtitle: 'City Health',
-              ),
-              _serviceCard(
-                icon: Icons.shield_outlined,
-                iconColor: const Color(0xFF2563EB),
-                title: 'Police',
-                subtitle: 'Dagupan PNP',
-              ),
-              _serviceCard(
-                icon: Icons.water_drop_outlined,
-                iconColor: const Color(0xFF0EA5E9),
-                title: 'Disaster',
-                subtitle: 'Flood/Typhoon',
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
           // Emergency Tips
           Row(
             children: [
@@ -283,74 +232,64 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
     );
   }
 
-  /// Primary CTA: full-width, prominent "Report with AI" card.
-  Widget _primaryEmergencyCard({
+  /// Primary CTA: circular button for "Report with AI".
+  Widget _primaryEmergencyCircularButton({
     required IconData icon,
     required String label,
     required String subtitle,
     required Color color,
     VoidCallback? onTap,
   }) {
+    const size = 88.0;
     final enabled = onTap != null;
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: enabled ? onTap : null,
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.08),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: color.withOpacity(0.7), width: 1.5),
-            boxShadow: [
-              BoxShadow(
-                color: color.withOpacity(0.15),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: enabled ? onTap : null,
+              customBorder: const CircleBorder(),
+              child: Container(
+                width: size,
+                height: size,
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(icon, color: enabled ? color : const Color(0xFF9CA3AF), size: 36),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      label,
-                      style: TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.bold,
-                        color: enabled ? const Color(0xFF111827) : const Color(0xFF9CA3AF),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: enabled ? const Color(0xFF6B7280) : const Color(0xFF9CA3AF),
-                      ),
+                  shape: BoxShape.circle,
+                  color: color.withOpacity(0.12),
+                  border: Border.all(color: color.withOpacity(0.8), width: 2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: color.withOpacity(0.25),
+                      blurRadius: 16,
+                      offset: const Offset(0, 4),
                     ),
                   ],
                 ),
+                child: Icon(icon, color: enabled ? color : const Color(0xFF9CA3AF), size: 40),
               ),
-              Icon(Icons.arrow_forward_ios, size: 16, color: enabled ? color : const Color(0xFF9CA3AF)),
-            ],
+            ),
           ),
-        ),
+          const SizedBox(height: 14),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.bold,
+              color: enabled ? const Color(0xFF111827) : const Color(0xFF9CA3AF),
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            subtitle,
+            style: TextStyle(
+              fontSize: 13,
+              color: enabled ? const Color(0xFF6B7280) : const Color(0xFF9CA3AF),
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
       ),
     );
   }
@@ -413,50 +352,6 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _serviceCard({
-    required IconData icon,
-    required Color iconColor,
-    required String title,
-    required String subtitle,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, color: iconColor, size: 32),
-          const SizedBox(height: 10),
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF111827),
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            subtitle,
-            style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
-            textAlign: TextAlign.center,
-          ),
-        ],
       ),
     );
   }
