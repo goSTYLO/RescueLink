@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Notification from '../components/Notification';
+import Swal from 'sweetalert2';
 import logo from '../assets/logo.svg';
 import illustration from '../assets/forgot-password-illustration.svg';
 
@@ -11,7 +11,6 @@ export default function ForgotPassword({ onSuccess, onBackToLogin }) {
   const [email, setEmail] = useState('');
   const [emailError, setEmailError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [notification, setNotification] = useState(null);
 
   const validateEmail = (email) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -37,6 +36,12 @@ export default function ForgotPassword({ onSuccess, onBackToLogin }) {
     
     const emailValidationError = validateEmail(email);
     if (emailValidationError) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Invalid email',
+        text: emailValidationError,
+        confirmButtonColor: '#134178',
+      });
       setEmailError(emailValidationError);
       return;
     }
@@ -61,12 +66,19 @@ export default function ForgotPassword({ onSuccess, onBackToLogin }) {
       // Store email for next step
       sessionStorage.setItem('resetEmail', email);
       
-      setNotification({ message: 'Reset link sent successfully! Check your email.', type: 'success' });
-      setTimeout(() => {
-        navigate('/enter-code');
-      }, 1500);
+      Swal.fire({
+        icon: 'success',
+        title: 'Reset link sent!',
+        text: 'Check your email for instructions to reset your password.',
+        confirmButtonColor: '#134178',
+      }).then(() => navigate('/enter-code'));
     } catch (err) {
-      setNotification({ message: err.message || 'Failed to send reset link. Please try again.', type: 'error' });
+      Swal.fire({
+        icon: 'error',
+        title: 'Failed to send reset link',
+        text: err.message || 'Please try again later.',
+        confirmButtonColor: '#134178',
+      });
     } finally {
       setLoading(false);
     }
@@ -184,14 +196,6 @@ export default function ForgotPassword({ onSuccess, onBackToLogin }) {
         </div>
       </div>
 
-      {/* Notification */}
-      {notification && (
-        <Notification
-          message={notification.message}
-          type={notification.type}
-          onClose={() => setNotification(null)}
-        />
-      )}
     </div>
   );
 }

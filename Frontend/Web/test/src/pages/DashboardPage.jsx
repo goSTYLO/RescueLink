@@ -112,21 +112,24 @@ export function DashboardPage() {
     setCurrentPage(1);
   }, [filterType, filterStatus, filterBarangay]);
 
+  // Severity: urgency level (Critical=red, Warning=amber, Resolved=green)
   const getSeverityColor = (severity) => {
     switch (severity) {
-      case 'Critical': return 'bg-[#fecaca] text-[#b91c1c] border-[#b91c1c]';
-      case 'Warning': return 'bg-[#fef08a] text-[#a16207] border-[#a16207]';
-      case 'Resolved': return 'bg-[#d9f99d] text-[#3f6212] border-[#3f6212]';
+      case 'Critical': return 'bg-red-100 text-red-800 border-red-300';
+      case 'Warning': return 'bg-amber-100 text-amber-800 border-amber-300';
+      case 'Resolved': return 'bg-green-100 text-green-800 border-green-300';
       default: return 'bg-gray-100 text-gray-700 border-gray-200';
     }
   };
 
+  // Status: workflow stage (New=blue, Verified=green, In Progress=orange, Resolved=green, Duplicate=gray)
   const getStatusColor = (status) => {
     switch (status) {
-      case 'In Progress': return 'bg-[#fed7aa] text-[#ea580c] border-[#ea580c]';
-      case 'Verified': return 'bg-[#e9d5ff] text-[#7e22ce] border-[#7e22ce]';
-      case 'New': return 'bg-[#bae6fd] text-[#0369a1] border-[#0369a1]';
-      case 'Resolved': return 'bg-[#d9f99d] text-[#3f6212] border-[#3f6212]';
+      case 'New': return 'bg-blue-100 text-blue-800 border-blue-300';
+      case 'Verified': return 'bg-green-100 text-green-800 border-green-300';
+      case 'In Progress': return 'bg-amber-100 text-amber-800 border-amber-300';
+      case 'Resolved': return 'bg-green-100 text-green-800 border-green-300';
+      case 'Duplicate': return 'bg-gray-100 text-gray-700 border-gray-300';
       default: return 'bg-gray-100 text-gray-700 border-gray-200';
     }
   };
@@ -261,7 +264,7 @@ export function DashboardPage() {
               >
                 {({ isOpen, setIsOpen, value, onValueChange }) => (
                   <>
-                    <SelectTrigger onClick={() => setSelectStates({ ...selectStates, type: !selectStates.type })}>
+                    <SelectTrigger isOpen={selectStates.type} onClick={() => setSelectStates({ ...selectStates, type: !selectStates.type })}>
                       <SelectValue placeholder="All Types" value={value} options={typeOptions} />
                     </SelectTrigger>
                     <SelectContent isOpen={selectStates.type}>
@@ -287,7 +290,7 @@ export function DashboardPage() {
               >
                 {({ isOpen, setIsOpen, value, onValueChange }) => (
                   <>
-                    <SelectTrigger onClick={() => setSelectStates({ ...selectStates, status: !selectStates.status })}>
+                    <SelectTrigger isOpen={selectStates.status} onClick={() => setSelectStates({ ...selectStates, status: !selectStates.status })}>
                       <SelectValue placeholder="All Status" value={value} options={statusOptions} />
                     </SelectTrigger>
                     <SelectContent isOpen={selectStates.status}>
@@ -313,7 +316,7 @@ export function DashboardPage() {
               >
                 {({ isOpen, setIsOpen, value, onValueChange }) => (
                   <>
-                    <SelectTrigger onClick={() => setSelectStates({ ...selectStates, barangay: !selectStates.barangay })}>
+                    <SelectTrigger isOpen={selectStates.barangay} onClick={() => setSelectStates({ ...selectStates, barangay: !selectStates.barangay })}>
                       <SelectValue placeholder="All Barangays" value={value} options={barangayOptions} />
                     </SelectTrigger>
                     <SelectContent isOpen={selectStates.barangay} className="max-h-[300px]">

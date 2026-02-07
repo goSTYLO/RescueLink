@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Notification from '../components/Notification';
+import Swal from 'sweetalert2';
 import logo from '../assets/logo.svg';
 import illustration from '../assets/enter-code-illustration.svg';
 
@@ -11,7 +11,6 @@ export default function EnterCode({ onSuccess, onBackToLogin }) {
   const [code, setCode] = useState(['', '', '', '', '', '']);
   const [codeError, setCodeError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [notification, setNotification] = useState(null);
   const inputRefs = useRef([]);
 
   const handleCodeChange = (index, value) => {
@@ -71,6 +70,12 @@ export default function EnterCode({ onSuccess, onBackToLogin }) {
     
     const validationError = validateCode();
     if (validationError) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Invalid code',
+        text: validationError,
+        confirmButtonColor: '#134178',
+      });
       setCodeError(validationError);
       return;
     }
@@ -95,12 +100,19 @@ export default function EnterCode({ onSuccess, onBackToLogin }) {
         throw new Error(data.message || 'Invalid verification code');
       }
 
-      setNotification({ message: 'Code verified successfully!', type: 'success' });
-      setTimeout(() => {
-        navigate('/create-password');
-      }, 1500);
+      Swal.fire({
+        icon: 'success',
+        title: 'Code verified!',
+        text: 'Proceeding to create your new password.',
+        confirmButtonColor: '#134178',
+      }).then(() => navigate('/create-password'));
     } catch (err) {
-      setNotification({ message: err.message || 'Invalid code. Please try again.', type: 'error' });
+      Swal.fire({
+        icon: 'error',
+        title: 'Verification failed',
+        text: err.message || 'Invalid code. Please try again.',
+        confirmButtonColor: '#134178',
+      });
       setCode(['', '', '', '', '', '']);
       inputRefs.current[0]?.focus();
     } finally {
@@ -182,7 +194,14 @@ export default function EnterCode({ onSuccess, onBackToLogin }) {
             className="text-sm text-[#FF4F52] hover:text-gray-800 font-medium transition-colors duration-300 underline underline-offset-2"
             onClick={() => {
               // TODO: Implement resend code functionality
-              setNotification({ message: 'Code resent to your email.', type: 'success' });
+              Swal.fire({
+                icon: 'success',
+                title: 'Code resent',
+                text: 'A new verification code has been sent to your email.',
+                timer: 2000,
+                showConfirmButton: false,
+                timerProgressBar: true,
+              });
             }}
           >
             Didn't receive the code? Resend
@@ -241,14 +260,6 @@ export default function EnterCode({ onSuccess, onBackToLogin }) {
         </div>
       </div>
 
-      {/* Notification */}
-      {notification && (
-        <Notification
-          message={notification.message}
-          type={notification.type}
-          onClose={() => setNotification(null)}
-        />
-      )}
     </div>
   );
 }

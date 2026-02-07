@@ -16,6 +16,7 @@ import {
 import { adminActionLogs, incidents, barangays, disasterControlMode } from '../data/mockData';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import Swal from 'sweetalert2';
 
 export function AdminActionsPage() {
   const navigate = useNavigate();
@@ -47,22 +48,62 @@ export function AdminActionsPage() {
   });
 
   const handleActivateDisasterMode = () => {
-    if (!disasterType || selectedBarangays.length === 0) {
-      alert('Please select disaster type and affected barangays');
+    if (!disasterType) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Select Disaster Type',
+        text: 'Please select a disaster type (e.g., Typhoon, Flood) before activating emergency protocols.',
+        confirmButtonColor: '#134178',
+      });
+      return;
+    }
+    if (selectedBarangays.length === 0) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Select Affected Areas',
+        text: 'Please select at least one affected barangay to enable Disaster Control Mode.',
+        confirmButtonColor: '#134178',
+      });
       return;
     }
     setDisasterMode(true);
-    alert(`Disaster Control Mode activated: ${disasterType}\nAffected barangays: ${selectedBarangays.join(', ')}`);
+    const autoEscalateNote = autoEscalate ? '<br><strong>Auto-escalation:</strong> New incidents will automatically be set to Warning.' : '';
+    Swal.fire({
+      icon: 'success',
+      title: 'Disaster Control Mode Activated',
+      html: `Emergency protocols are now active for <strong>${disasterType}</strong>.<br><br>
+             <strong>Affected barangays:</strong> ${selectedBarangays.join(', ')}${autoEscalateNote}`,
+      confirmButtonColor: '#134178',
+      confirmButtonText: 'Understood',
+    });
   };
 
   const handleDeactivateDisasterMode = () => {
-    if (confirm('Are you sure you want to deactivate Disaster Control Mode?')) {
-      setDisasterMode(false);
-      setDisasterType('');
-      setSelectedBarangays([]);
-      setAutoEscalate(false);
-      alert('Disaster Control Mode deactivated');
-    }
+    Swal.fire({
+      title: 'Deactivate Disaster Control Mode?',
+      text: 'This will revert to normal operating procedures. Emergency protocols will be disabled.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#dc2626',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: 'Yes, deactivate',
+      cancelButtonText: 'Cancel',
+    }).then((result) => {
+      if (result.isConfirmed) {
+        setDisasterMode(false);
+        setDisasterType('');
+        setSelectedBarangays([]);
+        setAutoEscalate(false);
+        Swal.fire({
+          icon: 'success',
+          title: 'Deactivated',
+          text: 'Disaster Control Mode has been turned off. Normal operations resumed.',
+          timer: 2000,
+          showConfirmButton: false,
+          timerProgressBar: true,
+        });
+      }
+    });
   };
 
   if (!isAdmin) {
@@ -103,7 +144,7 @@ export function AdminActionsPage() {
       <div className="p-8">
         <div className="mb-6">
           <div className="flex items-center gap-3">
-            <Shield className="w-8 h-8 text-teal-600" />
+            <Shield className="w-8 h-8 text-[#134178]" />
             <div>
               <h1 className="text-3xl font-semibold text-gray-900">Admin Actions</h1>
               <p className="text-gray-600 mt-1">Advanced administrative controls and oversight</p>
@@ -156,7 +197,7 @@ export function AdminActionsPage() {
                           <Select value={disasterType} onValueChange={setDisasterType}>
                             {({ isOpen, setIsOpen, value, onValueChange }) => (
                               <>
-                                <SelectTrigger onClick={() => setSelectStates({ ...selectStates, disasterType: !selectStates.disasterType })} className="mt-2">
+                                <SelectTrigger isOpen={selectStates.disasterType} onClick={() => setSelectStates({ ...selectStates, disasterType: !selectStates.disasterType })} className="mt-2">
                                   <SelectValue placeholder="Select disaster type" value={value} options={disasterTypeOptions} />
                                 </SelectTrigger>
                                 <SelectContent isOpen={selectStates.disasterType}>
@@ -179,14 +220,22 @@ export function AdminActionsPage() {
                           <Label className="mb-2 block">Affected Barangays ({selectedBarangays.length} selected)</Label>
                           <div className="border border-gray-200 rounded-lg p-4 max-h-64 overflow-y-auto">
                             <div className="grid grid-cols-2 gap-2">
-                              <div className="col-span-2 mb-2">
+                              <div className="col-span-2 mb-2 flex gap-2">
                                 <Button 
                                   size="sm" 
                                   variant="outline" 
-                                  className="w-full"
+                                  className="flex-1"
                                   onClick={() => setSelectedBarangays(barangays)}
                                 >
                                   Select All Barangays
+                                </Button>
+                                <Button 
+                                  size="sm" 
+                                  variant="outline" 
+                                  className="flex-1"
+                                  onClick={() => setSelectedBarangays([])}
+                                >
+                                  Unselect All Barangays
                                 </Button>
                               </div>
                               {barangays.map((brgy) => (
@@ -287,7 +336,7 @@ export function AdminActionsPage() {
               </div>
 
               <div>
-                <Card>
+                <Card hover={false}>
                   <CardHeader>
                     <CardTitle className="text-base">Disaster Mode Features</CardTitle>
                   </CardHeader>
@@ -326,7 +375,7 @@ export function AdminActionsPage() {
                     {duplicateIncidents.map((incident) => (
                       <div 
                         key={incident.id} 
-                        className="p-4 border border-gray-200 rounded-lg hover:border-teal-300 transition-colors"
+                        className="p-4 border border-gray-200 rounded-lg hover:border-[#FF4F52]/30 transition-colors"
                       >
                         <div className="flex items-start justify-between mb-3">
                           <div>
@@ -342,9 +391,9 @@ export function AdminActionsPage() {
                             <p className="text-sm text-gray-600">{incident.emergencyType} - {incident.barangay}</p>
                           </div>
                           <Badge className={
-                            incident.severity === 'Critical' ? 'bg-red-100 text-red-700 border-red-200' :
-                            incident.severity === 'Warning' ? 'bg-amber-100 text-amber-700 border-amber-200' :
-                            'bg-green-100 text-green-700 border-green-200'
+                            incident.severity === 'Critical' ? 'bg-red-100 text-red-800 border-red-300' :
+                            incident.severity === 'Warning' ? 'bg-amber-100 text-amber-800 border-amber-300' :
+                            'bg-green-100 text-green-800 border-green-300'
                           }>
                             {incident.severity}
                           </Badge>
@@ -384,7 +433,7 @@ export function AdminActionsPage() {
                     <Select value={filterAction} onValueChange={setFilterAction}>
                       {({ isOpen, setIsOpen, value, onValueChange }) => (
                         <>
-                          <SelectTrigger onClick={() => setSelectStates({ ...selectStates, filterAction: !selectStates.filterAction })} className="w-48">
+                          <SelectTrigger isOpen={selectStates.filterAction} onClick={() => setSelectStates({ ...selectStates, filterAction: !selectStates.filterAction })} className="w-48">
                             <SelectValue placeholder="Filter by action" value={value} options={actionFilterOptions} />
                           </SelectTrigger>
                           <SelectContent isOpen={selectStates.filterAction}>
@@ -409,7 +458,7 @@ export function AdminActionsPage() {
                   {filteredLogs.map((log) => (
                     <div 
                       key={log.id} 
-                      className="p-4 border border-gray-200 rounded-lg hover:border-teal-300 transition-colors"
+                      className="p-4 border border-gray-200 rounded-lg hover:border-[#FF4F52]/30 transition-colors"
                     >
                       <div className="flex items-start justify-between mb-2">
                         <div className="flex items-center gap-2">
@@ -441,7 +490,7 @@ export function AdminActionsPage() {
                         <Button 
                           size="sm" 
                           variant="link" 
-                          className="p-0 h-auto text-xs text-teal-600"
+                          className="p-0 h-auto text-xs text-[#134178]"
                           onClick={() => navigate(`/incidents/${log.affectedIncident}`)}
                         >
                           View Incident {log.affectedIncident} →

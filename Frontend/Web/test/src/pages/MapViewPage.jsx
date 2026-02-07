@@ -80,11 +80,12 @@ export function MapViewPage() {
     }
   };
 
+  // Severity: urgency level (Critical=red, Warning=amber, Resolved=green)
   const getSeverityBadgeColor = (severity) => {
     switch (severity) {
-      case 'Critical': return 'bg-[#fecaca] text-[#b91c1c] border-[#b91c1c]';
-      case 'Warning': return 'bg-[#fef08a] text-[#a16207] border-[#a16207]';
-      case 'Resolved': return 'bg-[#d9f99d] text-[#3f6212] border-[#3f6212]';
+      case 'Critical': return 'bg-red-100 text-red-800 border-red-300';
+      case 'Warning': return 'bg-amber-100 text-amber-800 border-amber-300';
+      case 'Resolved': return 'bg-green-100 text-green-800 border-green-300';
       default: return 'bg-gray-100 text-gray-700 border-gray-200';
     }
   };
@@ -111,9 +112,9 @@ export function MapViewPage() {
           <p className="text-gray-600 mt-1">Real-time incident locations across Dagupan City</p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           {/* Left Column - Filters and Legend */}
-          <div className="lg:col-span-3 space-y-4 order-1">
+          <div className="lg:col-span-3 space-y-4 order-1 min-w-0">
             <Card hover={false}>
               <CardHeader>
                 <div className="flex items-center gap-2">
@@ -127,7 +128,7 @@ export function MapViewPage() {
                   <Select value={filterDepartment} onValueChange={setFilterDepartment}>
                     {({ isOpen, setIsOpen, value, onValueChange }) => (
                       <>
-                        <SelectTrigger onClick={() => setSelectStates({ ...selectStates, department: !selectStates.department })}>
+                        <SelectTrigger isOpen={selectStates.department} onClick={() => setSelectStates({ ...selectStates, department: !selectStates.department })}>
                           <SelectValue placeholder="All Departments" value={value} options={departmentOptions} />
                         </SelectTrigger>
                         <SelectContent isOpen={selectStates.department}>
@@ -150,7 +151,7 @@ export function MapViewPage() {
                   <Select value={filterBarangay} onValueChange={setFilterBarangay}>
                     {({ isOpen, setIsOpen, value, onValueChange }) => (
                       <>
-                        <SelectTrigger onClick={() => setSelectStates({ ...selectStates, barangay: !selectStates.barangay })}>
+                        <SelectTrigger isOpen={selectStates.barangay} onClick={() => setSelectStates({ ...selectStates, barangay: !selectStates.barangay })}>
                           <SelectValue placeholder="All Barangays" value={value} options={barangayOptions} />
                         </SelectTrigger>
                         <SelectContent isOpen={selectStates.barangay} className="max-h-[300px]">
@@ -194,7 +195,7 @@ export function MapViewPage() {
           </div>
 
           {/* Middle Column - Map */}
-          <div className="lg:col-span-6 order-2 lg:order-none">
+          <div className="lg:col-span-6 order-2 lg:order-none min-w-0">
             <Card hover={false}>
               <CardHeader>
                 <CardTitle>Dagupan City Map</CardTitle>
@@ -263,18 +264,18 @@ export function MapViewPage() {
           </div>
 
           {/* Right Column - Active Incidents and Details */}
-          <div className="lg:col-span-3 space-y-6">
+          <div className="lg:col-span-3 flex flex-col gap-6 min-w-0">
             {/* Active Incidents */}
-            <Card hover={false}>
+            <Card hover={false} className="flex-shrink-0">
               <CardHeader>
                 <CardTitle>Active Incidents</CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
+              <CardContent className="overflow-hidden">
+                <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1">
                   {filteredIncidents.slice(0, 6).map((incident) => (
                     <div
                       key={incident.id}
-                      className={`p-3 bg-white border rounded-lg cursor-pointer hover:shadow-sm transition-all ${
+                      className={`flex-shrink-0 p-3 bg-white border rounded-lg cursor-pointer hover:shadow-sm transition-all ${
                         selectedIncident?.id === incident.id 
                           ? 'border-[#134178] bg-green-50' 
                           : 'border-gray-200'
@@ -305,7 +306,7 @@ export function MapViewPage() {
             </Card>
 
             {/* Incident Details */}
-            <Card hover={false}>
+            <Card hover={false} className="flex-shrink-0">
               <CardHeader>
                 <CardTitle>Incident Details</CardTitle>
               </CardHeader>

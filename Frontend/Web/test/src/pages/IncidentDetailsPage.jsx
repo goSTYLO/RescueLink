@@ -71,11 +71,12 @@ export function IncidentDetailsPage() {
     );
   }
 
+  // Severity: urgency level (Critical=red, Warning=amber, Resolved=green)
   const getSeverityColor = (severity) => {
     switch (severity) {
-      case 'Critical': return 'bg-red-100 text-red-700 border-red-200';
-      case 'Warning': return 'bg-amber-100 text-amber-700 border-amber-200';
-      case 'Resolved': return 'bg-green-100 text-green-700 border-green-200';
+      case 'Critical': return 'bg-red-100 text-red-800 border-red-300';
+      case 'Warning': return 'bg-amber-100 text-amber-800 border-amber-300';
+      case 'Resolved': return 'bg-green-100 text-green-800 border-green-300';
       default: return 'bg-gray-100 text-gray-700 border-gray-200';
     }
   };
@@ -136,11 +137,11 @@ export function IncidentDetailsPage() {
         <div className="mb-6 flex items-center gap-4">
           <Button
             variant="ghost"
-            onClick={() => navigate('/dashboard')}
+            onClick={() => navigate(-1)}
             className="gap-2"
           >
             <ArrowLeft className="w-4 h-4" />
-            Back to Dashboard
+            Back
           </Button>
         </div>
 

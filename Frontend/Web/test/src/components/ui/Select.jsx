@@ -24,7 +24,7 @@ export function Select({ value, onValueChange, children, className = '' }) {
   );
 }
 
-export function SelectTrigger({ children, onClick, className = '' }) {
+export function SelectTrigger({ children, onClick, className = '', isOpen = false }) {
   return (
     <button
       type="button"
@@ -32,7 +32,12 @@ export function SelectTrigger({ children, onClick, className = '' }) {
       className={`w-full flex items-center justify-between px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#134178] ${className}`}
     >
       {children}
-      <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg 
+        className={`w-4 h-4 text-gray-500 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} 
+        fill="none" 
+        stroke="currentColor" 
+        viewBox="0 0 24 24"
+      >
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
       </svg>
     </button>

@@ -79,16 +79,13 @@ export function AuditLogPage() {
     { value: 'Resolved', label: 'Resolved' },
   ];
 
+  // Severity: urgency level (Critical=red, Warning=amber, Resolved=green)
   const getSeverityColor = (severity) => {
     switch (severity) {
-      case 'Critical':
-        return 'bg-red-500 text-white border-red-600';
-      case 'Warning':
-        return 'bg-amber-200 text-amber-900 border-amber-300';
-      case 'Resolved':
-        return 'bg-green-200 text-green-900 border-green-300';
-      default:
-        return 'bg-gray-100 text-gray-700 border-gray-200';
+      case 'Critical': return 'bg-red-100 text-red-800 border-red-300';
+      case 'Warning': return 'bg-amber-100 text-amber-800 border-amber-300';
+      case 'Resolved': return 'bg-green-100 text-green-800 border-green-300';
+      default: return 'bg-gray-100 text-gray-700 border-gray-200';
     }
   };
 
@@ -168,6 +165,7 @@ export function AuditLogPage() {
               {({ value }) => (
                 <>
                   <SelectTrigger
+                    isOpen={selectStates.verification}
                     onClick={() =>
                       setSelectStates((s) => ({ ...s, verification: !s.verification }))
                     }
@@ -200,6 +198,7 @@ export function AuditLogPage() {
               {({ value }) => (
                 <>
                   <SelectTrigger
+                    isOpen={selectStates.barangay}
                     onClick={() =>
                       setSelectStates((s) => ({ ...s, barangay: !s.barangay }))
                     }
@@ -228,6 +227,7 @@ export function AuditLogPage() {
               {({ value }) => (
                 <>
                   <SelectTrigger
+                    isOpen={selectStates.severity}
                     onClick={() =>
                       setSelectStates((s) => ({ ...s, severity: !s.severity }))
                     }

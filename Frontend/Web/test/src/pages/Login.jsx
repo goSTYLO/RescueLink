@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import Swal from 'sweetalert2';
 import logo from '../assets/logo.svg';
 import illustration from '../assets/illustration.svg';
 
@@ -12,17 +13,20 @@ export default function Login({ onSuccess, onForgotPasswordClick }) {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
 
   const handleLogin = async (e) => {
     e.preventDefault();
     if (!email || !password) {
-      setError('Email and password are required');
+      Swal.fire({
+        icon: 'warning',
+        title: 'Missing fields',
+        text: 'Please enter your email and password.',
+        confirmButtonColor: '#134178',
+      });
       return;
     }
 
     setLoading(true);
-    setError('');
 
     try {
       const response = await fetch(`${API_URL}/api/auth/login`, {
@@ -38,9 +42,21 @@ export default function Login({ onSuccess, onForgotPasswordClick }) {
       }
 
       localStorage.setItem('token', data.token);
-      onSuccess(data);
+      Swal.fire({
+        icon: 'success',
+        title: 'Welcome back!',
+        text: 'You have successfully logged in.',
+        timer: 1500,
+        showConfirmButton: false,
+        timerProgressBar: true,
+      }).then(() => onSuccess(data));
     } catch (err) {
-      setError(err.message);
+      Swal.fire({
+        icon: 'error',
+        title: 'Login failed',
+        text: err.message || 'Invalid credentials. Please try again.',
+        confirmButtonColor: '#134178',
+      });
     } finally {
       setLoading(false);
     }
@@ -126,16 +142,6 @@ export default function Login({ onSuccess, onForgotPasswordClick }) {
               Forgot Password?
             </button>
           </div>
-
-          {/* Error Message */}
-          {error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-3 animate-fade-in">
-              <svg className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <p className="text-sm text-red-800 flex-1">{error}</p>
-            </div>
-          )}
 
           {/* Login Button */}
           <button
