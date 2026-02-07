@@ -196,3 +196,35 @@ exports.resetPassword = async (req, res) => {
     res.status(500).json({ message: 'Password reset failed' });
   }
 };
+
+// Get current authenticated user's profile
+exports.getMe = async (req, res) => {
+  try {
+    const userId = req.user?.user_id;
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.json({
+      user: {
+        user_id: user.user_id,
+        phone: user.phone_number,
+        email: user.email,
+        address: user.address,
+        phone_verified: user.phone_verified,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        role: user.role,
+        created_at: user.created_at,
+      },
+    });
+  } catch (err) {
+    console.error('❌ Get profile error:', err.message);
+    res.status(500).json({ message: 'Failed to fetch profile' });
+  }
+};

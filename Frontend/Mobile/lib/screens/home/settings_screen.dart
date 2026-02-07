@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../services/auth_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   final VoidCallback? onLogout;
@@ -20,6 +21,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _locationAccess = true;
   bool _microphone = true;
   bool _camera = true;
+
+  bool _loadingProfile = true;
+  String? _profileError;
+  Map<String, dynamic>? _profile;
 
   Widget _buildLogo() {
     return Row(
@@ -55,7 +60,45 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    setState(() {
+      _loadingProfile = true;
+      _profileError = null;
+    });
+
+    final result = await AuthService().getProfile();
+    if (!mounted) return;
+
+    if (result['success'] == true) {
+      setState(() {
+        _profile = (result['user'] as Map?)?.cast<String, dynamic>();
+        _loadingProfile = false;
+      });
+    } else {
+      setState(() {
+        _profileError = result['error']?.toString() ?? 'Failed to load profile';
+        _loadingProfile = false;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final profile = _profile ?? {};
+    final firstName = (profile['firstName'] ?? '') as String;
+    final lastName = (profile['lastName'] ?? '') as String;
+    final fullName = (firstName.isNotEmpty || lastName.isNotEmpty)
+        ? '${firstName.trim()} ${lastName.trim()}'.trim()
+        : 'User';
+    final phone = (profile['phone'] ?? '') as String;
+    final address = (profile['address'] ?? '') as String;
+    final phoneVerified = profile['phone_verified'] == true;
+
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(
@@ -64,6 +107,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 16),
           _buildLogo(),
           const SizedBox(height: 20),
+          if (_loadingProfile)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 16),
+              child: LinearProgressIndicator(minHeight: 3),
+            )
+          else if (_profileError != null)
+            Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEE2E2),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFFCA5A5)),
+              ),
+              child: Text(
+                _profileError!,
+                style: const TextStyle(color: Color(0xFF991B1B), fontSize: 12),
+              ),
+            ),
           // Location bar
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
@@ -89,9 +151,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ),
                       ),
                       const SizedBox(height: 2),
-                      const Text(
-                        'Barangay Poblacion Oeste',
-                        style: TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
+                      Text(
+                        address.isNotEmpty ? address : 'Address not set',
+                        style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
                       ),
                     ],
                   ),
@@ -170,27 +232,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'John Doe Cruz',
-                        style: TextStyle(
+                      Text(
+                        fullName,
+                        style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                           color: Color(0xFF111827),
                         ),
                       ),
                       const SizedBox(height: 2),
-                      const Text(
-                        '+63 965 254 2364',
-                        style: TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
+                      Text(
+                        phone.isNotEmpty ? phone : 'Phone not set',
+                        style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
                       ),
                       const SizedBox(height: 6),
                       Row(
                         children: [
-                          const Icon(Icons.check_circle, color: Color(0xFF22C55E), size: 18),
+                          Icon(
+                            phoneVerified ? Icons.check_circle : Icons.error_outline,
+                            color: phoneVerified ? const Color(0xFF22C55E) : const Color(0xFFF59E0B),
+                            size: 18,
+                          ),
                           const SizedBox(width: 6),
-                          const Text(
-                            'Verified Citizen',
-                            style: TextStyle(fontSize: 12, color: Color(0xFF22C55E), fontWeight: FontWeight.w500),
+                          Text(
+                            phoneVerified ? 'Verified Citizen' : 'Unverified',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: phoneVerified ? const Color(0xFF22C55E) : const Color(0xFFF59E0B),
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
                         ],
                       ),
@@ -204,8 +274,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _sectionHeading('Account Information'),
           const SizedBox(height: 8),
           _settingsCard(children: [
-            _settingsRow(icon: Icons.phone_android, iconBg: const Color(0xFFDBEAFE), iconColor: const Color(0xFF2563EB), title: 'Phone Number', subtitle: '+63 945 584 6936', showArrow: true, onTap: widget.onPhoneNumberTap),
-            _settingsRow(icon: Icons.home_outlined, iconBg: const Color(0xFFDCFCE7), iconColor: const Color(0xFF22C55E), title: 'Barangay', subtitle: 'Poblacion Oeste Dagupan City', showArrow: true, onTap: widget.onBarangayTap),
+            _settingsRow(
+              icon: Icons.phone_android,
+              iconBg: const Color(0xFFDBEAFE),
+              iconColor: const Color(0xFF2563EB),
+              title: 'Phone Number',
+              subtitle: phone.isNotEmpty ? phone : 'Not set',
+              showArrow: true,
+              onTap: widget.onPhoneNumberTap,
+            ),
+            _settingsRow(
+              icon: Icons.home_outlined,
+              iconBg: const Color(0xFFDCFCE7),
+              iconColor: const Color(0xFF22C55E),
+              title: 'Barangay',
+              subtitle: address.isNotEmpty ? address : 'Not set',
+              showArrow: true,
+              onTap: widget.onBarangayTap,
+            ),
           ]),
           const SizedBox(height: 20),
           _sectionHeading('Emergency Contacts'),

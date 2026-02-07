@@ -40,6 +40,36 @@ class AuthService {
     await _firebaseAuth.signOut();
   }
 
+  // Get current user's profile from backend
+  Future<Map<String, dynamic>> getProfile() async {
+    try {
+      final token = getToken();
+      if (token == null || token.isEmpty) {
+        return {
+          'success': false,
+          'error': 'Missing auth token',
+        };
+      }
+
+      final response = await _apiService.get(
+        '/api/auth/me',
+        headers: {
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      return {
+        'success': true,
+        'user': response['user'] ?? response,
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'error': e.toString(),
+      };
+    }
+  }
+
   // Register user with backend (now includes location validation)
     // Check if location is within Dagupan City
     Future<Map<String, dynamic>> checkLocationInDagupan({
