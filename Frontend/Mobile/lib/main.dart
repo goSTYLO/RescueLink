@@ -71,6 +71,7 @@ class AuthNavigator extends StatefulWidget {
 }
 
 class _AuthNavigatorState extends State<AuthNavigator> {
+  bool _checkingSession = true;
   bool _showSignUp = false;
   String? _forgotFlowScreen;
   String _forgotPhoneNumber = '';
@@ -117,6 +118,25 @@ class _AuthNavigatorState extends State<AuthNavigator> {
   // Login path verification flow (after login): Request OTP -> Enter OTP -> dashboard
   String? _verificationStep;
   static const String _verificationPhone = '+63 917 123 4567';
+
+  @override
+  void initState() {
+    super.initState();
+    _restoreSession();
+  }
+
+  Future<void> _restoreSession() async {
+    final authService = AuthService();
+    final hasValidToken = authService.hasValidToken();
+    if (!mounted) return;
+    setState(() {
+      _showDashboard = hasValidToken;
+      _checkingSession = false;
+    });
+    if (!hasValidToken) {
+      await authService.clearToken();
+    }
+  }
 
   void _toggleView() {
     setState(() {
@@ -168,6 +188,12 @@ class _AuthNavigatorState extends State<AuthNavigator> {
       _verificationStep = null;
       _forgotPasswordIdToken = null;
     });
+  }
+
+  Future<void> _performLogout() async {
+    await AuthService().logout();
+    if (!mounted) return;
+    _backToLogin();
   }
 
   void _onResidencyRetry() {
@@ -258,6 +284,11 @@ class _AuthNavigatorState extends State<AuthNavigator> {
   }
 
   Widget _buildContent(BuildContext context) {
+    if (_checkingSession) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
     // Dashboard (after login success)
     if (_showDashboard) {
       if (_showEmergencyReport) {
@@ -378,7 +409,7 @@ class _AuthNavigatorState extends State<AuthNavigator> {
             _showLogoutConfirmation = false;
             _returnToSettingsTab = true;
           }),
-          onConfirm: _backToLogin,
+          onConfirm: _performLogout,
         );
       }
       return Stack(

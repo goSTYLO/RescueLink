@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -38,6 +39,51 @@ class AuthService {
   Future<void> logout() async {
     await _prefs.remove('jwt_token');
     await _firebaseAuth.signOut();
+  }
+
+  // Clear token only (no Firebase sign-out)
+  Future<void> clearToken() async {
+    await _prefs.remove('jwt_token');
+  }
+
+  bool hasValidToken() {
+    final token = getToken();
+    if (token == null || token.isEmpty) return false;
+    return _isTokenValid(token);
+  }
+
+  bool _isTokenValid(String token) {
+    try {
+      final parts = token.split('.');
+      if (parts.length != 3) return false;
+      final payload = _decodeBase64Url(parts[1]);
+      final payloadMap = jsonDecode(payload) as Map<String, dynamic>;
+      final exp = payloadMap['exp'];
+      if (exp == null) return false;
+      final expSeconds = exp is int ? exp : int.tryParse(exp.toString());
+      if (expSeconds == null) return false;
+      final nowSeconds = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      return expSeconds > nowSeconds;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  String _decodeBase64Url(String input) {
+    var normalized = input.replaceAll('-', '+').replaceAll('_', '/');
+    switch (normalized.length % 4) {
+      case 0:
+        break;
+      case 2:
+        normalized += '==';
+        break;
+      case 3:
+        normalized += '=';
+        break;
+      default:
+        return '';
+    }
+    return utf8.decode(base64Url.decode(normalized));
   }
 
   // Get current user's profile from backend
