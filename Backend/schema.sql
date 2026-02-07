@@ -53,11 +53,6 @@ ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS media_paths JSONB;
 ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS ai_pending BOOLEAN DEFAULT FALSE;
 ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS ai_attempted BOOLEAN DEFAULT FALSE;
 
--- Add AI classification columns to ai_classifications
-ALTER TABLE ai_classifications ADD COLUMN IF NOT EXISTS low_confidence_flag BOOLEAN DEFAULT FALSE;
-ALTER TABLE ai_classifications ADD COLUMN IF NOT EXISTS is_override BOOLEAN DEFAULT FALSE;
-ALTER TABLE ai_classifications ADD COLUMN IF NOT EXISTS retry_count INTEGER DEFAULT 0;
-
 -- Create responders table
 CREATE TABLE IF NOT EXISTS responders (
   responder_id SERIAL PRIMARY KEY,
@@ -80,6 +75,12 @@ CREATE TABLE IF NOT EXISTS ai_classifications (
   retry_count INTEGER DEFAULT 0,
   processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Migration SQL for existing databases (run these if table already exists)
+-- Add AI classification columns to ai_classifications
+ALTER TABLE ai_classifications ADD COLUMN IF NOT EXISTS low_confidence_flag BOOLEAN DEFAULT FALSE;
+ALTER TABLE ai_classifications ADD COLUMN IF NOT EXISTS is_override BOOLEAN DEFAULT FALSE;
+ALTER TABLE ai_classifications ADD COLUMN IF NOT EXISTS retry_count INTEGER DEFAULT 0;
 
 -- Index for quick lookups by report
 CREATE INDEX IF NOT EXISTS idx_ai_classifications_report_id ON ai_classifications(report_id);
