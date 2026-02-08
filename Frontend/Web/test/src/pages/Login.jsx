@@ -63,7 +63,7 @@ export default function Login({ onSuccess, onForgotPasswordClick }) {
   };
 
   return (
-    <div className="flex min-h-screen bg-white">
+    <div className="flex min-h-screen bg-background">
       {/* Left Panel - Login Form */}
       <div className="flex-1 flex flex-col justify-center px-12 py-8 max-w-2xl">
         {/* Logo */}
@@ -77,10 +77,10 @@ export default function Login({ onSuccess, onForgotPasswordClick }) {
 
         {/* Welcome Message */}
         <div className="mb-8">
-          <h2 className="text-4xl font-bold text-gray-800 mb-3 transition-all duration-300">Welcome back!</h2>
-          <p className="text-lg text-gray-700">
+          <h2 className="text-4xl font-bold text-foreground mb-3 transition-all duration-300">Welcome back!</h2>
+          <p className="text-lg text-muted">
             Secure Emergency Response Management Platform through{' '}
-            <span className="text-[#FF4F52] font-semibold">RescueLink!</span>
+            <span className="text-primary font-semibold">RescueLink!</span>
           </p>
         </div>
 
@@ -88,7 +88,7 @@ export default function Login({ onSuccess, onForgotPasswordClick }) {
         <form onSubmit={handleLogin} className="space-y-6">
           {/* Email/Username Field */}
           <div>
-            <label className="block text-sm font-medium text-gray-800 mb-2">
+            <label className="block text-sm font-medium text-foreground mb-2">
               Email / Username
             </label>
             <input
@@ -96,13 +96,13 @@ export default function Login({ onSuccess, onForgotPasswordClick }) {
               placeholder="Enter your registered email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-500/20 focus:border-gray-500 transition-all duration-300 text-gray-800 placeholder-gray-400 hover:border-gray-400 hover:bg-gray-50"
+              className="w-full px-4 py-3 border-2 border-[rgba(19,65,120,0.35)] rounded-xl bg-card text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-secondary focus:ring-offset-2 focus:ring-offset-background focus:border-secondary transition-all duration-300 hover:border-secondary/50"
             />
           </div>
 
           {/* Password Field */}
           <div>
-            <label className="block text-sm font-medium text-gray-800 mb-2">
+            <label className="block text-sm font-medium text-foreground mb-2">
               Password
             </label>
             <div className="relative">
@@ -111,12 +111,12 @@ export default function Login({ onSuccess, onForgotPasswordClick }) {
                 placeholder="Enter your password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-3 pr-12 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-500/20 focus:border-gray-500 transition-all duration-300 text-gray-800 placeholder-gray-400 hover:border-gray-400 hover:bg-gray-50"
+                className="w-full px-4 py-3 pr-12 border-2 border-[rgba(19,65,120,0.35)] rounded-xl bg-card text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-secondary focus:ring-offset-2 focus:ring-offset-background focus:border-secondary transition-all duration-300 hover:border-secondary/50"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                className="absolute right-4 top-1/2 transform -translate-y-1/2 text-muted hover:text-foreground transition-colors"
               >
                 {showPassword ? (
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -137,7 +137,7 @@ export default function Login({ onSuccess, onForgotPasswordClick }) {
             <button
               type="button"
               onClick={() => navigate('/forgot-password')}
-              className="text-sm font-semibold text-gray-800 hover:text-gray-600"
+              className="text-sm font-semibold text-foreground hover:text-muted transition-colors"
             >
               Forgot Password?
             </button>
@@ -147,7 +147,7 @@ export default function Login({ onSuccess, onForgotPasswordClick }) {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-[#FF4F52] text-white py-3 rounded-xl font-bold text-lg hover:bg-gray-800 disabled:bg-gray-400 transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] shadow-lg hover:shadow-xl hover:shadow-gray-500/30"
+            className="w-full bg-primary text-white py-3 rounded-xl font-bold text-lg hover:bg-primary-hover disabled:bg-muted/40 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] shadow-card hover:shadow-card-hover hover:shadow-primary/20 focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background"
           >
             {loading ? 'Logging in...' : 'Login'}
           </button>
@@ -155,83 +155,83 @@ export default function Login({ onSuccess, onForgotPasswordClick }) {
 
         {/* Development Mode Quick Navigation */}
         {DEV_MODE && (
-          <div className="mt-8 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-            <p className="text-sm font-semibold text-yellow-900 mb-3">🚧 Development Mode - Quick Navigation:</p>
+          <div className="mt-8 bg-card border border-[rgba(19,65,120,0.35)] rounded-lg p-4">
+            <p className="text-sm font-semibold text-amber-400 mb-3">🚧 Development Mode - Quick Navigation:</p>
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={() => navigate('/dashboard')}
-                className="text-xs px-3 py-2 bg-white border border-yellow-300 rounded-lg hover:bg-yellow-100 text-yellow-900 transition-colors"
+                className="text-xs px-3 py-2 bg-background border border-[rgba(19,65,120,0.35)] rounded-lg hover:bg-secondary/30 text-foreground transition-colors"
               >
                 Dashboard
               </button>
               <button
                 type="button"
                 onClick={() => navigate('/map')}
-                className="text-xs px-3 py-2 bg-white border border-yellow-300 rounded-lg hover:bg-yellow-100 text-yellow-900 transition-colors"
+                className="text-xs px-3 py-2 bg-background border border-[rgba(19,65,120,0.35)] rounded-lg hover:bg-secondary/30 text-foreground transition-colors"
               >
                 Map View
               </button>
               <button
                 type="button"
                 onClick={() => navigate('/departments')}
-                className="text-xs px-3 py-2 bg-white border border-yellow-300 rounded-lg hover:bg-yellow-100 text-yellow-900 transition-colors"
+                className="text-xs px-3 py-2 bg-background border border-[rgba(19,65,120,0.35)] rounded-lg hover:bg-secondary/30 text-foreground transition-colors"
               >
                 Departments
               </button>
               <button
                 type="button"
                 onClick={() => navigate('/taskboard')}
-                className="text-xs px-3 py-2 bg-white border border-yellow-300 rounded-lg hover:bg-yellow-100 text-yellow-900 transition-colors"
+                className="text-xs px-3 py-2 bg-background border border-[rgba(19,65,120,0.35)] rounded-lg hover:bg-secondary/30 text-foreground transition-colors"
               >
                 Task Board
               </button>
               <button
                 type="button"
                 onClick={() => navigate('/audit')}
-                className="text-xs px-3 py-2 bg-white border border-yellow-300 rounded-lg hover:bg-yellow-100 text-yellow-900 transition-colors"
+                className="text-xs px-3 py-2 bg-background border border-[rgba(19,65,120,0.35)] rounded-lg hover:bg-secondary/30 text-foreground transition-colors"
               >
                 Audit Log
               </button>
               <button
                 type="button"
                 onClick={() => navigate('/adminactions')}
-                className="text-xs px-3 py-2 bg-white border border-yellow-300 rounded-lg hover:bg-yellow-100 text-yellow-900 transition-colors"
+                className="text-xs px-3 py-2 bg-background border border-[rgba(19,65,120,0.35)] rounded-lg hover:bg-secondary/30 text-foreground transition-colors"
               >
                 Admin Actions
               </button>
               <button
                 type="button"
                 onClick={() => navigate('/profile')}
-                className="text-xs px-3 py-2 bg-white border border-yellow-300 rounded-lg hover:bg-yellow-100 text-yellow-900 transition-colors"
+                className="text-xs px-3 py-2 bg-background border border-[rgba(19,65,120,0.35)] rounded-lg hover:bg-secondary/30 text-foreground transition-colors"
               >
                 Profile
               </button>
               <button
                 type="button"
                 onClick={() => navigate('/settings')}
-                className="text-xs px-3 py-2 bg-white border border-yellow-300 rounded-lg hover:bg-yellow-100 text-yellow-900 transition-colors"
+                className="text-xs px-3 py-2 bg-background border border-[rgba(19,65,120,0.35)] rounded-lg hover:bg-secondary/30 text-foreground transition-colors"
               >
                 Settings
               </button>
               <button
                 type="button"
                 onClick={() => navigate('/forgot-password')}
-                className="text-xs px-3 py-2 bg-white border border-yellow-300 rounded-lg hover:bg-yellow-100 text-yellow-900 transition-colors"
+                className="text-xs px-3 py-2 bg-background border border-[rgba(19,65,120,0.35)] rounded-lg hover:bg-secondary/30 text-foreground transition-colors"
               >
                 Forgot Password
               </button>
               <button
                 type="button"
                 onClick={() => navigate('/enter-code')}
-                className="text-xs px-3 py-2 bg-white border border-yellow-300 rounded-lg hover:bg-yellow-100 text-yellow-900 transition-colors"
+                className="text-xs px-3 py-2 bg-background border border-[rgba(19,65,120,0.35)] rounded-lg hover:bg-secondary/30 text-foreground transition-colors"
               >
                 Enter Code
               </button>
               <button
                 type="button"
                 onClick={() => navigate('/create-password')}
-                className="text-xs px-3 py-2 bg-white border border-yellow-300 rounded-lg hover:bg-yellow-100 text-yellow-900 transition-colors"
+                className="text-xs px-3 py-2 bg-background border border-[rgba(19,65,120,0.35)] rounded-lg hover:bg-secondary/30 text-foreground transition-colors"
               >
                 Create Password
               </button>
@@ -240,22 +240,22 @@ export default function Login({ onSuccess, onForgotPasswordClick }) {
         )}
 
         {/* Security Note */}
-        <div className="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start gap-3">
-          <svg className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="mt-8 bg-card border border-[rgba(19,65,120,0.35)] rounded-lg p-4 flex items-start gap-3">
+          <svg className="w-5 h-5 text-secondary-light flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
           </svg>
-          <p className="text-sm">
-            <strong className="text-black">Security Note:</strong>{' '}
-            <span className="text-blue-600">Role-based access control ensures only authorized personnel can access sensitive citizen incident data.</span>
+          <p className="text-sm text-muted">
+            <strong className="text-foreground">Security Note:</strong>{' '}
+            Role-based access control ensures only authorized personnel can access sensitive citizen incident data.
           </p>
         </div>
       </div>
 
       {/* Right Panel - Illustration */}
-      <div className="flex-1 bg-gray-50 flex flex-col items-center justify-center px-12 py-8 relative overflow-hidden">
+      <div className="flex-1 bg-card flex flex-col items-center justify-center px-12 py-8 relative overflow-hidden border-l border-[rgba(19,65,120,0.35)]">
         {/* Decorative rounded corners */}
-        <div className="absolute top-0 right-0 w-32 h-32 bg-white rounded-bl-full opacity-20"></div>
-        <div className="absolute bottom-0 right-0 w-24 h-24 bg-white rounded-tl-full opacity-20"></div>
+        <div className="absolute top-0 right-0 w-32 h-32 bg-secondary/20 rounded-bl-full opacity-40"></div>
+        <div className="absolute bottom-0 right-0 w-24 h-24 bg-secondary/20 rounded-tl-full opacity-40"></div>
 
         {/* Illustration Image */}
         <div className="relative z-10 w-full h-full flex flex-col items-center justify-center">
@@ -267,14 +267,14 @@ export default function Login({ onSuccess, onForgotPasswordClick }) {
             />
           ) : (
             <div className="flex items-center justify-center h-full">
-              <p className="text-gray-400 text-sm">Illustration will appear here</p>
+              <p className="text-muted text-sm">Illustration will appear here</p>
             </div>
           )}
         </div>
 
         {/* Tagline */}
         <div className="absolute bottom-8 left-0 right-0 text-center z-20">
-          <p className="text-gray-800 font-medium text-lg">One Tap. One Report. Faster Response.</p>
+          <p className="text-foreground font-medium text-lg">One Tap. One Report. Faster Response.</p>
         </div>
       </div>
     </div>

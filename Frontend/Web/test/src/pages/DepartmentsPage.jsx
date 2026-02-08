@@ -12,9 +12,10 @@ import {
   DialogFooter,
   DialogDescription,
 } from '../components/ui/Dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/Select';
 import { departments as initialDepartments, units, incidents } from '../data/mockData';
 import { useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
 import { Flame, Shield, Heart, AlertTriangle, Users, Plus, Pencil, Trash2 } from 'lucide-react';
 
@@ -37,6 +38,8 @@ export function DepartmentsPage() {
   );
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingDept, setEditingDept] = useState(null);
+  const [typeSelectOpen, setTypeSelectOpen] = useState(false);
+  useEffect(() => { if (!dialogOpen) setTypeSelectOpen(false); }, [dialogOpen]);
   const [form, setForm] = useState({
     name: '',
     type: 'Fire',
@@ -77,10 +80,10 @@ export function DepartmentsPage() {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'Available': return 'bg-green-100 text-green-700 border-green-200';
-      case 'Partially Busy': return 'bg-amber-100 text-amber-700 border-amber-200';
-      case 'Critical Load': return 'bg-red-100 text-red-700 border-red-200';
-      default: return 'bg-gray-100 text-gray-700 border-gray-200';
+      case 'Available': return 'bg-severity-resolved/20 text-severity-resolved border-emerald-500/40';
+      case 'Partially Busy': return 'bg-amber-500/20 text-amber-400 border-amber-500/40';
+      case 'Critical Load': return 'bg-primary/20 text-primary border-primary/50';
+      default: return 'bg-card text-muted border-[rgba(19,65,120,0.35)]';
     }
   };
 
@@ -170,8 +173,8 @@ export function DepartmentsPage() {
       cancelButtonText: 'Cancel',
       customClass: {
         popup: 'rounded-2xl shadow-xl',
-        title: 'text-gray-900 text-xl',
-        htmlContainer: 'text-gray-600',
+        title: 'text-foreground text-xl',
+        htmlContainer: 'text-muted',
         confirmButton: 'rounded-xl px-5 py-2.5 font-medium',
         cancelButton: 'rounded-xl px-5 py-2.5 font-medium',
       },
@@ -187,11 +190,32 @@ export function DepartmentsPage() {
     <Layout>
       <>
       <div className="p-8">
-        <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-semibold text-gray-900">Department Management</h1>
-            <p className="text-gray-600 mt-1">Centralized view of all emergency departments</p>
-          </div>
+        <div className="mb-6">
+          <h1 className="text-3xl font-semibold text-foreground">Department Management</h1>
+          <p className="text-muted mt-1">Centralized view of all emergency departments</p>
+        </div>
+
+        {/* Summary Bar - not dynamic */}
+        <Card className="mb-6" hover={false}>
+          <CardContent className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div>
+                <p className="text-sm text-muted mb-1">Total Active Incidents</p>
+                <p className="text-3xl font-semibold text-foreground">{totalActiveIncidents}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted mb-1">Total Available Units</p>
+                <p className="text-3xl font-semibold text-[#134178]">{totalAvailableUnits}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted mb-1">City-wide Alert Level</p>
+                <Badge className="bg-green-100 text-green-700 border-green-200 text-lg px-3 py-1">Normal</Badge>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="mb-6 flex justify-end">
           <button
             type="button"
             onClick={openAddDialog}
@@ -201,26 +225,6 @@ export function DepartmentsPage() {
             Add Department
           </button>
         </div>
-
-        {/* Summary Bar - not dynamic */}
-        <Card className="mb-6" hover={false}>
-          <CardContent className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div>
-                <p className="text-sm text-gray-600 mb-1">Total Active Incidents</p>
-                <p className="text-3xl font-semibold text-gray-900">{totalActiveIncidents}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600 mb-1">Total Available Units</p>
-                <p className="text-3xl font-semibold text-[#134178]">{totalAvailableUnits}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600 mb-1">City-wide Alert Level</p>
-                <Badge className="bg-green-100 text-green-700 border-green-200 text-lg px-3 py-1">Normal</Badge>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
 
         {/* Department Cards - only these are dynamic */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -237,17 +241,17 @@ export function DepartmentsPage() {
                 onClick={() => navigate(`/departments/${dept.id}`)}
               >
                 <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center transition-all duration-300 hover:scale-110 hover:bg-blue-100">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <div className="w-12 h-12 shrink-0 rounded-xl bg-blue-50 flex items-center justify-center transition-all duration-300 hover:scale-110 hover:bg-blue-100">
                         <Icon className="w-6 h-6 text-blue-700" />
                       </div>
-                      <div>
-                        <CardTitle className="text-base">{dept.name}</CardTitle>
-                        <p className="text-sm text-gray-600">{dept.type} Response</p>
+                      <div className="min-w-0 flex-1">
+                        <CardTitle className="text-base truncate" title={dept.name}>{dept.name}</CardTitle>
+                        <p className="text-sm text-gray-600 truncate">{dept.type} Response</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
                       <Button
                         variant="ghost"
                         size="sm"
@@ -279,7 +283,7 @@ export function DepartmentsPage() {
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-gray-600">Active Incidents</span>
-                      <span className="font-semibold text-gray-900">{stats.activeIncidents}</span>
+                      <span className="font-semibold text-foreground">{stats.activeIncidents}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-gray-600">Units</span>
@@ -289,11 +293,11 @@ export function DepartmentsPage() {
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-gray-600">Personnel</span>
-                      <span className="font-semibold text-gray-900">{dept.personnelCount ?? stats.totalUnits}</span>
+                      <span className="font-semibold text-foreground">{dept.personnelCount ?? stats.totalUnits}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-gray-600">Active Tasks</span>
-                      <span className="font-semibold text-gray-900">{dept.activeTaskCount ?? 0}</span>
+                      <span className="font-semibold text-foreground">{dept.activeTaskCount ?? 0}</span>
                     </div>
                   </div>
                   <Button
@@ -314,89 +318,105 @@ export function DepartmentsPage() {
 
       {/* Add / Edit Department Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-lg w-full p-0 overflow-hidden rounded-2xl shadow-2xl border border-gray-100">
-          <div className="bg-gradient-to-br from-[#134178] to-[#0f3256] px-6 py-5">
+        <DialogContent className="max-w-lg w-full p-0 overflow-hidden rounded-2xl shadow-2xl border border-border">
+          <div className="bg-gradient-to-br from-secondary to-secondary-hover px-6 py-5">
             <DialogTitle className="text-lg font-semibold text-white m-0">
               {editingDept ? 'Edit Department' : 'Add Department'}
             </DialogTitle>
-            <DialogDescription className="!text-slate-200 mt-1 text-sm">
+            <DialogDescription className="!text-white/80 mt-1 text-sm">
               {editingDept ? 'Update department details below.' : 'Enter the new department details.'}
             </DialogDescription>
           </div>
-          <div className="p-6 space-y-5 w-full min-w-0">
-            <div className="w-full min-w-0">
-              <Label className="block text-sm font-medium text-gray-700 mb-2">Name</Label>
+          <div className="p-6 space-y-5 w-full min-w-0 overflow-hidden bg-card">
+            <div className="w-full min-w-0 overflow-hidden">
+              <Label className="block text-sm font-medium text-foreground mb-2">Name</Label>
               <Input
                 value={form.name}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                 placeholder="e.g. Bureau of Fire Protection"
-                className="w-full rounded-xl border-gray-200 focus:border-[#134178] focus:ring-[#134178]/20 min-w-0"
+                className="w-full max-w-full min-w-0 rounded-xl border-border focus:border-secondary focus:ring-secondary/20 box-border"
               />
             </div>
             <div className="w-full min-w-0">
-              <Label className="block text-sm font-medium text-gray-700 mb-2">Type</Label>
-              <select
-                value={form.type}
-                onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}
-                className="w-full min-w-0 px-4 py-3 rounded-xl border-2 border-gray-200 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#134178]/20 focus:border-[#134178] transition-colors"
-              >
-                {DEPARTMENT_TYPES.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
+              <Label className="block text-sm font-medium text-foreground mb-2">Type</Label>
+              <Select value={form.type} onValueChange={(v) => setForm((f) => ({ ...f, type: v }))}>
+                {({ value }) => (
+                  <>
+                    <SelectTrigger
+                      isOpen={typeSelectOpen}
+                      onClick={() => setTypeSelectOpen((o) => !o)}
+                      className="w-full min-w-0 px-4 py-3 rounded-xl border-2 border-border bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-secondary/20 focus:border-secondary transition-colors"
+                    >
+                      <SelectValue placeholder="Select type" value={value} options={DEPARTMENT_TYPES} />
+                    </SelectTrigger>
+                    <SelectContent isOpen={typeSelectOpen} className="rounded-xl border-2 border-border shadow-lg bg-card">
+                      {DEPARTMENT_TYPES.map((opt) => (
+                        <SelectItem
+                          key={opt.value}
+                          value={opt.value}
+                          onSelect={(v) => {
+                            setForm((f) => ({ ...f, type: v }));
+                            setTypeSelectOpen(false);
+                          }}
+                        >
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </>
+                )}
+              </Select>
             </div>
             <div className="grid grid-cols-3 gap-4 w-full min-w-0">
               <div className="min-w-0 flex flex-col">
-                <Label className="block text-sm font-medium text-gray-700 mb-2">Units</Label>
+                <Label className="block text-sm font-medium text-foreground mb-2">Units</Label>
                 <Input
                   type="number"
                   min={0}
                   value={form.unitsCount}
                   onChange={(e) => setForm((f) => ({ ...f, unitsCount: parseInt(e.target.value, 10) || 0 }))}
                   placeholder="0"
-                  className="w-full min-w-0 rounded-xl border-gray-200 focus:border-[#134178] focus:ring-[#134178]/20"
+                  className="w-full min-w-0 rounded-xl border-border focus:border-secondary focus:ring-secondary/20"
                 />
               </div>
               <div className="min-w-0 flex flex-col">
-                <Label className="block text-sm font-medium text-gray-700 mb-2">Personnel</Label>
+                <Label className="block text-sm font-medium text-foreground mb-2">Personnel</Label>
                 <Input
                   type="number"
                   min={0}
                   value={form.personnelCount}
                   onChange={(e) => setForm((f) => ({ ...f, personnelCount: parseInt(e.target.value, 10) || 0 }))}
                   placeholder="0"
-                  className="w-full min-w-0 rounded-xl border-gray-200 focus:border-[#134178] focus:ring-[#134178]/20"
+                  className="w-full min-w-0 rounded-xl border-border focus:border-secondary focus:ring-secondary/20"
                 />
               </div>
               <div className="min-w-0 flex flex-col">
-                <Label className="block text-sm font-medium text-gray-700 mb-2">Active Tasks</Label>
+                <Label className="block text-sm font-medium text-foreground mb-2">Active Tasks</Label>
                 <Input
                   type="number"
                   min={0}
                   value={form.activeTaskCount}
                   onChange={(e) => setForm((f) => ({ ...f, activeTaskCount: parseInt(e.target.value, 10) || 0 }))}
                   placeholder="0"
-                  className="w-full min-w-0 rounded-xl border-gray-200 focus:border-[#134178] focus:ring-[#134178]/20"
+                  className="w-full min-w-0 rounded-xl border-border focus:border-secondary focus:ring-secondary/20"
                 />
               </div>
             </div>
           </div>
-          <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-3 rounded-b-2xl">
-            <button
-              type="button"
-              onClick={() => setDialogOpen(false)}
-              className="px-4 py-2.5 rounded-xl font-medium text-sm text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2 transition-colors"
-            >
-              Cancel
-            </button>
+          <div className="px-6 py-4 bg-secondary/20 border-t border-border flex justify-between gap-3 rounded-b-2xl">
             <button
               type="button"
               onClick={handleSave}
-              className="px-5 py-2.5 rounded-xl font-medium text-sm text-white bg-[#134178] hover:bg-[#0f3256] focus:outline-none focus:ring-2 focus:ring-[#134178] focus:ring-offset-2 shadow-sm hover:shadow-md transition-all duration-200"
+              className="px-5 py-2.5 rounded-xl font-medium text-sm text-white bg-secondary hover:bg-secondary-hover focus:outline-none focus:ring-2 focus:ring-secondary focus:ring-offset-2 focus:ring-offset-background shadow-sm hover:shadow-md transition-all duration-200"
             >
               {editingDept ? 'Save Changes' : 'Add Department'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setDialogOpen(false)}
+              className="px-4 py-2.5 rounded-xl font-medium text-sm text-foreground bg-card border border-border hover:bg-secondary/30 focus:outline-none focus:ring-2 focus:ring-secondary focus:ring-offset-2 focus:ring-offset-background transition-colors"
+            >
+              Cancel
             </button>
           </div>
         </DialogContent>

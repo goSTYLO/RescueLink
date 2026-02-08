@@ -73,20 +73,20 @@ export function MapViewPage() {
 
   const getSeverityColor = (severity) => {
     switch (severity) {
-      case 'Critical': return 'bg-red-500';
+      case 'Critical': return 'bg-primary';
       case 'Warning': return 'bg-amber-500';
-      case 'Resolved': return 'bg-green-500';
-      default: return 'bg-gray-500';
+      case 'Resolved': return 'bg-severity-resolved';
+      default: return 'bg-muted';
     }
   };
 
-  // Severity: urgency level (Critical=red, Warning=amber, Resolved=green)
+  // Severity: Critical #FF4F52, Warning amber, Resolved muted green (dark theme)
   const getSeverityBadgeColor = (severity) => {
     switch (severity) {
-      case 'Critical': return 'bg-red-100 text-red-800 border-red-300';
-      case 'Warning': return 'bg-amber-100 text-amber-800 border-amber-300';
-      case 'Resolved': return 'bg-green-100 text-green-800 border-green-300';
-      default: return 'bg-gray-100 text-gray-700 border-gray-200';
+      case 'Critical': return 'bg-primary/20 text-primary border-primary/50';
+      case 'Warning': return 'bg-amber-500/20 text-amber-400 border-amber-500/40';
+      case 'Resolved': return 'bg-severity-resolved/20 text-severity-resolved border-emerald-500/40';
+      default: return 'bg-card text-muted border-[rgba(19,65,120,0.35)]';
     }
   };
 
@@ -108,8 +108,8 @@ export function MapViewPage() {
     <Layout>
       <div className="p-8">
         <div className="mb-6">
-          <h1 className="text-3xl font-semibold text-gray-900">Live Emergency Map</h1>
-          <p className="text-gray-600 mt-1">Real-time incident locations across Dagupan City</p>
+          <h1 className="text-3xl font-semibold text-foreground">Live Emergency Map</h1>
+          <p className="text-muted mt-1">Real-time incident locations across Dagupan City</p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -118,13 +118,13 @@ export function MapViewPage() {
             <Card hover={false}>
               <CardHeader>
                 <div className="flex items-center gap-2">
-                  <Filter className="w-5 h-5 text-gray-600" />
+                  <Filter className="w-5 h-5 text-muted" />
                   <CardTitle className="text-base">Filters</CardTitle>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
-                  <label className="text-sm text-gray-600 mb-1.5 block">Department</label>
+                  <label className="text-sm text-muted mb-1.5 block">Department</label>
                   <Select value={filterDepartment} onValueChange={setFilterDepartment}>
                     {({ isOpen, setIsOpen, value, onValueChange }) => (
                       <>
@@ -147,7 +147,7 @@ export function MapViewPage() {
                   </Select>
                 </div>
                 <div>
-                  <label className="text-sm text-gray-600 mb-1.5 block">Barangay</label>
+                  <label className="text-sm text-muted mb-1.5 block">Barangay</label>
                   <Select value={filterBarangay} onValueChange={setFilterBarangay}>
                     {({ isOpen, setIsOpen, value, onValueChange }) => (
                       <>
@@ -179,16 +179,16 @@ export function MapViewPage() {
               </CardHeader>
               <CardContent className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded-full bg-red-500 flex-shrink-0"></div>
-                  <span className="text-sm text-gray-700">Critical</span>
+                  <div className="w-4 h-4 rounded-full bg-primary flex-shrink-0"></div>
+                  <span className="text-sm text-foreground">Critical</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-4 rounded-full bg-amber-500 flex-shrink-0"></div>
-                  <span className="text-sm text-gray-700">Warning</span>
+                  <span className="text-sm text-foreground">Warning</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded-full bg-green-500 flex-shrink-0"></div>
-                  <span className="text-sm text-gray-700">Resolved</span>
+                  <div className="w-4 h-4 rounded-full bg-severity-resolved flex-shrink-0"></div>
+                  <span className="text-sm text-foreground">Resolved</span>
                 </div>
               </CardContent>
             </Card>
@@ -204,8 +204,8 @@ export function MapViewPage() {
                 <div className="relative w-full h-[500px] md:h-[600px] bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg overflow-hidden">
                   {/* Map Background */}
                   <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                    <p className="text-lg font-medium text-gray-700">Dagupan City Map</p>
-                    <p className="text-sm text-gray-500 mt-1">Interactive incident markers</p>
+                    <p className="text-lg font-medium text-foreground">Dagupan City Map</p>
+                    <p className="text-sm text-muted mt-1">Interactive incident markers</p>
                   </div>
                   
                   {/* Incident Markers Container */}
@@ -241,12 +241,12 @@ export function MapViewPage() {
                                 width: '240px'
                               }}
                             >
-                              <Card className="w-full shadow-xl border border-gray-200">
+                              <Card className="w-full shadow-card-hover border border-[rgba(19,65,120,0.35)]">
                                 <CardContent className="p-3">
-                                  <p className="font-semibold text-gray-900 mb-1.5 text-sm">{incident.id}</p>
-                                  <p className="text-sm text-gray-700 mb-1">{incident.emergencyType}</p>
-                                  <p className="text-xs text-gray-600 mb-1">Barangay: {incident.barangay}</p>
-                                  <p className="text-xs text-gray-600 mb-2">Time: {incident.timeReported}</p>
+                                  <p className="font-semibold text-foreground mb-1.5 text-sm">{incident.id}</p>
+                                  <p className="text-sm text-foreground mb-1">{incident.emergencyType}</p>
+                                  <p className="text-xs text-muted mb-1">Barangay: {incident.barangay}</p>
+                                  <p className="text-xs text-muted mb-2">Time: {incident.timeReported}</p>
                                   <Badge className={`${getSeverityBadgeColor(incident.severity)} border rounded px-2 py-1 text-xs font-semibold`}>
                                     {incident.severity.toUpperCase()}
                                   </Badge>
@@ -275,10 +275,10 @@ export function MapViewPage() {
                   {filteredIncidents.slice(0, 6).map((incident) => (
                     <div
                       key={incident.id}
-                      className={`flex-shrink-0 p-3 bg-white border rounded-lg cursor-pointer hover:shadow-sm transition-all ${
+                      className={`flex-shrink-0 p-3 bg-card border rounded-lg cursor-pointer hover:shadow-card transition-all ${
                         selectedIncident?.id === incident.id 
-                          ? 'border-[#134178] bg-green-50' 
-                          : 'border-gray-200'
+                          ? 'border-secondary bg-severity-resolved/20' 
+                          : 'border-[rgba(19,65,120,0.35)]'
                       }`}
                       onClick={() => {
                         setSelectedIncident(incident);
@@ -292,8 +292,8 @@ export function MapViewPage() {
                         }, 5000);
                       }}
                     >
-                      <p className="text-sm font-semibold text-gray-900 mb-1">{incident.id}</p>
-                      <p className="text-xs text-gray-600 mb-2">
+                      <p className="text-sm font-semibold text-foreground mb-1">{incident.id}</p>
+                      <p className="text-xs text-muted mb-2">
                         {getTypeEmoji(incident.emergencyType)} {incident.emergencyType} • {incident.barangay}
                       </p>
                       <div className="flex items-center justify-end">
@@ -314,30 +314,30 @@ export function MapViewPage() {
                 {selectedIncident ? (
                   <>
                     <div>
-                      <p className="text-xs text-gray-600 mb-1">Incident ID</p>
-                      <p className="text-sm font-semibold text-gray-900">{selectedIncident.id}</p>
+                      <p className="text-xs text-muted mb-1">Incident ID</p>
+                      <p className="text-sm font-semibold text-foreground">{selectedIncident.id}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-600 mb-1">Type</p>
-                      <p className="text-sm text-gray-900">{selectedIncident.emergencyType}</p>
+                      <p className="text-xs text-muted mb-1">Type</p>
+                      <p className="text-sm text-foreground">{selectedIncident.emergencyType}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-600 mb-1">Severity</p>
+                      <p className="text-xs text-muted mb-1">Severity</p>
                       <Badge className={`${getSeverityBadgeColor(selectedIncident.severity)} border rounded px-2 py-1 text-xs font-semibold inline-block`}>
                         {selectedIncident.severity.toUpperCase()}
                       </Badge>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-600 mb-1">Barangay</p>
-                      <p className="text-sm text-gray-900">{selectedIncident.barangay}</p>
+                      <p className="text-xs text-muted mb-1">Barangay</p>
+                      <p className="text-sm text-foreground">{selectedIncident.barangay}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-600 mb-1">Time Reported</p>
-                      <p className="text-sm text-gray-900">{selectedIncident.timeReported}</p>
+                      <p className="text-xs text-muted mb-1">Time Reported</p>
+                      <p className="text-sm text-foreground">{selectedIncident.timeReported}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-600 mb-1">Location</p>
-                      <p className="text-sm text-gray-900">Corner AB Fernandez Ave and Perez Blvd</p>
+                      <p className="text-xs text-muted mb-1">Location</p>
+                      <p className="text-sm text-foreground">Corner AB Fernandez Ave and Perez Blvd</p>
                     </div>
                     <Button 
                       className="w-full bg-[#134178] hover:bg-[#0f3256] text-white mt-4"
@@ -348,7 +348,7 @@ export function MapViewPage() {
                   </>
                 ) : (
                   <div className="flex items-center justify-center h-full min-h-[200px]">
-                    <p className="text-sm text-gray-500">Select an incident to view details</p>
+                    <p className="text-sm text-muted">Select an incident to view details</p>
                   </div>
                 )}
               </CardContent>

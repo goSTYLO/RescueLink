@@ -1,10 +1,10 @@
 export function Input({ className = '', error = false, ...props }) {
   return (
     <input
-      className={`w-full px-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-500/20 focus:border-gray-500 transition-all duration-300 text-gray-800 placeholder-gray-400 ${
+      className={`w-full px-4 py-3 border-2 rounded-xl bg-card text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-secondary focus:ring-offset-2 focus:ring-offset-background focus:border-secondary transition-all duration-300 ${
         error 
-          ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' 
-          : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'
+          ? 'border-primary focus:border-primary focus:ring-primary/30' 
+          : 'border-[rgba(19,65,120,0.35)] hover:border-secondary/50 hover:bg-card'
       } ${className}`}
       {...props}
     />

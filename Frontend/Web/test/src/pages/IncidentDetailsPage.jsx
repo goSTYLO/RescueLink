@@ -71,26 +71,26 @@ export function IncidentDetailsPage() {
     );
   }
 
-  // Severity: urgency level (Critical=red, Warning=amber, Resolved=green)
+  // Severity: Critical #FF4F52, Warning amber, Resolved muted green (dark theme)
   const getSeverityColor = (severity) => {
     switch (severity) {
-      case 'Critical': return 'bg-red-100 text-red-800 border-red-300';
-      case 'Warning': return 'bg-amber-100 text-amber-800 border-amber-300';
-      case 'Resolved': return 'bg-green-100 text-green-800 border-green-300';
-      default: return 'bg-gray-100 text-gray-700 border-gray-200';
+      case 'Critical': return 'bg-primary/20 text-primary border-primary/50';
+      case 'Warning': return 'bg-amber-500/20 text-amber-400 border-amber-500/40';
+      case 'Resolved': return 'bg-severity-resolved/20 text-severity-resolved border-emerald-500/40';
+      default: return 'bg-card text-muted border-[rgba(19,65,120,0.35)]';
     }
   };
 
   const getWorkloadColor = (count) => {
-    if (count === 0) return 'text-green-600';
-    if (count <= 2) return 'text-amber-600';
-    return 'text-red-600';
+    if (count === 0) return 'text-severity-resolved';
+    if (count <= 2) return 'text-amber-400';
+    return 'text-primary';
   };
 
   const getWorkloadBadge = (count) => {
-    if (count === 0) return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Available</Badge>;
-    if (count <= 2) return <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">Moderate Load ({count})</Badge>;
-    return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">Overloaded ({count})</Badge>;
+    if (count === 0) return <Badge variant="outline" className="bg-severity-resolved/20 text-severity-resolved border-emerald-500/40">Available</Badge>;
+    if (count <= 2) return <Badge variant="outline" className="bg-amber-500/20 text-amber-400 border-amber-500/40">Moderate Load ({count})</Badge>;
+    return <Badge variant="outline" className="bg-primary/20 text-primary border-primary/50">Overloaded ({count})</Badge>;
   };
 
   const handleEscalate = () => {
@@ -149,21 +149,21 @@ export function IncidentDetailsPage() {
           <div className="flex items-start justify-between">
             <div>
               <div className="flex items-center gap-3">
-                <h1 className="text-3xl font-semibold text-gray-900">{incident.id}</h1>
+                <h1 className="text-3xl font-semibold text-foreground">{incident.id}</h1>
                 {incident.highPriority && (
-                  <Badge className="bg-red-100 text-red-700 border-red-300">
+                  <Badge className="bg-primary/20 text-primary border-primary/50">
                     <AlertTriangle className="w-3 h-3 mr-1" />
                     High Priority
                   </Badge>
                 )}
                 {incident.status === 'Duplicate' && (
-                  <Badge variant="outline" className="bg-gray-100 text-gray-700">
+                  <Badge variant="outline" className="bg-card text-muted border-[rgba(19,65,120,0.35)]">
                     <Copy className="w-3 h-3 mr-1" />
                     Duplicate
                   </Badge>
                 )}
               </div>
-              <p className="text-gray-600 mt-1">{incident.emergencyType} Incident</p>
+              <p className="text-muted mt-1">{incident.emergencyType} Incident</p>
             </div>
             <Badge className={getSeverityColor(incident.severity)}>
               {incident.severity}
@@ -173,14 +173,14 @@ export function IncidentDetailsPage() {
 
         {/* Duplicate Warning */}
         {possibleDuplicates.length > 0 && incident.status !== 'Duplicate' && (
-          <Alert className="mb-6 border-amber-200 bg-amber-50">
-            <AlertCircle className="h-4 w-4 text-amber-600" />
-            <AlertTitle className="text-amber-900">Possible Duplicate Detected</AlertTitle>
-            <AlertDescription className="text-amber-800">
+          <Alert className="mb-6 border-amber-500/40 bg-amber-500/15">
+            <AlertCircle className="h-4 w-4 text-amber-400" />
+            <AlertTitle className="text-amber-400">Possible Duplicate Detected</AlertTitle>
+            <AlertDescription className="text-foreground/90">
               This incident may be related to {possibleDuplicates.length} other report(s). 
               <Button 
                 variant="link" 
-                className="text-amber-700 underline p-0 ml-2 h-auto"
+                className="text-amber-400 underline p-0 ml-2 h-auto"
                 onClick={() => setDuplicateDialogOpen(true)}
               >
                 Review duplicates
@@ -210,17 +210,17 @@ export function IncidentDetailsPage() {
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="flex items-center gap-3">
-                      <User className="w-5 h-5 text-gray-600" />
+                      <User className="w-5 h-5 text-muted" />
                       <div>
-                        <p className="text-sm text-gray-600">Name</p>
-                        <p className="font-medium text-gray-900">{incident.reporterName}</p>
+                        <p className="text-sm text-muted">Name</p>
+                        <p className="font-medium text-foreground">{incident.reporterName}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      <Phone className="w-5 h-5 text-gray-600" />
+                      <Phone className="w-5 h-5 text-muted" />
                       <div>
-                        <p className="text-sm text-gray-600">Phone Number</p>
-                        <p className="font-medium text-gray-900">{incident.reporterPhone}</p>
+                        <p className="text-sm text-muted">Phone Number</p>
+                        <p className="font-medium text-foreground">{incident.reporterPhone}</p>
                       </div>
                     </div>
                   </CardContent>
@@ -235,7 +235,7 @@ export function IncidentDetailsPage() {
                     <div className="flex items-start gap-3 mb-4">
                       <MapPin className="w-5 h-5 text-[#134178] mt-1" />
                       <div>
-                        <p className="font-medium text-gray-900">{incident.barangay}</p>
+                        <p className="font-medium text-foreground">{incident.barangay}</p>
                         <p className="text-sm text-gray-600">Barangay, Dagupan City</p>
                         <p className="text-xs text-gray-500 mt-1">
                           Coordinates: {incident.location.lat}, {incident.location.lng}
@@ -254,7 +254,7 @@ export function IncidentDetailsPage() {
                     <CardTitle>Incident Description</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-gray-700">{incident.description}</p>
+                    <p className="text-foreground">{incident.description}</p>
                     <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-100">
                       <p className="text-sm text-blue-900"><strong>AI Suggestion:</strong> {incident.aiSuggestion}</p>
                     </div>
@@ -268,7 +268,7 @@ export function IncidentDetailsPage() {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-3">
-                      <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                      <div className="p-4 bg-secondary/20 rounded-lg border border-border">
                         <p className="text-sm text-gray-600 mb-2">Voice Recording</p>
                         <div className="flex items-center gap-3">
                           <div className="h-2 flex-1 bg-[#134178]/20 rounded-full"></div>
@@ -301,7 +301,7 @@ export function IncidentDetailsPage() {
                         <Label className="text-sm text-gray-600">Lead Department</Label>
                         <div className="flex items-center gap-2 mt-1">
                           <Shield className="w-4 h-4 text-[#134178]" />
-                          <span className="font-medium text-gray-900">{incident.leadDepartment}</span>
+                          <span className="font-medium text-foreground">{incident.leadDepartment}</span>
                         </div>
                       </div>
                       <Separator />
@@ -311,9 +311,9 @@ export function IncidentDetailsPage() {
                           {incident.assignedDepartments
                             .filter(dept => dept !== incident.leadDepartment)
                             .map((dept, idx) => (
-                              <div key={idx} className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg">
+                              <div key={idx} className="flex items-center gap-2 p-2 bg-secondary/20 rounded-lg">
                                 <div className="w-2 h-2 rounded-full bg-[#134178]"></div>
-                                <span className="text-sm text-gray-900">{dept}</span>
+                                <span className="text-sm text-foreground">{dept}</span>
                               </div>
                             ))}
                         </div>
@@ -385,7 +385,7 @@ export function IncidentDetailsPage() {
                     </div>
                     <div>
                       <p className="text-sm text-gray-600 mb-1">Time Reported</p>
-                      <p className="text-sm font-medium text-gray-900">{incident.timeReported}</p>
+                      <p className="text-sm font-medium text-foreground">{incident.timeReported}</p>
                     </div>
                   </CardContent>
                 </Card>
@@ -396,14 +396,14 @@ export function IncidentDetailsPage() {
                     <CardTitle>Primary Department</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <p className="font-medium text-gray-900">{incident.assignedDepartment}</p>
+                    <p className="font-medium text-foreground">{incident.assignedDepartment}</p>
                     <p className="text-sm text-gray-600 mt-1">{incident.emergencyType} Response Team</p>
                   </CardContent>
                 </Card>
 
                 {/* Escalation Controls (Supervisor/Admin Only) */}
                 {isSupervisor && incident.status !== 'Resolved' && incident.status !== 'Duplicate' && (
-                  <Card className="border-amber-200">
+                  <Card className="border-amber-500/30">
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2 text-amber-900">
                         <TrendingUp className="w-5 h-5" />
@@ -666,7 +666,7 @@ export function IncidentDetailsPage() {
                       <div className="flex-1 pb-4">
                         <div className="flex items-start justify-between">
                           <div>
-                            <p className="font-medium text-gray-900">{event.action}</p>
+                            <p className="font-medium text-foreground">{event.action}</p>
                             <p className="text-sm text-gray-600">
                               {event.actor} ({event.actorRole})
                             </p>
@@ -702,14 +702,14 @@ export function IncidentDetailsPage() {
                 {/* Coordination Notes */}
                 <div className="space-y-3">
                   {coordination.map((note, idx) => (
-                    <div key={idx} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <div key={idx} className="p-4 bg-secondary/20 rounded-lg border border-border">
                       <div className="flex items-start justify-between mb-2">
                         <Badge variant="outline" className="text-xs">
                           {note.department}
                         </Badge>
                         <span className="text-xs text-gray-500">{note.timestamp}</span>
                       </div>
-                      <p className="text-sm text-gray-900 mb-1">{note.note}</p>
+                      <p className="text-sm text-foreground mb-1">{note.note}</p>
                       <p className="text-xs text-gray-600">— {note.author}</p>
                     </div>
                   ))}
@@ -753,10 +753,10 @@ export function IncidentDetailsPage() {
               <CardContent>
                 <div className="space-y-4">
                   {escalations.map((esc, idx) => (
-                    <div key={idx} className="p-4 bg-amber-50 rounded-lg border border-amber-200">
+                    <div key={idx} className="p-4 bg-amber-500/10 rounded-lg border border-amber-500/30">
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
-                          <Badge className="bg-gray-100 text-gray-700">
+                          <Badge className="bg-secondary/30 text-foreground">
                             {esc.fromSeverity}
                           </Badge>
                           <TrendingUp className="w-4 h-4 text-amber-600" />
@@ -766,10 +766,10 @@ export function IncidentDetailsPage() {
                         </div>
                         <span className="text-xs text-gray-500">{esc.timestamp}</span>
                       </div>
-                      <p className="text-sm text-gray-900 mb-1">
+                      <p className="text-sm text-foreground mb-1">
                         <strong>Escalated by:</strong> {esc.escalatedBy}
                       </p>
-                      <p className="text-sm text-gray-700">
+                      <p className="text-sm text-foreground">
                         <strong>Reason:</strong> {esc.reason}
                       </p>
                     </div>
@@ -797,7 +797,7 @@ export function IncidentDetailsPage() {
                   <div>
                     <Label className="text-sm text-gray-600">Response Time</Label>
                     <div className="flex items-center gap-3 mt-1">
-                      <p className="font-medium text-gray-900">{review.responseTime}</p>
+                      <p className="font-medium text-foreground">{review.responseTime}</p>
                       <Badge className={
                         review.responseTimeRating === 'Excellent' ? 'bg-green-100 text-green-700' :
                         review.responseTimeRating === 'Good' ? 'bg-blue-100 text-blue-700' :
@@ -818,7 +818,7 @@ export function IncidentDetailsPage() {
                       {review.issuesEncountered.map((issue, idx) => (
                         <li key={idx} className="flex items-start gap-2">
                           <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
-                          <span className="text-sm text-gray-700">{issue}</span>
+                          <span className="text-sm text-foreground">{issue}</span>
                         </li>
                       ))}
                     </ul>
@@ -829,7 +829,7 @@ export function IncidentDetailsPage() {
                   {/* Supervisor Remarks */}
                   <div>
                     <Label className="text-sm text-gray-600 mb-2 block">Supervisor Remarks</Label>
-                    <p className="text-sm text-gray-700 p-3 bg-blue-50 rounded-lg border border-blue-100">
+                    <p className="text-sm text-foreground p-3 bg-primary/10 rounded-lg border border-primary/20">
                       {review.supervisorRemarks}
                     </p>
                   </div>
@@ -843,7 +843,7 @@ export function IncidentDetailsPage() {
                       {review.recommendations.map((rec, idx) => (
                         <li key={idx} className="flex items-start gap-2">
                           <CheckCircle className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
-                          <span className="text-sm text-gray-700">{rec}</span>
+                          <span className="text-sm text-foreground">{rec}</span>
                         </li>
                       ))}
                     </ul>
@@ -870,7 +870,7 @@ export function IncidentDetailsPage() {
                   </div>
 
                   {/* Review Metadata */}
-                  <div className="pt-4 border-t border-gray-200">
+                  <div className="pt-4 border-t border-border">
                     <p className="text-xs text-gray-500">
                       Reviewed by {review.reviewedBy} on {review.reviewDate}
                     </p>
@@ -892,17 +892,17 @@ export function IncidentDetailsPage() {
             </DialogHeader>
             <div className="space-y-4 py-4 max-h-96 overflow-y-auto">
               {possibleDuplicates.map((dup) => (
-                <div key={dup.id} className="p-4 border border-gray-200 rounded-lg">
+                <div key={dup.id} className="p-4 border border-border rounded-lg">
                   <div className="flex items-start justify-between mb-2">
                     <div>
-                      <p className="font-medium text-gray-900">{dup.id}</p>
+                      <p className="font-medium text-foreground">{dup.id}</p>
                       <p className="text-sm text-gray-600">{dup.emergencyType} - {dup.barangay}</p>
                     </div>
                     <Badge className={getSeverityColor(dup.severity)}>
                       {dup.severity}
                     </Badge>
                   </div>
-                  <p className="text-sm text-gray-700 mb-2">{dup.description}</p>
+                  <p className="text-sm text-foreground mb-2">{dup.description}</p>
                   <p className="text-xs text-gray-500 mb-3">Reported: {dup.timeReported}</p>
                   <Button 
                     size="sm" 

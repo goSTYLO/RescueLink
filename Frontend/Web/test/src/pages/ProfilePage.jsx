@@ -56,8 +56,8 @@ export function ProfilePage() {
       cancelButtonText: 'Cancel',
       customClass: {
         popup: 'rounded-2xl shadow-xl',
-        title: 'text-gray-900 text-xl',
-        htmlContainer: 'text-gray-600',
+        title: 'text-foreground text-xl',
+        htmlContainer: 'text-muted',
         confirmButton: 'rounded-xl px-5 py-2.5 font-medium',
         cancelButton: 'rounded-xl px-5 py-2.5 font-medium',
       },
@@ -150,8 +150,8 @@ export function ProfilePage() {
     <Layout>
       <div className="p-8 max-w-4xl relative min-h-[calc(100vh-8rem)]">
         <div className="mb-8 animate-fade-in">
-          <h1 className="text-3xl font-medium text-gray-900">User Profile</h1>
-          <p className="text-gray-600 mt-1 text-base">
+          <h1 className="text-3xl font-semibold text-foreground">User Profile</h1>
+          <p className="text-muted mt-1 text-base">
             Manage your account settings and information
           </p>
         </div>
@@ -180,7 +180,7 @@ export function ProfilePage() {
                   <User className="w-8 h-8" strokeWidth={2} />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900">
+                  <h3 className="text-lg font-semibold text-foreground">
                     Officer Rodriguez
                   </h3>
                   <p className="text-sm text-gray-500 mt-0.5">
@@ -188,37 +188,37 @@ export function ProfilePage() {
                   </p>
                 </div>
               </div>
-              <div className="border-t border-gray-200 pt-5 grid grid-cols-1 sm:grid-cols-2 gap-5">
-                <div className="flex items-center gap-3 text-gray-700">
+              <div className="border-t border-border pt-5 grid grid-cols-1 sm:grid-cols-2 gap-5">
+                <div className="flex items-center gap-3 text-foreground">
                   <Mail className="w-5 h-5 text-gray-500 flex-shrink-0" />
                   <div>
                     <p className="text-xs text-gray-500">Email Address</p>
-                    <p className="text-sm font-medium text-gray-900">
+                    <p className="text-sm font-medium text-foreground">
                       rodriguez@rescuelink-dagupan.gov
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3 text-gray-700">
+                <div className="flex items-center gap-3 text-foreground">
                   <Shield className="w-5 h-5 text-gray-500 flex-shrink-0" />
                   <div>
                     <p className="text-xs text-gray-500">Role</p>
-                    <p className="text-sm font-medium text-gray-900">Operator</p>
+                    <p className="text-sm font-medium text-foreground">Operator</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3 text-gray-700">
+                <div className="flex items-center gap-3 text-foreground">
                   <Phone className="w-5 h-5 text-gray-500 flex-shrink-0" />
                   <div>
                     <p className="text-xs text-gray-500">Phone Number</p>
-                    <p className="text-sm font-medium text-gray-900">
+                    <p className="text-sm font-medium text-foreground">
                       +639171234567
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3 text-gray-700">
+                <div className="flex items-center gap-3 text-foreground">
                   <Clock className="w-5 h-5 text-gray-500 flex-shrink-0" />
                   <div>
                     <p className="text-xs text-gray-500">Last Login</p>
-                    <p className="text-sm font-medium text-gray-900">
+                    <p className="text-sm font-medium text-foreground">
                       1/20/2026, 9:00:00 AM
                     </p>
                   </div>
@@ -263,7 +263,7 @@ export function ProfilePage() {
             <CardContent className="space-y-2">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-medium text-gray-700">
+                  <p className="text-sm font-medium text-foreground">
                     Current Session
                   </p>
                   <p className="text-sm text-gray-500 mt-0.5">
@@ -291,7 +291,7 @@ export function ProfilePage() {
                 <Input
                   id="emergency-name"
                   placeholder="Enter emergency contact name"
-                  className="mt-1.5 bg-gray-50 border-gray-200"
+                  className="mt-1.5 bg-secondary/20 border-border"
                   value={emergencyName}
                   onChange={(e) => {
                     setEmergencyName(e.target.value);
@@ -308,7 +308,7 @@ export function ProfilePage() {
                 <Input
                   id="emergency-phone"
                   placeholder="+63 9XX XXX XXXX"
-                  className="mt-1.5 bg-gray-50 border-gray-200"
+                  className="mt-1.5 bg-secondary/20 border-border"
                   value={emergencyPhone}
                   onChange={(e) => {
                     setEmergencyPhone(e.target.value);
@@ -320,7 +320,7 @@ export function ProfilePage() {
                   <p className="text-red-500 text-sm mt-1">{emergencyErrors.phone}</p>
                 )}
               </div>
-              <Button variant="secondary" className="mt-2" onClick={handleSaveEmergencyContact}>
+              <Button variant="secondary" className="mt-2 text-white" onClick={handleSaveEmergencyContact}>
                 Save Emergency Contact
               </Button>
             </CardContent>
@@ -330,10 +330,10 @@ export function ProfilePage() {
           <Card className="animate-slide-up bg-red-50/30 border-red-100" style={{ animationDelay: '200ms' }}>
             <CardContent className="p-6 flex flex-row flex-wrap items-center justify-between gap-4">
               <div>
-                <h3 className="text-lg font-semibold text-gray-900">
+                <h3 className="text-lg font-semibold text-foreground">
                   Sign Out
                 </h3>
-                <p className="text-sm text-gray-500 mt-0.5">
+                <p className="text-sm text-muted mt-0.5">
                   End your current session
                 </p>
               </div>
@@ -364,12 +364,12 @@ export function ProfilePage() {
         }}
         className="max-w-md w-full"
       >
-        <DialogContent className="rounded-xl shadow-sm border border-gray-200 animate-fade-in">
+        <DialogContent className="rounded-xl shadow-sm border border-border animate-fade-in bg-card">
           <DialogHeader>
-            <DialogTitle className="text-2xl font-semibold text-gray-900">
+            <DialogTitle className="text-2xl font-semibold text-foreground">
               Change Password
             </DialogTitle>
-            <DialogDescription className="text-gray-500 mt-0.5">
+            <DialogDescription className="text-muted mt-0.5">
               Update your account password
             </DialogDescription>
           </DialogHeader>
@@ -381,7 +381,7 @@ export function ProfilePage() {
                   id="current-password"
                   type={showCurrentPassword ? 'text' : 'password'}
                   placeholder="Enter current password"
-                  className="pr-10 bg-gray-50 border-gray-200"
+                  className="pr-10 bg-secondary/20 border-border"
                   value={currentPassword}
                   onChange={(e) => {
                     setCurrentPassword(e.target.value);
@@ -392,7 +392,7 @@ export function ProfilePage() {
                 <button
                   type="button"
                   aria-label={showCurrentPassword ? 'Hide password' : 'Show password'}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-foreground focus:outline-none"
                   onClick={() => setShowCurrentPassword((v) => !v)}
                 >
                   {showCurrentPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
@@ -409,7 +409,7 @@ export function ProfilePage() {
                   id="new-password"
                   type={showNewPassword ? 'text' : 'password'}
                   placeholder="Enter new password"
-                  className="pr-10 bg-gray-50 border-gray-200"
+                  className="pr-10 bg-secondary/20 border-border"
                   value={newPassword}
                   onChange={(e) => {
                     setNewPassword(e.target.value);
@@ -420,7 +420,7 @@ export function ProfilePage() {
                 <button
                   type="button"
                   aria-label={showNewPassword ? 'Hide password' : 'Show password'}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-foreground focus:outline-none"
                   onClick={() => setShowNewPassword((v) => !v)}
                 >
                   {showNewPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
@@ -437,7 +437,7 @@ export function ProfilePage() {
                   id="confirm-password"
                   type={showConfirmPassword ? 'text' : 'password'}
                   placeholder="Confirm new password"
-                  className="pr-10 bg-gray-50 border-gray-200"
+                  className="pr-10 bg-secondary/20 border-border"
                   value={confirmPassword}
                   onChange={(e) => {
                     setConfirmPassword(e.target.value);
@@ -448,7 +448,7 @@ export function ProfilePage() {
                 <button
                   type="button"
                   aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-foreground focus:outline-none"
                   onClick={() => setShowConfirmPassword((v) => !v)}
                 >
                   {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
@@ -477,7 +477,7 @@ export function ProfilePage() {
               <Button
                 type="button"
                 variant="secondary"
-                className="gap-2 border border-gray-200 text-gray-700 hover:bg-gray-100"
+                className="gap-2 border border-border text-foreground hover:bg-secondary/30"
                 onClick={closeChangePasswordModal}
               >
                 <KeyRound className="w-4 h-4" />

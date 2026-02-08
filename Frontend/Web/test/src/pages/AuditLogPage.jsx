@@ -79,13 +79,13 @@ export function AuditLogPage() {
     { value: 'Resolved', label: 'Resolved' },
   ];
 
-  // Severity: urgency level (Critical=red, Warning=amber, Resolved=green)
+  // Severity: Critical #FF4F52, Warning amber, Resolved muted green (dark theme)
   const getSeverityColor = (severity) => {
     switch (severity) {
-      case 'Critical': return 'bg-red-100 text-red-800 border-red-300';
-      case 'Warning': return 'bg-amber-100 text-amber-800 border-amber-300';
-      case 'Resolved': return 'bg-green-100 text-green-800 border-green-300';
-      default: return 'bg-gray-100 text-gray-700 border-gray-200';
+      case 'Critical': return 'bg-primary/20 text-primary border-primary/50';
+      case 'Warning': return 'bg-amber-500/20 text-amber-400 border-amber-500/40';
+      case 'Resolved': return 'bg-severity-resolved/20 text-severity-resolved border-emerald-500/40';
+      default: return 'bg-card text-muted border-[rgba(19,65,120,0.35)]';
     }
   };
 
@@ -93,20 +93,20 @@ export function AuditLogPage() {
     <Layout>
       <div className="p-8">
         <div className="mb-6">
-          <h1 className="text-3xl font-semibold text-gray-900">Audit Log / Blockchain Records</h1>
-          <p className="text-gray-600 mt-1">Immutable incident verification records</p>
+          <h1 className="text-3xl font-semibold text-foreground">Audit Log / Blockchain Records</h1>
+          <p className="text-muted mt-1">Immutable incident verification records</p>
         </div>
 
         {/* Blockchain-Backed Audit Trail — static info card */}
-        <Card hover={false} className="mb-6 bg-blue-50 border-blue-100">
+        <Card hover={false} className="mb-6 bg-secondary/20 border-[rgba(19,65,120,0.35)]">
           <CardContent className="p-4">
             <div className="flex items-start gap-3">
-              <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
-                <Blocks className="w-6 h-6 text-blue-600" />
+              <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-secondary/30 flex items-center justify-center">
+                <Blocks className="w-6 h-6 text-secondary-light" />
               </div>
               <div>
-                <p className="font-semibold text-blue-900">Blockchain-Backed Audit Trail</p>
-                <p className="text-sm text-blue-700 mt-1">
+                <p className="font-semibold text-foreground">Blockchain-Backed Audit Trail</p>
+                <p className="text-sm text-muted mt-1">
                   All incident verifications are recorded in an immutable blockchain ledger for
                   non-repudiation and transparency.
                 </p>
@@ -117,28 +117,28 @@ export function AuditLogPage() {
 
         {/* Summary cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <Card hover={false} className="border border-gray-200">
+          <Card hover={false} className="border border-[rgba(19,65,120,0.35)]">
             <CardContent className="p-4">
-              <p className="text-sm font-medium text-gray-600">Total Records</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">{filteredLogs.length}</p>
+              <p className="text-sm font-medium text-muted">Total Records</p>
+              <p className="text-2xl font-bold text-foreground mt-1">{filteredLogs.length}</p>
             </CardContent>
           </Card>
-          <Card hover={false} className="border border-gray-200">
+          <Card hover={false} className="border border-[rgba(19,65,120,0.35)]">
             <CardContent className="p-4">
-              <p className="text-sm font-medium text-gray-600">Verified</p>
-              <p className="text-2xl font-bold text-green-600 mt-1">{verifiedCount}</p>
+              <p className="text-sm font-medium text-muted">Verified</p>
+              <p className="text-2xl font-bold text-severity-resolved mt-1">{verifiedCount}</p>
             </CardContent>
           </Card>
-          <Card hover={false} className="border border-gray-200">
+          <Card hover={false} className="border border-[rgba(19,65,120,0.35)]">
             <CardContent className="p-4">
-              <p className="text-sm font-medium text-gray-600">Critical Incidents</p>
-              <p className="text-2xl font-bold text-red-600 mt-1">{criticalCount}</p>
+              <p className="text-sm font-medium text-muted">Critical Incidents</p>
+              <p className="text-2xl font-bold text-primary mt-1">{criticalCount}</p>
             </CardContent>
           </Card>
-          <Card hover={false} className="border border-gray-200">
+          <Card hover={false} className="border border-[rgba(19,65,120,0.35)]">
             <CardContent className="p-4">
-              <p className="text-sm font-medium text-gray-600">Resolved</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">{resolvedCount}</p>
+              <p className="text-sm font-medium text-muted">Resolved</p>
+              <p className="text-2xl font-bold text-foreground mt-1">{resolvedCount}</p>
             </CardContent>
           </Card>
         </div>
@@ -147,17 +147,17 @@ export function AuditLogPage() {
         <div className="flex flex-col sm:flex-row gap-4 mb-6">
           <div className="flex-1 min-w-0">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted" />
               <Input
                 placeholder="Search by Incident ID, department, or barangay."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="pl-10 bg-white border border-gray-200"
+                className="pl-10"
               />
             </div>
           </div>
           <div className="flex flex-wrap items-end gap-4">
-            <div className="flex items-center gap-2 text-gray-600">
+            <div className="flex items-center gap-2 text-muted">
               <Filter className="w-5 h-5" />
               <span className="text-sm font-medium">Filters</span>
             </div>
@@ -264,26 +264,26 @@ export function AuditLogPage() {
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-gray-200">
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">
+                  <tr className="border-b border-[rgba(19,65,120,0.35)]">
+                    <th className="text-left py-3 px-4 text-sm font-semibold text-muted">
                       Incident ID
                     </th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">
+                    <th className="text-left py-3 px-4 text-sm font-semibold text-muted">
                       Incident Hash
                     </th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">
+                    <th className="text-left py-3 px-4 text-sm font-semibold text-muted">
                       Timestamp
                     </th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">
+                    <th className="text-left py-3 px-4 text-sm font-semibold text-muted">
                       Verification
                     </th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">
+                    <th className="text-left py-3 px-4 text-sm font-semibold text-muted">
                       Department
                     </th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">
+                    <th className="text-left py-3 px-4 text-sm font-semibold text-muted">
                       Barangay
                     </th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">
+                    <th className="text-left py-3 px-4 text-sm font-semibold text-muted">
                       Severity
                     </th>
                   </tr>
@@ -292,30 +292,30 @@ export function AuditLogPage() {
                   {paginatedLogs.map((log, index) => (
                     <tr
                       key={log.incidentId || log.incidentHash || index}
-                      className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
+                      className="border-b border-[rgba(19,65,120,0.2)] hover:bg-card transition-colors"
                     >
-                      <td className="py-4 px-4 text-sm font-mono text-gray-900">
+                      <td className="py-4 px-4 text-sm font-mono text-foreground">
                         {log.incidentId || '—'}
                       </td>
-                      <td className="py-4 px-4 text-sm font-mono text-gray-900">
+                      <td className="py-4 px-4 text-sm font-mono text-foreground">
                         {truncateHash(log.incidentHash)}
                       </td>
-                      <td className="py-4 px-4 text-sm text-gray-600">
+                      <td className="py-4 px-4 text-sm text-muted">
                         {formatTimestamp(log.timestamp)}
                       </td>
                       <td className="py-4 px-4">
                         <Badge
                           className={
                             log.verificationStatus === 'Verified'
-                              ? 'bg-green-100 text-green-800 border-green-200'
-                              : 'bg-amber-100 text-amber-800 border-amber-200'
+                              ? 'bg-severity-resolved/20 text-severity-resolved border-emerald-500/40'
+                              : 'bg-amber-500/20 text-amber-400 border-amber-500/40'
                           }
                         >
                           {log.verificationStatus?.toUpperCase() || '—'}
                         </Badge>
                       </td>
-                      <td className="py-4 px-4 text-sm text-gray-600">{log.department}</td>
-                      <td className="py-4 px-4 text-sm text-gray-600">{log.barangay}</td>
+                      <td className="py-4 px-4 text-sm text-muted">{log.department}</td>
+                      <td className="py-4 px-4 text-sm text-muted">{log.barangay}</td>
                       <td className="py-4 px-4">
                         <Badge className={`${getSeverityColor(log.severity)} border rounded px-2 py-0.5 text-xs font-medium`}>
                           {log.severity?.toUpperCase() || '—'}
@@ -329,7 +329,7 @@ export function AuditLogPage() {
 
             {/* Pagination */}
             {filteredLogs.length > 0 && (
-              <div className="flex items-center justify-end gap-2 mt-4 pt-4 border-t border-gray-200">
+              <div className="flex items-center justify-end gap-2 mt-4 pt-4 border-t border-[rgba(19,65,120,0.35)]">
                 <Button
                   variant="ghost"
                   size="sm"
@@ -352,7 +352,7 @@ export function AuditLogPage() {
                         variant={currentPage === pageNum ? 'default' : 'ghost'}
                         size="sm"
                         onClick={() => setCurrentPage(pageNum)}
-                        className={`h-8 w-8 p-0 ${currentPage === pageNum ? 'bg-[#134178] text-white hover:bg-[#0f3256]' : ''}`}
+                        className={`h-8 w-8 p-0 ${currentPage === pageNum ? 'bg-secondary text-foreground hover:bg-secondary-hover' : ''}`}
                       >
                         {pageNum}
                       </Button>
@@ -368,7 +368,7 @@ export function AuditLogPage() {
                 >
                   <ChevronRight className="w-4 h-4" />
                 </Button>
-                <span className="text-sm text-gray-600 ml-2">
+                <span className="text-sm text-muted ml-2">
                   Page {currentPage} of {totalPages}
                   {filteredLogs.length > ROWS_PER_PAGE &&
                     ` (${startIndex + 1}-${Math.min(startIndex + ROWS_PER_PAGE, filteredLogs.length)} of ${filteredLogs.length})`}

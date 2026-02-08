@@ -15,12 +15,12 @@ export function Dialog({ open, onOpenChange, children, className = '' }) {
   if (!open) return null;
 
   const wrapperClass = className
-    ? `relative z-50 w-full bg-white rounded-lg shadow-lg overflow-hidden ${className}`
-    : 'relative z-50 w-full max-w-lg bg-white rounded-lg shadow-lg overflow-hidden';
+    ? `relative z-50 w-full bg-card border border-[rgba(19,65,120,0.35)] rounded-lg shadow-card-hover overflow-hidden ${className}`
+    : 'relative z-50 w-full max-w-lg bg-card border border-[rgba(19,65,120,0.35)] rounded-lg shadow-card-hover overflow-hidden';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="fixed inset-0 bg-black/50" onClick={() => onOpenChange(false)} />
+      <div className="fixed inset-0 bg-black/60" onClick={() => onOpenChange(false)} />
       <div className={wrapperClass}>
         {children}
       </div>
@@ -41,7 +41,7 @@ export function DialogTrigger({ asChild, children, onClick }) {
 
 export function DialogContent({ children, className = '' }) {
   return (
-    <div className={`p-6 ${className}`}>
+    <div className={`p-6 bg-card ${className}`}>
       {children}
     </div>
   );
@@ -57,7 +57,7 @@ export function DialogHeader({ children, className = '' }) {
 
 export function DialogTitle({ children, className = '' }) {
   return (
-    <h2 className={`text-lg font-semibold text-gray-900 ${className}`}>
+    <h2 className={`text-lg font-semibold text-foreground ${className}`}>
       {children}
     </h2>
   );
@@ -65,7 +65,7 @@ export function DialogTitle({ children, className = '' }) {
 
 export function DialogDescription({ children, className = '' }) {
   return (
-    <p className={`text-sm text-gray-600 mt-1 ${className}`}>
+    <p className={`text-sm text-muted mt-1 ${className}`}>
       {children}
     </p>
   );

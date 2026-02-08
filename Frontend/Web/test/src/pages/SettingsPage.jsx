@@ -74,7 +74,7 @@ export function SettingsPage() {
     <Layout>
       <div className="p-8 max-w-4xl">
         <div className="mb-6">
-          <h1 className="text-3xl font-semibold text-gray-900">System Settings</h1>
+          <h1 className="text-3xl font-semibold text-foreground">System Settings</h1>
           <p className="text-gray-600 mt-1">Configure RescueLink system preferences</p>
         </div>
 
@@ -244,7 +244,7 @@ export function SettingsPage() {
             <CardContent>
               <div>
                 <Label>AI Confidence Threshold (Read-Only)</Label>
-                <div className="mt-1.5 px-3 py-2 bg-gray-50 text-gray-700 rounded-lg border border-gray-200">
+                <div className="mt-1.5 px-3 py-2 bg-secondary/20 text-foreground rounded-lg border border-border">
                   75% - Optimized for Dagupan City
                 </div>
                 <p className="text-xs text-gray-500 mt-2">This threshold is optimized based on historical data and cannot be modified.</p>

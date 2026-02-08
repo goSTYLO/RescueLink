@@ -110,10 +110,10 @@ export function AdminActionsPage() {
     return (
       <Layout>
         <div className="p-8">
-          <Alert className="border-red-200 bg-red-50">
-            <AlertOctagon className="h-4 w-4 text-red-600" />
-            <AlertTitle className="text-red-900">Access Denied</AlertTitle>
-            <AlertDescription className="text-red-800">
+          <Alert className="border-primary/50 bg-primary/15">
+            <AlertOctagon className="h-4 w-4 text-primary" />
+            <AlertTitle className="text-primary">Access Denied</AlertTitle>
+            <AlertDescription className="text-foreground/90">
               This page is only accessible to administrators.
             </AlertDescription>
           </Alert>
@@ -143,12 +143,9 @@ export function AdminActionsPage() {
     <Layout>
       <div className="p-8">
         <div className="mb-6">
-          <div className="flex items-center gap-3">
-            <Shield className="w-8 h-8 text-[#134178]" />
-            <div>
-              <h1 className="text-3xl font-semibold text-gray-900">Admin Actions</h1>
-              <p className="text-gray-600 mt-1">Advanced administrative controls and oversight</p>
-            </div>
+          <div>
+            <h1 className="text-3xl font-semibold text-foreground">Admin Actions</h1>
+            <p className="text-gray-600 mt-1">Advanced administrative controls and oversight</p>
           </div>
         </div>
 
@@ -184,7 +181,7 @@ export function AdminActionsPage() {
                   <CardContent className="space-y-6">
                     {!disasterMode ? (
                       <>
-                        <Alert className="border-amber-200 bg-amber-50">
+                        <Alert className="border-amber-500/30 bg-amber-500/10">
                           <AlertTriangle className="h-4 w-4 text-amber-600" />
                           <AlertTitle className="text-amber-900">What is Disaster Control Mode?</AlertTitle>
                           <AlertDescription className="text-amber-800">
@@ -269,7 +266,7 @@ export function AdminActionsPage() {
                           <div className="space-y-3">
                             <div className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
                               <div>
-                                <p className="text-sm font-medium text-gray-900">Auto-escalate to Warning</p>
+                                <p className="text-sm font-medium text-foreground">Auto-escalate to Warning</p>
                                 <p className="text-xs text-gray-600">All new incidents automatically set to Warning severity</p>
                               </div>
                               <Switch 
@@ -380,25 +377,25 @@ export function AdminActionsPage() {
                         <div className="flex items-start justify-between mb-3">
                           <div>
                             <div className="flex items-center gap-2 mb-1">
-                              <h3 className="font-medium text-gray-900">{incident.id}</h3>
+                              <h3 className="font-medium text-foreground">{incident.id}</h3>
                               {incident.status === 'Duplicate' && (
-                                <Badge variant="outline" className="bg-gray-100 text-gray-700">
+                                <Badge variant="outline" className="bg-secondary/30 text-foreground">
                                   <Copy className="w-3 h-3 mr-1" />
                                   Marked as Duplicate
                                 </Badge>
                               )}
                             </div>
-                            <p className="text-sm text-gray-600">{incident.emergencyType} - {incident.barangay}</p>
+                            <p className="text-sm text-muted">{incident.emergencyType} - {incident.barangay}</p>
                           </div>
                           <Badge className={
-                            incident.severity === 'Critical' ? 'bg-red-100 text-red-800 border-red-300' :
-                            incident.severity === 'Warning' ? 'bg-amber-100 text-amber-800 border-amber-300' :
-                            'bg-green-100 text-green-800 border-green-300'
+                            incident.severity === 'Critical' ? 'bg-primary/20 text-primary border-primary/50' :
+                            incident.severity === 'Warning' ? 'bg-amber-500/20 text-amber-400 border-amber-500/40' :
+                            'bg-severity-resolved/20 text-severity-resolved border-emerald-500/40'
                           }>
                             {incident.severity}
                           </Badge>
                         </div>
-                        <p className="text-sm text-gray-700 mb-2">{incident.description}</p>
+                        <p className="text-sm text-foreground mb-2">{incident.description}</p>
                         <div className="flex gap-2">
                           <Button 
                             size="sm" 
@@ -475,10 +472,10 @@ export function AdminActionsPage() {
                       </div>
                       
                       <div className="space-y-1 mb-2">
-                        <p className="text-sm text-gray-900">
+                        <p className="text-sm text-foreground">
                           <strong>Admin:</strong> {log.adminUser}
                         </p>
-                        <p className="text-sm text-gray-700">
+                        <p className="text-sm text-foreground">
                           <strong>Details:</strong> {log.details}
                         </p>
                         <p className="text-sm text-gray-600">

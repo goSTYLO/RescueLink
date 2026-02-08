@@ -5,8 +5,8 @@ export function Switch({ checked, onCheckedChange, className = '' }) {
       role="switch"
       aria-checked={checked}
       onClick={() => onCheckedChange && onCheckedChange(!checked)}
-      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#134178] focus:ring-offset-2 ${
-        checked ? 'bg-[#FF4F52]' : 'bg-gray-200'
+      className={`relative inline-flex h-6 w-11 items-center rounded-full border-2 border-gray-400/60 transition-colors focus:outline-none focus:ring-2 focus:ring-secondary focus:ring-offset-2 focus:ring-offset-background ${
+        checked ? 'bg-primary' : 'bg-black'
       } ${className}`}
     >
       <span
