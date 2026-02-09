@@ -17,7 +17,6 @@ import { SettingsPage } from './pages/SettingsPage';
 import ForgotPassword from './pages/ForgotPassword';
 import EnterCode from './pages/EnterCode';
 import CreateNewPassword from './pages/CreateNewPassword';
-
 const API_URL = 'http://localhost:3000';
 
 // Development mode - set to true to bypass authentication for design/testing
@@ -54,7 +53,7 @@ function ProtectedRoute({ children }) {
   }, []);
 
   if (loading) {
-    return <div className="flex items-center justify-center h-screen">Loading...</div>;
+    return <div className="flex items-center justify-center h-screen bg-background text-foreground">Loading...</div>;
   }
 
   // In dev mode, allow access without authentication
@@ -108,15 +107,15 @@ export default function App() {
   };
 
   if (loading) {
-    return <div className="flex items-center justify-center h-screen">Loading...</div>;
+    return <div className="flex items-center justify-center h-screen bg-background text-foreground">Loading...</div>;
   }
 
   return (
     <BrowserRouter>
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+      <div className="min-h-screen bg-background">
         {/* Dev Mode Banner */}
         {DEV_MODE && (
-          <div className="bg-yellow-500 text-black text-center py-2 text-sm font-semibold">
+          <div className="bg-amber-500/20 text-amber-400 border-b border-amber-500/40 text-center py-2 text-sm font-semibold">
             🚧 DEVELOPMENT MODE - Authentication Bypassed
           </div>
         )}

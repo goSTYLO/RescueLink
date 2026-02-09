@@ -5,14 +5,14 @@ export function Button({
   size = 'default',
   ...props 
 }) {
-  const baseClasses = 'inline-flex items-center justify-center rounded-lg font-medium transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none transform hover:scale-[1.02] active:scale-[0.98]';
+  const baseClasses = 'inline-flex items-center justify-center rounded-lg font-medium transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-background disabled:opacity-50 disabled:pointer-events-none transform hover:scale-[1.02] active:scale-[0.98]';
   
   const variantClasses = {
-    default: 'bg-[#FF4F52] text-white hover:bg-gray-800 hover:shadow-lg hover:shadow-gray-500/30 focus:ring-[#FF4F52]',
-    outline: 'bg-transparent border-2 border-[#FF4F52] text-[#FF4F52] hover:bg-gray-800 hover:text-white hover:border-gray-800 focus:ring-[#FF4F52]',
-    ghost: 'bg-transparent text-[#FF4F52] hover:bg-gray-100 focus:ring-[#FF4F52]',
-    link: 'bg-transparent text-[#FF4F52] hover:text-gray-800 underline-offset-4 hover:underline p-0',
-    secondary: 'bg-gray-100 text-gray-700 hover:bg-gray-200 focus:ring-gray-500',
+    default: 'bg-primary text-white hover:bg-primary-hover hover:shadow-lg hover:shadow-primary/25 focus:ring-primary active:bg-primary-dark',
+    outline: 'bg-transparent border-2 border-primary text-primary hover:bg-primary hover:text-white hover:border-primary focus:ring-primary active:bg-primary-hover',
+    ghost: 'bg-transparent text-primary hover:bg-primary/15 focus:ring-primary active:bg-primary/25',
+    link: 'bg-transparent text-primary hover:text-primary-light underline-offset-4 hover:underline p-0 focus:ring-primary',
+    secondary: 'bg-secondary text-foreground hover:bg-secondary-hover focus:ring-secondary active:bg-secondary-light',
   };
   
   const sizeClasses = {

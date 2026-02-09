@@ -11,6 +11,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from '../components/ui/Dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/Select';
 import { ArrowLeft, Truck, Users as UsersIcon, ClipboardList, Wrench, Award, AlertCircle, CheckCircle, AlertTriangle, Plus, Pencil, Trash2 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useState, useEffect } from 'react';
@@ -44,6 +45,12 @@ export function DepartmentDetailsPage() {
 
   const [personnelDialogOpen, setPersonnelDialogOpen] = useState(false);
   const [editingPersonnel, setEditingPersonnel] = useState(null);
+  const [unitStatusOpen, setUnitStatusOpen] = useState(false);
+  const [unitMaintenanceOpen, setUnitMaintenanceOpen] = useState(false);
+  const [personnelUnitOpen, setPersonnelUnitOpen] = useState(false);
+  const [personnelStatusOpen, setPersonnelStatusOpen] = useState(false);
+  useEffect(() => { if (!unitDialogOpen) { setUnitStatusOpen(false); setUnitMaintenanceOpen(false); } }, [unitDialogOpen]);
+  useEffect(() => { if (!personnelDialogOpen) { setPersonnelUnitOpen(false); setPersonnelStatusOpen(false); } }, [personnelDialogOpen]);
   const [personnelForm, setPersonnelForm] = useState({
     name: '', role: '', unit: '', status: 'Available',
     specialSkills: '', certifications: [],
@@ -63,20 +70,20 @@ export function DepartmentDetailsPage() {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'Available': return 'bg-green-100 text-green-700 border-green-200';
-      case 'On Dispatch': case 'On Duty': return 'bg-blue-100 text-blue-700 border-blue-200';
-      case 'Busy': return 'bg-amber-100 text-amber-700 border-amber-200';
-      case 'Under Maintenance': return 'bg-orange-100 text-orange-700 border-orange-200';
-      case 'Out of Service': return 'bg-red-100 text-red-700 border-red-200';
-      default: return 'bg-gray-100 text-gray-700 border-gray-200';
+      case 'Available': return 'bg-severity-resolved/20 text-severity-resolved border-emerald-500/40';
+      case 'On Dispatch': case 'On Duty': return 'bg-secondary/30 text-secondary-light border-secondary/50';
+      case 'Busy': return 'bg-amber-500/20 text-amber-400 border-amber-500/40';
+      case 'Under Maintenance': return 'bg-amber-500/20 text-amber-400 border-amber-500/40';
+      case 'Out of Service': return 'bg-primary/20 text-primary border-primary/50';
+      default: return 'bg-card text-muted border-[rgba(19,65,120,0.35)]';
     }
   };
 
   const getCertificationStatus = (status) => {
     switch (status) {
-      case 'Valid': return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-xs">Valid</Badge>;
-      case 'Expiring Soon': return <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-xs">Expiring Soon</Badge>;
-      case 'Expired': return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 text-xs">Expired</Badge>;
+      case 'Valid': return <Badge variant="outline" className="bg-severity-resolved/20 text-severity-resolved border-emerald-500/40 text-xs">Valid</Badge>;
+      case 'Expiring Soon': return <Badge variant="outline" className="bg-amber-500/20 text-amber-400 border-amber-500/40 text-xs">Expiring Soon</Badge>;
+      case 'Expired': return <Badge variant="outline" className="bg-primary/20 text-primary border-primary/50 text-xs">Expired</Badge>;
       default: return null;
     }
   };
@@ -161,7 +168,7 @@ export function DepartmentDetailsPage() {
       cancelButtonColor: '#6b7280',
       confirmButtonText: 'Yes, delete it',
       cancelButtonText: 'Cancel',
-      customClass: { popup: 'rounded-2xl shadow-xl', title: 'text-gray-900 text-xl', htmlContainer: 'text-gray-600', confirmButton: 'rounded-xl px-5 py-2.5 font-medium', cancelButton: 'rounded-xl px-5 py-2.5 font-medium' },
+      customClass: { popup: 'rounded-2xl shadow-xl', title: 'text-foreground text-xl', htmlContainer: 'text-muted', confirmButton: 'rounded-xl px-5 py-2.5 font-medium', cancelButton: 'rounded-xl px-5 py-2.5 font-medium' },
     }).then((result) => {
       if (result.isConfirmed) {
         setDeptUnits(prev => prev.filter(u => u.id !== unitId));
@@ -239,7 +246,7 @@ export function DepartmentDetailsPage() {
       cancelButtonColor: '#6b7280',
       confirmButtonText: 'Yes, remove',
       cancelButtonText: 'Cancel',
-      customClass: { popup: 'rounded-2xl shadow-xl', title: 'text-gray-900 text-xl', htmlContainer: 'text-gray-600', confirmButton: 'rounded-xl px-5 py-2.5 font-medium', cancelButton: 'rounded-xl px-5 py-2.5 font-medium' },
+      customClass: { popup: 'rounded-2xl shadow-xl', title: 'text-foreground text-xl', htmlContainer: 'text-muted', confirmButton: 'rounded-xl px-5 py-2.5 font-medium', cancelButton: 'rounded-xl px-5 py-2.5 font-medium' },
     }).then((result) => {
       if (result.isConfirmed) {
         setDeptPersonnel(prev =>
@@ -263,7 +270,7 @@ export function DepartmentDetailsPage() {
         </div>
 
         <div className="mb-6">
-          <h1 className="text-3xl font-semibold text-gray-900">{department.name}</h1>
+          <h1 className="text-3xl font-semibold text-foreground">{department.name}</h1>
           <p className="text-gray-600 mt-1">{department.type} Response Department</p>
         </div>
 
@@ -272,11 +279,11 @@ export function DepartmentDetailsPage() {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               <div>
                 <p className="text-sm text-gray-600 mb-1">Department Type</p>
-                <p className="font-semibold text-gray-900">{department.type}</p>
+                <p className="font-semibold text-foreground">{department.type}</p>
               </div>
               <div>
                 <p className="text-sm text-gray-600 mb-1">Officer-in-Charge</p>
-                <p className="font-semibold text-gray-900">Chief Roberto Santos</p>
+                <p className="font-semibold text-foreground">Chief Roberto Santos</p>
                 <p className="text-xs text-gray-500">+63 917 123 4567</p>
               </div>
               <div>
@@ -320,11 +327,11 @@ export function DepartmentDetailsPage() {
               <CardContent>
                 <div className="space-y-3">
                   {deptUnits.map((unit) => (
-                    <div key={unit.id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <div key={unit.id} className="p-4 bg-secondary/20 rounded-lg border border-border">
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
-                            <p className="font-semibold text-gray-900">{unit.name}</p>
+                            <p className="font-semibold text-foreground">{unit.name}</p>
                             {unit.maintenanceStatus === 'Under Maintenance' && (
                               <Wrench className="w-4 h-4 text-orange-600" />
                             )}
@@ -359,13 +366,13 @@ export function DepartmentDetailsPage() {
                       </div>
 
                       <div className="grid grid-cols-2 gap-3 text-xs">
-                        <div className="p-2 bg-white rounded border border-gray-200">
+                        <div className="p-2 bg-card rounded border border-border">
                           <p className="text-gray-600 mb-1">Last Maintenance</p>
-                          <p className="font-medium text-gray-900">{unit.lastMaintenance}</p>
+                          <p className="font-medium text-foreground">{unit.lastMaintenance}</p>
                         </div>
-                        <div className="p-2 bg-white rounded border border-gray-200">
+                        <div className="p-2 bg-card rounded border border-border">
                           <p className="text-gray-600 mb-1">Next Scheduled</p>
-                          <p className="font-medium text-gray-900">{unit.nextMaintenance}</p>
+                          <p className="font-medium text-foreground">{unit.nextMaintenance}</p>
                         </div>
                       </div>
                     </div>
@@ -398,10 +405,10 @@ export function DepartmentDetailsPage() {
               <CardContent>
                 <div className="space-y-3">
                   {deptPersonnel.map((person, index) => (
-                    <div key={person.id || index} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <div key={person.id || index} className="p-4 bg-secondary/20 rounded-lg border border-border">
                       <div className="flex items-start justify-between mb-3">
                         <div>
-                          <p className="font-semibold text-gray-900">{person.name}</p>
+                          <p className="font-semibold text-foreground">{person.name}</p>
                           <p className="text-sm text-gray-600">{person.role}</p>
                           <p className="text-xs text-gray-500 mt-1">Unit: {person.unit}</p>
                         </div>
@@ -426,9 +433,9 @@ export function DepartmentDetailsPage() {
                           </Label>
                           <div className="space-y-2">
                             {person.certifications.map((cert, idx) => (
-                              <div key={idx} className="flex items-center justify-between p-2 bg-white rounded border border-gray-200">
+                              <div key={idx} className="flex items-center justify-between p-2 bg-card rounded border border-border">
                                 <div className="flex-1">
-                                  <p className="text-xs font-medium text-gray-900">{cert.name}</p>
+                                  <p className="text-xs font-medium text-foreground">{cert.name}</p>
                                   <p className="text-xs text-gray-500">Valid until: {cert.validUntil}</p>
                                 </div>
                                 {getCertificationStatus(cert.status)}
@@ -500,96 +507,118 @@ export function DepartmentDetailsPage() {
 
         {/* Unit Add/Edit Dialog */}
         <Dialog open={unitDialogOpen} onOpenChange={setUnitDialogOpen}>
-          <DialogContent className="w-full p-0 overflow-hidden rounded-2xl shadow-2xl border border-gray-100">
-            <div className="bg-gradient-to-br from-[#134178] to-[#0f3256] px-6 py-5">
+          <DialogContent className="w-full p-0 overflow-hidden rounded-2xl shadow-2xl border border-border">
+            <div className="bg-gradient-to-br from-secondary to-secondary-hover px-6 py-5">
               <DialogTitle className="text-lg font-semibold text-white m-0">
                 {editingUnit ? 'Edit Unit' : 'Add Unit'}
               </DialogTitle>
-              <DialogDescription className="!text-slate-200 mt-1 text-sm">
+              <DialogDescription className="!text-white/80 mt-1 text-sm">
                 {editingUnit ? 'Update unit details below.' : 'Enter the new unit details.'}
               </DialogDescription>
             </div>
-            <div className="p-6 space-y-4 w-full min-w-0">
+            <div className="p-6 space-y-4 w-full min-w-0 bg-card">
               <div className="w-full min-w-0">
-                <Label className="block text-sm font-medium text-gray-700 mb-2">Name</Label>
+                <Label className="block text-sm font-medium text-foreground mb-2">Name</Label>
                 <Input
                   value={unitForm.name}
                   onChange={(e) => setUnitForm(f => ({ ...f, name: e.target.value }))}
                   placeholder="e.g. Fire Truck 01"
-                  className="w-full min-w-0 rounded-xl border-gray-200 focus:border-[#134178] focus:ring-[#134178]/20"
+                  className="w-full min-w-0 rounded-xl border-border focus:border-secondary focus:ring-secondary/20"
                 />
               </div>
               <div className="w-full min-w-0">
-                <Label className="block text-sm font-medium text-gray-700 mb-2">Type</Label>
+                <Label className="block text-sm font-medium text-foreground mb-2">Type</Label>
                 <Input
                   value={unitForm.type}
                   onChange={(e) => setUnitForm(f => ({ ...f, type: e.target.value }))}
                   placeholder="e.g. Fire Truck, Patrol, Ambulance"
-                  className="w-full min-w-0 rounded-xl border-gray-200 focus:border-[#134178] focus:ring-[#134178]/20"
+                  className="w-full min-w-0 rounded-xl border-border focus:border-secondary focus:ring-secondary/20"
                 />
               </div>
               <div className="grid grid-cols-2 gap-4 w-full min-w-0">
                 <div className="min-w-0 flex flex-col">
-                  <Label className="block text-sm font-medium text-gray-700 mb-2">Status</Label>
-                  <select
-                    value={unitForm.status}
-                    onChange={(e) => setUnitForm(f => ({ ...f, status: e.target.value }))}
-                    className="w-full min-w-0 px-4 py-3 rounded-xl border-2 border-gray-200 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#134178]/20 focus:border-[#134178]"
-                  >
-                    {UNIT_STATUS_OPTIONS.map(opt => (
-                      <option key={opt} value={opt}>{opt}</option>
-                    ))}
-                  </select>
+                  <Label className="block text-sm font-medium text-foreground mb-2">Status</Label>
+                  <Select value={unitForm.status} onValueChange={(v) => setUnitForm(f => ({ ...f, status: v }))}>
+                    {({ value }) => (
+                      <>
+                        <SelectTrigger
+                          isOpen={unitStatusOpen}
+                          onClick={() => setUnitStatusOpen(o => !o)}
+                          className="w-full min-w-0 px-4 py-3 rounded-xl border-2 border-border bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-secondary/20 focus:border-secondary"
+                        >
+                          <SelectValue value={value} options={UNIT_STATUS_OPTIONS.map(o => ({ value: o, label: o }))} />
+                        </SelectTrigger>
+                        <SelectContent isOpen={unitStatusOpen} className="rounded-xl border-2 border-border shadow-lg bg-card">
+                          {UNIT_STATUS_OPTIONS.map(opt => (
+                            <SelectItem key={opt} value={opt} onSelect={(v) => { setUnitForm(f => ({ ...f, status: v })); setUnitStatusOpen(false); }}>
+                              {opt}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </>
+                    )}
+                  </Select>
                 </div>
                 <div className="min-w-0 flex flex-col">
-                  <Label className="block text-sm font-medium text-gray-700 mb-2">Maintenance</Label>
-                  <select
-                    value={unitForm.maintenanceStatus}
-                    onChange={(e) => setUnitForm(f => ({ ...f, maintenanceStatus: e.target.value }))}
-                    className="w-full min-w-0 px-4 py-3 rounded-xl border-2 border-gray-200 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#134178]/20 focus:border-[#134178]"
-                  >
-                    {MAINTENANCE_STATUS_OPTIONS.map(opt => (
-                      <option key={opt} value={opt}>{opt}</option>
-                    ))}
-                  </select>
+                  <Label className="block text-sm font-medium text-foreground mb-2">Maintenance</Label>
+                  <Select value={unitForm.maintenanceStatus} onValueChange={(v) => setUnitForm(f => ({ ...f, maintenanceStatus: v }))}>
+                    {({ value }) => (
+                      <>
+                        <SelectTrigger
+                          isOpen={unitMaintenanceOpen}
+                          onClick={() => setUnitMaintenanceOpen(o => !o)}
+                          className="w-full min-w-0 px-4 py-3 rounded-xl border-2 border-border bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-secondary/20 focus:border-secondary"
+                        >
+                          <SelectValue value={value} options={MAINTENANCE_STATUS_OPTIONS.map(o => ({ value: o, label: o }))} />
+                        </SelectTrigger>
+                        <SelectContent isOpen={unitMaintenanceOpen} className="rounded-xl border-2 border-border shadow-lg bg-card">
+                          {MAINTENANCE_STATUS_OPTIONS.map(opt => (
+                            <SelectItem key={opt} value={opt} onSelect={(v) => { setUnitForm(f => ({ ...f, maintenanceStatus: v })); setUnitMaintenanceOpen(false); }}>
+                              {opt}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </>
+                    )}
+                  </Select>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4 w-full min-w-0">
                 <div className="min-w-0 flex flex-col">
-                  <Label className="block text-sm font-medium text-gray-700 mb-2">Last Maintenance</Label>
+                  <Label className="block text-sm font-medium text-foreground mb-2">Last Maintenance</Label>
                   <Input
                     type="date"
                     value={unitForm.lastMaintenance}
                     onChange={(e) => setUnitForm(f => ({ ...f, lastMaintenance: e.target.value }))}
-                    className="w-full min-w-0 rounded-xl border-gray-200 focus:border-[#134178] focus:ring-[#134178]/20"
+                    className="w-full min-w-0 rounded-xl border-border focus:border-secondary focus:ring-secondary/20"
                   />
                 </div>
                 <div className="min-w-0 flex flex-col">
-                  <Label className="block text-sm font-medium text-gray-700 mb-2">Next Maintenance</Label>
+                  <Label className="block text-sm font-medium text-foreground mb-2">Next Maintenance</Label>
                   <Input
                     type="date"
                     value={unitForm.nextMaintenance}
                     onChange={(e) => setUnitForm(f => ({ ...f, nextMaintenance: e.target.value }))}
-                    className="w-full min-w-0 rounded-xl border-gray-200 focus:border-[#134178] focus:ring-[#134178]/20"
+                    className="w-full min-w-0 rounded-xl border-border focus:border-secondary focus:ring-secondary/20"
                   />
                 </div>
               </div>
               <div className="w-full min-w-0">
-                <Label className="block text-sm font-medium text-gray-700 mb-2">Maintenance Notes (optional)</Label>
+                <Label className="block text-sm font-medium text-foreground mb-2">Maintenance Notes (optional)</Label>
                 <Input
                   value={unitForm.maintenanceNotes}
                   onChange={(e) => setUnitForm(f => ({ ...f, maintenanceNotes: e.target.value }))}
                   placeholder="e.g. Routine engine check"
-                  className="w-full min-w-0 rounded-xl border-gray-200 focus:border-[#134178] focus:ring-[#134178]/20"
+                  className="w-full min-w-0 rounded-xl border-border focus:border-secondary focus:ring-secondary/20"
                 />
               </div>
             </div>
-            <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-3 rounded-b-2xl">
-              <button type="button" onClick={() => setUnitDialogOpen(false)} className="px-4 py-2.5 rounded-xl font-medium text-sm text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 focus:ring-2 focus:ring-gray-300 focus:ring-offset-2">
-                Cancel
-              </button>
-              <button type="button" onClick={handleSaveUnit} className="px-5 py-2.5 rounded-xl font-medium text-sm text-white bg-[#134178] hover:bg-[#0f3256] focus:ring-2 focus:ring-[#134178] focus:ring-offset-2">
+            <div className="px-6 py-4 bg-secondary/20 border-t border-border flex justify-start gap-3 rounded-b-2xl">
+              <button type="button" onClick={handleSaveUnit} className="px-5 py-2.5 rounded-xl font-medium text-sm text-white bg-secondary hover:bg-secondary-hover focus:ring-2 focus:ring-secondary focus:ring-offset-2 focus:ring-offset-background">
                 {editingUnit ? 'Save Changes' : 'Add Unit'}
+              </button>
+              <button type="button" onClick={() => setUnitDialogOpen(false)} className="px-4 py-2.5 rounded-xl font-medium text-sm text-foreground bg-card border border-border hover:bg-secondary/30 focus:ring-2 focus:ring-secondary focus:ring-offset-2 focus:ring-offset-background">
+                Cancel
               </button>
             </div>
           </DialogContent>
@@ -597,75 +626,93 @@ export function DepartmentDetailsPage() {
 
         {/* Personnel Add/Edit Dialog */}
         <Dialog open={personnelDialogOpen} onOpenChange={setPersonnelDialogOpen}>
-          <DialogContent className="w-full p-0 overflow-hidden rounded-2xl shadow-2xl border border-gray-100">
-            <div className="bg-gradient-to-br from-[#134178] to-[#0f3256] px-6 py-5">
+          <DialogContent className="w-full p-0 overflow-hidden rounded-2xl shadow-2xl border border-border">
+            <div className="bg-gradient-to-br from-secondary to-secondary-hover px-6 py-5">
               <DialogTitle className="text-lg font-semibold text-white m-0">
                 {editingPersonnel ? 'Edit Personnel' : 'Add Personnel'}
               </DialogTitle>
-              <DialogDescription className="!text-slate-200 mt-1 text-sm">
+              <DialogDescription className="!text-white/80 mt-1 text-sm">
                 {editingPersonnel ? 'Update personnel details below.' : 'Enter the new personnel details.'}
               </DialogDescription>
             </div>
-            <div className="p-6 space-y-4 w-full min-w-0">
+            <div className="p-6 space-y-4 w-full min-w-0 bg-card">
               <div className="w-full min-w-0">
-                <Label className="block text-sm font-medium text-gray-700 mb-2">Name</Label>
+                <Label className="block text-sm font-medium text-foreground mb-2">Name</Label>
                 <Input
                   value={personnelForm.name}
                   onChange={(e) => setPersonnelForm(f => ({ ...f, name: e.target.value }))}
                   placeholder="e.g. SFO3 Ramon Cruz"
-                  className="w-full min-w-0 rounded-xl border-gray-200 focus:border-[#134178] focus:ring-[#134178]/20"
+                  className="w-full min-w-0 rounded-xl border-border focus:border-secondary focus:ring-secondary/20"
                 />
               </div>
               <div className="w-full min-w-0">
-                <Label className="block text-sm font-medium text-gray-700 mb-2">Role</Label>
+                <Label className="block text-sm font-medium text-foreground mb-2">Role</Label>
                 <Input
                   value={personnelForm.role}
                   onChange={(e) => setPersonnelForm(f => ({ ...f, role: e.target.value }))}
                   placeholder="e.g. Fire Officer, Patrol Officer"
-                  className="w-full min-w-0 rounded-xl border-gray-200 focus:border-[#134178] focus:ring-[#134178]/20"
+                  className="w-full min-w-0 rounded-xl border-border focus:border-secondary focus:ring-secondary/20"
                 />
               </div>
               <div className="w-full min-w-0">
-                <Label className="block text-sm font-medium text-gray-700 mb-2">Unit</Label>
-                <select
-                  value={personnelForm.unit}
-                  onChange={(e) => setPersonnelForm(f => ({ ...f, unit: e.target.value }))}
-                  className="w-full min-w-0 px-4 py-3 rounded-xl border-2 border-gray-200 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#134178]/20 focus:border-[#134178]"
-                >
-                  <option value="">Select unit</option>
-                  {deptUnits.map(u => (
-                    <option key={u.id} value={u.id}>{u.name}</option>
-                  ))}
-                </select>
+                <Label className="block text-sm font-medium text-foreground mb-2">Unit</Label>
+                <Select value={personnelForm.unit} onValueChange={(v) => setPersonnelForm(f => ({ ...f, unit: v }))}>
+                  {({ value }) => (
+                    <>
+                      <SelectTrigger
+                        isOpen={personnelUnitOpen}
+                        onClick={() => setPersonnelUnitOpen(o => !o)}
+                        className="w-full min-w-0 px-4 py-3 rounded-xl border-2 border-border bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-secondary/20 focus:border-secondary"
+                      >
+                        <SelectValue placeholder="Select unit" value={value} options={[{ value: '', label: 'Select unit' }, ...deptUnits.map(u => ({ value: u.id, label: u.name }))]} />
+                      </SelectTrigger>
+                      <SelectContent isOpen={personnelUnitOpen} className="rounded-xl border-2 border-border shadow-lg bg-card">
+                        <SelectItem value="" onSelect={(v) => { setPersonnelForm(f => ({ ...f, unit: v })); setPersonnelUnitOpen(false); }}>Select unit</SelectItem>
+                        {deptUnits.map(u => (
+                          <SelectItem key={u.id} value={u.id} onSelect={(v) => { setPersonnelForm(f => ({ ...f, unit: v })); setPersonnelUnitOpen(false); }}>{u.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </>
+                  )}
+                </Select>
               </div>
               <div className="w-full min-w-0">
-                <Label className="block text-sm font-medium text-gray-700 mb-2">Status</Label>
-                <select
-                  value={personnelForm.status}
-                  onChange={(e) => setPersonnelForm(f => ({ ...f, status: e.target.value }))}
-                  className="w-full min-w-0 px-4 py-3 rounded-xl border-2 border-gray-200 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#134178]/20 focus:border-[#134178]"
-                >
-                  {PERSONNEL_STATUS_OPTIONS.map(opt => (
-                    <option key={opt} value={opt}>{opt}</option>
-                  ))}
-                </select>
+                <Label className="block text-sm font-medium text-foreground mb-2">Status</Label>
+                <Select value={personnelForm.status} onValueChange={(v) => setPersonnelForm(f => ({ ...f, status: v }))}>
+                  {({ value }) => (
+                    <>
+                      <SelectTrigger
+                        isOpen={personnelStatusOpen}
+                        onClick={() => setPersonnelStatusOpen(o => !o)}
+                        className="w-full min-w-0 px-4 py-3 rounded-xl border-2 border-border bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-secondary/20 focus:border-secondary"
+                      >
+                        <SelectValue value={value} options={PERSONNEL_STATUS_OPTIONS.map(o => ({ value: o, label: o }))} />
+                      </SelectTrigger>
+                      <SelectContent isOpen={personnelStatusOpen} className="rounded-xl border-2 border-border shadow-lg bg-card">
+                        {PERSONNEL_STATUS_OPTIONS.map(opt => (
+                          <SelectItem key={opt} value={opt} onSelect={(v) => { setPersonnelForm(f => ({ ...f, status: v })); setPersonnelStatusOpen(false); }}>{opt}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </>
+                  )}
+                </Select>
               </div>
               <div className="w-full min-w-0">
-                <Label className="block text-sm font-medium text-gray-700 mb-2">Special Skills (comma-separated)</Label>
+                <Label className="block text-sm font-medium text-foreground mb-2">Special Skills (comma-separated)</Label>
                 <Input
                   value={personnelForm.specialSkills}
                   onChange={(e) => setPersonnelForm(f => ({ ...f, specialSkills: e.target.value }))}
                   placeholder="e.g. Search & Rescue, First Aid"
-                  className="w-full min-w-0 rounded-xl border-gray-200 focus:border-[#134178] focus:ring-[#134178]/20"
+                  className="w-full min-w-0 rounded-xl border-border focus:border-secondary focus:ring-secondary/20"
                 />
               </div>
             </div>
-            <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-3 rounded-b-2xl">
-              <button type="button" onClick={() => setPersonnelDialogOpen(false)} className="px-4 py-2.5 rounded-xl font-medium text-sm text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 focus:ring-2 focus:ring-gray-300 focus:ring-offset-2">
-                Cancel
-              </button>
-              <button type="button" onClick={handleSavePersonnel} className="px-5 py-2.5 rounded-xl font-medium text-sm text-white bg-[#134178] hover:bg-[#0f3256] focus:ring-2 focus:ring-[#134178] focus:ring-offset-2">
+            <div className="px-6 py-4 bg-secondary/20 border-t border-border flex justify-start gap-3 rounded-b-2xl">
+              <button type="button" onClick={handleSavePersonnel} className="px-5 py-2.5 rounded-xl font-medium text-sm text-white bg-secondary hover:bg-secondary-hover focus:ring-2 focus:ring-secondary focus:ring-offset-2 focus:ring-offset-background">
                 {editingPersonnel ? 'Save Changes' : 'Add Personnel'}
+              </button>
+              <button type="button" onClick={() => setPersonnelDialogOpen(false)} className="px-4 py-2.5 rounded-xl font-medium text-sm text-foreground bg-card border border-border hover:bg-secondary/30 focus:ring-2 focus:ring-secondary focus:ring-offset-2 focus:ring-offset-background">
+                Cancel
               </button>
             </div>
           </DialogContent>

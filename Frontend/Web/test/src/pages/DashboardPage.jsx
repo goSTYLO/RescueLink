@@ -7,11 +7,12 @@ import { AlertTriangle, Filter, Eye, Phone, CheckCircle, Activity, AlertCircle, 
 import { incidents, barangays } from '../data/mockData';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTheme } from '../context/ThemeContext.jsx';
 
-// Icon Container Component (like in the picture)
+// Icon Container Component (dark theme)
 function IconContainer({ children, className = '' }) {
   return (
-    <div className={`w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center transition-all duration-300 hover:scale-110 hover:bg-blue-100 ${className}`}>
+    <div className={`w-12 h-12 rounded-xl bg-secondary/30 flex items-center justify-center transition-all duration-300 hover:scale-110 hover:bg-secondary/50 border border-[rgba(19,65,120,0.35)] ${className}`}>
       {children}
     </div>
   );
@@ -19,6 +20,8 @@ function IconContainer({ children, className = '' }) {
 
 export function DashboardPage() {
   const navigate = useNavigate();
+  const { theme } = useTheme();
+  const isLight = theme === 'light';
   const [filterType, setFilterType] = useState('All');
   const [filterStatus, setFilterStatus] = useState('All');
   const [filterBarangay, setFilterBarangay] = useState('All');
@@ -100,11 +103,11 @@ export function DashboardPage() {
 
   const getSortIcon = (column) => {
     if (sortColumn !== column) {
-      return <ArrowUpDown className="w-4 h-4 ml-1 text-gray-400" />;
+      return <ArrowUpDown className="w-4 h-4 ml-1 text-muted" />;
     }
     return sortDirection === 'asc' 
-      ? <ArrowUp className="w-4 h-4 ml-1 text-gray-600" />
-      : <ArrowDown className="w-4 h-4 ml-1 text-gray-600" />;
+      ? <ArrowUp className="w-4 h-4 ml-1 text-foreground" />
+      : <ArrowDown className="w-4 h-4 ml-1 text-foreground" />;
   };
 
   // Reset to page 1 when filters change
@@ -112,22 +115,25 @@ export function DashboardPage() {
     setCurrentPage(1);
   }, [filterType, filterStatus, filterBarangay]);
 
+  // Severity: Critical #FF4F52, Warning amber, Resolved muted green (dark theme)
   const getSeverityColor = (severity) => {
     switch (severity) {
-      case 'Critical': return 'bg-[#fecaca] text-[#b91c1c] border-[#b91c1c]';
-      case 'Warning': return 'bg-[#fef08a] text-[#a16207] border-[#a16207]';
-      case 'Resolved': return 'bg-[#d9f99d] text-[#3f6212] border-[#3f6212]';
-      default: return 'bg-gray-100 text-gray-700 border-gray-200';
+      case 'Critical': return 'bg-primary/20 text-primary border-primary/50';
+      case 'Warning': return 'bg-amber-500/20 text-amber-400 border-amber-500/40';
+      case 'Resolved': return 'bg-severity-resolved/20 text-severity-resolved border-emerald-500/40';
+      default: return 'bg-card text-muted border-[rgba(19,65,120,0.35)]';
     }
   };
 
+  // Status: workflow stage (dark theme)
   const getStatusColor = (status) => {
     switch (status) {
-      case 'In Progress': return 'bg-[#fed7aa] text-[#ea580c] border-[#ea580c]';
-      case 'Verified': return 'bg-[#e9d5ff] text-[#7e22ce] border-[#7e22ce]';
-      case 'New': return 'bg-[#bae6fd] text-[#0369a1] border-[#0369a1]';
-      case 'Resolved': return 'bg-[#d9f99d] text-[#3f6212] border-[#3f6212]';
-      default: return 'bg-gray-100 text-gray-700 border-gray-200';
+      case 'New': return 'bg-secondary/30 text-secondary-light border-secondary/50';
+      case 'Verified': return 'bg-severity-resolved/20 text-severity-resolved border-emerald-500/40';
+      case 'In Progress': return 'bg-amber-500/20 text-amber-400 border-amber-500/40';
+      case 'Resolved': return 'bg-severity-resolved/20 text-severity-resolved border-emerald-500/40';
+      case 'Duplicate': return 'bg-card text-muted border-[rgba(19,65,120,0.35)]';
+      default: return 'bg-card text-muted border-[rgba(19,65,120,0.35)]';
     }
   };
 
@@ -169,19 +175,19 @@ export function DashboardPage() {
       <div className="p-8">
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-3xl font-semibold text-gray-900">Incident Overview</h1>
-          <p className="text-gray-600 mt-1">Monitor and manage emergency incidents across Dagupan City</p>
+          <h1 className="text-3xl font-semibold text-foreground">Incident Overview</h1>
+          <p className="text-muted mt-1">Monitor and manage emergency incidents across Dagupan City</p>
         </div>
 
         {/* Alert Banner */}
         {criticalIncidents.length > 0 && (
-          <div className="mb-6 p-4 bg-gradient-to-r from-red-50 to-red-100 border-2 border-red-200 rounded-xl flex items-start gap-3 shadow-md hover:shadow-lg transition-all duration-300 animate-pulse-glow">
-            <IconContainer className="bg-red-100">
-              <AlertTriangle className="w-6 h-6 text-red-600" />
+          <div className="mb-6 p-4 bg-primary/15 border-2 border-primary/50 rounded-xl flex items-start gap-3 shadow-card hover:shadow-card-hover transition-all duration-300 animate-pulse-glow">
+            <IconContainer className={isLight ? 'bg-white border-border' : 'bg-primary/20 border-primary/50'}>
+              <AlertTriangle className="w-6 h-6 text-primary" />
             </IconContainer>
             <div className="flex-1">
-              <h3 className="font-semibold text-red-900">Critical Incidents Detected</h3>
-              <p className="text-sm text-red-700 mt-1">
+              <h3 className="font-semibold text-primary">Critical Incidents Detected</h3>
+              <p className="text-sm text-foreground/90 mt-1">
                 {criticalIncidents.length} critical incident(s) requiring immediate attention
               </p>
             </div>
@@ -190,56 +196,56 @@ export function DashboardPage() {
 
         {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-          <Card className="border-2 border-gray-200 hover:border-[#FF4F52]/30">
+          <Card className="border-2 border-[rgba(19,65,120,0.35)] hover:border-primary/30">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-medium text-gray-600">Total Incidents</CardTitle>
+                <CardTitle className="text-sm font-medium text-muted">Total Incidents</CardTitle>
                 <IconContainer>
-                  <Activity className="w-6 h-6 text-blue-700" />
+                  <Activity className="w-6 h-6 text-secondary-light" />
                 </IconContainer>
               </div>
             </CardHeader>
             <CardContent>
-              <p className="text-4xl font-bold text-gray-900 transition-all duration-300 hover:scale-105 inline-block">{incidents.length}</p>
+              <p className="text-4xl font-bold text-foreground transition-all duration-300 hover:scale-105 inline-block">{incidents.length}</p>
             </CardContent>
           </Card>
-          <Card className="border-2 border-gray-200 hover:border-red-300">
+          <Card className="border-2 border-[rgba(19,65,120,0.35)] hover:border-primary/50">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-medium text-gray-600">Critical</CardTitle>
-                <IconContainer className="bg-red-50 hover:bg-red-100">
-                  <AlertCircle className="w-6 h-6 text-red-700" />
+                <CardTitle className="text-sm font-medium text-muted">Critical</CardTitle>
+                <IconContainer className="bg-primary/20 hover:bg-primary/30">
+                  <AlertCircle className="w-6 h-6 text-primary" />
                 </IconContainer>
               </div>
             </CardHeader>
             <CardContent>
-              <p className="text-4xl font-bold text-red-600 transition-all duration-300 hover:scale-105 inline-block">{incidents.filter(i => i.severity === 'Critical').length}</p>
+              <p className="text-4xl font-bold text-primary transition-all duration-300 hover:scale-105 inline-block">{incidents.filter(i => i.severity === 'Critical').length}</p>
             </CardContent>
           </Card>
-          <Card className="border-2 border-gray-200 hover:border-amber-300">
+          <Card className="border-2 border-[rgba(19,65,120,0.35)] hover:border-amber-500/40">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-medium text-gray-600">In Progress</CardTitle>
-                <IconContainer className="bg-amber-50 hover:bg-amber-100">
-                  <Clock className="w-6 h-6 text-amber-700" />
+                <CardTitle className="text-sm font-medium text-muted">In Progress</CardTitle>
+                <IconContainer className="bg-amber-500/20 hover:bg-amber-500/30">
+                  <Clock className="w-6 h-6 text-amber-400" />
                 </IconContainer>
               </div>
             </CardHeader>
             <CardContent>
-              <p className="text-4xl font-bold text-amber-600 transition-all duration-300 hover:scale-105 inline-block">{incidents.filter(i => i.status === 'In Progress').length}</p>
+              <p className="text-4xl font-bold text-amber-400 transition-all duration-300 hover:scale-105 inline-block">{incidents.filter(i => i.status === 'In Progress').length}</p>
             </CardContent>
           </Card>
-          <Card className="border-2 border-gray-200 hover:border-green-300">
+          <Card className="border-2 border-[rgba(19,65,120,0.35)] hover:border-severity-resolved/50">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-medium text-gray-600">Resolved</CardTitle>
-                <IconContainer className="bg-green-50 hover:bg-green-100">
-                  <CheckCircle2 className="w-6 h-6 text-green-700" />
+                <CardTitle className="text-sm font-medium text-muted">Resolved</CardTitle>
+                <IconContainer className="bg-severity-resolved/20 hover:bg-severity-resolved/30">
+                  <CheckCircle2 className="w-6 h-6 text-severity-resolved" />
                 </IconContainer>
               </div>
             </CardHeader>
             <CardContent>
-              <p className="text-4xl font-bold text-green-600 transition-all duration-300 hover:scale-105 inline-block">{incidents.filter(i => i.severity === 'Resolved').length}</p>
+              <p className="text-4xl font-bold text-severity-resolved transition-all duration-300 hover:scale-105 inline-block">{incidents.filter(i => i.severity === 'Resolved').length}</p>
             </CardContent>
           </Card>
         </div>
@@ -248,20 +254,20 @@ export function DashboardPage() {
         <Card className="mb-6" hover={false}>
           <CardHeader>
             <div className="flex items-center gap-2">
-              <Filter className="w-5 h-5 text-gray-600" />
+              <Filter className="w-5 h-5 text-muted" />
               <CardTitle>Filters</CardTitle>
             </div>
           </CardHeader>
           <CardContent className="flex flex-wrap gap-4">
             <div className="flex-1 min-w-[200px]">
-              <label className="text-sm text-gray-600 mb-1.5 block">Emergency Type</label>
+              <label className="text-sm text-muted mb-1.5 block">Emergency Type</label>
               <Select
                 value={filterType}
                 onValueChange={setFilterType}
               >
                 {({ isOpen, setIsOpen, value, onValueChange }) => (
                   <>
-                    <SelectTrigger onClick={() => setSelectStates({ ...selectStates, type: !selectStates.type })}>
+                    <SelectTrigger isOpen={selectStates.type} onClick={() => setSelectStates({ ...selectStates, type: !selectStates.type })}>
                       <SelectValue placeholder="All Types" value={value} options={typeOptions} />
                     </SelectTrigger>
                     <SelectContent isOpen={selectStates.type}>
@@ -280,14 +286,14 @@ export function DashboardPage() {
               </Select>
             </div>
             <div className="flex-1 min-w-[200px]">
-              <label className="text-sm text-gray-600 mb-1.5 block">Status</label>
+              <label className="text-sm text-muted mb-1.5 block">Status</label>
               <Select
                 value={filterStatus}
                 onValueChange={setFilterStatus}
               >
                 {({ isOpen, setIsOpen, value, onValueChange }) => (
                   <>
-                    <SelectTrigger onClick={() => setSelectStates({ ...selectStates, status: !selectStates.status })}>
+                    <SelectTrigger isOpen={selectStates.status} onClick={() => setSelectStates({ ...selectStates, status: !selectStates.status })}>
                       <SelectValue placeholder="All Status" value={value} options={statusOptions} />
                     </SelectTrigger>
                     <SelectContent isOpen={selectStates.status}>
@@ -306,14 +312,14 @@ export function DashboardPage() {
               </Select>
             </div>
             <div className="flex-1 min-w-[200px]">
-              <label className="text-sm text-gray-600 mb-1.5 block">Barangay</label>
+              <label className="text-sm text-muted mb-1.5 block">Barangay</label>
               <Select
                 value={filterBarangay}
                 onValueChange={setFilterBarangay}
               >
                 {({ isOpen, setIsOpen, value, onValueChange }) => (
                   <>
-                    <SelectTrigger onClick={() => setSelectStates({ ...selectStates, barangay: !selectStates.barangay })}>
+                    <SelectTrigger isOpen={selectStates.barangay} onClick={() => setSelectStates({ ...selectStates, barangay: !selectStates.barangay })}>
                       <SelectValue placeholder="All Barangays" value={value} options={barangayOptions} />
                     </SelectTrigger>
                     <SelectContent isOpen={selectStates.barangay} className="max-h-[300px]">
@@ -343,9 +349,9 @@ export function DashboardPage() {
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-gray-200">
+                  <tr className="border-b border-[rgba(19,65,120,0.35)]">
                     <th 
-                      className="text-left py-3 px-4 text-sm font-semibold text-gray-700 cursor-pointer hover:bg-gray-50 transition-colors"
+                      className="text-left py-3 px-4 text-sm font-semibold text-muted cursor-pointer hover:bg-card transition-colors"
                       onClick={() => handleSort('id')}
                     >
                       <div className="flex items-center">
@@ -354,7 +360,7 @@ export function DashboardPage() {
                       </div>
                     </th>
                     <th 
-                      className="text-left py-3 px-4 text-sm font-semibold text-gray-700 cursor-pointer hover:bg-gray-50 transition-colors"
+                      className="text-left py-3 px-4 text-sm font-semibold text-muted cursor-pointer hover:bg-card transition-colors"
                       onClick={() => handleSort('reporter')}
                     >
                       <div className="flex items-center">
@@ -363,7 +369,7 @@ export function DashboardPage() {
                       </div>
                     </th>
                     <th 
-                      className="text-left py-3 px-4 text-sm font-semibold text-gray-700 cursor-pointer hover:bg-gray-50 transition-colors"
+                      className="text-left py-3 px-4 text-sm font-semibold text-muted cursor-pointer hover:bg-card transition-colors"
                       onClick={() => handleSort('barangay')}
                     >
                       <div className="flex items-center">
@@ -372,7 +378,7 @@ export function DashboardPage() {
                       </div>
                     </th>
                     <th 
-                      className="text-left py-3 px-4 text-sm font-semibold text-gray-700 cursor-pointer hover:bg-gray-50 transition-colors"
+                      className="text-left py-3 px-4 text-sm font-semibold text-muted cursor-pointer hover:bg-card transition-colors"
                       onClick={() => handleSort('type')}
                     >
                       <div className="flex items-center">
@@ -381,7 +387,7 @@ export function DashboardPage() {
                       </div>
                     </th>
                     <th 
-                      className="text-left py-3 px-4 text-sm font-semibold text-gray-700 cursor-pointer hover:bg-gray-50 transition-colors"
+                      className="text-left py-3 px-4 text-sm font-semibold text-muted cursor-pointer hover:bg-card transition-colors"
                       onClick={() => handleSort('severity')}
                     >
                       <div className="flex items-center">
@@ -390,7 +396,7 @@ export function DashboardPage() {
                       </div>
                     </th>
                     <th 
-                      className="text-left py-3 px-4 text-sm font-semibold text-gray-700 cursor-pointer hover:bg-gray-50 transition-colors"
+                      className="text-left py-3 px-4 text-sm font-semibold text-muted cursor-pointer hover:bg-card transition-colors"
                       onClick={() => handleSort('status')}
                     >
                       <div className="flex items-center">
@@ -399,7 +405,7 @@ export function DashboardPage() {
                       </div>
                     </th>
                     <th 
-                      className="text-left py-3 px-4 text-sm font-semibold text-gray-700 cursor-pointer hover:bg-gray-50 transition-colors"
+                      className="text-left py-3 px-4 text-sm font-semibold text-muted cursor-pointer hover:bg-card transition-colors"
                       onClick={() => handleSort('time')}
                     >
                       <div className="flex items-center">
@@ -407,19 +413,19 @@ export function DashboardPage() {
                         {getSortIcon('time')}
                       </div>
                     </th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Actions</th>
+                    <th className="text-left py-3 px-4 text-sm font-semibold text-muted">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {paginatedIncidents.map((incident) => (
                     <tr
                       key={incident.id}
-                      className="border-b border-gray-100"
+                      className="border-b border-[rgba(19,65,120,0.2)]"
                     >
-                      <td className="py-4 px-4 text-sm font-mono text-gray-900">{incident.id}</td>
-                      <td className="py-4 px-4 text-sm text-gray-900">{incident.reporterName}</td>
-                      <td className="py-4 px-4 text-sm text-gray-600">{incident.barangay}</td>
-                      <td className="py-4 px-4 text-sm text-gray-900">
+                      <td className="py-4 px-4 text-sm font-mono text-foreground">{incident.id}</td>
+                      <td className="py-4 px-4 text-sm text-foreground">{incident.reporterName}</td>
+                      <td className="py-4 px-4 text-sm text-muted">{incident.barangay}</td>
+                      <td className="py-4 px-4 text-sm text-foreground">
                         <span className="mr-1">{getTypeEmoji(incident.emergencyType)}</span>
                         {incident.emergencyType}
                       </td>
@@ -433,13 +439,13 @@ export function DashboardPage() {
                           {incident.status.toUpperCase()}
                         </Badge>
                       </td>
-                      <td className="py-4 px-4 text-sm text-gray-600">{incident.timeReported}</td>
+                      <td className="py-4 px-4 text-sm text-muted">{incident.timeReported}</td>
                       <td className="py-4 px-4">
                         <div className="flex gap-2">
                           <Button
                             size="sm"
                             variant="ghost"
-                            className="h-10 w-10 p-0 text-blue-600 hover:bg-blue-50 hover:text-blue-700"
+                            className="h-10 w-10 p-0 text-secondary-light hover:bg-secondary/20 hover:text-foreground"
                             onClick={(e) => { e.stopPropagation(); navigate(`/incidents/${incident.id}`); }}
                             title="View Details"
                           >
@@ -449,7 +455,7 @@ export function DashboardPage() {
                             <Button 
                               size="sm" 
                               variant="ghost" 
-                              className="h-10 w-10 p-0 text-green-600 hover:bg-green-50 hover:text-green-700" 
+                              className="h-10 w-10 p-0 text-severity-resolved hover:bg-severity-resolved/20 hover:text-severity-resolved" 
                               onClick={(e) => e.stopPropagation()}
                               title="Verify Incident"
                             >
@@ -459,7 +465,7 @@ export function DashboardPage() {
                           <Button 
                             size="sm" 
                             variant="ghost" 
-                            className="h-10 w-10 p-0 text-[#134178] hover:bg-[#134178]/10 hover:text-[#0f3256]" 
+                            className="h-10 w-10 p-0 text-secondary-light hover:bg-secondary/20 hover:text-foreground" 
                             onClick={(e) => e.stopPropagation()}
                             title="Call Reporter"
                           >
@@ -475,7 +481,7 @@ export function DashboardPage() {
             
             {/* Pagination */}
             {totalPages > 1 && (
-              <div className="flex items-center justify-end gap-2 mt-4 pt-4 border-t border-gray-200">
+              <div className="flex items-center justify-end gap-2 mt-4 pt-4 border-t border-[rgba(19,65,120,0.35)]">
                 <Button
                   variant="ghost"
                   size="sm"
@@ -505,7 +511,7 @@ export function DashboardPage() {
                         variant={currentPage === pageNum ? "default" : "ghost"}
                         size="sm"
                         onClick={() => setCurrentPage(pageNum)}
-                        className={`h-8 w-8 p-0 ${currentPage === pageNum ? 'bg-[#134178] text-white hover:bg-[#0f3256]' : ''}`}
+                        className={`h-8 w-8 p-0 ${currentPage === pageNum ? 'bg-secondary text-foreground hover:bg-secondary-hover' : ''}`}
                       >
                         {pageNum}
                       </Button>
@@ -523,7 +529,7 @@ export function DashboardPage() {
                   <ChevronRight className="w-4 h-4" />
                 </Button>
                 
-                <span className="text-sm text-gray-600 ml-2">
+                <span className="text-sm text-muted ml-2">
                   Page {currentPage} of {totalPages}
                 </span>
               </div>

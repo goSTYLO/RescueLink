@@ -17,15 +17,15 @@ const COLUMN_STATUS = {
 function getSeverityBadgeClass(severity) {
   switch (severity) {
     case 'Critical':
-      return 'bg-red-100 text-red-800 border-red-300 shadow-sm';
+      return 'bg-primary/20 text-primary border-primary/50 shadow-sm';
     case 'Warning':
-      return 'bg-amber-100 text-amber-800 border-amber-300 shadow-sm';
+      return 'bg-amber-500/20 text-amber-400 border-amber-500/40 shadow-sm';
     case 'Resolved':
-      return 'bg-emerald-100 text-emerald-800 border-emerald-300 shadow-sm';
+      return 'bg-severity-resolved/20 text-severity-resolved border-emerald-500/40 shadow-sm';
     case 'Low':
-      return 'bg-slate-100 text-slate-700 border-slate-300 shadow-sm';
+      return 'bg-card text-muted border-[rgba(19,65,120,0.35)] shadow-sm';
     default:
-      return 'bg-gray-100 text-gray-800 border-gray-300 shadow-sm';
+      return 'bg-card text-muted border-[rgba(19,65,120,0.35)] shadow-sm';
   }
 }
 
@@ -107,14 +107,14 @@ export function TaskBoardPage() {
     >
       <CardContent className="p-4">
         <div className="flex items-start justify-between mb-2 gap-2">
-          <span className="text-sm font-mono text-gray-600 shrink-0">{incident.id}</span>
+          <span className="text-sm font-mono text-muted shrink-0">{incident.id}</span>
           <Badge className={`${getSeverityBadgeClass(incident.severity)} shrink-0`}>
             {incident.severity}
           </Badge>
         </div>
-        <h4 className="font-semibold text-gray-900 mb-2">{incident.emergencyType}</h4>
-        <p className="text-sm text-gray-600 mb-3 line-clamp-2">{incident.description}</p>
-        <div className="space-y-1 text-xs text-gray-500">
+        <h4 className="font-semibold text-foreground mb-2">{incident.emergencyType}</h4>
+        <p className="text-sm text-muted mb-3 line-clamp-2">{incident.description}</p>
+        <div className="space-y-1 text-xs text-muted">
           <div className="flex items-center gap-2">
             <MapPin className="w-3 h-3 flex-shrink-0" />
             <span>{incident.barangay}</span>
@@ -124,8 +124,8 @@ export function TaskBoardPage() {
             <span>{incident.timeReported}</span>
           </div>
         </div>
-        <div className="mt-3 pt-3 border-t border-gray-200">
-          <p className="text-xs text-gray-600">Assigned: {incident.assignedDepartment}</p>
+        <div className="mt-3 pt-3 border-t border-[rgba(19,65,120,0.35)]">
+          <p className="text-xs text-muted">Assigned: {incident.assignedDepartment}</p>
         </div>
       </CardContent>
     </Card>
@@ -138,20 +138,20 @@ export function TaskBoardPage() {
     return (
       <div
         className={`min-h-[200px] rounded-xl border-2 border-dashed p-3 transition-colors ${
-          isDropTarget ? 'border-blue-400 bg-blue-50/50' : 'border-gray-200 bg-gray-50/30'
+          isDropTarget ? 'border-secondary bg-secondary/20' : 'border-[rgba(19,65,120,0.35)] bg-card/50'
         }`}
         onDragOver={(e) => handleDragOver(e, columnKey)}
         onDragLeave={handleDragLeave}
         onDrop={(e) => handleDrop(e, columnKey)}
       >
         <div className="mb-4">
-          <h3 className="font-semibold text-gray-900 mb-1">{title}</h3>
-          <p className="text-sm text-gray-500">{taskList.length} tasks</p>
+          <h3 className="font-semibold text-foreground mb-1">{title}</h3>
+          <p className="text-sm text-muted">{taskList.length} tasks</p>
         </div>
         <div className="space-y-3">
           {paginatedList.length === 0 ? (
-            <div className="h-24 flex items-center justify-center rounded-lg bg-white/60 border border-gray-100">
-              <p className="text-sm text-gray-400">{emptyLabel}</p>
+            <div className="h-24 flex items-center justify-center rounded-lg bg-card/60 border border-[rgba(19,65,120,0.35)]">
+              <p className="text-sm text-muted">{emptyLabel}</p>
             </div>
           ) : (
             paginatedList.map((task) => (
@@ -167,8 +167,8 @@ export function TaskBoardPage() {
     <Layout>
       <div className="p-8">
         <div className="mb-6">
-          <h1 className="text-3xl font-semibold text-gray-900">Department Task Board</h1>
-          <p className="text-gray-600 mt-1">Kanban-style task management for emergency response</p>
+          <h1 className="text-3xl font-semibold text-foreground">Department Task Board</h1>
+          <p className="text-muted mt-1">Kanban-style task management for emergency response</p>
           <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-100">
             <p className="text-sm text-blue-800">
               <strong>Note:</strong> Drag and drop tasks between columns to update their status. Changes are reflected in real-time across the dashboard.
@@ -189,19 +189,19 @@ export function TaskBoardPage() {
               type="button"
               onClick={() => setCurrentPage((p) => Math.max(0, p - 1))}
               disabled={currentPage === 0}
-              className="inline-flex items-center gap-1 px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 font-medium shadow-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="inline-flex items-center gap-1 px-4 py-2 rounded-lg border border-[rgba(19,65,120,0.35)] bg-card text-foreground font-medium shadow-card hover:bg-secondary/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               <ChevronLeft className="w-4 h-4" />
               Previous
             </button>
-            <span className="text-sm text-gray-600 font-medium">
+            <span className="text-sm text-muted font-medium">
               Page {currentPage + 1} of {totalPages}
             </span>
             <button
               type="button"
               onClick={() => setCurrentPage((p) => Math.min(totalPages - 1, p + 1))}
               disabled={currentPage >= totalPages - 1}
-              className="inline-flex items-center gap-1 px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 font-medium shadow-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="inline-flex items-center gap-1 px-4 py-2 rounded-lg border border-[rgba(19,65,120,0.35)] bg-card text-foreground font-medium shadow-card hover:bg-secondary/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               Next
               <ChevronRight className="w-4 h-4" />

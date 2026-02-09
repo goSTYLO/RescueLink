@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Notification from '../components/Notification';
+import Swal from 'sweetalert2';
 import logo from '../assets/logo.svg';
 import illustration from '../assets/create-password-illustration.svg';
 
@@ -15,7 +15,6 @@ export default function CreateNewPassword({ onSuccess, onBackToLogin }) {
   const [passwordError, setPasswordError] = useState('');
   const [confirmPasswordError, setConfirmPasswordError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [notification, setNotification] = useState(null);
 
   const validatePassword = (password) => {
     if (!password) {
@@ -83,6 +82,12 @@ export default function CreateNewPassword({ onSuccess, onBackToLogin }) {
     }
     
     if (passwordValidationError || confirmPasswordValidationError) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Validation failed',
+        text: passwordValidationError || confirmPasswordValidationError,
+        confirmButtonColor: '#134178',
+      });
       return;
     }
 
@@ -109,12 +114,19 @@ export default function CreateNewPassword({ onSuccess, onBackToLogin }) {
       // Clear stored email
       sessionStorage.removeItem('resetEmail');
       
-      setNotification({ message: 'Password reset successfully! Redirecting to login...', type: 'success' });
-      setTimeout(() => {
-        navigate('/login');
-      }, 2000);
+      Swal.fire({
+        icon: 'success',
+        title: 'Password reset!',
+        text: 'Your password has been updated. Redirecting to login...',
+        confirmButtonColor: '#134178',
+      }).then(() => navigate('/login'));
     } catch (err) {
-      setNotification({ message: err.message || 'Failed to reset password. Please try again.', type: 'error' });
+      Swal.fire({
+        icon: 'error',
+        title: 'Reset failed',
+        text: err.message || 'Failed to reset password. Please try again.',
+        confirmButtonColor: '#134178',
+      });
     } finally {
       setLoading(false);
     }
@@ -293,14 +305,6 @@ export default function CreateNewPassword({ onSuccess, onBackToLogin }) {
         </div>
       </div>
 
-      {/* Notification */}
-      {notification && (
-        <Notification
-          message={notification.message}
-          type={notification.type}
-          onClose={() => setNotification(null)}
-        />
-      )}
     </div>
   );
 }
