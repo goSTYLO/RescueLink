@@ -19,6 +19,9 @@ router.get('/:id/media/:index', authMiddleware, incidentController.downloadMedia
 // Get incident with AI classification details
 router.get('/:id/with-ai', authMiddleware, incidentController.getByIdWithAi);
 
+// Verify incident (record on blockchain)
+router.post('/:id/verify', authMiddleware, incidentController.verifyIncident);
+
 // Get current user's incidents
 router.get('/user/my', authMiddleware, incidentController.getMyIncidents);
 

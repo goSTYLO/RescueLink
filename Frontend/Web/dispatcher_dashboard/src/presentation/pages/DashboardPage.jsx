@@ -34,7 +34,7 @@ function mapApiIncidentToDashboard(api) {
   const severityMap = { high: 'Critical', medium: 'Warning', low: 'Low' };
   const severity = severityMap[api.severity_level?.toLowerCase()] || (api.severity_level || '—');
 
-  const statusMap = { pending: 'Pending', resolved: 'Resolved' };
+  const statusMap = { pending: 'Pending', resolved: 'Resolved', verified: 'Verified' };
   const status = statusMap[api.status?.toLowerCase()] || (api.status || 'Pending');
 
   let timeReported = '—';
@@ -55,7 +55,7 @@ function mapApiIncidentToDashboard(api) {
     severity,
     status,
     timeReported,
-    verified: false,
+    verified: api.verified ?? false,
   };
 }
 
@@ -538,7 +538,7 @@ export function DashboardPage() {
                           >
                             <Eye className="w-5 h-5" />
                           </Button>
-                          {!incident.verified && incident.status !== 'Pending' && (
+                          {!incident.verified && (
                             <Button 
                               size="sm" 
                               variant="ghost" 

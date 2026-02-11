@@ -62,6 +62,26 @@ export async function getIncidentById(id) {
 }
 
 /**
+ * Verify incident and record on blockchain
+ * @param {number|string} id - Incident report ID
+ * @returns {Promise<Object>} { success, verified, blockchain }
+ */
+export async function verifyIncident(id) {
+  const response = await fetch(`${API_URL}/api/incidents/${id}/verify`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.error || 'Failed to verify incident');
+  }
+
+  return data;
+}
+
+/**
  * Fetch incident audio and return a blob URL for playback (requires auth)
  * @param {number|string} id - Incident report ID
  * @returns {Promise<string>} Blob URL for the audio (caller should revoke when done)

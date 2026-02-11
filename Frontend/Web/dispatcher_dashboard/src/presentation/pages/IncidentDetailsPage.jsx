@@ -27,7 +27,7 @@ import {
   units
 } from '@/data/mock/mockData';
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { getIncidentById, getIncidentAudioUrl } from '@/data/api/incidents.api';
+import { getIncidentById, getIncidentAudioUrl, verifyIncident } from '@/data/api/incidents.api';
 import { DEV_MODE } from '@/core/config/app.config';
 import { Loader2 } from 'lucide-react';
 
@@ -44,7 +44,7 @@ function mapApiToIncidentDetails(api) {
   const severityMap = { high: 'Critical', medium: 'Warning', low: 'Low' };
   const severity = severityMap[api.severity_level?.toLowerCase()] || (api.severity_level || '—');
 
-  const statusMap = { pending: 'Pending', resolved: 'Resolved' };
+  const statusMap = { pending: 'Pending', resolved: 'Resolved', verified: 'Verified' };
   const status = statusMap[api.status?.toLowerCase()] || (api.status || 'Pending');
 
   let timeReported = '—';
@@ -70,7 +70,7 @@ function mapApiToIncidentDetails(api) {
     transcription: api.transcription || null,
     audioPath: api.audio_path || null,
     mediaPaths: Array.isArray(api.media_paths) ? api.media_paths : [],
-    verified: false,
+    verified: api.verified ?? false,
     highPriority: api.severity_level === 'high',
     possibleDuplicates: [],
     closureData: null,
@@ -162,6 +162,8 @@ export function IncidentDetailsPage() {
   const [addDepartmentDialogOpen, setAddDepartmentDialogOpen] = useState(false);
   const [closureDialogOpen, setClosureDialogOpen] = useState(false);
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
+  const [verifyDialogOpen, setVerifyDialogOpen] = useState(false);
+  const [verifyLoading, setVerifyLoading] = useState(false);
 
   // State for forms
   const [newSeverity, setNewSeverity] = useState('');
@@ -257,6 +259,21 @@ export function IncidentDetailsPage() {
   const handleMarkFalse = () => {
     if (confirm('Are you sure you want to mark this as a false report?')) {
       alert('Incident marked as false report');
+    }
+  };
+
+  const handleVerifyIncident = async () => {
+    const numericId = /^\d+$/.test(String(id));
+    if (!numericId || !incident) return;
+    setVerifyLoading(true);
+    try {
+      await verifyIncident(id);
+      setVerifyDialogOpen(false);
+      await fetchIncident();
+    } catch (err) {
+      alert(err.message || 'Failed to verify incident');
+    } finally {
+      setVerifyLoading(false);
     }
   };
 
@@ -709,11 +726,52 @@ export function IncidentDetailsPage() {
                     <CardTitle>Quick Actions</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    {!incident.verified && incident.status !== 'Pending' && (
-                      <Button className="w-full bg-[#134178] hover:bg-[#0f3256] gap-2">
-                        <CheckCircle className="w-4 h-4" />
-                        Verify Incident
-                      </Button>
+                    {!incident.verified && (
+                      <>
+                        <Button
+                          className="w-full bg-[#134178] hover:bg-[#0f3256] gap-2"
+                          onClick={() => setVerifyDialogOpen(true)}
+                        >
+                          <CheckCircle className="w-4 h-4" />
+                          Verify Incident
+                        </Button>
+                        <Dialog open={verifyDialogOpen} onOpenChange={setVerifyDialogOpen}>
+                          <DialogContent>
+                            <DialogHeader>
+                              <DialogTitle>Verify Incident</DialogTitle>
+                              <DialogDescription>
+                                Are you sure you want to verify this incident? This will record it on the blockchain for tamper-proof audit. This action cannot be undone.
+                              </DialogDescription>
+                            </DialogHeader>
+                            <DialogFooter>
+                              <Button
+                                variant="outline"
+                                onClick={() => setVerifyDialogOpen(false)}
+                                disabled={verifyLoading}
+                              >
+                                Cancel
+                              </Button>
+                              <Button
+                                onClick={handleVerifyIncident}
+                                disabled={verifyLoading}
+                                className="gap-2 bg-[#134178] hover:bg-[#0f3256]"
+                              >
+                                {verifyLoading ? (
+                                  <>
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                    Verifying...
+                                  </>
+                                ) : (
+                                  <>
+                                    <CheckCircle className="w-4 h-4" />
+                                    Confirm Verify
+                                  </>
+                                )}
+                              </Button>
+                            </DialogFooter>
+                          </DialogContent>
+                        </Dialog>
+                      </>
                     )}
                     <Button variant="outline" className="w-full gap-2">
                       <Bell className="w-4 h-4" />

@@ -54,6 +54,7 @@ ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS media_paths JSONB;
 ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS ai_pending BOOLEAN DEFAULT FALSE;
 ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS ai_attempted BOOLEAN DEFAULT FALSE;
 ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS barangay VARCHAR(150);
+ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS verified BOOLEAN DEFAULT FALSE;
 
 -- Create responders table
 CREATE TABLE IF NOT EXISTS responders (

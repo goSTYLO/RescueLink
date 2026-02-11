@@ -3,6 +3,7 @@ const pool = require('../config/db');
 const { validateLatitude, validateLongitude, validateInteger, validatePagination, validateOptionalString } = require('../utils/validation');
 const { getBarangayFromCoordinates } = require('../utils/geolocation');
 const { processIncidentWithAudio } = require('../services/aiService');
+const { verifyIncidentOnBlockchain } = require('../services/blockchainService');
 const { saveAudioFile, saveMediaFiles, deleteIncidentFiles, fileExists, getAbsolutePath } = require('../utils/fileValidation');
 const path = require('path');
 const fs = require('fs').promises;
@@ -386,6 +387,65 @@ const incidentController = {
         return res.status(400).json({ error: error.message });
       }
       res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+
+  // Verify incident and record on blockchain
+  async verifyIncident(req, res) {
+    try {
+      const { id } = req.params;
+      const validatedId = validateInteger(id, 'report_id');
+
+      const incident = await Incident.findById(validatedId);
+      if (!incident) {
+        return res.status(404).json({ error: 'Incident not found' });
+      }
+
+      if (incident.verified) {
+        return res.status(400).json({ error: 'Incident is already verified' });
+      }
+
+      const incidentData = {
+        report_id: incident.report_id,
+        incident_type: incident.incident_type,
+        severity_level: incident.severity_level,
+        description: incident.description,
+        latitude: incident.latitude,
+        longitude: incident.longitude,
+        barangay: incident.barangay,
+        status: incident.status,
+        created_at: incident.created_at
+      };
+
+      const blockchainResult = await verifyIncidentOnBlockchain(validatedId, incidentData);
+
+      const networkReference = `${blockchainResult.tx_hash}#block${blockchainResult.block_number}`;
+      await Incident.createBlockchainRecord({
+        report_id: validatedId,
+        hash_value: blockchainResult.hash_value,
+        network_reference: networkReference
+      });
+
+      await Incident.setVerified(validatedId);
+
+      res.json({
+        success: true,
+        verified: true,
+        blockchain: {
+          tx_hash: blockchainResult.tx_hash,
+          block_number: blockchainResult.block_number,
+          hash_value: blockchainResult.hash_value
+        }
+      });
+    } catch (error) {
+      console.error('Error verifying incident:', error);
+      if (error.message.includes('must be') || error.message.includes('must not')) {
+        return res.status(400).json({ error: error.message });
+      }
+      if (error.message.includes('Blockchain')) {
+        return res.status(503).json({ error: error.message });
+      }
+      res.status(500).json({ error: 'Failed to verify incident' });
     }
   },
 

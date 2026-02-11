@@ -224,6 +224,39 @@ const Incident = {
       [limit, offset]
     );
     return res.rows;
+  },
+
+  /**
+   * Mark incident as verified (dispatcher-confirmed) and set status to 'verified'
+   */
+  async setVerified(report_id) {
+    const res = await pool.query(
+      'UPDATE incident_reports SET verified = TRUE, status = $2 WHERE report_id = $1 RETURNING *',
+      [report_id, 'verified']
+    );
+    return res.rows[0];
+  },
+
+  /**
+   * Create blockchain record for verified incident
+   */
+  async createBlockchainRecord({ report_id, hash_value, network_reference }) {
+    const res = await pool.query(
+      'INSERT INTO blockchain_records (report_id, hash_value, network_reference) VALUES ($1, $2, $3) RETURNING *',
+      [report_id, hash_value, network_reference]
+    );
+    return res.rows[0];
+  },
+
+  /**
+   * Get blockchain record for an incident
+   */
+  async getBlockchainRecord(report_id) {
+    const res = await pool.query(
+      'SELECT * FROM blockchain_records WHERE report_id = $1 ORDER BY timestamp DESC LIMIT 1',
+      [report_id]
+    );
+    return res.rows[0];
   }
 };
 
