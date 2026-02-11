@@ -197,6 +197,74 @@ exports.resetPassword = async (req, res) => {
   }
 };
 
+// Dispatcher login: email + password, only users with role 'dispatcher' can log in
+exports.dispatcherLogin = async (req, res) => {
+  console.log('🔐 Dispatcher login attempt:', { email: req.body.email });
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) return res.status(400).json({ message: 'Email and password are required' });
+
+    const validatedEmail = validateEmail(email);
+    const user = await User.findByEmail(validatedEmail);
+    if (!user) return res.status(401).json({ message: 'Invalid credentials' });
+
+    if (user.role !== 'dispatcher') return res.status(401).json({ message: 'Invalid credentials' });
+    if (!user.password) return res.status(401).json({ message: 'Invalid credentials' });
+
+    const isPasswordValid = await comparePassword(password, user.password);
+    if (!isPasswordValid) return res.status(401).json({ message: 'Invalid credentials' });
+
+    const token = jwt.sign({ user_id: user.user_id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
+    console.log('✅ Dispatcher login successful:', { user_id: user.user_id, email: user.email });
+    res.json({ user: { user_id: user.user_id, email: user.email, role: user.role }, token });
+  } catch (err) {
+    console.error('❌ Dispatcher login error:', err.message);
+    if (err.message.includes('must be') || err.message.includes('Invalid')) {
+      return res.status(400).json({ message: err.message });
+    }
+    res.status(500).json({ message: 'Login failed' });
+  }
+};
+
+// Dispatcher signup: email, password, first name, last name; creates user with role 'dispatcher'
+exports.dispatcherSignup = async (req, res) => {
+  console.log('📝 Dispatcher signup attempt:', { email: req.body.email });
+  try {
+    const { email, password, firstName, lastName } = req.body;
+    if (!email || !password || !firstName || !lastName) return res.status(400).json({ message: 'Email, password, firstName, and lastName are required' });
+
+    const validatedEmail = validateEmail(email);
+    const validatedPassword = validatePassword(password);
+    const validatedFirstName = validateString(firstName, 'firstName', 1, 100);
+    const validatedLastName = validateString(lastName, 'lastName', 1, 100);
+
+    const existing = await User.findByEmail(validatedEmail);
+    if (existing) return res.status(409).json({ message: 'An account with this email already exists' });
+
+    const passwordHash = await hashPassword(validatedPassword);
+    const user = await User.create({
+      email: validatedEmail,
+      password: passwordHash,
+      role: 'dispatcher',
+      phone_number: null,
+      address: null,
+      phone_verified: false,
+      first_name: validatedFirstName,
+      last_name: validatedLastName,
+    });
+
+    const token = jwt.sign({ user_id: user.user_id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
+    console.log('✅ Dispatcher signup successful:', { user_id: user.user_id, email: user.email });
+    res.status(201).json({ user: { user_id: user.user_id, email: user.email, firstName: user.first_name, lastName: user.last_name, role: user.role }, token });
+  } catch (err) {
+    console.error('❌ Dispatcher signup error:', err.message);
+    if (err.message.includes('must be') || err.message.includes('Invalid') || err.message.includes('at least')) {
+      return res.status(400).json({ message: err.message });
+    }
+    res.status(500).json({ message: 'Signup failed' });
+  }
+};
+
 // Get current authenticated user's profile
 exports.getMe = async (req, res) => {
   try {

@@ -547,7 +547,7 @@ node setup-db.js
 #### Web Frontend
 ```bash
 # Navigate to Web directory
-cd "c:\Users\Aaron\GitHub Repos\RescueLink\Frontend\Web\test"
+cd "c:\Users\Aaron\GitHub Repos\RescueLink\Frontend\Web\dispatcher_dashboard"
 
 # Install dependencies
 npm install
@@ -574,7 +574,7 @@ cd "c:\Users\Aaron\GitHub Repos\RescueLink\RescueLink AI"
 python -m uvicorn api.main:app --port 8000
 
 # Terminal 3: Start Frontend
-cd "c:\Users\Aaron\GitHub Repos\RescueLink\Frontend\Web\test"
+cd "c:\Users\Aaron\GitHub Repos\RescueLink\Frontend\Web\dispatcher_dashboard"
 npm run dev
 ```
 
