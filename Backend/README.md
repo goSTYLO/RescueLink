@@ -58,3 +58,7 @@ and creates a local user record with `phone_verified = true` and the provided pa
 
 This approach avoids having to implement SMS sending on the server; Firebase's free quota can be used
 for sending the SMS from the client-side flow. See Firebase docs for Phone Auth client integration.
+
+Migrations
+
+For an existing database, run SQL files in `migrations/` in order as needed (e.g. `add_dispatcher_audit_logs.sql` for the dispatcher audit log table). Use `psql` or your DB client: `psql $DATABASE_URL -f migrations/add_dispatcher_audit_logs.sql`

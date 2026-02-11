@@ -4,6 +4,9 @@ const path = require('path');
 // Cache for the loaded polygon
 let dagupanPolygon = null;
 
+// Cache for the loaded barangays GeoJSON
+let dagupanBarangaysFeatures = null;
+
 /**
  * Load and parse the Dagupan GeoJSON file, extracting the polygon coordinates
  * @returns {Array} Array of [longitude, latitude] coordinate pairs
@@ -167,6 +170,65 @@ function distanceToLineSegment(lat, lng, lat1, lng1, lat2, lng2) {
 }
 
 /**
+ * Load and parse the Dagupan barangays GeoJSON file (cached).
+ * @returns {Array} Array of GeoJSON features (each with properties.NAME_3 and geometry)
+ */
+function loadDagupanBarangays() {
+  if (dagupanBarangaysFeatures) {
+    return dagupanBarangaysFeatures;
+  }
+
+  try {
+    const geojsonPath = path.join(__dirname, '../goelogical_polygon/dagupan_barangays.geojson');
+    const geojsonData = fs.readFileSync(geojsonPath, 'utf8');
+    const geojson = JSON.parse(geojsonData);
+
+    if (geojson.features && Array.isArray(geojson.features)) {
+      dagupanBarangaysFeatures = geojson.features;
+      return dagupanBarangaysFeatures;
+    }
+
+    throw new Error('Invalid GeoJSON structure: no features array');
+  } catch (error) {
+    throw new Error(`Failed to load Dagupan barangays: ${error.message}`);
+  }
+}
+
+/**
+ * Get barangay name for a point (latitude, longitude) using point-in-polygon
+ * against dagupan_barangays.geojson. Handles MultiPolygon (tests each polygon's exterior ring).
+ * @param {number} latitude - Latitude of the point
+ * @param {number} longitude - Longitude of the point
+ * @returns {string|null} Barangay name (NAME_3) or null if not inside any barangay
+ */
+function getBarangayFromCoordinates(latitude, longitude) {
+  let features;
+  try {
+    features = loadDagupanBarangays();
+  } catch (err) {
+    console.error('getBarangayFromCoordinates: could not load barangays GeoJSON', err.message);
+    return null;
+  }
+
+  for (const feature of features) {
+    const geometry = feature.geometry;
+    if (!geometry || geometry.type !== 'MultiPolygon' || !geometry.coordinates) continue;
+
+    // MultiPolygon: coordinates is array of polygons; each polygon is array of rings (first = exterior)
+    for (const polygon of geometry.coordinates) {
+      if (!polygon || !polygon[0]) continue;
+      const exteriorRing = polygon[0];
+      if (pointInPolygon(latitude, longitude, exteriorRing)) {
+        const name = feature.properties && feature.properties.NAME_3;
+        return name || null;
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
  * Check if a point (latitude, longitude) is within Dagupan city boundaries
  * @param {number} lat - Latitude of the point
  * @param {number} lng - Longitude of the point
@@ -180,6 +242,8 @@ function isPointInDagupan(lat, lng, bufferMeters = 0) {
 
 module.exports = {
   loadDagupanPolygon,
+  loadDagupanBarangays,
+  getBarangayFromCoordinates,
   pointInPolygon,
   pointInPolygonWithBuffer,
   calculateDistance,

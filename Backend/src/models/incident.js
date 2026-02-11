@@ -1,10 +1,10 @@
 const pool = require('../config/db');
 
 const Incident = {
-  async create({ user_id, incident_type = null, severity_level, description = null, latitude, longitude, media_url = null, status = 'pending' }) {
+  async create({ user_id, incident_type = null, severity_level, description = null, latitude, longitude, barangay = null, media_url = null, status = 'pending' }) {
     const res = await pool.query(
-      'INSERT INTO incident_reports(user_id, incident_type, severity_level, description, latitude, longitude, media_url, status) VALUES($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
-      [user_id, incident_type, severity_level, description, latitude, longitude, media_url, status]
+      'INSERT INTO incident_reports(user_id, incident_type, severity_level, description, latitude, longitude, barangay, media_url, status) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *',
+      [user_id, incident_type, severity_level, description, latitude, longitude, barangay, media_url, status]
     );
     return res.rows[0];
   },
@@ -19,6 +19,7 @@ const Incident = {
     description = null, 
     latitude, 
     longitude, 
+    barangay = null,
     transcription = null,
     audio_path = null,
     media_paths = [],
@@ -28,11 +29,11 @@ const Incident = {
   }) {
     const res = await pool.query(
       `INSERT INTO incident_reports(
-        user_id, incident_type, severity_level, description, latitude, longitude, 
+        user_id, incident_type, severity_level, description, latitude, longitude, barangay,
         transcription, audio_path, media_paths, ai_pending, ai_attempted, status
-      ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
+      ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`,
       [
-        user_id, incident_type, severity_level, description, latitude, longitude,
+        user_id, incident_type, severity_level, description, latitude, longitude, barangay,
         transcription, audio_path, JSON.stringify(media_paths), ai_pending, ai_attempted, status
       ]
     );
@@ -41,7 +42,10 @@ const Incident = {
 
   async findById(report_id) {
     const res = await pool.query(
-      'SELECT * FROM incident_reports WHERE report_id = $1',
+      `SELECT ir.*, u.first_name AS reporter_first_name, u.last_name AS reporter_last_name, u.phone_number AS reporter_phone
+       FROM incident_reports ir
+       LEFT JOIN users u ON ir.user_id = u.user_id
+       WHERE ir.report_id = $1`,
       [report_id]
     );
     return res.rows[0];
@@ -50,30 +54,33 @@ const Incident = {
   async findAll({ limit = 20, offset = 0, user_id = null, severity_level = null, status = null } = {}) {
     // Cap limit at 100
     const cappedLimit = Math.min(limit, 100);
-    
-    let query = 'SELECT * FROM incident_reports WHERE 1=1';
+
+    let query = `SELECT ir.*, u.first_name AS reporter_first_name, u.last_name AS reporter_last_name, u.phone_number AS reporter_phone
+      FROM incident_reports ir
+      LEFT JOIN users u ON ir.user_id = u.user_id
+      WHERE 1=1`;
     const params = [];
     let paramCount = 0;
 
     if (user_id) {
       paramCount++;
-      query += ` AND user_id = $${paramCount}`;
+      query += ` AND ir.user_id = $${paramCount}`;
       params.push(user_id);
     }
 
     if (severity_level) {
       paramCount++;
-      query += ` AND severity_level = $${paramCount}`;
+      query += ` AND ir.severity_level = $${paramCount}`;
       params.push(severity_level);
     }
 
     if (status) {
       paramCount++;
-      query += ` AND status = $${paramCount}`;
+      query += ` AND ir.status = $${paramCount}`;
       params.push(status);
     }
 
-    query += ` ORDER BY created_at DESC LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}`;
+    query += ` ORDER BY ir.created_at DESC LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}`;
     params.push(cappedLimit, offset);
 
     const res = await pool.query(query, params);
@@ -89,10 +96,10 @@ const Incident = {
     return res.rows;
   },
 
-  async update(report_id, { incident_type, severity_level, description, latitude, longitude, media_url, status }) {
+  async update(report_id, { incident_type, severity_level, description, latitude, longitude, barangay, media_url, status }) {
     const res = await pool.query(
-      'UPDATE incident_reports SET incident_type = $1, severity_level = $2, description = $3, latitude = $4, longitude = $5, media_url = $6, status = $7 WHERE report_id = $8 RETURNING *',
-      [incident_type, severity_level, description, latitude, longitude, media_url, status, report_id]
+      'UPDATE incident_reports SET incident_type = $1, severity_level = $2, description = $3, latitude = $4, longitude = $5, barangay = $6, media_url = $7, status = $8 WHERE report_id = $9 RETURNING *',
+      [incident_type, severity_level, description, latitude, longitude, barangay, media_url, status, report_id]
     );
     return res.rows[0];
   },

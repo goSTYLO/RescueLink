@@ -1,4 +1,5 @@
 import { Layout } from '@/presentation/components/layout/Layout';
+import { IncidentMap } from '@/presentation/components/common/IncidentMap';
 import { Card, CardContent, CardHeader, CardTitle } from '@/presentation/components/ui/Card';
 import { Badge } from '@/presentation/components/ui/Badge';
 import { Button } from '@/presentation/components/ui/Button';
@@ -17,7 +18,7 @@ import {
 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { 
-  incidents, 
+  incidents as mockIncidents, 
   incidentTimelines, 
   escalationHistory, 
   coordinationNotes,
@@ -25,17 +26,131 @@ import {
   departments,
   units
 } from '@/data/mock/mockData';
-import { useState } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { getIncidentById, getIncidentAudioUrl } from '@/data/api/incidents.api';
+import { DEV_MODE } from '@/core/config/app.config';
+import { Loader2 } from 'lucide-react';
+
+function mapApiToIncidentDetails(api) {
+  const firstName = api.reporter_first_name || '';
+  const lastName = api.reporter_last_name || '';
+  const reporterName = (firstName || lastName)
+    ? [firstName, lastName].filter(Boolean).join(' ').trim()
+    : `User #${api.user_id}`;
+
+  const typeMap = { fire: 'Fire', medical: 'Medical', police: 'Police', disaster: 'Disaster' };
+  const emergencyType = typeMap[api.incident_type?.toLowerCase()] || (api.incident_type ? String(api.incident_type).charAt(0).toUpperCase() + String(api.incident_type).slice(1) : '—');
+
+  const severityMap = { high: 'Critical', medium: 'Warning', low: 'Low' };
+  const severity = severityMap[api.severity_level?.toLowerCase()] || (api.severity_level || '—');
+
+  const statusMap = { pending: 'Pending', resolved: 'Resolved' };
+  const status = statusMap[api.status?.toLowerCase()] || (api.status || 'Pending');
+
+  let timeReported = '—';
+  if (api.created_at) {
+    const d = new Date(api.created_at);
+    timeReported = d.toLocaleString('en-US', {
+      year: 'numeric', month: 'short', day: 'numeric',
+      hour: 'numeric', minute: '2-digit', hour12: true
+    });
+  }
+
+  return {
+    id: api.report_id,
+    reporterName,
+    reporterPhone: api.reporter_phone || '—',
+    barangay: '—',
+    emergencyType,
+    severity,
+    status,
+    description: api.description || 'No description provided.',
+    location: { lat: api.latitude, lng: api.longitude },
+    aiSuggestion: null,
+    transcription: api.transcription || null,
+    audioPath: api.audio_path || null,
+    mediaPaths: Array.isArray(api.media_paths) ? api.media_paths : [],
+    verified: false,
+    highPriority: api.severity_level === 'high',
+    possibleDuplicates: [],
+    closureData: null,
+    timeReported,
+  };
+}
 
 export function IncidentDetailsPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const incident = incidents.find(i => i.id === id);
+  const [incident, setIncident] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [audioUrl, setAudioUrl] = useState(null);
+  const [audioLoading, setAudioLoading] = useState(false);
+  const [audioError, setAudioError] = useState(null);
+  const audioUrlRef = useRef(null);
+
+  const fetchIncident = useCallback(async () => {
+    const numericId = /^\d+$/.test(String(id));
+    if (numericId) {
+      setLoading(true);
+      setError(null);
+      try {
+        const data = await getIncidentById(id);
+        setIncident(mapApiToIncidentDetails(data));
+      } catch (err) {
+        setError(err.message || 'Failed to fetch incident');
+        setIncident(null);
+      } finally {
+        setLoading(false);
+      }
+    } else {
+      const mockIncident = mockIncidents.find(i => i.id === id);
+      setIncident(mockIncident || null);
+      setLoading(false);
+      setError(mockIncident ? null : 'Incident not found');
+    }
+  }, [id]);
+
+  useEffect(() => {
+    fetchIncident();
+  }, [fetchIncident]);
+
+  // Fetch audio when incident has audio and we're viewing API-sourced incident
+  useEffect(() => {
+    const numericId = /^\d+$/.test(String(id));
+    const hasAudio = incident?.audioPath;
+    if (!numericId || !hasAudio || !incident) {
+      setAudioUrl(null);
+      setAudioError(null);
+      return;
+    }
+    setAudioLoading(true);
+    setAudioError(null);
+    getIncidentAudioUrl(id)
+      .then((url) => {
+        if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
+        audioUrlRef.current = url;
+        setAudioUrl(url);
+        setAudioLoading(false);
+      })
+      .catch((err) => {
+        setAudioError(err.message || 'Failed to load audio');
+        setAudioLoading(false);
+      });
+    return () => {
+      if (audioUrlRef.current) {
+        URL.revokeObjectURL(audioUrlRef.current);
+        audioUrlRef.current = null;
+      }
+      setAudioUrl(null);
+    };
+  }, [id, incident?.audioPath, incident?.id]);
+
   const timeline = incidentTimelines[id || ''] || [];
   const escalations = escalationHistory[id || ''] || [];
   const coordination = coordinationNotes[id || ''] || [];
   const review = postIncidentReviews[id || ''];
-  const possibleDuplicates = incidents.filter(i => incident?.possibleDuplicates?.includes(i.id));
+  const possibleDuplicates = mockIncidents.filter(i => incident?.possibleDuplicates?.includes(i.id));
 
   // Get current user role
   const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
@@ -61,11 +176,33 @@ export function IncidentDetailsPage() {
     return Object.values(units).flat();
   };
 
+  if (loading) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center py-24">
+          <Loader2 className="w-10 h-10 animate-spin text-primary" />
+        </div>
+      </Layout>
+    );
+  }
+
+  if (error) {
+    return (
+      <Layout>
+        <div className="p-8">
+          <p className="text-primary font-medium">{error}</p>
+          <Button variant="outline" className="mt-4" onClick={() => navigate(-1)}>Back</Button>
+        </div>
+      </Layout>
+    );
+  }
+
   if (!incident) {
     return (
       <Layout>
         <div className="p-8">
           <p>Incident not found</p>
+          <Button variant="outline" className="mt-4" onClick={() => navigate(-1)}>Back</Button>
         </div>
       </Layout>
     );
@@ -164,6 +301,11 @@ export function IncidentDetailsPage() {
                 )}
               </div>
               <p className="text-muted mt-1">{incident.emergencyType} Incident</p>
+              {incident.timeReported && (
+                <p className="text-sm text-muted mt-0.5">
+                  Reported: {incident.timeReported}
+                </p>
+              )}
             </div>
             <Badge className={getSeverityColor(incident.severity)}>
               {incident.severity}
@@ -242,9 +384,11 @@ export function IncidentDetailsPage() {
                         </p>
                       </div>
                     </div>
-                    <div className="w-full h-48 bg-gray-200 rounded-lg flex items-center justify-center">
-                      <p className="text-gray-500">Interactive Map (GPS: {incident.location.lat}, {incident.location.lng})</p>
-                    </div>
+                    <IncidentMap
+                      latitude={incident.location.lat}
+                      longitude={incident.location.lng}
+                      className="w-full h-48 rounded-lg overflow-hidden"
+                    />
                   </CardContent>
                 </Card>
 
@@ -255,11 +399,25 @@ export function IncidentDetailsPage() {
                   </CardHeader>
                   <CardContent>
                     <p className="text-foreground">{incident.description}</p>
-                    <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-100">
-                      <p className="text-sm text-blue-900"><strong>AI Suggestion:</strong> {incident.aiSuggestion}</p>
-                    </div>
+                    {incident.aiSuggestion && (
+                      <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-100">
+                        <p className="text-sm text-blue-900"><strong>AI Suggestion:</strong> {incident.aiSuggestion}</p>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
+
+                {/* Voice Transcription */}
+                {incident.transcription && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Voice Transcription</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-foreground whitespace-pre-wrap">{incident.transcription}</p>
+                    </CardContent>
+                  </Card>
+                )}
 
                 {/* Media */}
                 <Card>
@@ -269,19 +427,42 @@ export function IncidentDetailsPage() {
                   <CardContent>
                     <div className="space-y-3">
                       <div className="p-4 bg-secondary/20 rounded-lg border border-border">
-                        <p className="text-sm text-gray-600 mb-2">Voice Recording</p>
-                        <div className="flex items-center gap-3">
-                          <div className="h-2 flex-1 bg-[#134178]/20 rounded-full"></div>
-                          <span className="text-xs text-gray-500">1:23</span>
-                        </div>
+                        <p className="text-sm text-muted mb-2">Voice Recording</p>
+                        {audioLoading && (
+                          <div className="flex items-center gap-2 text-muted text-sm">
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Loading audio...
+                          </div>
+                        )}
+                        {audioError && (
+                          <p className="text-sm text-primary">{audioError}</p>
+                        )}
+                        {audioUrl && !audioLoading && (
+                          <audio
+                            controls
+                            src={audioUrl}
+                            className="w-full h-10"
+                            preload="metadata"
+                          >
+                            Your browser does not support the audio element.
+                          </audio>
+                        )}
+                        {!incident.audioPath && !audioLoading && !audioError && (
+                          <p className="text-sm text-muted">No voice recording available</p>
+                        )}
                       </div>
                       <div className="grid grid-cols-2 gap-3">
-                        <div className="aspect-video bg-gray-200 rounded-lg flex items-center justify-center">
-                          <p className="text-sm text-gray-500">Photo 1</p>
-                        </div>
-                        <div className="aspect-video bg-gray-200 rounded-lg flex items-center justify-center">
-                          <p className="text-sm text-gray-500">Photo 2</p>
-                        </div>
+                        {(incident.mediaPaths || []).length > 0 ? (
+                          (incident.mediaPaths || []).map((path, idx) => (
+                            <div key={idx} className="aspect-video bg-muted/30 rounded-lg flex items-center justify-center border border-border">
+                              <p className="text-sm text-muted">Photo {idx + 1}</p>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="col-span-2 p-6 bg-muted/20 rounded-lg border border-dashed border-border flex items-center justify-center">
+                            <p className="text-sm text-muted">No photos provided for this incident</p>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </CardContent>
@@ -528,16 +709,12 @@ export function IncidentDetailsPage() {
                     <CardTitle>Quick Actions</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    {!incident.verified && (
+                    {!incident.verified && incident.status !== 'Pending' && (
                       <Button className="w-full bg-[#134178] hover:bg-[#0f3256] gap-2">
                         <CheckCircle className="w-4 h-4" />
                         Verify Incident
                       </Button>
                     )}
-                    <Button variant="outline" className="w-full gap-2">
-                      <Phone className="w-4 h-4" />
-                      Contact Reporter
-                    </Button>
                     <Button variant="outline" className="w-full gap-2">
                       <Bell className="w-4 h-4" />
                       Notify Responders

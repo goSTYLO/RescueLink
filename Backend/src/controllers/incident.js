@@ -1,6 +1,7 @@
 const Incident = require('../models/incident');
 const pool = require('../config/db');
 const { validateLatitude, validateLongitude, validateInteger, validatePagination, validateOptionalString } = require('../utils/validation');
+const { getBarangayFromCoordinates } = require('../utils/geolocation');
 const { processIncidentWithAudio } = require('../services/aiService');
 const { saveAudioFile, saveMediaFiles, deleteIncidentFiles, fileExists, getAbsolutePath } = require('../utils/fileValidation');
 const path = require('path');
@@ -30,6 +31,9 @@ const incidentController = {
       const validatedLat = validateLatitude(latitude);
       const validatedLng = validateLongitude(longitude);
 
+      // Resolve barangay from incident location (dagupan_barangays.geojson)
+      const barangay = getBarangayFromCoordinates(validatedLat, validatedLng);
+
       // Create emergency incident with high severity
       const incident = await Incident.create({
         user_id: user_id,
@@ -38,6 +42,7 @@ const incidentController = {
         description: null,
         latitude: validatedLat,
         longitude: validatedLng,
+        barangay,
         media_url: null,
         status: 'pending'
       });
@@ -149,6 +154,9 @@ const incidentController = {
       const validatedLat = validateLatitude(latitude);
       const validatedLng = validateLongitude(longitude);
 
+      // Resolve barangay from incident location (dagupan_barangays.geojson)
+      const barangay = getBarangayFromCoordinates(validatedLat, validatedLng);
+
       // Check if audio file is provided
       const audioFile = req.files?.audio?.[0];
       if (!audioFile) {
@@ -170,6 +178,7 @@ const incidentController = {
         description: description || null,
         latitude: validatedLat,
         longitude: validatedLng,
+        barangay,
         transcription: null, // Will be filled by AI
         audio_path: null, // Will be updated after file save
         media_paths: [],

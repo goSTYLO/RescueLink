@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Home, AlertTriangle, Map, User, FileText, Settings, Shield, Building2, LayoutDashboard, LogOut, Menu } from 'lucide-react';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/infrastructure/firebase';
+import { logout as logoutApi } from '@/data/api/auth.api';
 import logo from '@/presentation/assets/logo.svg';
 import logoDark from '@/presentation/assets/logo-dark.svg';
 import Swal from 'sweetalert2';
@@ -55,38 +56,36 @@ export function Layout({ children }) {
   }));
   const isAdmin = currentUser.role === 'Admin';
 
-  // Get user display name
-  const userName = currentUser.username || currentUser.name || 'Officer Munar';
+  // Get user display name (prefer full name over email/username)
+  const userName = currentUser.name ||
+    ([currentUser.firstName, currentUser.lastName].filter(Boolean).join(' ') || null) ||
+    currentUser.username ||
+    currentUser.email ||
+    'Officer Munar';
   const userRole = currentUser.role || 'Operator';
 
   const performLogout = async () => {
     try {
-      await signOut(auth);
-      localStorage.removeItem('user');
-      localStorage.removeItem('token');
-      navigate('/login');
-      Swal.fire({
-        icon: 'success',
-        title: 'Logged out',
-        text: 'You have been successfully logged out.',
-        timer: 1500,
-        showConfirmButton: false,
-        timerProgressBar: true,
-      });
-    } catch (err) {
-      console.error('Logout error:', err);
-      localStorage.removeItem('user');
-      localStorage.removeItem('token');
-      navigate('/login');
-      Swal.fire({
-        icon: 'info',
-        title: 'Logged out',
-        text: 'You have been logged out.',
-        timer: 1500,
-        showConfirmButton: false,
-        timerProgressBar: true,
-      });
+      await logoutApi();
+    } catch (_) {
+      // logoutApi does not throw; ignore
     }
+    try {
+      await signOut(auth);
+    } catch (err) {
+      console.error('Firebase signOut error:', err);
+    }
+    localStorage.removeItem('user');
+    localStorage.removeItem('token');
+    navigate('/login');
+    Swal.fire({
+      icon: 'success',
+      title: 'Logged out',
+      text: 'You have been successfully logged out.',
+      timer: 1500,
+      showConfirmButton: false,
+      timerProgressBar: true,
+    });
   };
 
   const handleLogout = () => {

@@ -3,11 +3,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/presentation/compone
 import { Badge } from '@/presentation/components/ui/Badge';
 import { Button } from '@/presentation/components/ui/Button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/presentation/components/ui/Select';
-import { AlertTriangle, Filter, Eye, Phone, CheckCircle, Activity, AlertCircle, Clock, CheckCircle2, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight } from 'lucide-react';
-import { incidents, barangays } from '@/data/mock/mockData';
-import { useState, useEffect } from 'react';
+import { AlertTriangle, Filter, Eye, Phone, CheckCircle, Activity, AlertCircle, Clock, CheckCircle2, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { incidents as mockIncidents, barangays } from '@/data/mock/mockData';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
+import { getIncidents } from '@/data/api/incidents.api';
+import { DEV_MODE } from '@/core/config/app.config';
 
 // Icon Container Component (dark theme)
 function IconContainer({ children, className = '' }) {
@@ -18,10 +20,52 @@ function IconContainer({ children, className = '' }) {
   );
 }
 
+// Map API incident to dashboard shape
+function mapApiIncidentToDashboard(api) {
+  const firstName = api.reporter_first_name || '';
+  const lastName = api.reporter_last_name || '';
+  const reporterName = (firstName || lastName)
+    ? [firstName, lastName].filter(Boolean).join(' ').trim()
+    : `User #${api.user_id}`;
+
+  const typeMap = { fire: 'Fire', medical: 'Medical', police: 'Police', disaster: 'Disaster' };
+  const emergencyType = typeMap[api.incident_type?.toLowerCase()] || (api.incident_type ? String(api.incident_type).charAt(0).toUpperCase() + String(api.incident_type).slice(1) : '—');
+
+  const severityMap = { high: 'Critical', medium: 'Warning', low: 'Low' };
+  const severity = severityMap[api.severity_level?.toLowerCase()] || (api.severity_level || '—');
+
+  const statusMap = { pending: 'Pending', resolved: 'Resolved' };
+  const status = statusMap[api.status?.toLowerCase()] || (api.status || 'Pending');
+
+  let timeReported = '—';
+  if (api.created_at) {
+    const d = new Date(api.created_at);
+    timeReported = d.toLocaleString('en-US', {
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: 'numeric', minute: '2-digit', hour12: true
+    });
+  }
+
+  return {
+    id: api.report_id,
+    reporterName,
+    reporterPhone: api.reporter_phone || null,
+    barangay: '—',
+    emergencyType,
+    severity,
+    status,
+    timeReported,
+    verified: false,
+  };
+}
+
 export function DashboardPage() {
   const navigate = useNavigate();
   const { theme } = useTheme();
   const isLight = theme === 'light';
+  const [incidents, setIncidents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [filterType, setFilterType] = useState('All');
   const [filterStatus, setFilterStatus] = useState('All');
   const [filterBarangay, setFilterBarangay] = useState('All');
@@ -34,6 +78,32 @@ export function DashboardPage() {
   const [sortDirection, setSortDirection] = useState('asc');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
+
+  const fetchIncidents = useCallback(async () => {
+    const token = localStorage.getItem('token');
+    if (DEV_MODE && !token) {
+      setIncidents(mockIncidents);
+      setLoading(false);
+      setError(null);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const apiStatus = filterStatus === 'Resolved' ? 'resolved' : (filterStatus === 'New' || filterStatus === 'Verified' || filterStatus === 'In Progress') ? 'pending' : undefined;
+      const data = await getIncidents({ limit: 100, offset: 0, status: apiStatus });
+      setIncidents(Array.isArray(data) ? data.map(mapApiIncidentToDashboard) : []);
+    } catch (err) {
+      setError(err.message || 'Failed to fetch incidents');
+      setIncidents([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [filterStatus]);
+
+  useEffect(() => {
+    fetchIncidents();
+  }, [fetchIncidents]);
 
   const filteredIncidents = incidents.filter(inc => {
     if (filterType !== 'All' && inc.emergencyType !== filterType) return false;
@@ -115,12 +185,13 @@ export function DashboardPage() {
     setCurrentPage(1);
   }, [filterType, filterStatus, filterBarangay]);
 
-  // Severity: Critical #FF4F52, Warning amber, Resolved muted green (dark theme)
+  // Severity: Critical #FF4F52, Warning amber, Resolved/Low muted green (dark theme)
   const getSeverityColor = (severity) => {
     switch (severity) {
       case 'Critical': return 'bg-primary/20 text-primary border-primary/50';
       case 'Warning': return 'bg-amber-500/20 text-amber-400 border-amber-500/40';
-      case 'Resolved': return 'bg-severity-resolved/20 text-severity-resolved border-emerald-500/40';
+      case 'Resolved':
+      case 'Low': return 'bg-severity-resolved/20 text-severity-resolved border-emerald-500/40';
       default: return 'bg-card text-muted border-[rgba(19,65,120,0.35)]';
     }
   };
@@ -128,7 +199,8 @@ export function DashboardPage() {
   // Status: workflow stage (dark theme)
   const getStatusColor = (status) => {
     switch (status) {
-      case 'New': return 'bg-secondary/30 text-secondary-light border-secondary/50';
+      case 'New':
+      case 'Pending': return 'bg-secondary/30 text-secondary-light border-secondary/50';
       case 'Verified': return 'bg-severity-resolved/20 text-severity-resolved border-emerald-500/40';
       case 'In Progress': return 'bg-amber-500/20 text-amber-400 border-amber-500/40';
       case 'Resolved': return 'bg-severity-resolved/20 text-severity-resolved border-emerald-500/40';
@@ -138,12 +210,13 @@ export function DashboardPage() {
   };
 
   const getTypeEmoji = (type) => {
-    switch (type) {
+    const t = (type || '').toString();
+    switch (t) {
       case 'Fire': return '🔥';
       case 'Medical': return '🏥';
       case 'Police': return '👮';
       case 'Disaster': return '⚠️';
-      default: return '';
+      default: return t ? '📋' : '';
     }
   };
 
@@ -178,6 +251,14 @@ export function DashboardPage() {
           <h1 className="text-3xl font-semibold text-foreground">Incident Overview</h1>
           <p className="text-muted mt-1">Monitor and manage emergency incidents across Dagupan City</p>
         </div>
+
+        {/* Error Banner */}
+        {error && (
+          <div className="mb-6 p-4 bg-primary/15 border-2 border-primary/50 rounded-xl flex items-center justify-between">
+            <p className="text-primary font-medium">{error}</p>
+            <Button variant="outline" size="sm" onClick={fetchIncidents}>Retry</Button>
+          </div>
+        )}
 
         {/* Alert Banner */}
         {criticalIncidents.length > 0 && (
@@ -346,6 +427,12 @@ export function DashboardPage() {
             <CardTitle>Incident List ({filteredIncidents.length})</CardTitle>
           </CardHeader>
           <CardContent>
+            {loading ? (
+              <div className="flex items-center justify-center py-16">
+                <Loader2 className="w-10 h-10 animate-spin text-primary" />
+              </div>
+            ) : (
+            <>
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
@@ -431,12 +518,12 @@ export function DashboardPage() {
                       </td>
                       <td className="py-4 px-4">
                         <Badge className={`${getSeverityColor(incident.severity)} border rounded px-2 py-1 text-xs font-semibold`}>
-                          {incident.severity.toUpperCase()}
+                          {(incident.severity || '—').toString().toUpperCase()}
                         </Badge>
                       </td>
                       <td className="py-4 px-4">
                         <Badge className={`${getStatusColor(incident.status)} border rounded px-2 py-1 text-xs font-semibold`}>
-                          {incident.status.toUpperCase()}
+                          {(incident.status || '—').toString().toUpperCase()}
                         </Badge>
                       </td>
                       <td className="py-4 px-4 text-sm text-muted">{incident.timeReported}</td>
@@ -451,7 +538,7 @@ export function DashboardPage() {
                           >
                             <Eye className="w-5 h-5" />
                           </Button>
-                          {!incident.verified && (
+                          {!incident.verified && incident.status !== 'Pending' && (
                             <Button 
                               size="sm" 
                               variant="ghost" 
@@ -533,6 +620,8 @@ export function DashboardPage() {
                   Page {currentPage} of {totalPages}
                 </span>
               </div>
+            )}
+            </>
             )}
           </CardContent>
         </Card>

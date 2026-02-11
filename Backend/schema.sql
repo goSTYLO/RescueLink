@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS incident_reports (
   description TEXT,
   latitude DOUBLE PRECISION NOT NULL,
   longitude DOUBLE PRECISION NOT NULL,
+  barangay VARCHAR(150),
   media_url VARCHAR(500),
   status VARCHAR(50) NOT NULL DEFAULT 'pending',
   transcription TEXT,
@@ -52,6 +53,7 @@ ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS audio_path VARCHAR(500);
 ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS media_paths JSONB;
 ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS ai_pending BOOLEAN DEFAULT FALSE;
 ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS ai_attempted BOOLEAN DEFAULT FALSE;
+ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS barangay VARCHAR(150);
 
 -- Create responders table
 CREATE TABLE IF NOT EXISTS responders (
@@ -122,3 +124,20 @@ CREATE TABLE IF NOT EXISTS notifications (
 -- Indexes for quick lookups
 CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_report_id ON notifications(report_id);
+
+-- Dispatcher audit logs (trail of dispatcher actions for authenticity and reference)
+CREATE TABLE IF NOT EXISTS dispatcher_audit_logs (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(user_id),
+  action VARCHAR(80) NOT NULL,
+  resource_type VARCHAR(50) NOT NULL,
+  resource_id INTEGER,
+  details JSONB,
+  ip_address VARCHAR(45),
+  user_agent TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_dispatcher_audit_logs_user_created ON dispatcher_audit_logs(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_dispatcher_audit_logs_action_created ON dispatcher_audit_logs(action, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_dispatcher_audit_logs_resource ON dispatcher_audit_logs(resource_type, resource_id);

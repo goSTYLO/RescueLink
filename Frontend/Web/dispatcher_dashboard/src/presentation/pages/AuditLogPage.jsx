@@ -4,15 +4,35 @@ import { Badge } from '@/presentation/components/ui/Badge';
 import { Button } from '@/presentation/components/ui/Button';
 import { Input } from '@/presentation/components/ui/Input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/presentation/components/ui/Select';
-import { Blocks, Search, Filter, ChevronLeft, ChevronRight } from 'lucide-react';
-import { auditLogs } from '@/data/mock/mockData';
-import { useState, useEffect } from 'react';
+import { Blocks, Filter, ChevronLeft, ChevronRight } from 'lucide-react';
+import { getAuditLogs } from '@/data/api/auditLog.api';
+import { useState, useEffect, useCallback } from 'react';
 
-const ROWS_PER_PAGE = 5;
+const ROWS_PER_PAGE = 10;
+
+const ACTION_OPTIONS = [
+  { value: '', label: 'All Actions' },
+  { value: 'dispatcher_login', label: 'Login' },
+  { value: 'dispatcher_signup', label: 'Signup' },
+  { value: 'dispatcher_logout', label: 'Logout' },
+  { value: 'password_change', label: 'Password change' },
+  { value: 'password_reset', label: 'Password reset' },
+  { value: 'dispatch_create', label: 'Dispatch created' },
+  { value: 'dispatch_update', label: 'Dispatch updated' },
+  { value: 'dispatch_delete', label: 'Dispatch deleted' },
+];
+
+const RESOURCE_OPTIONS = [
+  { value: '', label: 'All Resources' },
+  { value: 'auth', label: 'Auth' },
+  { value: 'dispatch', label: 'Dispatch' },
+  { value: 'incident', label: 'Incident' },
+];
 
 function formatTimestamp(ts) {
-  if (!ts) return '';
-  const d = new Date(ts.replace(' ', 'T'));
+  if (!ts) return '—';
+  const d = new Date(ts);
+  if (isNaN(d.getTime())) return ts;
   return d.toLocaleString('en-US', {
     month: 'numeric',
     day: 'numeric',
@@ -24,80 +44,65 @@ function formatTimestamp(ts) {
   });
 }
 
-function truncateHash(hash) {
-  if (!hash || hash.length <= 14) return hash;
-  return `${hash.slice(0, 10)}...`;
+function formatActionLabel(action) {
+  const opt = ACTION_OPTIONS.find((o) => o.value === action);
+  return opt ? opt.label : (action || '—').replace(/_/g, ' ');
 }
 
 export function AuditLogPage() {
-  const [search, setSearch] = useState('');
-  const [filterVerification, setFilterVerification] = useState('Verified');
-  const [filterBarangay, setFilterBarangay] = useState('All Barangays');
-  const [filterSeverity, setFilterSeverity] = useState('All Severity');
-  const [selectStates, setSelectStates] = useState({ verification: false, barangay: false, severity: false });
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [filterAction, setFilterAction] = useState('');
+  const [filterResourceType, setFilterResourceType] = useState('');
+  const [filterFrom, setFilterFrom] = useState('');
+  const [filterTo, setFilterTo] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectStates, setSelectStates] = useState({ action: false, resource: false });
 
-  const filteredLogs = auditLogs.filter((log) => {
-    const matchSearch =
-      !search ||
-      (log.incidentId && log.incidentId.toLowerCase().includes(search.toLowerCase())) ||
-      log.incidentHash?.toLowerCase().includes(search.toLowerCase()) ||
-      log.department?.toLowerCase().includes(search.toLowerCase()) ||
-      log.barangay?.toLowerCase().includes(search.toLowerCase());
-    const matchVerification =
-      filterVerification === 'All' || log.verificationStatus === filterVerification;
-    const matchBarangay = filterBarangay === 'All Barangays' || log.barangay === filterBarangay;
-    const matchSeverity = filterSeverity === 'All Severity' || log.severity === filterSeverity;
-    return matchSearch && matchVerification && matchBarangay && matchSeverity;
-  });
+  const fetchLogs = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const fromParam = filterFrom ? new Date(filterFrom).toISOString() : undefined;
+      const toParam = filterTo ? new Date(filterTo + 'T23:59:59.999Z').toISOString() : undefined;
+      const data = await getAuditLogs({
+        limit: 100,
+        offset: 0,
+        action: filterAction || undefined,
+        resource_type: filterResourceType || undefined,
+        from: fromParam,
+        to: toParam,
+      });
+      setLogs(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setError(err.message || 'Failed to load audit logs');
+      setLogs([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [filterAction, filterResourceType, filterFrom, filterTo]);
 
-  const totalPages = Math.ceil(filteredLogs.length / ROWS_PER_PAGE) || 1;
+  useEffect(() => {
+    fetchLogs();
+  }, [fetchLogs]);
+
+  const totalPages = Math.ceil(logs.length / ROWS_PER_PAGE) || 1;
   const startIndex = (currentPage - 1) * ROWS_PER_PAGE;
-  const paginatedLogs = filteredLogs.slice(startIndex, startIndex + ROWS_PER_PAGE);
+  const paginatedLogs = logs.slice(startIndex, startIndex + ROWS_PER_PAGE);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, filterVerification, filterBarangay, filterSeverity]);
-
-  const verifiedCount = filteredLogs.filter((l) => l.verificationStatus === 'Verified').length;
-  const criticalCount = filteredLogs.filter((l) => l.severity === 'Critical').length;
-  const resolvedCount = filteredLogs.filter((l) => l.severity === 'Resolved').length;
-
-  const verificationOptions = [
-    { value: 'All', label: 'All' },
-    { value: 'Verified', label: 'Verified' },
-    { value: 'Pending', label: 'Pending' },
-  ];
-  const barangayOptions = [
-    { value: 'All Barangays', label: 'All Barangays' },
-    ...[...new Set(auditLogs.map((l) => l.barangay))].filter(Boolean).map((b) => ({ value: b, label: b })),
-  ];
-  const severityOptions = [
-    { value: 'All Severity', label: 'All Severity' },
-    { value: 'Critical', label: 'Critical' },
-    { value: 'Warning', label: 'Warning' },
-    { value: 'Resolved', label: 'Resolved' },
-  ];
-
-  // Severity: Critical #FF4F52, Warning amber, Resolved muted green (dark theme)
-  const getSeverityColor = (severity) => {
-    switch (severity) {
-      case 'Critical': return 'bg-primary/20 text-primary border-primary/50';
-      case 'Warning': return 'bg-amber-500/20 text-amber-400 border-amber-500/40';
-      case 'Resolved': return 'bg-severity-resolved/20 text-severity-resolved border-emerald-500/40';
-      default: return 'bg-card text-muted border-[rgba(19,65,120,0.35)]';
-    }
-  };
+  }, [filterAction, filterResourceType, filterFrom, filterTo]);
 
   return (
     <Layout>
       <div className="p-8">
         <div className="mb-6">
-          <h1 className="text-3xl font-semibold text-foreground">Audit Log / Blockchain Records</h1>
-          <p className="text-muted mt-1">Immutable incident verification records</p>
+          <h1 className="text-3xl font-semibold text-foreground">Dispatcher Audit Log</h1>
+          <p className="text-muted mt-1">Trail of dispatcher actions for authenticity and reference</p>
         </div>
 
-        {/* Blockchain-Backed Audit Trail — static info card */}
         <Card hover={false} className="mb-6 bg-secondary/20 border-[rgba(19,65,120,0.35)]">
           <CardContent className="p-4">
             <div className="flex items-start gap-3">
@@ -105,230 +110,189 @@ export function AuditLogPage() {
                 <Blocks className="w-6 h-6 text-secondary-light" />
               </div>
               <div>
-                <p className="font-semibold text-foreground">Blockchain-Backed Audit Trail</p>
+                <p className="font-semibold text-foreground">Activity trail</p>
                 <p className="text-sm text-muted mt-1">
-                  All incident verifications are recorded in an immutable blockchain ledger for
-                  non-repudiation and transparency.
+                  Logins, password changes, and dispatch actions are recorded here for accountability and audit.
                 </p>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Summary cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
           <Card hover={false} className="border border-[rgba(19,65,120,0.35)]">
             <CardContent className="p-4">
-              <p className="text-sm font-medium text-muted">Total Records</p>
-              <p className="text-2xl font-bold text-foreground mt-1">{filteredLogs.length}</p>
+              <p className="text-sm font-medium text-muted">Total records</p>
+              <p className="text-2xl font-bold text-foreground mt-1">{logs.length}</p>
             </CardContent>
           </Card>
           <Card hover={false} className="border border-[rgba(19,65,120,0.35)]">
             <CardContent className="p-4">
-              <p className="text-sm font-medium text-muted">Verified</p>
-              <p className="text-2xl font-bold text-severity-resolved mt-1">{verifiedCount}</p>
+              <p className="text-sm font-medium text-muted">Auth actions</p>
+              <p className="text-2xl font-bold text-foreground mt-1">
+                {logs.filter((l) => l.resource_type === 'auth').length}
+              </p>
             </CardContent>
           </Card>
           <Card hover={false} className="border border-[rgba(19,65,120,0.35)]">
             <CardContent className="p-4">
-              <p className="text-sm font-medium text-muted">Critical Incidents</p>
-              <p className="text-2xl font-bold text-primary mt-1">{criticalCount}</p>
-            </CardContent>
-          </Card>
-          <Card hover={false} className="border border-[rgba(19,65,120,0.35)]">
-            <CardContent className="p-4">
-              <p className="text-sm font-medium text-muted">Resolved</p>
-              <p className="text-2xl font-bold text-foreground mt-1">{resolvedCount}</p>
+              <p className="text-sm font-medium text-muted">Dispatch actions</p>
+              <p className="text-2xl font-bold text-foreground mt-1">
+                {logs.filter((l) => l.resource_type === 'dispatch').length}
+              </p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Search and Filters */}
-        <div className="flex flex-col sm:flex-row gap-4 mb-6">
-          <div className="flex-1 min-w-0">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted" />
-              <Input
-                placeholder="Search by Incident ID, department, or barangay."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-10"
-              />
-            </div>
+        {/* Filters */}
+        <div className="flex flex-col sm:flex-row gap-4 mb-6 flex-wrap">
+          <div className="flex items-center gap-2 text-muted">
+            <Filter className="w-5 h-5" />
+            <span className="text-sm font-medium">Filters</span>
           </div>
-          <div className="flex flex-wrap items-end gap-4">
-            <div className="flex items-center gap-2 text-muted">
-              <Filter className="w-5 h-5" />
-              <span className="text-sm font-medium">Filters</span>
-            </div>
-            <Select value={filterVerification} onValueChange={setFilterVerification}>
-              {({ value }) => (
-                <>
-                  <SelectTrigger
-                    isOpen={selectStates.verification}
-                    onClick={() =>
-                      setSelectStates((s) => ({ ...s, verification: !s.verification }))
-                    }
-                    className="min-w-[140px]"
-                  >
-                    <SelectValue
-                      placeholder="Verification Status"
-                      value={value}
-                      options={verificationOptions}
-                    />
-                  </SelectTrigger>
-                  <SelectContent isOpen={selectStates.verification}>
-                    {verificationOptions.map((opt) => (
-                      <SelectItem
-                        key={opt.value}
-                        value={opt.value}
-                        onSelect={(v) => {
-                          setFilterVerification(v);
-                          setSelectStates((s) => ({ ...s, verification: false }));
-                        }}
-                      >
-                        {opt.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </>
-              )}
-            </Select>
-            <Select value={filterBarangay} onValueChange={setFilterBarangay}>
-              {({ value }) => (
-                <>
-                  <SelectTrigger
-                    isOpen={selectStates.barangay}
-                    onClick={() =>
-                      setSelectStates((s) => ({ ...s, barangay: !s.barangay }))
-                    }
-                    className="min-w-[140px]"
-                  >
-                    <SelectValue placeholder="Barangay" value={value} options={barangayOptions} />
-                  </SelectTrigger>
-                  <SelectContent isOpen={selectStates.barangay} className="max-h-[240px]">
-                    {barangayOptions.map((opt) => (
-                      <SelectItem
-                        key={opt.value}
-                        value={opt.value}
-                        onSelect={(v) => {
-                          setFilterBarangay(v);
-                          setSelectStates((s) => ({ ...s, barangay: false }));
-                        }}
-                      >
-                        {opt.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </>
-              )}
-            </Select>
-            <Select value={filterSeverity} onValueChange={setFilterSeverity}>
-              {({ value }) => (
-                <>
-                  <SelectTrigger
-                    isOpen={selectStates.severity}
-                    onClick={() =>
-                      setSelectStates((s) => ({ ...s, severity: !s.severity }))
-                    }
-                    className="min-w-[120px]"
-                  >
-                    <SelectValue placeholder="Severity" value={value} options={severityOptions} />
-                  </SelectTrigger>
-                  <SelectContent isOpen={selectStates.severity}>
-                    {severityOptions.map((opt) => (
-                      <SelectItem
-                        key={opt.value}
-                        value={opt.value}
-                        onSelect={(v) => {
-                          setFilterSeverity(v);
-                          setSelectStates((s) => ({ ...s, severity: false }));
-                        }}
-                      >
-                        {opt.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </>
-              )}
-            </Select>
-          </div>
+          <Select value={filterAction} onValueChange={setFilterAction}>
+            {({ value }) => (
+              <>
+                <SelectTrigger
+                  isOpen={selectStates.action}
+                  onClick={() => setSelectStates((s) => ({ ...s, action: !s.action }))}
+                  className="min-w-[160px]"
+                >
+                  <SelectValue placeholder="Action" value={value} options={ACTION_OPTIONS} />
+                </SelectTrigger>
+                <SelectContent isOpen={selectStates.action}>
+                  {ACTION_OPTIONS.map((opt) => (
+                    <SelectItem
+                      key={opt.value || 'all'}
+                      value={opt.value}
+                      onSelect={(v) => {
+                        setFilterAction(v);
+                        setSelectStates((s) => ({ ...s, action: false }));
+                      }}
+                    >
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </>
+            )}
+          </Select>
+          <Select value={filterResourceType} onValueChange={setFilterResourceType}>
+            {({ value }) => (
+              <>
+                <SelectTrigger
+                  isOpen={selectStates.resource}
+                  onClick={() => setSelectStates((s) => ({ ...s, resource: !s.resource }))}
+                  className="min-w-[140px]"
+                >
+                  <SelectValue placeholder="Resource" value={value} options={RESOURCE_OPTIONS} />
+                </SelectTrigger>
+                <SelectContent isOpen={selectStates.resource}>
+                  {RESOURCE_OPTIONS.map((opt) => (
+                    <SelectItem
+                      key={opt.value || 'all'}
+                      value={opt.value}
+                      onSelect={(v) => {
+                        setFilterResourceType(v);
+                        setSelectStates((s) => ({ ...s, resource: false }));
+                      }}
+                    >
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </>
+            )}
+          </Select>
+          <Input
+            type="date"
+            placeholder="From"
+            value={filterFrom}
+            onChange={(e) => setFilterFrom(e.target.value)}
+            className="max-w-[160px]"
+          />
+          <Input
+            type="date"
+            placeholder="To"
+            value={filterTo}
+            onChange={(e) => setFilterTo(e.target.value)}
+            className="max-w-[160px]"
+          />
+          <Button variant="outline" size="sm" onClick={() => fetchLogs()}>
+            Refresh
+          </Button>
         </div>
 
-        {/* Audit Log Table */}
+        {/* Table */}
         <Card hover={false}>
           <CardHeader>
-            <CardTitle>Audit Records ({filteredLogs.length})</CardTitle>
+            <CardTitle>Activity log ({logs.length})</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-[rgba(19,65,120,0.35)]">
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-muted">
-                      Incident ID
-                    </th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-muted">
-                      Incident Hash
-                    </th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-muted">
-                      Timestamp
-                    </th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-muted">
-                      Verification
-                    </th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-muted">
-                      Department
-                    </th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-muted">
-                      Barangay
-                    </th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-muted">
-                      Severity
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paginatedLogs.map((log, index) => (
-                    <tr
-                      key={log.incidentId || log.incidentHash || index}
-                      className="border-b border-[rgba(19,65,120,0.2)] hover:bg-card transition-colors"
-                    >
-                      <td className="py-4 px-4 text-sm font-mono text-foreground">
-                        {log.incidentId || '—'}
-                      </td>
-                      <td className="py-4 px-4 text-sm font-mono text-foreground">
-                        {truncateHash(log.incidentHash)}
-                      </td>
-                      <td className="py-4 px-4 text-sm text-muted">
-                        {formatTimestamp(log.timestamp)}
-                      </td>
-                      <td className="py-4 px-4">
-                        <Badge
-                          className={
-                            log.verificationStatus === 'Verified'
-                              ? 'bg-severity-resolved/20 text-severity-resolved border-emerald-500/40'
-                              : 'bg-amber-500/20 text-amber-400 border-amber-500/40'
-                          }
-                        >
-                          {log.verificationStatus?.toUpperCase() || '—'}
-                        </Badge>
-                      </td>
-                      <td className="py-4 px-4 text-sm text-muted">{log.department}</td>
-                      <td className="py-4 px-4 text-sm text-muted">{log.barangay}</td>
-                      <td className="py-4 px-4">
-                        <Badge className={`${getSeverityColor(log.severity)} border rounded px-2 py-0.5 text-xs font-medium`}>
-                          {log.severity?.toUpperCase() || '—'}
-                        </Badge>
-                      </td>
+            {error && (
+              <div className="mb-4 p-3 rounded bg-destructive/10 text-destructive text-sm">
+                {error}
+              </div>
+            )}
+            {loading ? (
+              <div className="py-8 text-center text-muted">Loading audit logs...</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-[rgba(19,65,120,0.35)]">
+                      <th className="text-left py-3 px-4 text-sm font-semibold text-muted">Time</th>
+                      <th className="text-left py-3 px-4 text-sm font-semibold text-muted">User</th>
+                      <th className="text-left py-3 px-4 text-sm font-semibold text-muted">Action</th>
+                      <th className="text-left py-3 px-4 text-sm font-semibold text-muted">Resource</th>
+                      <th className="text-left py-3 px-4 text-sm font-semibold text-muted">Resource ID</th>
+                      <th className="text-left py-3 px-4 text-sm font-semibold text-muted">Details</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {paginatedLogs.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="py-8 text-center text-muted">
+                          No audit log entries found.
+                        </td>
+                      </tr>
+                    ) : (
+                      paginatedLogs.map((log) => (
+                        <tr
+                          key={log.id}
+                          className="border-b border-[rgba(19,65,120,0.2)] hover:bg-card transition-colors"
+                        >
+                          <td className="py-4 px-4 text-sm text-muted whitespace-nowrap">
+                            {formatTimestamp(log.created_at)}
+                          </td>
+                          <td className="py-4 px-4 text-sm text-foreground">
+                            {log.user_email || ([log.user_first_name, log.user_last_name].filter(Boolean).join(' ') || (log.user_id != null ? `User #${log.user_id}` : '—'))}
+                          </td>
+                          <td className="py-4 px-4">
+                            <Badge variant="outline" className="border-[rgba(19,65,120,0.35)]">
+                              {formatActionLabel(log.action)}
+                            </Badge>
+                          </td>
+                          <td className="py-4 px-4 text-sm text-foreground">{log.resource_type || '—'}</td>
+                          <td className="py-4 px-4 text-sm font-mono text-muted">
+                            {log.resource_id != null ? log.resource_id : '—'}
+                          </td>
+                          <td className="py-4 px-4 text-sm text-muted max-w-[200px] truncate" title={log.details ? JSON.stringify(log.details) : ''}>
+                            {log.details && typeof log.details === 'object'
+                              ? Object.entries(log.details)
+                                  .map(([k, v]) => `${k}: ${v}`)
+                                  .join(', ') || '—'
+                              : log.details != null ? String(log.details) : '—'}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
 
-            {/* Pagination */}
-            {filteredLogs.length > 0 && (
+            {!loading && logs.length > 0 && (
               <div className="flex items-center justify-end gap-2 mt-4 pt-4 border-t border-[rgba(19,65,120,0.35)]">
                 <Button
                   variant="ghost"
@@ -339,26 +303,11 @@ export function AuditLogPage() {
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </Button>
-                <div className="flex items-center gap-1">
-                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                    let pageNum;
-                    if (totalPages <= 5) pageNum = i + 1;
-                    else if (currentPage <= 3) pageNum = i + 1;
-                    else if (currentPage >= totalPages - 2) pageNum = totalPages - 4 + i;
-                    else pageNum = currentPage - 2 + i;
-                    return (
-                      <Button
-                        key={pageNum}
-                        variant={currentPage === pageNum ? 'default' : 'ghost'}
-                        size="sm"
-                        onClick={() => setCurrentPage(pageNum)}
-                        className={`h-8 w-8 p-0 ${currentPage === pageNum ? 'bg-secondary text-foreground hover:bg-secondary-hover' : ''}`}
-                      >
-                        {pageNum}
-                      </Button>
-                    );
-                  })}
-                </div>
+                <span className="text-sm text-muted">
+                  Page {currentPage} of {totalPages}
+                  {logs.length > ROWS_PER_PAGE &&
+                    ` (${startIndex + 1}-${Math.min(startIndex + ROWS_PER_PAGE, logs.length)} of ${logs.length})`}
+                </span>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -368,11 +317,6 @@ export function AuditLogPage() {
                 >
                   <ChevronRight className="w-4 h-4" />
                 </Button>
-                <span className="text-sm text-muted ml-2">
-                  Page {currentPage} of {totalPages}
-                  {filteredLogs.length > ROWS_PER_PAGE &&
-                    ` (${startIndex + 1}-${Math.min(startIndex + ROWS_PER_PAGE, filteredLogs.length)} of ${filteredLogs.length})`}
-                </span>
               </div>
             )}
           </CardContent>

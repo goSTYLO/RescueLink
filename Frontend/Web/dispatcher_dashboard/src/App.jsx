@@ -18,6 +18,7 @@ import { SettingsPage } from '@/presentation/pages/SettingsPage';
 import ForgotPassword from '@/presentation/pages/ForgotPassword';
 import EnterCode from '@/presentation/pages/EnterCode';
 import CreateNewPassword from '@/presentation/pages/CreateNewPassword';
+import ResetPasswordPage from '@/presentation/pages/ResetPasswordPage';
 
 // Protected Route Component
 function ProtectedRoute({ children }) {
@@ -86,9 +87,14 @@ export default function App() {
   const handleLoginSuccess = (data) => {
     setUserData(data.user);
     // Store user in localStorage for Layout component
+    const displayName = [data.user?.firstName, data.user?.lastName].filter(Boolean).join(' ') ||
+      data.user?.phone_number || data.user?.phoneNumber || data.user?.phone || data.user?.email || 'user';
     localStorage.setItem('user', JSON.stringify({
-      username: data.user?.phone_number || data.user?.phoneNumber || data.user?.phone || data.user?.email || 'user',
+      username: displayName,
+      name: displayName,
       email: data.user?.email || '',
+      firstName: data.user?.firstName,
+      lastName: data.user?.lastName,
       role: data.user?.role || 'Operator',
       department: data.user?.department || 'All'
     }));
@@ -133,6 +139,7 @@ export default function App() {
           <Route path="/create-password" element={
             <CreateNewPassword onSuccess={() => setPage('login')} onBackToLogin={() => setPage('login')} />
           } />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
 
           {/* Protected Routes */}
           <Route path="/dashboard" element={

@@ -4,6 +4,8 @@ const { hashPassword, comparePassword } = require('../utils/hash');
 const firebaseAdmin = require('../config/firebase');
 const { validatePhone, validateString, validateEmail, validatePassword, validateAddress, validateLatitude, validateLongitude } = require('../utils/validation');
 const { isPointInDagupan } = require('../utils/geolocation');
+const { sendPasswordResetEmail } = require('../services/email');
+const { logDispatcherAction, logDispatcherActionByUser } = require('../utils/auditLog');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'change_this_secret';
 
@@ -197,6 +199,79 @@ exports.resetPassword = async (req, res) => {
   }
 };
 
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+
+// Forgot password (web): send reset link via SMTP. Generic response so we don't reveal if email exists.
+exports.forgotPassword = async (req, res) => {
+  const genericMessage = 'If an account exists with this email, you will receive instructions to reset your password.';
+  try {
+    const { email } = req.body;
+    if (!email || typeof email !== 'string') {
+      return res.status(400).json({ message: 'Email is required' });
+    }
+    const validatedEmail = validateEmail(email.trim());
+
+    const user = await User.findByEmail(validatedEmail);
+    if (!user || user.role !== 'dispatcher') {
+      return res.json({ message: genericMessage });
+    }
+
+    const token = jwt.sign(
+      { email: validatedEmail, purpose: 'password_reset' },
+      JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+    const resetLink = `${FRONTEND_URL.replace(/\/$/, '')}/reset-password?token=${encodeURIComponent(token)}`;
+    const sent = await sendPasswordResetEmail(validatedEmail, resetLink);
+    if (!sent) {
+      console.warn('⚠️ Forgot password: email not sent (SMTP not configured or failed)');
+    }
+    return res.json({ message: genericMessage });
+  } catch (err) {
+    if (err.message && (err.message.includes('must be') || err.message.includes('Invalid'))) {
+      return res.status(400).json({ message: 'Email is required' });
+    }
+    console.error('❌ Forgot password error:', err.message);
+    return res.json({ message: genericMessage });
+  }
+};
+
+// Reset password with token from email link (web). No auth middleware.
+exports.resetPasswordWithToken = async (req, res) => {
+  try {
+    const { token, newPassword } = req.body;
+    if (!token || !newPassword) {
+      return res.status(400).json({ message: 'Token and newPassword are required' });
+    }
+
+    const decoded = jwt.verify(token, JWT_SECRET);
+    if (decoded.purpose !== 'password_reset' || !decoded.email) {
+      return res.status(401).json({ message: 'Invalid or expired reset link. Please request a new one.' });
+    }
+
+    const user = await User.findByEmail(decoded.email);
+    if (!user || user.role !== 'dispatcher') {
+      return res.status(401).json({ message: 'Invalid or expired reset link. Please request a new one.' });
+    }
+
+    const validatedPassword = validatePassword(newPassword);
+    const passwordHash = await hashPassword(validatedPassword);
+    await User.updatePassword(user.user_id, passwordHash);
+    await logDispatcherActionByUser(user, req, 'password_reset', 'auth', null, { via: 'email_link' });
+    console.log('✅ Password reset with token for user:', user.user_id);
+    return res.json({ message: 'Password updated successfully' });
+  } catch (err) {
+    if (err.name === 'TokenExpiredError' || err.name === 'JsonWebTokenError') {
+      return res.status(401).json({ message: 'Invalid or expired reset link. Please request a new one.' });
+    }
+    if (err.message && (err.message.includes('must be') || err.message.includes('at least'))) {
+      return res.status(400).json({ message: err.message });
+    }
+    console.error('❌ Reset password with token error:', err.message);
+    return res.status(500).json({ message: 'Password reset failed' });
+  }
+};
+
 // Dispatcher login: email + password, only users with role 'dispatcher' can log in
 exports.dispatcherLogin = async (req, res) => {
   console.log('🔐 Dispatcher login attempt:', { email: req.body.email });
@@ -215,8 +290,9 @@ exports.dispatcherLogin = async (req, res) => {
     if (!isPasswordValid) return res.status(401).json({ message: 'Invalid credentials' });
 
     const token = jwt.sign({ user_id: user.user_id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
+    await logDispatcherActionByUser(user, req, 'dispatcher_login', 'auth', null, { method: 'email' });
     console.log('✅ Dispatcher login successful:', { user_id: user.user_id, email: user.email });
-    res.json({ user: { user_id: user.user_id, email: user.email, role: user.role }, token });
+    res.json({ user: { user_id: user.user_id, email: user.email, role: user.role, firstName: user.first_name, lastName: user.last_name }, token });
   } catch (err) {
     console.error('❌ Dispatcher login error:', err.message);
     if (err.message.includes('must be') || err.message.includes('Invalid')) {
@@ -254,6 +330,7 @@ exports.dispatcherSignup = async (req, res) => {
     });
 
     const token = jwt.sign({ user_id: user.user_id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
+    await logDispatcherActionByUser(user, req, 'dispatcher_signup', 'auth', null, { method: 'email', note: 'New dispatcher account' });
     console.log('✅ Dispatcher signup successful:', { user_id: user.user_id, email: user.email });
     res.status(201).json({ user: { user_id: user.user_id, email: user.email, firstName: user.first_name, lastName: user.last_name, role: user.role }, token });
   } catch (err) {
@@ -294,5 +371,56 @@ exports.getMe = async (req, res) => {
   } catch (err) {
     console.error('❌ Get profile error:', err.message);
     res.status(500).json({ message: 'Failed to fetch profile' });
+  }
+};
+
+// Change password for authenticated user (current + new)
+exports.changePassword = async (req, res) => {
+  try {
+    const userId = req.user?.user_id;
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: 'Current password and new password are required' });
+    }
+
+    const user = await User.findById(userId);
+    if (!user || !user.password) {
+      return res.status(401).json({ message: 'Current password is incorrect' });
+    }
+
+    const isCurrentValid = await comparePassword(currentPassword, user.password);
+    if (!isCurrentValid) {
+      return res.status(401).json({ message: 'Current password is incorrect' });
+    }
+
+    const validatedPassword = validatePassword(newPassword);
+    const passwordHash = await hashPassword(validatedPassword);
+    await User.updatePassword(userId, passwordHash);
+    await logDispatcherAction(req, 'password_change', 'auth', null, { note: 'Password updated' });
+    console.log('✅ Password changed for user:', userId);
+    res.json({ message: 'Password updated successfully' });
+  } catch (err) {
+    if (err.message && (err.message.includes('must be') || err.message.includes('at least') || err.message.includes('Invalid'))) {
+      return res.status(400).json({ message: err.message });
+    }
+    console.error('❌ Change password error:', err.message);
+    res.status(500).json({ message: 'Failed to change password' });
+  }
+};
+
+// Logout: record in audit log for dispatchers, then respond (no token invalidation)
+exports.logout = async (req, res) => {
+  try {
+    if (req.user?.role === 'dispatcher') {
+      await logDispatcherAction(req, 'dispatcher_logout', 'auth', null, { note: 'Session ended' });
+    }
+    res.json({ message: 'Logged out' });
+  } catch (err) {
+    console.error('❌ Logout audit error:', err.message);
+    res.json({ message: 'Logged out' });
   }
 };

@@ -3,8 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import logo from '@/presentation/assets/logo.svg';
 import illustration from '@/presentation/assets/forgot-password-illustration.svg';
-
-const API_URL = 'http://localhost:3000';
+import { API_URL } from '@/core/config/app.config';
 
 export default function ForgotPassword({ onSuccess, onBackToLogin }) {
   const navigate = useNavigate();
@@ -50,7 +49,6 @@ export default function ForgotPassword({ onSuccess, onBackToLogin }) {
     setEmailError('');
 
     try {
-      // TODO: Replace with actual API endpoint
       const response = await fetch(`${API_URL}/api/auth/forgot-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -63,15 +61,15 @@ export default function ForgotPassword({ onSuccess, onBackToLogin }) {
         throw new Error(data.message || 'Failed to send reset link');
       }
 
-      // Store email for next step
-      sessionStorage.setItem('resetEmail', email);
-      
       Swal.fire({
         icon: 'success',
-        title: 'Reset link sent!',
-        text: 'Check your email for instructions to reset your password.',
+        title: 'Check your email',
+        text: data.message || "If an account exists, you'll receive a link to reset your password. Use the link in the email to set a new password.",
         confirmButtonColor: '#134178',
-      }).then(() => navigate('/enter-code'));
+      }).then(() => {
+        // User stays on this page; they use the link from the email to reset
+        navigate('/login');
+      });
     } catch (err) {
       Swal.fire({
         icon: 'error',

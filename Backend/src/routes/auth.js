@@ -11,6 +11,10 @@ router.post('/dispatcher/signup', authController.dispatcherSignup);
 // then send it here along with the desired password.
 router.post('/onboard-phone', authController.onboardPhone);
 router.post('/reset-password', authController.resetPassword);
+router.post('/forgot-password', authController.forgotPassword);
+router.post('/reset-password-with-token', authController.resetPasswordWithToken);
 router.get('/me', authMiddleware, authController.getMe);
+router.post('/change-password', authMiddleware, authController.changePassword);
+router.post('/logout', authMiddleware, authController.logout);
 
 module.exports = router;

@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Layout } from '@/presentation/components/layout/Layout';
+import { getMe, changePassword as changePasswordApi } from '@/data/api/auth.api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/presentation/components/ui/Card';
 import { Button } from '@/presentation/components/ui/Button';
 import { Label } from '@/presentation/components/ui/Label';
@@ -39,10 +40,33 @@ export function ProfilePage() {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [emergencyName, setEmergencyName] = useState('');
-  const [emergencyPhone, setEmergencyPhone] = useState('');
   const [passwordErrors, setPasswordErrors] = useState({});
-  const [emergencyErrors, setEmergencyErrors] = useState({});
+  const [profile, setProfile] = useState(null);
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [profileError, setProfileError] = useState(null);
+  const [passwordSubmitting, setPasswordSubmitting] = useState(false);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      navigate('/login', { replace: true });
+      return;
+    }
+    let cancelled = false;
+    setProfileLoading(true);
+    setProfileError(null);
+    getMe()
+      .then((user) => {
+        if (!cancelled) setProfile(user);
+      })
+      .catch((err) => {
+        if (!cancelled) setProfileError(err.message || 'Failed to load profile');
+      })
+      .finally(() => {
+        if (!cancelled) setProfileLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [navigate]);
 
   const handleLogout = () => {
     Swal.fire({
@@ -80,7 +104,7 @@ export function ProfilePage() {
     return err;
   };
 
-  const handleChangePasswordSubmit = (e) => {
+  const handleChangePasswordSubmit = async (e) => {
     e.preventDefault();
     const errors = validateChangePassword();
     if (Object.keys(errors).length > 0) {
@@ -93,50 +117,35 @@ export function ProfilePage() {
       });
       return;
     }
-    closeChangePasswordModal();
-    Swal.fire({
-      icon: 'success',
-      title: 'Password updated',
-      text: 'Your password has been changed successfully.',
-      timer: 2000,
-      showConfirmButton: false,
-      timerProgressBar: true,
-      customClass: { popup: 'rounded-2xl shadow-xl' },
-    });
-  };
-
-  const validateEmergencyContact = () => {
-    const err = {};
-    if (!emergencyName.trim()) err.name = 'Emergency contact name is required.';
-    const phone = emergencyPhone.replace(/\s/g, '');
-    if (!phone) err.phone = 'Emergency contact phone is required.';
-    else if (!/^\+?[\d\s-]{10,}$/.test(phone)) err.phone = 'Please enter a valid phone number.';
-    setEmergencyErrors(err);
-    return err;
-  };
-
-  const handleSaveEmergencyContact = (e) => {
-    e.preventDefault();
-    const errors = validateEmergencyContact();
-    if (Object.keys(errors).length > 0) {
+    setPasswordSubmitting(true);
+    try {
+      await changePasswordApi(currentPassword, newPassword);
+      closeChangePasswordModal();
+      setChangePasswordOpen(false);
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      Swal.fire({
+        icon: 'success',
+        title: 'Password updated',
+        text: 'Please log in again with your new password.',
+        timer: 2500,
+        showConfirmButton: false,
+        timerProgressBar: true,
+        customClass: { popup: 'rounded-2xl shadow-xl' },
+      }).then(() => {
+        navigate('/login');
+      });
+    } catch (err) {
       Swal.fire({
         icon: 'error',
-        title: 'Validation failed',
-        text: Object.values(errors).join(' '),
+        title: 'Could not update password',
+        text: err.message || 'Current password may be incorrect. Please try again.',
         confirmButtonColor: PROFILE_THEME,
         customClass: { popup: 'rounded-2xl shadow-xl' },
       });
-      return;
+    } finally {
+      setPasswordSubmitting(false);
     }
-    Swal.fire({
-      icon: 'success',
-      title: 'Contact saved',
-      text: 'Emergency contact has been saved successfully.',
-      timer: 2000,
-      showConfirmButton: false,
-      timerProgressBar: true,
-      customClass: { popup: 'rounded-2xl shadow-xl' },
-    });
   };
 
   const closeChangePasswordModal = () => {
@@ -162,69 +171,85 @@ export function ProfilePage() {
           <Card className="animate-slide-up">
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Profile Information</CardTitle>
-              <span
-                className="px-3 py-1 rounded-full text-xs font-semibold uppercase border text-white"
-                style={{
-                  backgroundColor: PROFILE_THEME,
-                  borderColor: PROFILE_THEME,
-                }}
-              >
-                OPERATOR
-              </span>
+              {profile?.role && (
+                <span
+                  className="px-3 py-1 rounded-full text-xs font-semibold uppercase border text-white"
+                  style={{
+                    backgroundColor: PROFILE_THEME,
+                    borderColor: PROFILE_THEME,
+                  }}
+                >
+                  {profile.role === 'dispatcher' ? 'OPERATOR' : (profile.role || '').toUpperCase()}
+                </span>
+              )}
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="flex items-start gap-5">
-                <div
-                  className="flex-shrink-0 w-16 h-16 rounded-full flex items-center justify-center text-white shadow-md"
-                  style={{ backgroundColor: PROFILE_THEME }}
-                >
-                  <User className="w-8 h-8" strokeWidth={2} />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-foreground">
-                    Officer Rodriguez
-                  </h3>
-                  <p className="text-sm text-gray-500 mt-0.5">
-                    Emergency Operations Center
-                  </p>
-                </div>
-              </div>
-              <div className="border-t border-border pt-5 grid grid-cols-1 sm:grid-cols-2 gap-5">
-                <div className="flex items-center gap-3 text-foreground">
-                  <Mail className="w-5 h-5 text-gray-500 flex-shrink-0" />
-                  <div>
-                    <p className="text-xs text-gray-500">Email Address</p>
-                    <p className="text-sm font-medium text-foreground">
-                      rodriguez@rescuelink-dagupan.gov
-                    </p>
+              {profileLoading && (
+                <p className="text-muted">Loading profile...</p>
+              )}
+              {profileError && (
+                <p className="text-red-500 text-sm">{profileError}</p>
+              )}
+              {!profileLoading && !profileError && profile && (
+                <>
+                  <div className="flex items-start gap-5">
+                    <div
+                      className="flex-shrink-0 w-16 h-16 rounded-full flex items-center justify-center text-white shadow-md"
+                      style={{ backgroundColor: PROFILE_THEME }}
+                    >
+                      <User className="w-8 h-8" strokeWidth={2} />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-foreground">
+                        {[profile.firstName, profile.lastName].filter(Boolean).join(' ') || '—'}
+                      </h3>
+                      <p className="text-sm text-gray-500 mt-0.5">
+                        Emergency Operations Center
+                      </p>
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-3 text-foreground">
-                  <Shield className="w-5 h-5 text-gray-500 flex-shrink-0" />
-                  <div>
-                    <p className="text-xs text-gray-500">Role</p>
-                    <p className="text-sm font-medium text-foreground">Operator</p>
+                  <div className="border-t border-border pt-5 grid grid-cols-1 sm:grid-cols-2 gap-5">
+                    <div className="flex items-center gap-3 text-foreground">
+                      <Mail className="w-5 h-5 text-gray-500 flex-shrink-0" />
+                      <div>
+                        <p className="text-xs text-gray-500">Email Address</p>
+                        <p className="text-sm font-medium text-foreground">
+                          {profile.email || '—'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 text-foreground">
+                      <Shield className="w-5 h-5 text-gray-500 flex-shrink-0" />
+                      <div>
+                        <p className="text-xs text-gray-500">Role</p>
+                        <p className="text-sm font-medium text-foreground">
+                          {profile.role === 'dispatcher' ? 'Operator' : profile.role || '—'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 text-foreground">
+                      <Phone className="w-5 h-5 text-gray-500 flex-shrink-0" />
+                      <div>
+                        <p className="text-xs text-gray-500">Phone Number</p>
+                        <p className="text-sm font-medium text-foreground">
+                          {profile.phone || '—'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 text-foreground">
+                      <Clock className="w-5 h-5 text-gray-500 flex-shrink-0" />
+                      <div>
+                        <p className="text-xs text-gray-500">Member since</p>
+                        <p className="text-sm font-medium text-foreground">
+                          {profile.created_at
+                            ? new Date(profile.created_at).toLocaleString()
+                            : '—'}
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-3 text-foreground">
-                  <Phone className="w-5 h-5 text-gray-500 flex-shrink-0" />
-                  <div>
-                    <p className="text-xs text-gray-500">Phone Number</p>
-                    <p className="text-sm font-medium text-foreground">
-                      +639171234567
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 text-foreground">
-                  <Clock className="w-5 h-5 text-gray-500 flex-shrink-0" />
-                  <div>
-                    <p className="text-xs text-gray-500">Last Login</p>
-                    <p className="text-sm font-medium text-foreground">
-                      1/20/2026, 9:00:00 AM
-                    </p>
-                  </div>
-                </div>
-              </div>
+                </>
+              )}
             </CardContent>
           </Card>
 
@@ -275,55 +300,11 @@ export function ProfilePage() {
                   Active
                 </span>
               </div>
-              <p className="text-sm text-gray-500 pt-1">
-                Logged in since 1/20/2026, 9:00:00 AM
-              </p>
-            </CardContent>
-          </Card>
-
-          {/* Emergency Contact Information */}
-          <Card className="animate-slide-up" style={{ animationDelay: '150ms' }}>
-            <CardHeader>
-              <CardTitle>Emergency Contact Information</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label htmlFor="emergency-name">Emergency Contact Name</Label>
-                <Input
-                  id="emergency-name"
-                  placeholder="Enter emergency contact name"
-                  className="mt-1.5 bg-secondary/20 border-border"
-                  value={emergencyName}
-                  onChange={(e) => {
-                    setEmergencyName(e.target.value);
-                    if (emergencyErrors.name) setEmergencyErrors((prev) => ({ ...prev, name: undefined }));
-                  }}
-                  error={!!emergencyErrors.name}
-                />
-                {emergencyErrors.name && (
-                  <p className="text-red-500 text-sm mt-1">{emergencyErrors.name}</p>
-                )}
-              </div>
-              <div>
-                <Label htmlFor="emergency-phone">Emergency Contact Phone</Label>
-                <Input
-                  id="emergency-phone"
-                  placeholder="+63 9XX XXX XXXX"
-                  className="mt-1.5 bg-secondary/20 border-border"
-                  value={emergencyPhone}
-                  onChange={(e) => {
-                    setEmergencyPhone(e.target.value);
-                    if (emergencyErrors.phone) setEmergencyErrors((prev) => ({ ...prev, phone: undefined }));
-                  }}
-                  error={!!emergencyErrors.phone}
-                />
-                {emergencyErrors.phone && (
-                  <p className="text-red-500 text-sm mt-1">{emergencyErrors.phone}</p>
-                )}
-              </div>
-              <Button variant="secondary" className="mt-2 text-white" onClick={handleSaveEmergencyContact}>
-                Save Emergency Contact
-              </Button>
+              {profile?.created_at && (
+                <p className="text-sm text-gray-500 pt-1">
+                  Member since {new Date(profile.created_at).toLocaleString()}
+                </p>
+              )}
             </CardContent>
           </Card>
 
@@ -462,18 +443,19 @@ export function ProfilePage() {
             <DialogFooter className="justify-between mt-6">
               <Button
                 type="submit"
+                disabled={passwordSubmitting}
                 className="gap-2 text-white border-0 focus:ring-[#134178]"
                 style={{
                   backgroundColor: PROFILE_THEME,
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = PROFILE_THEME_HOVER;
+                  if (!passwordSubmitting) e.currentTarget.style.backgroundColor = PROFILE_THEME_HOVER;
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.backgroundColor = PROFILE_THEME;
                 }}
               >
-                Update Password
+                {passwordSubmitting ? 'Updating...' : 'Update Password'}
               </Button>
               <Button
                 type="button"

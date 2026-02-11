@@ -1,5 +1,6 @@
 const Dispatch = require('../models/dispatch');
 const { validateInteger, validateOptionalString, validatePagination } = require('../utils/validation');
+const { logDispatcherAction } = require('../utils/auditLog');
 
 const dispatchController = {
   // Create new dispatch
@@ -35,6 +36,11 @@ const dispatchController = {
         response_status: validatedResponseStatus
       });
 
+      await logDispatcherAction(req, 'dispatch_create', 'dispatch', dispatch.dispatch_id, {
+        report_id: validatedReportId,
+        responder_id: validatedResponderId,
+        response_status: validatedResponseStatus
+      });
       res.status(201).json(dispatch);
     } catch (error) {
       console.error('Error creating dispatch:', error);
@@ -149,6 +155,11 @@ const dispatchController = {
         response_status: validatedResponseStatus
       });
 
+      await logDispatcherAction(req, 'dispatch_update', 'dispatch', validatedId, {
+        report_id: validatedReportId,
+        responder_id: validatedResponderId,
+        response_status: validatedResponseStatus
+      });
       res.json(updated);
     } catch (error) {
       console.error('Error updating dispatch:', error);
@@ -171,6 +182,10 @@ const dispatchController = {
         return res.status(404).json({ error: 'Dispatch not found' });
       }
 
+      await logDispatcherAction(req, 'dispatch_delete', 'dispatch', validatedId, {
+        report_id: deleted.report_id,
+        responder_id: deleted.responder_id
+      });
       res.json({ message: 'Dispatch deleted successfully', dispatch: deleted });
     } catch (error) {
       console.error('Error deleting dispatch:', error);
