@@ -1,6 +1,6 @@
 """
-Ganache/Web3 integration for storing incident verification hashes on blockchain.
-Uses IncidentRegistry Solidity contract to record hashes via events.
+Incident logging on blockchain via IncidentRegistry contract.
+Records verified incident hashes on-chain (Ganache) for tamper-proof audit trail.
 """
 
 import hashlib
@@ -26,7 +26,7 @@ _w3: Optional[Web3] = None
 
 
 def get_web3() -> Web3:
-    """Get Web3 instance connected to Ganache."""
+    """Get Web3 instance connected to blockchain (Ganache)."""
     global _w3
     if _w3 is None:
         _w3 = Web3(Web3.HTTPProvider(GANACHE_URL))
@@ -34,11 +34,11 @@ def get_web3() -> Web3:
 
 
 def is_connected() -> bool:
-    """Check if connected to Ganache."""
+    """Check if connected to blockchain (Ganache)."""
     try:
         return get_web3().is_connected()
     except Exception as e:
-        logger.error("Ganache connection check failed: %s", e)
+        logger.error("Blockchain connection check failed: %s", e)
         return False
 
 
@@ -56,7 +56,7 @@ def record_incident_on_blockchain(
     report_id: int, incident_data: dict
 ) -> dict[str, Any]:
     """
-    Record verified incident hash on Ganache via IncidentRegistry contract.
+    Record verified incident hash on blockchain via IncidentRegistry contract.
     Emits IncidentVerified event with reportId and hash.
     """
     if not PRIVATE_KEY:

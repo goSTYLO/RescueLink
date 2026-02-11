@@ -10,7 +10,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from services.ganache import is_connected, record_incident_on_blockchain
+from services.incident_registry import is_connected, record_incident_on_blockchain
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
