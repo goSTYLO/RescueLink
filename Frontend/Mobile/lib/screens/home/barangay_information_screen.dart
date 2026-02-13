@@ -100,10 +100,10 @@ class BarangayInformationScreen extends StatelessWidget {
                                   ),
                                 ],
                               ),
-                              child: Column(
+                              child: const Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  const Text(
+                                  Text(
                                     'CURRENT LOCATION',
                                     style: TextStyle(
                                       fontSize: 12,
@@ -111,8 +111,8 @@ class BarangayInformationScreen extends StatelessWidget {
                                       color: Color(0xFF111827),
                                     ),
                                   ),
-                                  const SizedBox(height: 2),
-                                  const Text(
+                                  SizedBox(height: 2),
+                                  Text(
                                     'Dagupan City, Pangasinan',
                                     style: TextStyle(fontSize: 11, color: Color(0xFF6B7280)),
                                   ),
@@ -183,13 +183,13 @@ class BarangayInformationScreen extends StatelessWidget {
                               borderRadius: BorderRadius.circular(10),
                               border: Border.all(color: const Color(0xFFE5E7EB)),
                             ),
-                            child: Center(
+                            child: const Center(
                               child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  const Icon(Icons.location_on, color: Color(0xFF6B7280), size: 32),
-                                  const SizedBox(height: 8),
-                                  const Text(
+                                  Icon(Icons.location_on, color: Color(0xFF6B7280), size: 32),
+                                  SizedBox(height: 8),
+                                  Text(
                                     'Barangay Boundary Map',
                                     style: TextStyle(
                                       fontSize: 14,
@@ -197,8 +197,8 @@ class BarangayInformationScreen extends StatelessWidget {
                                       color: Color(0xFF111827),
                                     ),
                                   ),
-                                  const SizedBox(height: 2),
-                                  const Text(
+                                  SizedBox(height: 2),
+                                  Text(
                                     'Poblacion Oeste Coverage Area',
                                     style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
                                   ),
@@ -238,11 +238,11 @@ class BarangayInformationScreen extends StatelessWidget {
                             child: const Icon(Icons.info_outline, color: Color(0xFFEA580C), size: 24),
                           ),
                           const SizedBox(width: 12),
-                          Expanded(
+                          const Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text(
+                                Text(
                                   'Important Notice',
                                   style: TextStyle(
                                     fontSize: 15,
@@ -250,8 +250,8 @@ class BarangayInformationScreen extends StatelessWidget {
                                     color: Color(0xFF111827),
                                   ),
                                 ),
-                                const SizedBox(height: 8),
-                                const Text(
+                                SizedBox(height: 8),
+                                Text(
                                   'Changing your barangay requires LGU re-verification. This process may take 1-3 business days. Emergency services will continue using your current barangay until approved.',
                                   style: TextStyle(fontSize: 13, color: Color(0xFF374151), height: 1.4),
                                 ),

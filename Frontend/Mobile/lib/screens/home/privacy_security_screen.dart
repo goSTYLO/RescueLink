@@ -312,7 +312,7 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
             Switch(
               value: toggleValue,
               onChanged: onToggle,
-              activeColor: const Color(0xFF2563EB),
+              activeThumbColor: const Color(0xFF2563EB),
             ),
           ],
         ],

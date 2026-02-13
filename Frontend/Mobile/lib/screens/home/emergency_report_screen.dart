@@ -187,11 +187,11 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(color: const Color(0xFFE5E7EB)),
                       ),
-                      child: Column(
+                      child: const Column(
                         children: [
-                          const Icon(Icons.location_on, color: Color(0xFF0EA5E9), size: 40),
-                          const SizedBox(height: 12),
-                          const Text(
+                          Icon(Icons.location_on, color: Color(0xFF0EA5E9), size: 40),
+                          SizedBox(height: 12),
+                          Text(
                             'GPS Location Captured',
                             style: TextStyle(
                               fontSize: 15,
@@ -199,18 +199,18 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
                               color: Color(0xFF374151),
                             ),
                           ),
-                          const SizedBox(height: 4),
-                          const Text(
+                          SizedBox(height: 4),
+                          Text(
                             'Poblacion Oeste, Dagupan City',
                             style: TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
                           ),
-                          const SizedBox(height: 10),
+                          SizedBox(height: 10),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              const Icon(Icons.check_circle, color: Color(0xFF22C55E), size: 18),
-                              const SizedBox(width: 6),
-                              const Text(
+                              Icon(Icons.check_circle, color: Color(0xFF22C55E), size: 18),
+                              SizedBox(width: 6),
+                              Text(
                                 'Accuracy: High',
                                 style: TextStyle(fontSize: 13, color: Color(0xFF22C55E), fontWeight: FontWeight.w500),
                               ),

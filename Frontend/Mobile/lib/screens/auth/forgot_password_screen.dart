@@ -271,15 +271,15 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                         style: TextStyle(color: Color(0xFF374151), fontSize: 14),
                       ),
                       const Spacer(),
-                      Column(
+                      const Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Text(
+                          Text(
                             'reCAPTCHA',
                             style: TextStyle(color: Color(0xFF6B7280), fontSize: 12),
                           ),
-                          const Text(
+                          Text(
                             'Privacy - Terms',
                             style: TextStyle(color: Color(0xFF9CA3AF), fontSize: 11),
                           ),

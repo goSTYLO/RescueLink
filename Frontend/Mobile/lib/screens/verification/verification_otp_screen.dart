@@ -69,8 +69,12 @@ class _VerificationOtpScreenState extends State<VerificationOtpScreen> {
 
   @override
   void dispose() {
-    for (final c in _controllers) c.dispose();
-    for (final f in _focusNodes) f.dispose();
+    for (final c in _controllers) {
+      c.dispose();
+    }
+    for (final f in _focusNodes) {
+      f.dispose();
+    }
     super.dispose();
   }
 
@@ -251,12 +255,12 @@ class _VerificationOtpScreenState extends State<VerificationOtpScreen> {
                                         fontSize: 13, color: Color(0xFF6B7280)),
                                   ),
                                   const SizedBox(height: 4),
-                                  Row(
+                                  const Row(
                                     children: [
-                                      const Icon(Icons.check_circle,
+                                      Icon(Icons.check_circle,
                                           color: Color(0xFF22C55E), size: 16),
-                                      const SizedBox(width: 4),
-                                      const Text(
+                                      SizedBox(width: 4),
+                                      Text(
                                         'Within city boundary',
                                         style: TextStyle(
                                             fontSize: 12,
@@ -444,13 +448,13 @@ class _VerificationOtpScreenState extends State<VerificationOtpScreen> {
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(color: const Color(0xFFBFDBFE)),
                     ),
-                    child: Row(
+                    child: const Row(
                       children: [
-                        const Icon(Icons.check_circle,
+                        Icon(Icons.check_circle,
                             color: Color(0xFF2563EB), size: 22),
-                        const SizedBox(width: 10),
+                        SizedBox(width: 10),
                         Expanded(
-                          child: const Text(
+                          child: Text(
                             'Verification ensures only Dagupan City residents can report emergencies',
                             style: TextStyle(
                                 fontSize: 13, color: Color(0xFF1E40AF)),

@@ -232,11 +232,11 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
                             child: const Icon(Icons.info_outline, color: Colors.white, size: 22),
                           ),
                           const SizedBox(width: 12),
-                          Expanded(
+                          const Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text(
+                                Text(
                                   'How It Works',
                                   style: TextStyle(
                                     fontSize: 15,
@@ -244,8 +244,8 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
                                     color: Color(0xFF111827),
                                   ),
                                 ),
-                                const SizedBox(height: 6),
-                                const Text(
+                                SizedBox(height: 6),
+                                Text(
                                   'When auto-notify is enabled, all contacts will receive an SMS with your emergency details and real-time location when you submit a report.',
                                   style: TextStyle(fontSize: 13, color: Color(0xFF374151), height: 1.4),
                                 ),

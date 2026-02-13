@@ -72,15 +72,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: const Color(0xFFE5E7EB)),
             ),
-            child: Row(
+            child: const Row(
               children: [
-                const Icon(Icons.location_on, color: Color(0xFF111827), size: 24),
-                const SizedBox(width: 12),
+                Icon(Icons.location_on, color: Color(0xFF111827), size: 24),
+                SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'Dagupan City, Pangasinan',
                         style: TextStyle(
                           fontSize: 15,
@@ -88,8 +88,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           color: Color(0xFF111827),
                         ),
                       ),
-                      const SizedBox(height: 2),
-                      const Text(
+                      SizedBox(height: 2),
+                      Text(
                         'Barangay Poblacion Oeste',
                         style: TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
                       ),
@@ -166,11 +166,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ),
                 const SizedBox(width: 14),
-                Expanded(
+                const Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'John Doe Cruz',
                         style: TextStyle(
                           fontSize: 16,
@@ -178,17 +178,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           color: Color(0xFF111827),
                         ),
                       ),
-                      const SizedBox(height: 2),
-                      const Text(
+                      SizedBox(height: 2),
+                      Text(
                         '+63 965 254 2364',
                         style: TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
                       ),
-                      const SizedBox(height: 6),
+                      SizedBox(height: 6),
                       Row(
                         children: [
-                          const Icon(Icons.check_circle, color: Color(0xFF22C55E), size: 18),
-                          const SizedBox(width: 6),
-                          const Text(
+                          Icon(Icons.check_circle, color: Color(0xFF22C55E), size: 18),
+                          SizedBox(width: 6),
+                          Text(
                             'Verified Citizen',
                             style: TextStyle(fontSize: 12, color: Color(0xFF22C55E), fontWeight: FontWeight.w500),
                           ),
@@ -238,16 +238,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _sectionHeading('About'),
           const SizedBox(height: 8),
           _settingsCard(children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
+                  Text(
                     'App Version',
                     style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF111827)),
                   ),
-                  const Text(
+                  Text(
                     '1.1.0',
                     style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
                   ),
@@ -411,7 +411,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Switch(
             value: value,
             onChanged: onChanged,
-            activeColor: const Color(0xFF22C55E),
+            activeThumbColor: const Color(0xFF22C55E),
           ),
         ],
       ),
