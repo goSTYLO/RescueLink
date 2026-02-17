@@ -14,12 +14,24 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Request logging middleware
+// Sensitive keys to redact from request logs
+const SENSITIVE_KEYS = ['password', 'idToken', 'newPassword', 'currentPassword', 'token'];
+
+function redactBody(body) {
+  if (!body || typeof body !== 'object') return body;
+  const copy = { ...body };
+  for (const key of SENSITIVE_KEYS) {
+    if (key in copy) copy[key] = '[REDACTED]';
+  }
+  return copy;
+}
+
+// Request logging middleware (never log passwords or tokens)
 app.use((req, res, next) => {
   const timestamp = new Date().toISOString();
   console.log(`\n[${timestamp}] ${req.method} ${req.originalUrl}`);
-  if (req.method === 'POST' || req.method === 'PUT') {
-    console.log('Body:', JSON.stringify(req.body, null, 2));
+  if ((req.method === 'POST' || req.method === 'PUT') && req.body && Object.keys(req.body).length > 0) {
+    console.log('Body:', JSON.stringify(redactBody(req.body), null, 2));
   }
   next();
 });

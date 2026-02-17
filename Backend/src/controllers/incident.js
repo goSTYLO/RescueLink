@@ -155,6 +155,11 @@ const incidentController = {
       const validatedLat = validateLatitude(latitude);
       const validatedLng = validateLongitude(longitude);
 
+      // Validate optional description (max 2000 chars)
+      const validatedDescription = description != null && description !== ''
+        ? validateOptionalString(description, 'description', 2000)
+        : null;
+
       // Resolve barangay from incident location (dagupan_barangays.geojson)
       const barangay = getBarangayFromCoordinates(validatedLat, validatedLng);
 
@@ -176,7 +181,7 @@ const incidentController = {
         user_id,
         incident_type: null, // Will be filled by AI
         severity_level: 'medium', // Temporary, will be updated by AI
-        description: description || null,
+        description: validatedDescription,
         latitude: validatedLat,
         longitude: validatedLng,
         barangay,
@@ -208,7 +213,7 @@ const incidentController = {
         const aiResult = await processIncidentWithAudio(
           audioFile.buffer,
           audioFile.originalname,
-          description
+          validatedDescription
         );
 
         // Update incident with AI results

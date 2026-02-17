@@ -63,9 +63,7 @@ function validatePhone(phone) {
   
   // Add + prefix for E.164 format
   const e164Format = '+' + digitsOnly;
-  
-  console.log(`📱 Phone formatting: ${trimmed} → ${e164Format}`);
-  
+
   return e164Format;
 }
 

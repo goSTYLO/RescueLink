@@ -142,3 +142,21 @@ CREATE TABLE IF NOT EXISTS dispatcher_audit_logs (
 CREATE INDEX IF NOT EXISTS idx_dispatcher_audit_logs_user_created ON dispatcher_audit_logs(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_dispatcher_audit_logs_action_created ON dispatcher_audit_logs(action, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_dispatcher_audit_logs_resource ON dispatcher_audit_logs(resource_type, resource_id);
+
+-- Token blacklist for logout invalidation (revoked JWTs)
+CREATE TABLE IF NOT EXISTS token_blacklist (
+  token_hash VARCHAR(64) PRIMARY KEY,
+  expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_token_blacklist_expires_at ON token_blacklist(expires_at);
+
+-- Dispatcher MFA: OTP for email verification at login
+CREATE TABLE IF NOT EXISTS dispatcher_login_otp (
+  session_token VARCHAR(64) PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(user_id),
+  otp_hash VARCHAR(64) NOT NULL,
+  expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_dispatcher_login_otp_expires ON dispatcher_login_otp(expires_at);

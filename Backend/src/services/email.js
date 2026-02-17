@@ -60,4 +60,36 @@ async function sendPasswordResetEmail(toEmail, resetLink) {
   }
 }
 
-module.exports = { sendPasswordResetEmail, getTransporter };
+/**
+ * Send login OTP email for dispatcher MFA.
+ * @param {string} toEmail - Recipient email
+ * @param {string} otp - 6-digit OTP code
+ * @returns {Promise<boolean>} - true if sent, false if SMTP not configured or send failed
+ */
+async function sendOtpEmail(toEmail, otp) {
+  const trans = getTransporter();
+  if (!trans) return false;
+
+  const html = `
+    <p>Your RescueLink login verification code is:</p>
+    <p style="font-size:24px;font-weight:bold;letter-spacing:4px;">${otp}</p>
+    <p>This code expires in 10 minutes.</p>
+    <p>If you did not attempt to log in, please secure your account immediately.</p>
+  `;
+
+  try {
+    await trans.sendMail({
+      from: SMTP_USER,
+      to: toEmail,
+      subject: 'RescueLink – Your login verification code',
+      text: `Your verification code is: ${otp}. It expires in 10 minutes.`,
+      html,
+    });
+    return true;
+  } catch (err) {
+    console.error('❌ Send OTP email error:', err.message);
+    return false;
+  }
+}
+
+module.exports = { sendPasswordResetEmail, sendOtpEmail, getTransporter };
