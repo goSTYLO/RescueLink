@@ -293,7 +293,8 @@ exports.dispatcherLogin = async (req, res) => {
     res.json({ user: { user_id: user.user_id, email: user.email, role: user.role, firstName: user.first_name, lastName: user.last_name }, token });
   } catch (err) {
     console.error('❌ Dispatcher login error:', err.message);
-    if (err.message.includes('must be') || err.message.includes('Invalid')) {
+    const isValidationError = /required|must be|Invalid|not exceed/i.test(err.message);
+    if (isValidationError) {
       return res.status(400).json({ message: err.message });
     }
     res.status(500).json({ message: 'Login failed' });
@@ -358,7 +359,8 @@ exports.dispatcherSignup = async (req, res) => {
     res.status(201).json({ user: { user_id: user.user_id, email: user.email, firstName: user.first_name, lastName: user.last_name, role: user.role }, token });
   } catch (err) {
     console.error('❌ Dispatcher signup error:', err.message);
-    if (err.message.includes('must be') || err.message.includes('Invalid') || err.message.includes('at least')) {
+    const isValidationError = /required|must be|Invalid|at least|not exceed/i.test(err.message);
+    if (isValidationError) {
       return res.status(400).json({ message: err.message });
     }
     res.status(500).json({ message: 'Signup failed' });

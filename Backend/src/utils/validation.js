@@ -62,26 +62,30 @@ function validatePhone(phone) {
   return '+' + normalized;
 }
 
-// Validate email format
+// Validate email format (normalizes to lowercase for consistent signup/login)
 function validateEmail(email) {
   if (typeof email !== 'string') {
     throw new Error('Email must be a string');
   }
-  
+
   const trimmed = email.trim();
-  
-  // Basic email validation
+
+  if (!trimmed.length) {
+    throw new Error('Email is required');
+  }
+
+  // Basic email validation: local@domain.tld
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  
+
   if (!emailRegex.test(trimmed)) {
     throw new Error('Invalid email format');
   }
-  
+
   if (trimmed.length > 255) {
     throw new Error('Email must not exceed 255 characters');
   }
-  
-  return trimmed;
+
+  return trimmed.toLowerCase();
 }
 
 // Validate optional string (can be null/undefined)
