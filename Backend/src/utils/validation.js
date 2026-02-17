@@ -194,11 +194,55 @@ function validateAddress(address) {
 function validatePagination(limit, offset) {
   const validatedLimit = limit ? validateInteger(limit, 'limit') : 20;
   const validatedOffset = offset ? validateInteger(offset, 'offset') : 0;
-  
+
   // Cap limit at 100
   const cappedLimit = Math.min(validatedLimit, 100);
-  
+
   return { limit: cappedLimit, offset: validatedOffset };
+}
+
+// Validate value is one of allowed (optional: null/undefined/'' returns null)
+function validateAllowedValue(value, allowedSet, fieldName) {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+  const str = String(value).trim();
+  if (!allowedSet.includes(str)) {
+    throw new Error(`${fieldName} must be one of: ${allowedSet.join(', ')}`);
+  }
+  return str;
+}
+
+// Validate optional date string (ISO 8601 date or datetime)
+function validateOptionalDate(value, fieldName) {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+  if (typeof value !== 'string') {
+    throw new Error(`${fieldName} must be a string`);
+  }
+  const trimmed = value.trim();
+  if (!trimmed.length) return null;
+  const parsed = Date.parse(trimmed);
+  if (Number.isNaN(parsed)) {
+    throw new Error(`${fieldName} must be a valid date (ISO 8601)`);
+  }
+  return trimmed;
+}
+
+// Validate dispatcher OTP session token (64-char hex from crypto.randomBytes(32).toString('hex'))
+function validateSessionToken(value) {
+  if (typeof value !== 'string') {
+    throw new Error('Session token must be a string');
+  }
+  const trimmed = value.trim();
+  if (!trimmed.length) {
+    throw new Error('Session token is required');
+  }
+  if (!/^[a-f0-9]{64}$/.test(trimmed)) {
+    throw new Error('Invalid session token format');
+  }
+  return trimmed;
 }
 
 module.exports = {
@@ -212,5 +256,8 @@ module.exports = {
   validateLatitude,
   validateLongitude,
   validatePagination,
-  validateAddress
+  validateAddress,
+  validateAllowedValue,
+  validateOptionalDate,
+  validateSessionToken
 };

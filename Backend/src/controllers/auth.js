@@ -2,7 +2,7 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/user');
 const { hashPassword, comparePassword } = require('../utils/hash');
 const firebaseAdmin = require('../config/firebase');
-const { validatePhone, validateString, validateEmail, validatePassword, validateAddress, validateLatitude, validateLongitude } = require('../utils/validation');
+const { validatePhone, validateString, validateEmail, validatePassword, validateAddress, validateLatitude, validateLongitude, validateSessionToken } = require('../utils/validation');
 const { isPointInDagupan } = require('../utils/geolocation');
 const { sendPasswordResetEmail } = require('../services/email');
 const { logDispatcherAction, logDispatcherActionByUser } = require('../utils/auditLog');
@@ -307,10 +307,11 @@ exports.dispatcherVerifyOtp = async (req, res) => {
     const { sessionToken, otp } = req.body;
     if (!sessionToken || !otp) return res.status(400).json({ message: 'Session token and OTP are required' });
 
+    const validatedSessionToken = validateSessionToken(sessionToken);
     const validatedOtp = String(otp).trim();
     if (!/^\d{6}$/.test(validatedOtp)) return res.status(400).json({ message: 'OTP must be 6 digits' });
 
-    const userId = await DispatcherOtp.verify(sessionToken, validatedOtp);
+    const userId = await DispatcherOtp.verify(validatedSessionToken, validatedOtp);
     if (!userId) return res.status(401).json({ message: 'Invalid or expired verification code' });
 
     const user = await User.findById(userId);
@@ -322,6 +323,9 @@ exports.dispatcherVerifyOtp = async (req, res) => {
     res.json({ user: { user_id: user.user_id, email: user.email, role: user.role, firstName: user.first_name, lastName: user.last_name }, token });
   } catch (err) {
     console.error('❌ Dispatcher verify OTP error:', err.message);
+    if (err.message && /required|Invalid|must be/i.test(err.message)) {
+      return res.status(400).json({ message: err.message });
+    }
     res.status(500).json({ message: 'Verification failed' });
   }
 };

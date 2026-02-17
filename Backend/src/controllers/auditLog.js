@@ -1,5 +1,5 @@
 const AuditLog = require('../models/auditLog');
-const { validatePagination } = require('../utils/validation');
+const { validatePagination, validateOptionalString, validateOptionalDate } = require('../utils/validation');
 
 /**
  * GET /api/audit-logs
@@ -14,13 +14,17 @@ async function getAll(req, res) {
 
     const { action, resource_type, from, to, limit, offset } = req.query;
     const { limit: validatedLimit, offset: validatedOffset } = validatePagination(limit, offset);
+    const validatedAction = action ? validateOptionalString(action, 'action', 50) : null;
+    const validatedResourceType = resource_type ? validateOptionalString(resource_type, 'resource_type', 50) : null;
+    const validatedFrom = validateOptionalDate(from, 'from');
+    const validatedTo = validateOptionalDate(to, 'to');
 
     const logs = await AuditLog.findAll({
       user_id: req.user.user_id,
-      action: action || null,
-      resource_type: resource_type || null,
-      from: from || null,
-      to: to || null,
+      action: validatedAction,
+      resource_type: validatedResourceType,
+      from: validatedFrom,
+      to: validatedTo,
       limit: validatedLimit,
       offset: validatedOffset
     });

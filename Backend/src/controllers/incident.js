@@ -1,6 +1,6 @@
 const Incident = require('../models/incident');
 const pool = require('../config/db');
-const { validateLatitude, validateLongitude, validateInteger, validatePagination, validateOptionalString } = require('../utils/validation');
+const { validateLatitude, validateLongitude, validateInteger, validatePagination, validateOptionalString, validateAllowedValue } = require('../utils/validation');
 const { getBarangayFromCoordinates } = require('../utils/geolocation');
 const { processIncidentWithAudio } = require('../services/aiService');
 const { verifyIncidentOnBlockchain } = require('../services/blockchainService');
@@ -88,12 +88,14 @@ const incidentController = {
     try {
       const { limit, offset, severity_level, status } = req.query;
       const { limit: validatedLimit, offset: validatedOffset } = validatePagination(limit, offset);
+      const validatedSeverityLevel = validateAllowedValue(severity_level, ['low', 'medium', 'high'], 'severity_level');
+      const validatedStatus = validateAllowedValue(status, ['pending', 'verified'], 'status');
 
       const incidents = await Incident.findAll({
         limit: validatedLimit,
         offset: validatedOffset,
-        severity_level: severity_level || null,
-        status: status || null
+        severity_level: validatedSeverityLevel,
+        status: validatedStatus
       });
 
       res.json(incidents);
