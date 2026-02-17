@@ -5,6 +5,7 @@ const { getBarangayFromCoordinates } = require('../utils/geolocation');
 const { processIncidentWithAudio } = require('../services/aiService');
 const { verifyIncidentOnBlockchain } = require('../services/blockchainService');
 const { saveAudioFile, saveMediaFiles, deleteIncidentFiles, fileExists, getAbsolutePath } = require('../utils/fileValidation');
+const { logDispatcherAction } = require('../utils/auditLog');
 const path = require('path');
 const fs = require('fs').promises;
 
@@ -47,6 +48,8 @@ const incidentController = {
         media_url: null,
         status: 'pending'
       });
+
+      await logDispatcherAction(req, 'incident_create', 'incident', incident.report_id, { type: 'emergency', severity_level: 'high' });
 
       res.status(201).json({
         success: true,
@@ -196,6 +199,8 @@ const incidentController = {
       });
 
       const reportId = incident.report_id;
+      await logDispatcherAction(req, 'incident_create', 'incident', reportId, { type: 'with_audio', severity_level: 'medium' });
+
       let audioPath = null;
       let mediaPaths = [];
 
@@ -434,6 +439,12 @@ const incidentController = {
       });
 
       await Incident.setVerified(validatedId);
+
+      await logDispatcherAction(req, 'incident_verify', 'incident', validatedId, {
+        tx_hash: blockchainResult.tx_hash,
+        block_number: blockchainResult.block_number,
+        hash_value: blockchainResult.hash_value
+      });
 
       res.json({
         success: true,
