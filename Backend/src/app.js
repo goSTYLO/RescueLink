@@ -15,7 +15,7 @@ app.use(cors());
 app.use(express.json());
 
 // Sensitive keys to redact from request logs
-const SENSITIVE_KEYS = ['password', 'idToken', 'newPassword', 'currentPassword', 'token'];
+const SENSITIVE_KEYS = ['password', 'idToken', 'newPassword', 'currentPassword', 'token', 'otp', 'sessionToken'];
 
 function redactBody(body) {
   if (!body || typeof body !== 'object') return body;
