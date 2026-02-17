@@ -4,6 +4,27 @@ Use this document to **present** and **test** each security item for your profes
 
 ---
 
+## Security checklist summary
+
+| Category | Question | Status | Notes |
+|----------|----------|--------|-------|
+| **Hash** | How are passwords stored? | ✅ Bcrypt (salt rounds from env) | `Backend/src/utils/hash.js`; used on register/login/change-password |
+| **Sessions** | Do sessions expire and use secure flags? | ✅ Expire (7d JWT, 10m OTP); ☐ No cookie flags | JWT/OTP expire; backend does not set cookies (token in body/header) |
+| **Login errors** | Do login errors leak info? | ✅ No leak | Login returns generic "Invalid credentials"; signup/register use generic message on conflict |
+| **Password policy** | Strong policy? | ✅ Yes | 8–128 chars, uppercase, number, special char (`validation.js`) |
+| **Logout** | Does logout destroy the session? | ✅ Yes | Token blacklisted; middleware rejects it |
+| **Auth tokens** | Are tokens validated? | ✅ Yes | Signature + expiry via `jwt.verify`; blacklist check |
+| **Input validation** | Are APIs validated? | ✅ Manual | Shared helpers in `validation.js`; allowlists for incident/audit filters; sessionToken format |
+| **Audit logging** | Are DB actions logged? | ✅ Dispatcher + incident + responder | Auth, dispatch, incident create/verify, responder CRUD |
+| **XSS** | Is output safely escaped? | ☐ None (backend) | API returns JSON only; client must escape when rendering HTML |
+| **File upload** | Are uploads checked? | ✅ Type + size | Extension allowlist + per-type size limits (`fileUpload.js`) |
+| **Validation** | NoSQL injection? | ✅ N/A (None) | PostgreSQL only; parameterized queries |
+| **CSRF** | CSRF protection? | ☐ No explicit | Bearer token in header (no auth cookies) reduces classic CSRF risk |
+| **Credential storage** | How are DB creds stored? | ✅ Secure .env | `DATABASE_URL` from env; `.env` in `.gitignore` |
+| **Encryption at rest** | Is data encrypted? | ☐ None (in app) | Passwords hashed; no field encryption in use; TDE recommended in DEPLOYMENT.md |
+
+---
+
 ## Quick reference
 
 | Category | Item | Where to show | How to test |
@@ -15,9 +36,11 @@ Use this document to **present** and **test** each security item for your profes
 | | Logout | `auth.js` controller + blacklist | 1.5 |
 | | Rate limiting | `Backend/src/app.js` | 1.6 |
 | **Input validation** | Server validation | `Backend/src/utils/validation.js` + controllers | 2.1 |
-| | SQL/XSS/CSRF | Parameterized queries + `sanitizeInput` + Helmet | 2.2 |
+| | SQL/XSS/CSRF | Parameterized queries + Helmet; no HTML output (client escapes) | 2.2 |
 | | Schema checks | Per-route validation (see API_DOCUMENTATION.md) | 2.3 |
-| **Database** | Encrypted DB | Deployment/infra (documented) | 3.1 |
+| | File upload | Type (extension allowlist) + size limits | `Backend/src/middleware/fileUpload.js` |
+| **Secrets** | Credential storage | Secure .env (gitignored); no hardcoded creds | `Backend/src/config/db.js`, `.gitignore` |
+| **Database** | Encrypted DB | Deployment/infra (documented); no field encryption in app | 3.1 |
 | | TLS | `Backend/src/config/db.js` | 3.2 |
 | | Backups | `Backend/scripts/backup-db.js`, DEPLOYMENT.md | 3.3 |
 | | Logs | `dispatcher_audit_logs`, request logging | 3.4 |
@@ -137,12 +160,12 @@ Use this document to **present** and **test** each security item for your profes
 
 ### 2.1 Full server validation
 
-**What:** All API inputs are validated on the server using shared helpers (length, format, type). No reliance on client-only validation.
+**What:** All API inputs are validated on the server using shared helpers (length, format, type, allowlists). No reliance on client-only validation.
 
 **Where to show:**
 - **File:** `Backend/src/utils/validation.js`  
-  Show `validateString`, `validatePhone`, `validateEmail`, `validatePassword`, `validateInteger`, `validateLatitude`, `validateLongitude`, `validateOptionalString`, `validatePagination`.
-- **Controllers:** `Backend/src/controllers/auth.js`, `incident.js`, `dispatch.js`, `responder.js`, `notification.js` – each uses these helpers before using input.
+  Show `validateString`, `validatePhone`, `validateEmail`, `validatePassword`, `validateInteger`, `validateLatitude`, `validateLongitude`, `validateOptionalString`, `validatePagination`, `validateAllowedValue`, `validateOptionalDate`, `validateSessionToken`, and `sanitizeInput`.
+- **Controllers:** `Backend/src/controllers/auth.js`, `incident.js`, `dispatch.js`, `responder.js`, `notification.js`, `auditLog.js` – each uses these helpers before using input. Incident list filters use allowlists for `severity_level` and `status`; audit log filters validate `action`, `resource_type`, and date params `from`/`to`; dispatcher verify-otp validates `sessionToken` format (64-char hex).
 
 **How to test:**
 1. Send invalid data and expect **400** with a clear message, e.g.:
@@ -157,9 +180,9 @@ Use this document to **present** and **test** each security item for your profes
 ### 2.2 SQL / XSS / CSRF protection
 
 **What:**  
-- **SQL:** All queries use parameterized statements (`pool.query(sql, [params])`).  
-- **XSS:** User-supplied strings are sanitized (`sanitizeInput` in validation) and security headers are set (Helmet).  
-- **CSRF:** API uses Bearer tokens in headers (no cookie-based session), so CSRF risk is low; CORS is restricted in production.
+- **SQL:** All queries use parameterized statements (`pool.query(sql, [params])`); no string concatenation into SQL.  
+- **XSS:** Backend does not output HTML (JSON API only); the API does not HTML-escape. `sanitizeInput` strips control characters; security headers are set (Helmet). The client must escape or safely render API data when inserting into HTML.  
+- **CSRF:** No explicit CSRF tokens or SameSite cookies. Auth uses Bearer token in the `Authorization` header (no auth cookies), so the browser does not automatically send credentials on cross-site requests; classic CSRF risk is low. CORS is restricted to `FRONTEND_URL` in production.
 
 **Where to show:**
 - **SQL:** Any model, e.g. `Backend/src/models/user.js` or `incident.js` – show `pool.query('SELECT ... WHERE phone_number = $1', [phone])` (placeholders, no string concatenation).
@@ -242,11 +265,13 @@ Use this document to **present** and **test** each security item for your profes
 
 ### 3.4 Logs
 
-**What:** Dispatcher actions are written to `dispatcher_audit_logs` (IP, user agent, action type); request logging redacts sensitive fields (passwords, tokens).
+**What:** Dispatcher actions are written to `dispatcher_audit_logs` (IP, user agent, action type): auth (login, signup, logout, password change/reset), dispatch create/update/delete, incident create (emergency and with-audio), incident verify, and responder create/update/delete. Request logging redacts sensitive fields (passwords, tokens).
 
 **Where to show:**
 - **Audit table:** `Backend/schema.sql` or `migrations/add_dispatcher_audit_logs.sql` – `dispatcher_audit_logs` columns.
 - **File:** `Backend/src/utils/auditLog.js` – `logDispatcherAction` / `logDispatcherActionByUser` writing to that table.
+- **File:** `Backend/src/controllers/incident.js` – `logDispatcherAction` for `incident_create` and `incident_verify`.
+- **File:** `Backend/src/controllers/responder.js` – `logDispatcherAction` for `responder_create`, `responder_update`, `responder_delete`.
 - **File:** `Backend/src/app.js` – request logging middleware and `redactBody` (e.g. `SENSITIVE_KEYS`: password, token, otp, etc.).
 
 **How to test:**
