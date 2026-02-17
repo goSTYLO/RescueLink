@@ -42,7 +42,7 @@ exports.register = async (req, res) => {
     }
 
     const existing = await User.findByPhone(validatedPhone);
-    if (existing) return res.status(409).json({ message: 'User with this phone already exists' });
+    if (existing) return res.status(400).json({ message: 'Registration could not be completed. If you already have an account, please sign in.' });
 
     // Hash the password
     const passwordHash = await hashPassword(validatedPassword);
@@ -339,7 +339,7 @@ exports.dispatcherSignup = async (req, res) => {
     const validatedLastName = validateString(lastName, 'lastName', 1, 100);
 
     const existing = await User.findByEmail(validatedEmail);
-    if (existing) return res.status(409).json({ message: 'An account with this email already exists' });
+    if (existing) return res.status(400).json({ message: 'Registration could not be completed. If you already have an account, please sign in.' });
 
     const passwordHash = await hashPassword(validatedPassword);
     const user = await User.create({
