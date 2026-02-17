@@ -23,7 +23,9 @@
   psql $DATABASE_URL -f migrations/add_dispatcher_login_otp.sql
   # ... other migrations as needed
   ```
-- [ ] Ensure `DATABASE_URL` uses SSL in production if required by your provider.
+- [ ] Enable TLS for the database connection in production: set `DATABASE_SSL=true` or use a `DATABASE_URL` that includes `?sslmode=require`. The app enables SSL when `NODE_ENV=production` or `DATABASE_SSL=true` (see `src/config/db.js`). Ensure your CA is trusted when using `rejectUnauthorized: true`.
+- [ ] **Encryption at rest**: Use your provider’s or host’s option for encrypted storage (e.g. managed PostgreSQL disk encryption). This is not configured in application code.
+- [ ] **Backups**: Schedule regular backups (e.g. `pg_dump` or provider backups). See the [Backups](#backups) section below.
 
 ### Environment
 
@@ -80,6 +82,13 @@ server {
 
 - Ensure `UPLOAD_DIR` (default: `uploads/incidents`) exists and is writable
 - Configure `MAX_AUDIO_SIZE`, `MAX_PHOTO_SIZE`, `MAX_VIDEO_SIZE` if you need different limits
+
+## Backups
+
+- Schedule regular PostgreSQL backups (e.g. daily). Use your provider’s backup feature or run `pg_dump` (see optional script below).
+- Retain backups according to your policy (e.g. 7–30 days) and store them in a separate region or account.
+- Test restore periodically. Restore with `psql $DATABASE_URL < backup.sql` (or your provider’s restore procedure).
+- Optional: from the project root, run `npm run backup-db` to create a timestamped dump in `Backend/backups/` (requires `DATABASE_URL` and `pg_dump` on `PATH`). Schedule this via cron or your platform’s job runner.
 
 ## Common issues
 

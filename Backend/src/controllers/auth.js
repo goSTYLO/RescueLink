@@ -54,7 +54,7 @@ exports.register = async (req, res) => {
     res.status(201).json({ user: { user_id: user.user_id, phone: user.phone_number, firstName: user.first_name, lastName: user.last_name, role: user.role }, token });
   } catch (err) {
     console.error('❌ Registration error:', err.message);
-    if (err.message.includes('must be') || err.message.includes('Invalid')) {
+    if (err.message.includes('must be') || err.message.includes('Invalid') || err.message.includes('required') || err.message.includes('at least')) {
       return res.status(400).json({ message: err.message });
     }
     res.status(500).json({ message: 'Registration failed' });

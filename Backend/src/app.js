@@ -1,5 +1,7 @@
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const authRoutes = require('./routes/auth');
 const responderRoutes = require('./routes/responder');
 const dispatchRoutes = require('./routes/dispatch');
@@ -11,8 +13,35 @@ const { startRetryService } = require('./services/retryAiClassification');
 
 const app = express();
 
-app.use(cors());
+// Trust proxy so rate limiter sees real client IP behind reverse proxy
+app.set('trust proxy', 1);
+
+// Security headers (XSS, clickjacking, etc.)
+app.use(helmet());
+
+// CORS: restrict to FRONTEND_URL in production; allow all in dev when unset
+const corsOrigin = process.env.FRONTEND_URL || true;
+app.use(cors({ origin: corsOrigin, credentials: true }));
+
+// Auth rate limit: 10 requests per 15 minutes per IP (login, register, OTP, password reset)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: { message: 'Too many attempts. Please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 app.use(express.json());
+
+// General API rate limit: 200 requests per 15 minutes per IP
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 200,
+  message: { message: 'Too many requests. Please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // Sensitive keys to redact from request logs
 const SENSITIVE_KEYS = ['password', 'idToken', 'newPassword', 'currentPassword', 'token', 'otp', 'sessionToken'];
@@ -36,7 +65,8 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use('/api/auth', authRoutes);
+app.use('/api/auth', authLimiter, authRoutes);
+app.use('/api', apiLimiter);
 app.use('/api/responders', responderRoutes);
 app.use('/api/dispatches', dispatchRoutes);
 app.use('/api/notifications', notificationRoutes);

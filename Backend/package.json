@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "setup-db": "node setup-db.js"
+    "setup-db": "node setup-db.js",
+    "backup-db": "node scripts/backup-db.js"
   },
   "dependencies": {
     "axios": "^1.13.4",
@@ -14,7 +15,9 @@
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
+    "express-rate-limit": "^7.5.1",
     "firebase-admin": "^11.11.1",
+    "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
     "multer": "^1.4.5-lts.1",
     "node-cron": "^3.0.3",
