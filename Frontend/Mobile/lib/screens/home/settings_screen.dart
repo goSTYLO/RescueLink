@@ -324,16 +324,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _sectionHeading('About'),
           const SizedBox(height: 8),
           _settingsCard(children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
+                  Text(
                     'App Version',
                     style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF111827)),
                   ),
-                  const Text(
+                  Text(
                     '1.1.0',
                     style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
                   ),
@@ -497,7 +497,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Switch(
             value: value,
             onChanged: onChanged,
-            activeColor: const Color(0xFF22C55E),
+            activeThumbColor: const Color(0xFF22C55E),
           ),
         ],
       ),

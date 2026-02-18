@@ -243,16 +243,16 @@ class AuthService {
     
     // If starts with 0 (local format), replace with +63
     if (digitsOnly.startsWith('0')) {
-      digitsOnly = '63' + digitsOnly.substring(1);
+      digitsOnly = '63${digitsOnly.substring(1)}';
     }
     
     // If doesn't start with country code, add +63
     if (!digitsOnly.startsWith('63')) {
-      digitsOnly = '63' + digitsOnly;
+      digitsOnly = '63$digitsOnly';
     }
     
     // Add + prefix for E.164 format
-    final e164Format = '+' + digitsOnly;
+    final e164Format = '+$digitsOnly';
     print('📱 Phone formatting: $phoneNumber → $e164Format');
     return e164Format;
   }

@@ -13,7 +13,7 @@ class ReportDetailsScreen extends StatefulWidget {
 
 class _ReportDetailsScreenState extends State<ReportDetailsScreen> {
   bool _isPlaying = false;
-  double _playbackProgress = 0.45 / 1.38; // 0:45 / 1:38
+  final double _playbackProgress = 0.45 / 1.38; // 0:45 / 1:38
   Map<String, dynamic>? _incident;
   Map<String, dynamic>? _aiClassification;
   bool _loading = true;
@@ -348,16 +348,16 @@ class _ReportDetailsScreenState extends State<ReportDetailsScreen> {
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(color: const Color(0xFF86EFAC)),
                       ),
-                      child: Row(
+                      child: const Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Icon(Icons.check_circle, color: Color(0xFF22C55E), size: 28),
-                          const SizedBox(width: 12),
+                          Icon(Icons.check_circle, color: Color(0xFF22C55E), size: 28),
+                          SizedBox(width: 12),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text(
+                                Text(
                                   'Emergency Resolved',
                                   style: TextStyle(
                                     fontSize: 15,
@@ -365,8 +365,8 @@ class _ReportDetailsScreenState extends State<ReportDetailsScreen> {
                                     color: Color(0xFF166534),
                                   ),
                                 ),
-                                const SizedBox(height: 4),
-                                const Text(
+                                SizedBox(height: 4),
+                                Text(
                                   'Patient was transported to Pangasinan Provincial Hospital. Vital signs stable. Resolved on Jan 18, 2026 at 10:36 AM',
                                   style: TextStyle(fontSize: 13, color: Color(0xFF15803D)),
                                 ),

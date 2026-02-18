@@ -184,11 +184,11 @@ class EmergencyTrackingScreen extends StatelessWidget {
                             child: const Icon(Icons.local_fire_department, color: Color(0xFFEA580C), size: 28),
                           ),
                           const SizedBox(width: 14),
-                          Expanded(
+                          const Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text(
+                                Text(
                                   'Dagupan Fire Department',
                                   style: TextStyle(
                                     fontSize: 15,
@@ -196,13 +196,13 @@ class EmergencyTrackingScreen extends StatelessWidget {
                                     color: Color(0xFF111827),
                                   ),
                                 ),
-                                const SizedBox(height: 4),
-                                const Text(
+                                SizedBox(height: 4),
+                                Text(
                                   'Fire Truck #3 - Station 1',
                                   style: TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
                                 ),
-                                const SizedBox(height: 2),
-                                const Text(
+                                SizedBox(height: 2),
+                                Text(
                                   'Unit Commander: FO2 Santos, M.',
                                   style: TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
                                 ),
@@ -228,13 +228,13 @@ class EmergencyTrackingScreen extends StatelessWidget {
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(color: const Color(0xFFE5E7EB)),
                             ),
-                            child: Center(
+                            child: const Center(
                               child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  const Icon(Icons.location_on, color: Color(0xFF2563EB), size: 40),
-                                  const SizedBox(height: 8),
-                                  const Text(
+                                  Icon(Icons.location_on, color: Color(0xFF2563EB), size: 40),
+                                  SizedBox(height: 8),
+                                  Text(
                                     'Responder Location',
                                     style: TextStyle(
                                       fontSize: 14,
@@ -242,8 +242,8 @@ class EmergencyTrackingScreen extends StatelessWidget {
                                       color: Color(0xFF111827),
                                     ),
                                   ),
-                                  const SizedBox(height: 4),
-                                  const Text(
+                                  SizedBox(height: 4),
+                                  Text(
                                     'Real-time tracking active',
                                     style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
                                   ),
@@ -320,12 +320,12 @@ class EmergencyTrackingScreen extends StatelessWidget {
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(color: const Color(0xFFBFDBFE)),
                       ),
-                      child: Row(
+                      child: const Row(
                         children: [
-                          const Icon(Icons.shield, color: Color(0xFF2563EB), size: 24),
-                          const SizedBox(width: 10),
+                          Icon(Icons.shield, color: Color(0xFF2563EB), size: 24),
+                          SizedBox(width: 10),
                           Expanded(
-                            child: const Text(
+                            child: Text(
                               'All responders are verified and blockchain-authenticated',
                               style: TextStyle(fontSize: 12, color: Color(0xFF1E40AF)),
                             ),

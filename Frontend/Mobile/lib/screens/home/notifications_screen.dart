@@ -56,15 +56,15 @@ class NotificationsScreen extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: const Color(0xFFE5E7EB)),
             ),
-            child: Row(
+            child: const Row(
               children: [
-                const Icon(Icons.location_on, color: Color(0xFF111827), size: 24),
-                const SizedBox(width: 12),
+                Icon(Icons.location_on, color: Color(0xFF111827), size: 24),
+                SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'Dagupan City, Pangasinan',
                         style: TextStyle(
                           fontSize: 15,
@@ -72,8 +72,8 @@ class NotificationsScreen extends StatelessWidget {
                           color: Color(0xFF111827),
                         ),
                       ),
-                      const SizedBox(height: 2),
-                      const Text(
+                      SizedBox(height: 2),
+                      Text(
                         'Barangay Poblacion Oeste',
                         style: TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
                       ),
