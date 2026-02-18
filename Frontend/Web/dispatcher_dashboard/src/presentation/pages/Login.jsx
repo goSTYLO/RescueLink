@@ -4,17 +4,57 @@ import Swal from 'sweetalert2';
 import logo from '@/presentation/assets/logo.svg';
 import illustration from '@/presentation/assets/illustration.svg';
 import { DEV_MODE } from '@/core/config/app.config';
-import { loginDispatcher } from '@/data/api/auth.api';
+import { loginDispatcher, verifyDispatcherOtp } from '@/data/api/auth.api';
 
 export default function Login({ onSuccess, onForgotPasswordClick }) {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [otp, setOtp] = useState('');
+  const [sessionToken, setSessionToken] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async (e) => {
     e.preventDefault();
+    if (sessionToken) {
+      if (!otp || otp.length !== 6) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'Invalid code',
+          text: 'Please enter the 6-digit code from your email.',
+          confirmButtonColor: '#134178',
+        });
+        return;
+      }
+      setLoading(true);
+      try {
+        const data = await verifyDispatcherOtp(sessionToken, otp);
+        localStorage.setItem('token', data.token);
+        Swal.fire({
+          icon: 'success',
+          title: 'Welcome back!',
+          text: 'You have successfully logged in.',
+          timer: 1500,
+          showConfirmButton: false,
+          timerProgressBar: true,
+        }).then(() => {
+          onSuccess(data);
+          navigate('/dashboard');
+        });
+      } catch (err) {
+        Swal.fire({
+          icon: 'error',
+          title: 'Verification failed',
+          text: err.message || 'Invalid or expired code. Please try again.',
+          confirmButtonColor: '#134178',
+        });
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
     if (!email || !password) {
       Swal.fire({
         icon: 'warning',
@@ -29,18 +69,29 @@ export default function Login({ onSuccess, onForgotPasswordClick }) {
 
     try {
       const data = await loginDispatcher(email, password);
-      localStorage.setItem('token', data.token);
-      Swal.fire({
-        icon: 'success',
-        title: 'Welcome back!',
-        text: 'You have successfully logged in.',
-        timer: 1500,
-        showConfirmButton: false,
-        timerProgressBar: true,
-      }).then(() => {
-        onSuccess(data);
-        navigate('/dashboard');
-      });
+      if (data.sessionToken) {
+        setSessionToken(data.sessionToken);
+        setOtp('');
+        Swal.fire({
+          icon: 'info',
+          title: 'Check your email',
+          text: data.message || 'Enter the 6-digit code sent to your email.',
+          confirmButtonColor: '#134178',
+        });
+      } else {
+        localStorage.setItem('token', data.token);
+        Swal.fire({
+          icon: 'success',
+          title: 'Welcome back!',
+          text: 'You have successfully logged in.',
+          timer: 1500,
+          showConfirmButton: false,
+          timerProgressBar: true,
+        }).then(() => {
+          onSuccess(data);
+          navigate('/dashboard');
+        });
+      }
     } catch (err) {
       Swal.fire({
         icon: 'error',
@@ -77,6 +128,34 @@ export default function Login({ onSuccess, onForgotPasswordClick }) {
 
         {/* Login Form */}
         <form onSubmit={handleLogin} className="space-y-6">
+          {sessionToken ? (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">
+                  Verification code
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="\d*"
+                  maxLength={6}
+                  placeholder="Enter 6-digit code"
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+                  className="w-full px-4 py-3 border-2 border-[rgba(19,65,120,0.35)] rounded-xl bg-card text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-secondary focus:ring-offset-2 focus:ring-offset-background focus:border-secondary transition-all duration-300 hover:border-secondary/50 text-center tracking-widest text-xl"
+                />
+                <p className="text-sm text-muted mt-2">Check your email for the code.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setSessionToken(null); setOtp(''); }}
+                className="text-sm font-semibold text-foreground hover:text-muted transition-colors"
+              >
+                &larr; Back to login
+              </button>
+            </>
+          ) : (
+            <>
           {/* Email/Username Field */}
           <div>
             <label className="block text-sm font-medium text-foreground mb-2">
@@ -133,14 +212,16 @@ export default function Login({ onSuccess, onForgotPasswordClick }) {
               Forgot Password?
             </button>
           </div>
+            </>
+          )}
 
-          {/* Login Button */}
+          {/* Login / Verify Button */}
           <button
             type="submit"
             disabled={loading}
             className="w-full bg-primary text-white py-3 rounded-xl font-bold text-lg hover:bg-primary-hover disabled:bg-muted/40 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] shadow-card hover:shadow-card-hover hover:shadow-primary/20 focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background"
           >
-            {loading ? 'Logging in...' : 'Login'}
+            {loading ? (sessionToken ? 'Verifying...' : 'Logging in...') : (sessionToken ? 'Verify' : 'Login')}
           </button>
         </form>
 

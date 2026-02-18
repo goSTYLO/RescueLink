@@ -6,6 +6,7 @@ const authMiddleware = require('../middleware/auth');
 router.post('/register', authController.register);
 router.post('/login', authController.login);
 router.post('/dispatcher/login', authController.dispatcherLogin);
+router.post('/dispatcher/verify-otp', authController.dispatcherVerifyOtp);
 router.post('/dispatcher/signup', authController.dispatcherSignup);
 // Onboard via phone: client should obtain a Firebase ID token after phone verification
 // then send it here along with the desired password.

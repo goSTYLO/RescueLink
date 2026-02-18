@@ -54,10 +54,6 @@ COMMENT ON COLUMN ai_classifications.retry_count IS 'Number of retry attempts fo
 
 COMMENT ON TABLE ai_confidence_details IS 'Stores individual confidence scores for each incident type (for detailed analytics)';
 
--- Grant permissions to rescuelink_user
-GRANT ALL ON TABLE ai_confidence_details TO rescuelink_user;
-GRANT USAGE, SELECT ON SEQUENCE ai_confidence_details_detail_id_seq TO rescuelink_user;
-
 -- Display migration completion message
 DO $$ 
 BEGIN 

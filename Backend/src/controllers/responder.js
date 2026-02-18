@@ -1,5 +1,6 @@
 const Responder = require('../models/responder');
 const { validateInteger, validateString, validateOptionalString, validatePagination } = require('../utils/validation');
+const { logDispatcherAction } = require('../utils/auditLog');
 
 const responderController = {
   // Create new responder
@@ -24,6 +25,8 @@ const responderController = {
         contact_number: validatedContactNumber,
         availability_status: validatedAvailabilityStatus
       });
+
+      await logDispatcherAction(req, 'responder_create', 'responder', responder.responder_id, { name: validatedName });
 
       res.status(201).json(responder);
     } catch (error) {
@@ -126,6 +129,8 @@ const responderController = {
         availability_status: validatedAvailabilityStatus
       });
 
+      await logDispatcherAction(req, 'responder_update', 'responder', validatedId, { name: validatedName });
+
       res.json(updated);
     } catch (error) {
       console.error('Error updating responder:', error);
@@ -147,6 +152,8 @@ const responderController = {
       if (!deleted) {
         return res.status(404).json({ error: 'Responder not found' });
       }
+
+      await logDispatcherAction(req, 'responder_delete', 'responder', validatedId, { name: deleted.name });
 
       res.json({ message: 'Responder deleted successfully', responder: deleted });
     } catch (error) {

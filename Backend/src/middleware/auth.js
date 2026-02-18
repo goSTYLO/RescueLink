@@ -1,8 +1,8 @@
 const jwt = require('jsonwebtoken');
+const { JWT_SECRET } = require('../config/jwt');
+const TokenBlacklist = require('../models/tokenBlacklist');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'change_this_secret';
-
-module.exports = function (req, res, next) {
+module.exports = async function (req, res, next) {
   const auth = req.headers.authorization;
   if (!auth) return res.status(401).json({ message: 'Missing authorization header' });
 
@@ -12,7 +12,12 @@ module.exports = function (req, res, next) {
   const token = parts[1];
   try {
     const payload = jwt.verify(token, JWT_SECRET);
+    const isBlacklisted = await TokenBlacklist.isBlacklisted(token);
+    if (isBlacklisted) {
+      return res.status(401).json({ message: 'Invalid or expired token' });
+    }
     req.user = payload;
+    req.token = token;
     next();
   } catch (err) {
     return res.status(401).json({ message: 'Invalid or expired token' });

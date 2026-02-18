@@ -1,10 +1,11 @@
 import { API_URL } from '@/core/config/app.config';
 
 /**
- * Login as dispatcher (email + password)
+ * Login as dispatcher (email + password).
+ * When MFA is enabled, returns { sessionToken, message } instead of { user, token }.
  * @param {string} email
  * @param {string} password
- * @returns {Promise<{user: object, token: string}>}
+ * @returns {Promise<{user?: object, token?: string, sessionToken?: string, message?: string}>}
  */
 export async function loginDispatcher(email, password) {
   const response = await fetch(`${API_URL}/api/auth/dispatcher/login`, {
@@ -17,6 +18,28 @@ export async function loginDispatcher(email, password) {
 
   if (!response.ok) {
     throw new Error(data.message || 'Login failed');
+  }
+
+  return data;
+}
+
+/**
+ * Verify dispatcher MFA OTP and obtain JWT.
+ * @param {string} sessionToken - From login response when MFA is enabled
+ * @param {string} otp - 6-digit code from email
+ * @returns {Promise<{user: object, token: string}>}
+ */
+export async function verifyDispatcherOtp(sessionToken, otp) {
+  const response = await fetch(`${API_URL}/api/auth/dispatcher/verify-otp`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sessionToken, otp }),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.message || 'Verification failed');
   }
 
   return data;

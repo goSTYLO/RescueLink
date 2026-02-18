@@ -2,16 +2,18 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/user');
 const { hashPassword, comparePassword } = require('../utils/hash');
 const firebaseAdmin = require('../config/firebase');
-const { validatePhone, validateString, validateEmail, validatePassword, validateAddress, validateLatitude, validateLongitude } = require('../utils/validation');
+const { validatePhone, validateString, validateEmail, validatePassword, validateAddress, validateLatitude, validateLongitude, validateSessionToken } = require('../utils/validation');
 const { isPointInDagupan } = require('../utils/geolocation');
 const { sendPasswordResetEmail } = require('../services/email');
 const { logDispatcherAction, logDispatcherActionByUser } = require('../utils/auditLog');
-
-const JWT_SECRET = process.env.JWT_SECRET || 'change_this_secret';
+const { JWT_SECRET } = require('../config/jwt');
+const TokenBlacklist = require('../models/tokenBlacklist');
+const DispatcherOtp = require('../models/dispatcherOtp');
+const { sendOtpEmail } = require('../services/email');
 
 // Register using phone_number
 exports.register = async (req, res) => {
-  console.log('📝 Registration attempt:', { phone: req.body.phone, firstName: req.body.firstName, lastName: req.body.lastName });
+  console.log('📝 Registration attempt');
   try {
     const { phone, firstName, lastName, email, address, password, latitude, longitude } = req.body;
     if (!phone || !firstName || !lastName || !password) return res.status(400).json({ message: 'Phone, firstName, lastName, and password are required' });
@@ -40,7 +42,7 @@ exports.register = async (req, res) => {
     }
 
     const existing = await User.findByPhone(validatedPhone);
-    if (existing) return res.status(409).json({ message: 'User with this phone already exists' });
+    if (existing) return res.status(400).json({ message: 'Registration could not be completed. If you already have an account, please sign in.' });
 
     // Hash the password
     const passwordHash = await hashPassword(validatedPassword);
@@ -48,11 +50,11 @@ exports.register = async (req, res) => {
     const user = await User.create({ phone_number: validatedPhone, email: validatedEmail, address: validatedAddress, password: passwordHash, phone_verified: false, first_name: validatedFirstName, last_name: validatedLastName });
 
     const token = jwt.sign({ user_id: user.user_id, phone: user.phone_number, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
-    console.log('✅ Registration successful:', { user_id: user.user_id, phone: user.phone_number });
+    console.log('✅ Registration successful:', { user_id: user.user_id });
     res.status(201).json({ user: { user_id: user.user_id, phone: user.phone_number, firstName: user.first_name, lastName: user.last_name, role: user.role }, token });
   } catch (err) {
     console.error('❌ Registration error:', err.message);
-    if (err.message.includes('must be') || err.message.includes('Invalid')) {
+    if (err.message.includes('must be') || err.message.includes('Invalid') || err.message.includes('required') || err.message.includes('at least')) {
       return res.status(400).json({ message: err.message });
     }
     res.status(500).json({ message: 'Registration failed' });
@@ -61,7 +63,7 @@ exports.register = async (req, res) => {
 
 // Login using phone_number and password
 exports.login = async (req, res) => {
-  console.log('🔐 Login attempt:', { phone: req.body.phone });
+  console.log('🔐 Login attempt');
   try {
     const { phone, password } = req.body;
     if (!phone || !password) return res.status(400).json({ message: 'Phone number and password are required' });
@@ -80,7 +82,7 @@ exports.login = async (req, res) => {
     if (!isPasswordValid) return res.status(401).json({ message: 'Invalid credentials' });
 
     const token = jwt.sign({ user_id: user.user_id, phone: user.phone_number, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
-    console.log('✅ Login successful:', { user_id: user.user_id, phone: user.phone_number });
+    console.log('✅ Login successful:', { user_id: user.user_id });
     res.json({ user: { user_id: user.user_id, phone: user.phone_number, role: user.role }, token });
   } catch (err) {
     console.error('❌ Login error:', err.message);
@@ -97,49 +99,35 @@ exports.login = async (req, res) => {
 // Firebase Admin SDK, extract the phone number, and mark the user as phone_verified=true.
 exports.onboardPhone = async (req, res) => {
   console.log('📱 Phone onboarding attempt');
-  console.log('📤 Request headers:', req.headers);
-  console.log('📤 Request body:', req.body);
-  
   try {
     const { idToken } = req.body;
     if (!idToken) {
-      console.log('❌ Missing idToken in request');
       return res.status(400).json({ message: 'idToken required' });
     }
 
     // Validate idToken is a string
     const validatedToken = validateString(idToken, 'idToken', 1, 2048);
-    console.log('✅ idToken validated, length:', validatedToken.length);
 
     // Verify the Firebase ID token
-    console.log('🔐 Verifying Firebase ID token...');
     const decoded = await firebaseAdmin.auth().verifyIdToken(validatedToken);
-    console.log('✅ Firebase ID token verified. Decoded:', { uid: decoded.uid, phone_number: decoded.phone_number });
-    
+
     // Firebase phone auth places phone number on the token
     const phone = decoded.phone_number;
     if (!phone) {
-      console.log('❌ ID token does not contain a phone number');
       return res.status(400).json({ message: 'ID token does not contain a phone number' });
     }
 
-    console.log('👤 Looking for user with phone:', phone);
     // Check if user exists with that phone
     const existing = await User.findByPhone(phone);
     if (!existing) {
-      console.log('❌ User not found with phone:', phone);
       return res.status(404).json({ message: 'User not found. Please register first.' });
     }
 
-    console.log('✅ User found:', { user_id: existing.user_id, phone: existing.phone_number });
-
     // Update phone_verified to true
-    console.log('🔄 Updating phone_verified to true for user:', existing.user_id);
     let user = await User.updatePhoneVerified(phone, true);
-    console.log('✅ phone_verified updated. User:', { user_id: user.user_id, phone_verified: user.phone_verified });
 
     const token = jwt.sign({ user_id: user.user_id, phone: user.phone_number, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
-    console.log('✅ Phone onboarding successful:', { user_id: user.user_id, phone: user.phone_number });
+    console.log('✅ Phone onboarding successful:', { user_id: user.user_id });
     res.json({ user: { user_id: user.user_id, phone: user.phone_number, firstName: user.first_name, lastName: user.last_name, role: user.role }, token });
   } catch (err) {
     console.error('❌ Phone onboarding error:', err.message);
@@ -149,11 +137,9 @@ exports.onboardPhone = async (req, res) => {
     }
     // Firebase-specific errors
     if (err.code === 'auth/invalid-id-token') {
-      console.error('❌ Firebase error: Invalid ID token');
       return res.status(401).json({ message: 'Invalid or expired Firebase ID token' });
     }
     if (err.code === 'auth/id-token-expired') {
-      console.error('❌ Firebase error: ID token expired');
       return res.status(401).json({ message: 'Firebase ID token has expired' });
     }
     res.status(500).json({ message: 'Phone onboarding failed', error: err.message });
@@ -162,7 +148,6 @@ exports.onboardPhone = async (req, res) => {
 
 // Reset password (forgot password flow): verify Firebase idToken, find user by phone, update password.
 exports.resetPassword = async (req, res) => {
-  console.log('🔑 Reset password attempt');
   try {
     const { idToken, newPassword } = req.body;
     if (!idToken || !newPassword) {
@@ -272,9 +257,11 @@ exports.resetPasswordWithToken = async (req, res) => {
   }
 };
 
-// Dispatcher login: email + password, only users with role 'dispatcher' can log in
+const DISPATCHER_MFA_ENABLED = process.env.DISPATCHER_MFA_ENABLED !== 'false';
+
+// Dispatcher login: email + password. When MFA enabled, returns sessionToken for OTP step.
 exports.dispatcherLogin = async (req, res) => {
-  console.log('🔐 Dispatcher login attempt:', { email: req.body.email });
+  console.log('🔐 Dispatcher login attempt');
   try {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ message: 'Email and password are required' });
@@ -289,22 +276,63 @@ exports.dispatcherLogin = async (req, res) => {
     const isPasswordValid = await comparePassword(password, user.password);
     if (!isPasswordValid) return res.status(401).json({ message: 'Invalid credentials' });
 
+    if (DISPATCHER_MFA_ENABLED) {
+      const { otp, sessionToken } = await DispatcherOtp.create(user.user_id);
+      const sent = await sendOtpEmail(user.email, otp);
+      if (!sent) {
+        return res.status(503).json({ message: 'MFA is enabled but email service is not configured. Set DISPATCHER_MFA_ENABLED=false for development.' });
+      }
+      await DispatcherOtp.cleanupExpired();
+      console.log('✅ Dispatcher OTP sent:', { user_id: user.user_id });
+      return res.json({ sessionToken, message: 'Verification code sent to your email' });
+    }
+
     const token = jwt.sign({ user_id: user.user_id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
     await logDispatcherActionByUser(user, req, 'dispatcher_login', 'auth', null, { method: 'email' });
-    console.log('✅ Dispatcher login successful:', { user_id: user.user_id, email: user.email });
+    console.log('✅ Dispatcher login successful:', { user_id: user.user_id });
     res.json({ user: { user_id: user.user_id, email: user.email, role: user.role, firstName: user.first_name, lastName: user.last_name }, token });
   } catch (err) {
     console.error('❌ Dispatcher login error:', err.message);
-    if (err.message.includes('must be') || err.message.includes('Invalid')) {
+    const isValidationError = /required|must be|Invalid|not exceed/i.test(err.message);
+    if (isValidationError) {
       return res.status(400).json({ message: err.message });
     }
     res.status(500).json({ message: 'Login failed' });
   }
 };
 
+// Dispatcher MFA: verify OTP and return JWT
+exports.dispatcherVerifyOtp = async (req, res) => {
+  try {
+    const { sessionToken, otp } = req.body;
+    if (!sessionToken || !otp) return res.status(400).json({ message: 'Session token and OTP are required' });
+
+    const validatedSessionToken = validateSessionToken(sessionToken);
+    const validatedOtp = String(otp).trim();
+    if (!/^\d{6}$/.test(validatedOtp)) return res.status(400).json({ message: 'OTP must be 6 digits' });
+
+    const userId = await DispatcherOtp.verify(validatedSessionToken, validatedOtp);
+    if (!userId) return res.status(401).json({ message: 'Invalid or expired verification code' });
+
+    const user = await User.findById(userId);
+    if (!user || user.role !== 'dispatcher') return res.status(401).json({ message: 'Invalid session' });
+
+    const token = jwt.sign({ user_id: user.user_id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
+    await logDispatcherActionByUser(user, req, 'dispatcher_login', 'auth', null, { method: 'email', mfa: true });
+    console.log('✅ Dispatcher MFA verified:', { user_id: user.user_id });
+    res.json({ user: { user_id: user.user_id, email: user.email, role: user.role, firstName: user.first_name, lastName: user.last_name }, token });
+  } catch (err) {
+    console.error('❌ Dispatcher verify OTP error:', err.message);
+    if (err.message && /required|Invalid|must be/i.test(err.message)) {
+      return res.status(400).json({ message: err.message });
+    }
+    res.status(500).json({ message: 'Verification failed' });
+  }
+};
+
 // Dispatcher signup: email, password, first name, last name; creates user with role 'dispatcher'
 exports.dispatcherSignup = async (req, res) => {
-  console.log('📝 Dispatcher signup attempt:', { email: req.body.email });
+  console.log('📝 Dispatcher signup attempt');
   try {
     const { email, password, firstName, lastName } = req.body;
     if (!email || !password || !firstName || !lastName) return res.status(400).json({ message: 'Email, password, firstName, and lastName are required' });
@@ -315,7 +343,7 @@ exports.dispatcherSignup = async (req, res) => {
     const validatedLastName = validateString(lastName, 'lastName', 1, 100);
 
     const existing = await User.findByEmail(validatedEmail);
-    if (existing) return res.status(409).json({ message: 'An account with this email already exists' });
+    if (existing) return res.status(400).json({ message: 'Registration could not be completed. If you already have an account, please sign in.' });
 
     const passwordHash = await hashPassword(validatedPassword);
     const user = await User.create({
@@ -331,11 +359,12 @@ exports.dispatcherSignup = async (req, res) => {
 
     const token = jwt.sign({ user_id: user.user_id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
     await logDispatcherActionByUser(user, req, 'dispatcher_signup', 'auth', null, { method: 'email', note: 'New dispatcher account' });
-    console.log('✅ Dispatcher signup successful:', { user_id: user.user_id, email: user.email });
+    console.log('✅ Dispatcher signup successful:', { user_id: user.user_id });
     res.status(201).json({ user: { user_id: user.user_id, email: user.email, firstName: user.first_name, lastName: user.last_name, role: user.role }, token });
   } catch (err) {
     console.error('❌ Dispatcher signup error:', err.message);
-    if (err.message.includes('must be') || err.message.includes('Invalid') || err.message.includes('at least')) {
+    const isValidationError = /required|must be|Invalid|at least|not exceed/i.test(err.message);
+    if (isValidationError) {
       return res.status(400).json({ message: err.message });
     }
     res.status(500).json({ message: 'Signup failed' });
@@ -412,15 +441,28 @@ exports.changePassword = async (req, res) => {
   }
 };
 
-// Logout: record in audit log for dispatchers, then respond (no token invalidation)
+// Logout: invalidate token (add to blacklist), record audit log for dispatchers
 exports.logout = async (req, res) => {
   try {
+    const token = req.token;
+    if (token) {
+      try {
+        const decoded = jwt.decode(token);
+        if (decoded?.exp) {
+          const expiresAt = new Date(decoded.exp * 1000);
+          await TokenBlacklist.add(token, expiresAt);
+          await TokenBlacklist.cleanupExpired();
+        }
+      } catch (blacklistErr) {
+        console.error('❌ Logout blacklist error:', blacklistErr.message);
+      }
+    }
     if (req.user?.role === 'dispatcher') {
       await logDispatcherAction(req, 'dispatcher_logout', 'auth', null, { note: 'Session ended' });
     }
     res.json({ message: 'Logged out' });
   } catch (err) {
-    console.error('❌ Logout audit error:', err.message);
+    console.error('❌ Logout error:', err.message);
     res.json({ message: 'Logged out' });
   }
 };

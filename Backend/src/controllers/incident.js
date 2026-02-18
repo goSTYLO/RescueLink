@@ -1,10 +1,11 @@
 const Incident = require('../models/incident');
 const pool = require('../config/db');
-const { validateLatitude, validateLongitude, validateInteger, validatePagination, validateOptionalString } = require('../utils/validation');
+const { validateLatitude, validateLongitude, validateInteger, validatePagination, validateOptionalString, validateAllowedValue } = require('../utils/validation');
 const { getBarangayFromCoordinates } = require('../utils/geolocation');
 const { processIncidentWithAudio } = require('../services/aiService');
 const { verifyIncidentOnBlockchain } = require('../services/blockchainService');
 const { saveAudioFile, saveMediaFiles, deleteIncidentFiles, fileExists, getAbsolutePath } = require('../utils/fileValidation');
+const { logDispatcherAction } = require('../utils/auditLog');
 const path = require('path');
 const fs = require('fs').promises;
 
@@ -48,6 +49,8 @@ const incidentController = {
         status: 'pending'
       });
 
+      await logDispatcherAction(req, 'incident_create', 'incident', incident.report_id, { type: 'emergency', severity_level: 'high' });
+
       res.status(201).json({
         success: true,
         message: 'Emergency incident reported successfully',
@@ -88,12 +91,14 @@ const incidentController = {
     try {
       const { limit, offset, severity_level, status } = req.query;
       const { limit: validatedLimit, offset: validatedOffset } = validatePagination(limit, offset);
+      const validatedSeverityLevel = validateAllowedValue(severity_level, ['low', 'medium', 'high'], 'severity_level');
+      const validatedStatus = validateAllowedValue(status, ['pending', 'verified'], 'status');
 
       const incidents = await Incident.findAll({
         limit: validatedLimit,
         offset: validatedOffset,
-        severity_level: severity_level || null,
-        status: status || null
+        severity_level: validatedSeverityLevel,
+        status: validatedStatus
       });
 
       res.json(incidents);
@@ -155,6 +160,11 @@ const incidentController = {
       const validatedLat = validateLatitude(latitude);
       const validatedLng = validateLongitude(longitude);
 
+      // Validate optional description (max 2000 chars)
+      const validatedDescription = description != null && description !== ''
+        ? validateOptionalString(description, 'description', 2000)
+        : null;
+
       // Resolve barangay from incident location (dagupan_barangays.geojson)
       const barangay = getBarangayFromCoordinates(validatedLat, validatedLng);
 
@@ -176,7 +186,7 @@ const incidentController = {
         user_id,
         incident_type: null, // Will be filled by AI
         severity_level: 'medium', // Temporary, will be updated by AI
-        description: description || null,
+        description: validatedDescription,
         latitude: validatedLat,
         longitude: validatedLng,
         barangay,
@@ -189,6 +199,8 @@ const incidentController = {
       });
 
       const reportId = incident.report_id;
+      await logDispatcherAction(req, 'incident_create', 'incident', reportId, { type: 'with_audio', severity_level: 'medium' });
+
       let audioPath = null;
       let mediaPaths = [];
 
@@ -208,7 +220,7 @@ const incidentController = {
         const aiResult = await processIncidentWithAudio(
           audioFile.buffer,
           audioFile.originalname,
-          description
+          validatedDescription
         );
 
         // Update incident with AI results
@@ -427,6 +439,12 @@ const incidentController = {
       });
 
       await Incident.setVerified(validatedId);
+
+      await logDispatcherAction(req, 'incident_verify', 'incident', validatedId, {
+        tx_hash: blockchainResult.tx_hash,
+        block_number: blockchainResult.block_number,
+        hash_value: blockchainResult.hash_value
+      });
 
       res.json({
         success: true,

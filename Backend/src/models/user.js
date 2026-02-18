@@ -3,7 +3,7 @@ const pool = require('../config/db');
 const User = {
   async findByEmail(email) {
     const res = await pool.query(
-      'SELECT user_id, email, phone_number, address, password, phone_verified, first_name, last_name, role, created_at FROM users WHERE email = $1',
+      'SELECT user_id, email, phone_number, address, password, phone_verified, first_name, last_name, role, created_at FROM users WHERE LOWER(email) = LOWER($1)',
       [email]
     );
     return res.rows[0];
