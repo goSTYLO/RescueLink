@@ -5,9 +5,28 @@ const { getBarangayFromCoordinates } = require('../utils/geolocation');
 const { processIncidentWithAudio } = require('../services/aiService');
 const { verifyIncidentOnBlockchain } = require('../services/blockchainService');
 const { saveAudioFile, saveMediaFiles, deleteIncidentFiles, fileExists, getAbsolutePath } = require('../utils/fileValidation');
-const { logDispatcherAction } = require('../utils/auditLog');
+const { logDispatcherAction, logUserAction } = require('../utils/auditLog');
+const { ROLES } = require('../config/roles');
+const { isResourceOwner, getOwnershipFilter } = require('../utils/ownership');
 const path = require('path');
 const fs = require('fs').promises;
+
+/**
+ * Helper function for role-appropriate audit logging
+ * Automatically calls the correct logging function based on user role
+ */
+async function logIncidentAction(req, action, resourceId, details) {
+  if (!req.user) return;
+  try {
+    if (req.user.role === ROLES.DISPATCHER || req.user.role === ROLES.ADMIN) {
+      await logDispatcherAction(req, action, 'incident', resourceId, details);
+    } else if (req.user.role === ROLES.USER) {
+      await logUserAction(req, action, 'incident', resourceId, details);
+    }
+  } catch (err) {
+    console.error('Audit logging error:', err.message);
+  }
+}
 
 const incidentController = {
   // Create emergency incident report (fast endpoint, no AI classification)
@@ -49,7 +68,7 @@ const incidentController = {
         status: 'pending'
       });
 
-      await logDispatcherAction(req, 'incident_create', 'incident', incident.report_id, { type: 'emergency', severity_level: 'high' });
+      await logIncidentAction(req, 'incident_create', incident.report_id, { type: 'emergency', severity_level: 'high' });
 
       res.status(201).json({
         success: true,
@@ -76,6 +95,11 @@ const incidentController = {
         return res.status(404).json({ error: 'Incident not found' });
       }
 
+      // Check ownership for regular users (dispatchers/admins can see all)
+      if (!isResourceOwner(req.user, incident.user_id)) {
+        return res.status(403).json({ error: 'Forbidden. You can only access your own incidents.' });
+      }
+
       res.json(incident);
     } catch (error) {
       console.error('Error fetching incident:', error);
@@ -89,17 +113,33 @@ const incidentController = {
   // Get all incidents with pagination and filters
   async getAll(req, res) {
     try {
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+
       const { limit, offset, severity_level, status } = req.query;
       const { limit: validatedLimit, offset: validatedOffset } = validatePagination(limit, offset);
       const validatedSeverityLevel = validateAllowedValue(severity_level, ['low', 'medium', 'high'], 'severity_level');
       const validatedStatus = validateAllowedValue(status, ['pending', 'verified'], 'status');
 
-      const incidents = await Incident.findAll({
-        limit: validatedLimit,
-        offset: validatedOffset,
-        severity_level: validatedSeverityLevel,
-        status: validatedStatus
-      });
+      // Regular users only see their own incidents; dispatcher/admin see all
+      let incidents;
+      if (user.role === ROLES.USER) {
+        incidents = await Incident.findByUserId(user.user_id, {
+          limit: validatedLimit,
+          offset: validatedOffset,
+          severity_level: validatedSeverityLevel,
+          status: validatedStatus
+        });
+      } else {
+        incidents = await Incident.findAll({
+          limit: validatedLimit,
+          offset: validatedOffset,
+          severity_level: validatedSeverityLevel,
+          status: validatedStatus
+        });
+      }
 
       res.json(incidents);
     } catch (error) {
@@ -199,7 +239,7 @@ const incidentController = {
       });
 
       const reportId = incident.report_id;
-      await logDispatcherAction(req, 'incident_create', 'incident', reportId, { type: 'with_audio', severity_level: 'medium' });
+      await logIncidentAction(req, 'incident_create', reportId, { type: 'with_audio', severity_level: 'medium' });
 
       let audioPath = null;
       let mediaPaths = [];
@@ -440,7 +480,7 @@ const incidentController = {
 
       await Incident.setVerified(validatedId);
 
-      await logDispatcherAction(req, 'incident_verify', 'incident', validatedId, {
+      await logIncidentAction(req, 'incident_verify', validatedId, {
         tx_hash: blockchainResult.tx_hash,
         block_number: blockchainResult.block_number,
         hash_value: blockchainResult.hash_value

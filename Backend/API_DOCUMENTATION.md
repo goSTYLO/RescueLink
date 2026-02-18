@@ -60,6 +60,93 @@ All validation errors return `400 Bad Request` with a descriptive error message:
 
 ---
 
+## Role-Based Access Control (RBAC)
+
+RescueLink implements a three-tier role-based access control system to enforce fine-grained authorization across all endpoints.
+
+### User Roles
+
+| Role | Description | Created By | Use Cases |
+|------|-------------|-----------|-----------|
+| **user** | Mobile app reporters/citizens | Self-registration via phone | Report incidents, view own reports |
+| **dispatcher** | Web app administrators | Admin user creation | Manage incidents, dispatches, responders, audit logs |
+| **admin** | System administrators | Admin user creation | User management, system configuration, full access |
+
+### Permission Matrix
+
+| Resource | user | dispatcher | admin |
+|----------|------|-----------|-------|
+| **Incidents** | Create own; Read own; Update own; Delete own | Create; Read all; Update all; Delete all | All (manage) |
+| **Dispatches** | None | Create; Read all; Update all; Delete all | All (manage) |
+| **Responders** | None | Create; Read all; Update all; Delete all | All (manage) |
+| **Notifications** | Create own; Read own | Create; Read all; Update all | All (manage) |
+| **Audit Logs** | None | Read own logs | Read all logs |
+| **Users** | None | None | Create; Read; Update roles; Deactivate; Delete |
+| **Settings** | None | None | Full access |
+
+### RBAC Enforcement
+
+**Authorization Errors:**
+
+- `401 Unauthorized` - User is not authenticated (missing or invalid token)
+- `403 Forbidden` - User is authenticated but lacks required role or permission
+  - Example: Regular user trying to access dispatcher endpoints
+  - Example: User trying to access another user's incident
+
+**Ownership Checks:**
+
+- **Regular users (role: user)** can only access resources they created
+  - Cannot view other users' incidents
+  - Cannot modify other users' notifications
+  - Cannot download other users' audio/media files
+- **Dispatchers and Admins** have unrestricted access to all resources of that type
+  - Can view all incidents regardless of creator
+  - Can manage all dispatches and responders
+  - Can access all users' data for administrative purposes
+
+**Example: Accessing Incidents**
+
+```
+User 1 (role: user) requesting GET /api/incidents/5:
+  - If incident 5 was created by User 1: ✅ Allowed (200)
+  - If incident 5 was created by User 2: ❌ Forbidden (403)
+  - If not authenticated: ❌ Unauthorized (401)
+
+Dispatcher 1 (role: dispatcher) requesting GET /api/incidents/5:
+  - Regardless of who created it: ✅ Allowed (200)
+
+Admin 1 (role: admin) requesting GET /api/incidents/5:
+  - Regardless of who created it: ✅ Allowed (200)
+```
+
+### Token Contents
+
+JWT tokens include the user's role, which is validated by the RBAC middleware:
+
+```json
+{
+  "user_id": 123,
+  "email": "user@example.com",
+  "role": "user",  // or "dispatcher" or "admin"
+  "iat": 1645000000,
+  "exp": 1645604800
+}
+```
+
+### Admin-Only Endpoints
+
+All endpoints under `/api/admin/*` require the `admin` role:
+
+- `GET /api/admin/users` - List all users
+- `GET /api/admin/users/:id` - View specific user
+- `POST /api/admin/users` - Create user with role assignment
+- `PUT /api/admin/users/:id/role` - Update user role
+- `PUT /api/admin/users/:id/deactivate` - Deactivate user account
+- `DELETE /api/admin/users/:id` - Permanently delete user
+- `GET /api/admin/stats` - View system statistics
+
+---
+
 ## Authentication API
 
 ### Register
@@ -237,6 +324,8 @@ Verify phone number using Firebase and update user's phone verification status. 
 
 Create a new responder record.
 
+**Required Role:** `dispatcher`, `admin`
+
 **Request Body:**
 
 ```json
@@ -263,6 +352,8 @@ Create a new responder record.
 **Error Responses:**
 
 - `400 Bad Request` - Missing required field (name) or validation errors
+- `401 Unauthorized` - Missing or invalid authentication token
+- `403 Forbidden` - User role does not have permission (only dispatcher and admin can create responders)
 - `500 Internal Server Error` - Server error
 
 **Validation:**
@@ -438,6 +529,8 @@ Delete a responder record.
 
 Create a new dispatch record. Validates that both the incident report and responder exist.
 
+**Required Role:** `dispatcher`, `admin`
+
 **Request Body:**
 
 ```json
@@ -463,6 +556,8 @@ Create a new dispatch record. Validates that both the incident report and respon
 **Error Responses:**
 
 - `400 Bad Request` - Missing required fields (report_id or responder_id) or validation errors
+- `401 Unauthorized` - Missing or invalid authentication token
+- `403 Forbidden` - User role does not have permission (only dispatcher and admin can create dispatches)
 - `404 Not Found` - Incident report not found or Responder not found
 - `500 Internal Server Error` - Server error
 
@@ -470,8 +565,6 @@ Create a new dispatch record. Validates that both the incident report and respon
 
 - `report_id`: Must be a positive integer (required)
 - `responder_id`: Must be a positive integer (required)
-- `response_status`: Max 50 characters (optional)
-
 ---
 
 ### Get All Dispatches
@@ -479,6 +572,8 @@ Create a new dispatch record. Validates that both the incident report and respon
 **GET** `/api/dispatches`
 
 Retrieve a paginated list of dispatches with optional filtering.
+
+**Required Role:** `dispatcher`, `admin`
 
 **Query Parameters:**
 
@@ -915,6 +1010,8 @@ Check if a given coordinate point (latitude, longitude) is within Dagupan city b
 
 Create an emergency incident report with only coordinates. This endpoint is optimized for speed and automatically sets high priority. Does not trigger AI classification. Requires authentication.
 
+**Required Role:** `user`, `dispatcher`, `admin`
+
 **Request Body:**
 
 ```json
@@ -963,8 +1060,6 @@ Create an emergency incident report with only coordinates. This endpoint is opti
 - `user_id` is automatically extracted from JWT authentication token
 - Does NOT trigger AI classification (skips ai_classifications table)
 - Designed for fast reporting in time-critical situations
-- Other fields (description, media_url) are set to null
-
 ---
 
 ### Get Incident by ID
@@ -972,6 +1067,12 @@ Create an emergency incident report with only coordinates. This endpoint is opti
 **GET** `/api/incidents/:id`
 
 Retrieve a specific incident report by ID. Requires authentication.
+
+**Required Role:** `user`, `dispatcher`, `admin`
+
+**Ownership Rules:**
+- Regular users can only view incidents they created
+- Dispatchers and admins can view any incident
 
 **Parameters:**
 
@@ -998,6 +1099,7 @@ Retrieve a specific incident report by ID. Requires authentication.
 
 - `400 Bad Request` - Invalid incident ID format
 - `401 Unauthorized` - Missing or invalid authentication token
+- `403 Forbidden` - User cannot access this incident (ownership violation)
 - `404 Not Found` - Incident not found
 - `500 Internal Server Error` - Server error
 
@@ -1008,6 +1110,12 @@ Retrieve a specific incident report by ID. Requires authentication.
 **GET** `/api/incidents`
 
 Retrieve a paginated list of all incident reports with optional filtering. Requires authentication.
+
+**Required Role:** `user`, `dispatcher`, `admin`
+
+**Role-Specific Behavior:**
+- Regular users see only incidents they created
+- Dispatchers and admins see all incidents in the system
 
 **Query Parameters:**
 
@@ -1131,6 +1239,223 @@ The following endpoints validate foreign key relationships before creating or up
 - `user_id` must reference an existing user
 - `report_id` (if provided) must reference an existing incident report
 
+---
+
+## Admin API
+
+**Required Role:** `admin` for all endpoints
+
+All admin endpoints require the `admin` role and return `403 Forbidden` if accessed by other roles.
+
+### List All Users
+
+**GET** `/api/admin/users?page=1&limit=20`
+
+Retrieve a paginated list of all active users in the system.
+
+**Query Parameters:**
+
+- `page` (integer, optional) - Page number (default: 1)
+- `limit` (integer, optional) - Users per page (default: 20, max: 100)
+
+**Response:** `200 OK`
+
+```json
+{
+  "users": [
+    {
+      "user_id": 1,
+      "email": "user@example.com",
+      "phone_number": "+1234567890",
+      "first_name": "John",
+      "last_name": "Doe",
+      "role": "user",
+      "is_active": true,
+      "created_at": "2026-01-20T10:30:00.000Z"
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "total": 100,
+    "pages": 5
+  }
+}
+```
+
+### Get User by ID
+
+**GET** `/api/admin/users/:id`
+
+Retrieve details for a specific user.
+
+**Parameters:**
+
+- `id` (integer) - User ID
+
+**Response:** `200 OK` - Returns user object (as shown in List All Users)
+
+**Error Responses:**
+
+- `404 Not Found` - User not found
+
+### Create User with Role
+
+**POST** `/api/admin/users`
+
+Create a new user and assign a role directly.
+
+**Request Body:**
+
+```json
+{
+  "email": "newuser@example.com", // required
+  "password": "SecurePassword123", // required
+  "phone_number": "+1234567890", // optional
+  "first_name": "John", // optional
+  "last_name": "Doe", // optional
+  "role": "dispatcher" // optional, defaults to "user"
+}
+```
+
+**Response:** `201 Created`
+
+```json
+{
+  "message": "User created successfully",
+  "user": {
+    "user_id": 5,
+    "email": "newuser@example.com",
+    "phone_number": "+1234567890",
+    "first_name": "John",
+    "last_name": "Doe",
+    "role": "dispatcher",
+    "is_active": true,
+    "created_at": "2026-01-20T10:30:00.000Z"
+  }
+}
+```
+
+**Error Responses:**
+
+- `400 Bad Request` - Invalid input or missing required fields
+- `409 Conflict` - Email or phone number already exists
+
+### Update User Role
+
+**PUT** `/api/admin/users/:id/role`
+
+Change a user's role.
+
+**Parameters:**
+
+- `id` (integer) - User ID
+
+**Request Body:**
+
+```json
+{
+  "role": "admin"
+}
+```
+
+**Valid Roles:**
+
+- `user` - Regular user
+- `dispatcher` - Dispatcher/Admin
+- `admin` - System Administrator
+
+**Response:** `200 OK`
+
+```json
+{
+  "message": "User role updated successfully",
+  "user": { /* user object with new role */ }
+}
+```
+
+**Error Responses:**
+
+- `400 Bad Request` - Invalid role or last admin cannot be demoted
+- `404 Not Found` - User not found
+
+### Deactivate User
+
+**PUT** `/api/admin/users/:id/deactivate`
+
+Deactivate a user account (soft delete).
+
+**Parameters:**
+
+- `id` (integer) - User ID
+
+**Request Body:**
+
+```json
+{
+  "reason": "Account no longer needed" // optional
+}
+```
+
+**Response:** `200 OK`
+
+```json
+{
+  "message": "User deactivated successfully",
+  "user": { /* user object with is_active: false */ }
+}
+```
+
+**Error Responses:**
+
+- `400 Bad Request` - Last admin cannot be deactivated
+- `404 Not Found` - User not found
+
+### Delete User Permanently
+
+**DELETE** `/api/admin/users/:id`
+
+Permanently delete a user from the system.
+
+**Parameters:**
+
+- `id` (integer) - User ID
+
+**Response:** `200 OK`
+
+```json
+{
+  "message": "User deleted successfully"
+}
+```
+
+**Error Responses:**
+
+- `400 Bad Request` - Last admin cannot be deleted
+- `404 Not Found` - User not found
+
+### Get System Statistics
+
+**GET** `/api/admin/stats`
+
+Retrieve system-wide statistics including user counts by role.
+
+**Response:** `200 OK`
+
+```json
+{
+  "total_users": 150,
+  "by_role": {
+    "user": 120,
+    "dispatcher": 25,
+    "admin": 5
+  },
+  "timestamp": "2026-01-20T10:30:00.000Z"
+}
+```
+
+---
+
 ## Notes
 
 1. **Full Updates Required**: PUT endpoints require all fields to be provided. This ensures data consistency and prevents partial updates that might leave records in an incomplete state.
@@ -1140,3 +1465,23 @@ The following endpoints validate foreign key relationships before creating or up
 3. **Nullable Fields**: Some fields can be set to `null` during updates (e.g., `organization`, `contact_number`, `availability_status`, `response_status`, `report_id`, `sent_via`).
 
 4. **ID Fields**: Primary key fields (`responder_id`, `dispatch_id`, `notification_id`) are auto-generated and returned in responses.
+
+---
+
+## RBAC Manual Testing Guide
+
+For comprehensive step-by-step instructions on manually testing RBAC using Postman, see [RBAC_POSTMAN_GUIDE.md](./RBAC_POSTMAN_GUIDE.md).
+
+The guide includes:
+- Setup instructions for creating test tokens for each role (user, dispatcher, admin)
+- 5 complete test scenarios with example requests and expected responses
+- Ownership restriction tests
+- Authentication failure tests
+- A ready-to-import Postman collection
+
+**Quick Test Summary:**
+- **Users:** Can create/read own incidents, cannot access dispatcher-only features
+- **Dispatchers:** Full access to incidents, dispatches, responders; cannot manage users
+- **Admins:** Unrestricted access to all endpoints including user management
+
+See [RBAC_POSTMAN_GUIDE.md](./RBAC_POSTMAN_GUIDE.md) for complete manual testing procedures.

@@ -1,15 +1,16 @@
 const AuditLog = require('../models/auditLog');
 const { validatePagination, validateOptionalString, validateOptionalDate } = require('../utils/validation');
+const { ROLES } = require('../config/roles');
 
 /**
  * GET /api/audit-logs
- * Query: user_id (ignored for now; dispatchers only see own), action, resource_type, from, to, limit, offset
- * Auth required. Dispatchers see only their own logs.
+ * Query: action, resource_type, from, to, limit, offset
+ * Auth required. Dispatchers see only their own logs. Admins see all logs.
  */
 async function getAll(req, res) {
   try {
-    if (!req.user || req.user.role !== 'dispatcher') {
-      return res.status(403).json({ error: 'Access denied. Dispatcher role required.' });
+    if (!req.user || ![ROLES.DISPATCHER, ROLES.ADMIN].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Access denied. Dispatcher or Admin role required.' });
     }
 
     const { action, resource_type, from, to, limit, offset } = req.query;
@@ -19,8 +20,11 @@ async function getAll(req, res) {
     const validatedFrom = validateOptionalDate(from, 'from');
     const validatedTo = validateOptionalDate(to, 'to');
 
+    // Dispatchers only see their own logs; admins see all
+    const userId = req.user.role === ROLES.ADMIN ? null : req.user.user_id;
+
     const logs = await AuditLog.findAll({
-      user_id: req.user.user_id,
+      user_id: userId,
       action: validatedAction,
       resource_type: validatedResourceType,
       from: validatedFrom,

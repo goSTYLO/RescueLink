@@ -47,6 +47,101 @@ const User = {
       [password_hash, user_id]
     );
     return res.rows[0];
+  },
+
+  /**
+   * Get paginated list of all active users
+   * @param {number} offset - Pagination offset
+   * @param {number} limit - Number of users per page
+   * @returns {object} { users: [], total: number }
+   */
+  async getPaginated(offset, limit) {
+    const countRes = await pool.query(
+      'SELECT COUNT(*) as total FROM users WHERE is_active = true'
+    );
+    const total = parseInt(countRes.rows[0].total, 10);
+
+    const usersRes = await pool.query(
+      'SELECT user_id, email, phone_number, address, phone_verified, first_name, last_name, role, is_active, created_at FROM users WHERE is_active = true ORDER BY created_at DESC LIMIT $1 OFFSET $2',
+      [limit, offset]
+    );
+
+    return { users: usersRes.rows, total };
+  },
+
+  /**
+   * Count users with a specific role
+   * @param {string} role - Role to count
+   * @returns {number} User count
+   */
+  async countByRole(role) {
+    const res = await pool.query(
+      'SELECT COUNT(*) as count FROM users WHERE role = $1 AND is_active = true',
+      [role]
+    );
+    return parseInt(res.rows[0].count, 10);
+  },
+
+  /**
+   * Update user role
+   * @param {number} user_id - User ID
+   * @param {string} role - New role value
+   * @returns {object} Updated user
+   */
+  async updateRole(user_id, role) {
+    const res = await pool.query(
+      'UPDATE users SET role = $1 WHERE user_id = $2 RETURNING user_id, email, phone_number, address, phone_verified, first_name, last_name, role, is_active, created_at',
+      [role, user_id]
+    );
+    return res.rows[0];
+  },
+
+  /**
+   * Deactivate user account (soft delete)
+   * @param {number} user_id - User ID to deactivate
+   * @returns {object} Deactivated user
+   */
+  async deactivate(user_id) {
+    const res = await pool.query(
+      'UPDATE users SET is_active = false WHERE user_id = $1 RETURNING user_id, email, phone_number, address, phone_verified, first_name, last_name, role, is_active, created_at',
+      [user_id]
+    );
+    return res.rows[0];
+  },
+
+  /**
+   * Permanently delete user
+   * @param {number} user_id - User ID to delete
+   * @returns {boolean} Success
+   */
+  async delete(user_id) {
+    await pool.query('DELETE FROM users WHERE user_id = $1', [user_id]);
+    return true;
+  },
+
+  /**
+   * Get system statistics
+   * @returns {object} Statistics about users and their roles
+   */
+  async getStats() {
+    const totalRes = await pool.query(
+      'SELECT COUNT(*) as total FROM users WHERE is_active = true'
+    );
+
+    const roleRes = await pool.query(
+      'SELECT role, COUNT(*) as count FROM users WHERE is_active = true GROUP BY role'
+    );
+
+    const roleCount = {};
+    roleRes.rows.forEach(row => {
+      roleCount[row.role] = parseInt(row.count, 10);
+    });
+
+    return {
+      total_users: parseInt(totalRes.rows[0].total, 10),
+      by_role: roleCount,
+      timestamp: new Date().toISOString()
+    };
   }
 };
 

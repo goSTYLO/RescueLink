@@ -10,6 +10,7 @@ const { JWT_SECRET } = require('../config/jwt');
 const TokenBlacklist = require('../models/tokenBlacklist');
 const DispatcherOtp = require('../models/dispatcherOtp');
 const { sendOtpEmail } = require('../services/email');
+const { ROLES } = require('../config/roles');
 
 // Register using phone_number
 exports.register = async (req, res) => {
@@ -197,7 +198,7 @@ exports.forgotPassword = async (req, res) => {
     const validatedEmail = validateEmail(email.trim());
 
     const user = await User.findByEmail(validatedEmail);
-    if (!user || user.role !== 'dispatcher') {
+    if (!user || user.role !== ROLES.DISPATCHER) {
       return res.json({ message: genericMessage });
     }
 
@@ -235,7 +236,7 @@ exports.resetPasswordWithToken = async (req, res) => {
     }
 
     const user = await User.findByEmail(decoded.email);
-    if (!user || user.role !== 'dispatcher') {
+    if (!user || user.role !== ROLES.DISPATCHER) {
       return res.status(401).json({ message: 'Invalid or expired reset link. Please request a new one.' });
     }
 
@@ -270,7 +271,7 @@ exports.dispatcherLogin = async (req, res) => {
     const user = await User.findByEmail(validatedEmail);
     if (!user) return res.status(401).json({ message: 'Invalid credentials' });
 
-    if (user.role !== 'dispatcher') return res.status(401).json({ message: 'Invalid credentials' });
+    if (user.role !== ROLES.DISPATCHER) return res.status(401).json({ message: 'Invalid credentials' });
     if (!user.password) return res.status(401).json({ message: 'Invalid credentials' });
 
     const isPasswordValid = await comparePassword(password, user.password);
@@ -315,7 +316,7 @@ exports.dispatcherVerifyOtp = async (req, res) => {
     if (!userId) return res.status(401).json({ message: 'Invalid or expired verification code' });
 
     const user = await User.findById(userId);
-    if (!user || user.role !== 'dispatcher') return res.status(401).json({ message: 'Invalid session' });
+    if (!user || user.role !== ROLES.DISPATCHER) return res.status(401).json({ message: 'Invalid session' });
 
     const token = jwt.sign({ user_id: user.user_id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
     await logDispatcherActionByUser(user, req, 'dispatcher_login', 'auth', null, { method: 'email', mfa: true });
@@ -349,7 +350,7 @@ exports.dispatcherSignup = async (req, res) => {
     const user = await User.create({
       email: validatedEmail,
       password: passwordHash,
-      role: 'dispatcher',
+      role: ROLES.DISPATCHER,
       phone_number: null,
       address: null,
       phone_verified: false,
@@ -457,7 +458,7 @@ exports.logout = async (req, res) => {
         console.error('❌ Logout blacklist error:', blacklistErr.message);
       }
     }
-    if (req.user?.role === 'dispatcher') {
+    if (req.user?.role === ROLES.DISPATCHER) {
       await logDispatcherAction(req, 'dispatcher_logout', 'auth', null, { note: 'Session ended' });
     }
     res.json({ message: 'Logged out' });

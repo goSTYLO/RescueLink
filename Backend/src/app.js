@@ -9,6 +9,7 @@ const notificationRoutes = require('./routes/notification');
 const locationRoutes = require('./routes/location');
 const incidentRoutes = require('./routes/incident');
 const auditLogRoutes = require('./routes/auditLog');
+const adminRoutes = require('./routes/admin');
 const { startRetryService } = require('./services/retryAiClassification');
 
 const app = express();
@@ -73,6 +74,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/location', locationRoutes);
 app.use('/api/incidents', incidentRoutes);
 app.use('/api/audit-logs', auditLogRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Basic health route
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
