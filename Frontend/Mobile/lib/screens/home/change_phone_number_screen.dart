@@ -112,16 +112,16 @@ class ChangePhoneNumberScreen extends StatelessWidget {
                             child: const Icon(Icons.phone, color: Color(0xFF2563EB), size: 26),
                           ),
                           const SizedBox(width: 14),
-                          Expanded(
+                          const Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text(
+                                Text(
                                   'Current Verified Number',
                                   style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
                                 ),
-                                const SizedBox(height: 4),
-                                const Text(
+                                SizedBox(height: 4),
+                                Text(
                                   '+63 917 ••• 4567',
                                   style: TextStyle(
                                     fontSize: 17,
@@ -129,12 +129,12 @@ class ChangePhoneNumberScreen extends StatelessWidget {
                                     color: Color(0xFF111827),
                                   ),
                                 ),
-                                const SizedBox(height: 6),
+                                SizedBox(height: 6),
                                 Row(
                                   children: [
-                                    const Icon(Icons.check_circle, color: Color(0xFF22C55E), size: 18),
-                                    const SizedBox(width: 6),
-                                    const Text(
+                                    Icon(Icons.check_circle, color: Color(0xFF22C55E), size: 18),
+                                    SizedBox(width: 6),
+                                    Text(
                                       'Verified & Active',
                                       style: TextStyle(fontSize: 13, color: Color(0xFF22C55E), fontWeight: FontWeight.w500),
                                     ),
@@ -167,11 +167,11 @@ class ChangePhoneNumberScreen extends StatelessWidget {
                             child: const Icon(Icons.info_outline, color: Colors.white, size: 22),
                           ),
                           const SizedBox(width: 12),
-                          Expanded(
+                          const Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text(
+                                Text(
                                   'Security Notice',
                                   style: TextStyle(
                                     fontSize: 15,
@@ -179,8 +179,8 @@ class ChangePhoneNumberScreen extends StatelessWidget {
                                     color: Color(0xFF2563EB),
                                   ),
                                 ),
-                                const SizedBox(height: 6),
-                                const Text(
+                                SizedBox(height: 6),
+                                Text(
                                   'This phone number is used for emergency alerts, OTP verification, and account recovery. Changing it will require re-verification.',
                                   style: TextStyle(fontSize: 13, color: Color(0xFF1E40AF), height: 1.4),
                                 ),

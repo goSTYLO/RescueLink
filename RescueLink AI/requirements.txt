@@ -1,5 +1,11 @@
 # Deep Learning & ML
-torch>=2.0.0
+# NOTE: install PyTorch separately to match your CUDA runtime.
+# For CUDA 12.8 (cu128) install the matching wheels using the PyTorch index:
+#   python -m pip install --upgrade pip
+#   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
+# For CPU-only installs use the cpu wheels:
+#   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+# (Keeping an unconstrained `torch` entry may pull an incompatible wheel on some setups.)
 transformers>=4.35.0
 scikit-learn>=1.3.0
 datasets>=2.14.0
@@ -33,3 +39,4 @@ seaborn>=0.13.0
 # Jupyter (for testing notebooks)
 jupyter>=1.0.0
 ipykernel>=6.26.0
+

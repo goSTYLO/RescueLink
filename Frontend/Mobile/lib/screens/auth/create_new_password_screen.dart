@@ -144,23 +144,23 @@ class _CreateNewPasswordScreenState extends State<CreateNewPasswordScreen> {
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: const Color(0xFFBFDBFE)),
                 ),
-                child: Column(
+                child: const Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
-                        const Icon(Icons.lock_outline, color: Color(0xFF2563EB), size: 20),
-                        const SizedBox(width: 8),
-                        const Text(
+                        Icon(Icons.lock_outline, color: Color(0xFF2563EB), size: 20),
+                        SizedBox(width: 8),
+                        Text(
                           'Password Requirements',
                           style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1E40AF), fontSize: 14),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
-                    const Text('• Minimum 8 characters', style: TextStyle(color: Color(0xFF1E40AF), fontSize: 13)),
-                    const Text('• Include numbers and symbols', style: TextStyle(color: Color(0xFF1E40AF), fontSize: 13)),
-                    const Text('• Mix of uppercase and lowercase letters', style: TextStyle(color: Color(0xFF1E40AF), fontSize: 13)),
+                    SizedBox(height: 8),
+                    Text('• Minimum 8 characters', style: TextStyle(color: Color(0xFF1E40AF), fontSize: 13)),
+                    Text('• Include numbers and symbols', style: TextStyle(color: Color(0xFF1E40AF), fontSize: 13)),
+                    Text('• Mix of uppercase and lowercase letters', style: TextStyle(color: Color(0xFF1E40AF), fontSize: 13)),
                   ],
                 ),
               ),

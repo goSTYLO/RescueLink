@@ -410,12 +410,12 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
                                   style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
                                 ),
                                 const SizedBox(height: 10),
-                                Row(
+                                const Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    const Icon(Icons.check_circle, color: Color(0xFF22C55E), size: 18),
-                                    const SizedBox(width: 6),
-                                    const Text(
+                                    Icon(Icons.check_circle, color: Color(0xFF22C55E), size: 18),
+                                    SizedBox(width: 6),
+                                    Text(
                                       'Accuracy: High',
                                       style: TextStyle(fontSize: 13, color: Color(0xFF22C55E), fontWeight: FontWeight.w500),
                                     ),
@@ -505,11 +505,11 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
                                     borderRadius: BorderRadius.circular(12),
                                     border: Border.all(color: const Color(0xFF86EFAC)),
                                   ),
-                                  child: Column(
+                                  child: const Column(
                                     children: [
-                                      const Icon(Icons.videocam, size: 28, color: Color(0xFF16A34A)),
-                                      const SizedBox(height: 8),
-                                      const Text(
+                                      Icon(Icons.videocam, size: 28, color: Color(0xFF16A34A)),
+                                      SizedBox(height: 8),
+                                      Text(
                                         'Video',
                                         style: TextStyle(
                                           fontSize: 14,
@@ -517,8 +517,8 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
                                           color: Color(0xFF166534),
                                         ),
                                       ),
-                                      const SizedBox(height: 6),
-                                      const Icon(Icons.add_circle_outline, size: 20, color: Color(0xFF86EFAC)),
+                                      SizedBox(height: 6),
+                                      Icon(Icons.add_circle_outline, size: 20, color: Color(0xFF86EFAC)),
                                     ],
                                   ),
                                 ),

@@ -20,9 +20,9 @@ class RequestOTPScreen extends StatefulWidget {
 
 class _RequestOTPScreenState extends State<RequestOTPScreen> {
   final AuthService _authService = AuthService();
-  String _selectedBarangay = 'Select your barangay';
-  bool _obscurePassword = true;
-  bool _obscureConfirmPassword = true;
+  final String _selectedBarangay = 'Select your barangay';
+  final bool _obscurePassword = true;
+  final bool _obscureConfirmPassword = true;
   bool _isLoading = false;
 
   @override
@@ -148,11 +148,11 @@ class _RequestOTPScreenState extends State<RequestOTPScreen> {
                                     ),
                                   ),
                                   padding: const EdgeInsets.all(16),
-                                  child: Column(
+                                  child: const Column(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      const Row(
+                                      Row(
                                         children: [
                                           Icon(
                                             Icons.info,
@@ -170,8 +170,8 @@ class _RequestOTPScreenState extends State<RequestOTPScreen> {
                                           ),
                                         ],
                                       ),
-                                      const SizedBox(height: 12),
-                                      const Text(
+                                      SizedBox(height: 12),
+                                      Text(
                                         'Click "Send OTP" to receive your verification code',
                                         style: TextStyle(
                                           fontSize: 13,

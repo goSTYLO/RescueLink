@@ -99,15 +99,15 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: const Color(0xFFE5E7EB)),
             ),
-            child: Row(
+            child: const Row(
               children: [
-                const Icon(Icons.location_on, color: Color(0xFF374151), size: 26),
-                const SizedBox(width: 12),
+                Icon(Icons.location_on, color: Color(0xFF374151), size: 26),
+                SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'Dagupan City, Pangasinan',
                         style: TextStyle(
                           fontSize: 15,
@@ -115,8 +115,8 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
                           color: Color(0xFF111827),
                         ),
                       ),
-                      const SizedBox(height: 2),
-                      const Text(
+                      SizedBox(height: 2),
+                      Text(
                         'Barangay Poblacion Oeste',
                         style: TextStyle(
                           fontSize: 13,
@@ -138,15 +138,15 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: const Color(0xFF86EFAC)),
             ),
-            child: Row(
+            child: const Row(
               children: [
-                const Icon(Icons.shield, color: Color(0xFF22C55E), size: 28),
-                const SizedBox(width: 12),
+                Icon(Icons.shield, color: Color(0xFF22C55E), size: 28),
+                SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'All Systems Active',
                         style: TextStyle(
                           fontSize: 15,
@@ -154,8 +154,8 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
                           color: Color(0xFF22C55E),
                         ),
                       ),
-                      const SizedBox(height: 2),
-                      const Text(
+                      SizedBox(height: 2),
+                      Text(
                         'Emergency services ready',
                         style: TextStyle(fontSize: 13, color: Color(0xFF16A34A), fontWeight: FontWeight.w500),
                       ),
@@ -167,11 +167,11 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
           ),
           const SizedBox(height: 28),
           // Report Emergency: primary AI CTA, then panic (location-only) secondary
-          Row(
+          const Row(
             children: [
-              const Icon(Icons.emergency, color: Color(0xFFEF4444), size: 22),
-              const SizedBox(width: 6),
-              const Text(
+              Icon(Icons.emergency, color: Color(0xFFEF4444), size: 22),
+              SizedBox(width: 6),
+              Text(
                 'Report Emergency',
                 style: TextStyle(
                   fontSize: 16,
@@ -197,11 +197,11 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
           ),
           const SizedBox(height: 28),
           // Emergency Tips
-          Row(
+          const Row(
             children: [
-              const Icon(Icons.lightbulb_outline, color: Color(0xFFF97316), size: 22),
-              const SizedBox(width: 6),
-              const Text(
+              Icon(Icons.lightbulb_outline, color: Color(0xFFF97316), size: 22),
+              SizedBox(width: 6),
+              Text(
                 'Emergency Tips',
                 style: TextStyle(
                   fontSize: 16,

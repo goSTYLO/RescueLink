@@ -142,16 +142,16 @@ class _LogoutConfirmationScreenState extends State<LogoutConfirmationScreen> {
                             onChanged: (v) => setState(() => _logOutFromAllDevices = v ?? false),
                             activeColor: const Color(0xFFEF4444),
                           ),
-                          Expanded(
+                          const Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text(
+                                Text(
                                   'Log out from all devices',
                                   style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF111827)),
                                 ),
-                                const SizedBox(height: 4),
-                                const Text(
+                                SizedBox(height: 4),
+                                Text(
                                   'End all active sessions on your phone, tablet, and web browser',
                                   style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
                                 ),
