@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const crypto = require('crypto');
 const authRoutes = require('./routes/auth');
 const responderRoutes = require('./routes/responder');
 const dispatchRoutes = require('./routes/dispatch');
@@ -24,13 +25,50 @@ app.use(helmet());
 const corsOrigin = process.env.FRONTEND_URL || true;
 app.use(cors({ origin: corsOrigin, credentials: true }));
 
-// Auth rate limit: 10 requests per 15 minutes per IP (login, register, OTP, password reset)
+// Derive a stable account key from auth request body (for per-account rate limit).
+// Used so different accounts on the same IP get separate limits (e.g. user vs dispatcher).
+function getAuthAccountKey(req) {
+  const body = req.body || {};
+  if (typeof body.email === 'string') {
+    return 'e:' + body.email.trim().toLowerCase();
+  }
+  if (typeof body.phone === 'string') {
+    const digits = body.phone.replace(/\D/g, '');
+    return digits ? 'p:' + digits : null;
+  }
+  if (typeof body.sessionToken === 'string') {
+    return 's:' + crypto.createHash('sha256').update(body.sessionToken).digest('hex').slice(0, 16);
+  }
+  if (typeof body.idToken === 'string') {
+    return 'i:' + crypto.createHash('sha256').update(body.idToken).digest('hex').slice(0, 16);
+  }
+  if (typeof body.token === 'string') {
+    return 't:' + crypto.createHash('sha256').update(body.token).digest('hex').slice(0, 16);
+  }
+  return null;
+}
+
+// Global auth rate limit per IP: 50 requests per 15 minutes (stops one IP hammering many accounts)
+const authLimiterGlobal = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 50,
+  message: { message: 'Too many attempts. Please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Per-account auth rate limit: 10 requests per 15 minutes per IP+account (login, register, OTP, etc.)
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 10,
   message: { message: 'Too many attempts. Please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => {
+    const ip = req.ip || 'unknown';
+    const accountKey = getAuthAccountKey(req);
+    return accountKey ? `${ip}:${accountKey}` : ip;
+  },
 });
 
 app.use(express.json());
@@ -66,7 +104,7 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use('/api/auth', authLimiter, authRoutes);
+app.use('/api/auth', authLimiterGlobal, authLimiter, authRoutes);
 app.use('/api', apiLimiter);
 app.use('/api/responders', responderRoutes);
 app.use('/api/dispatches', dispatchRoutes);

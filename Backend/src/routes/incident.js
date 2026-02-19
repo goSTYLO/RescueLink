@@ -1,4 +1,5 @@
 const express = require('express');
+const rateLimit = require('express-rate-limit');
 const router = express.Router();
 const incidentController = require('../controllers/incident');
 const authMiddleware = require('../middleware/auth');
@@ -6,13 +7,28 @@ const { uploadMiddleware } = require('../middleware/fileUpload');
 const { authorize, checkOwnership } = require('../middleware/rbac');
 const { ROLES } = require('../config/roles');
 
+// Rate limit: incident report creation per user (prevents spam/abuse)
+// 20 reports per 15 minutes per account (emergency + with-audio combined)
+const incidentReportLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  message: { message: 'Too many incident reports. Please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const userId = req.user?.user_id;
+    const ip = req.ip || 'unknown';
+    return userId != null ? `user:${userId}` : ip;
+  },
+});
+
 // Create emergency incident report (fast endpoint, no AI classification)
 // Allows users, dispatchers, and admins to create incidents
-router.post('/emergency', authMiddleware, authorize([ROLES.USER, ROLES.DISPATCHER, ROLES.ADMIN]), incidentController.createEmergency);
+router.post('/emergency', authMiddleware, incidentReportLimiter, authorize([ROLES.USER, ROLES.DISPATCHER, ROLES.ADMIN]), incidentController.createEmergency);
 
 // Create incident with audio and media files (AI-enhanced)
 // Allows users, dispatchers, and admins to create incidents
-router.post('/with-audio', authMiddleware, authorize([ROLES.USER, ROLES.DISPATCHER, ROLES.ADMIN]), uploadMiddleware, incidentController.createWithAudio);
+router.post('/with-audio', authMiddleware, incidentReportLimiter, authorize([ROLES.USER, ROLES.DISPATCHER, ROLES.ADMIN]), uploadMiddleware, incidentController.createWithAudio);
 
 // Download audio file from incident
 // Users can only download their own; dispatchers/admins can download any
