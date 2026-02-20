@@ -415,7 +415,7 @@ class _AuthNavigatorState extends State<AuthNavigator> {
       return Stack(
         children: [
           HomePlaceholderScreen(
-            initialTabIndex: _returnToSettingsTab ? 3 : null,
+            initialTabIndex: _returnToSettingsTab ? 2 : null,
             onInitialTabApplied: _returnToSettingsTab ? () => setState(() => _returnToSettingsTab = false) : null,
             onLogout: () => setState(() => _showLogoutConfirmation = true),
             onSosPressed: () => setState(() => _showEmergencyReport = true),

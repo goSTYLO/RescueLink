@@ -82,6 +82,91 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
     );
   }
 
+  void _openNotifications(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => Scaffold(
+          backgroundColor: const Color(0xFFF9FAFB),
+          appBar: AppBar(
+            backgroundColor: const Color(0xFFF9FAFB),
+            elevation: 0,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back, color: Color(0xFF374151)),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+            title: const Text(
+              'Notifications',
+              style: TextStyle(color: Color(0xFF111827), fontWeight: FontWeight.w600),
+            ),
+          ),
+          body: const SafeArea(child: NotificationsScreen()),
+        ),
+      ),
+    );
+  }
+
+  /// Outlined red circle with glow — matches second image style.
+  Widget _buildOutlinedRedCircleButton({
+    required IconData icon,
+    required String label,
+    required String subtitle,
+    VoidCallback? onTap,
+    VoidCallback? onLongPress,
+  }) {
+    const size = 88.0;
+    const color = Color(0xFFEF4444);
+    final hasAction = onTap != null || onLongPress != null;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            onLongPress: onLongPress,
+            customBorder: const CircleBorder(),
+            child: Container(
+              width: size,
+              height: size,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: color.withOpacity(0.12),
+                border: Border.all(color: color.withOpacity(0.9), width: 2),
+                boxShadow: [
+                  BoxShadow(
+                    color: color.withOpacity(0.25),
+                    blurRadius: 16,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Icon(icon, color: Colors.white, size: 40),
+            ),
+          ),
+        ),
+        const SizedBox(height: 14),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.bold,
+            color: hasAction ? const Color(0xFF111827) : const Color(0xFF9CA3AF),
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          subtitle,
+          style: TextStyle(
+            fontSize: 13,
+            color: hasAction ? const Color(0xFF6B7280) : const Color(0xFF9CA3AF),
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+
   Widget _buildHomeContent() {
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -89,7 +174,16 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const SizedBox(height: 16),
-          _buildLogo(),
+          // Header: centered logo, notification upper-right
+          Row(
+            children: [
+              Expanded(child: Center(child: _buildLogo())),
+              IconButton(
+                icon: const Icon(Icons.notifications_none, color: Color(0xFF374151), size: 28),
+                onPressed: () => _openNotifications(context),
+              ),
+            ],
+          ),
           const SizedBox(height: 20),
           // Location Display Card
           Container(
@@ -111,7 +205,7 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
                         'Dagupan City, Pangasinan',
                         style: TextStyle(
                           fontSize: 15,
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.bold,
                           color: Color(0xFF111827),
                         ),
                       ),
@@ -150,8 +244,8 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
                         'All Systems Active',
                         style: TextStyle(
                           fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF22C55E),
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF16A34A),
                         ),
                       ),
                       SizedBox(height: 2),
@@ -166,34 +260,23 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
             ),
           ),
           const SizedBox(height: 28),
-          // Report Emergency: primary AI CTA, then panic (location-only) secondary
-          const Row(
+          // SOS and Incident Reports — outlined style from second image
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              Icon(Icons.emergency, color: Color(0xFFEF4444), size: 22),
-              SizedBox(width: 6),
-              Text(
-                'Report Emergency',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF111827),
-                ),
+              _buildOutlinedRedCircleButton(
+                icon: Icons.report_problem,
+                label: 'SOS',
+                subtitle: 'Long press for emergency',
+                onLongPress: widget.onEmergencyNoAiPressed,
+              ),
+              _buildOutlinedRedCircleButton(
+                icon: Icons.bar_chart,
+                label: 'Incident Reports',
+                subtitle: 'press this for incident reports',
+                onTap: widget.onSosPressed,
               ),
             ],
-          ),
-          const SizedBox(height: 12),
-          _primaryEmergencyCircularButton(
-            icon: Icons.mic,
-            label: 'Report emergency',
-            subtitle: 'Describe with voice — AI classifies and routes',
-            color: const Color(0xFFEF4444),
-            onTap: widget.onSosPressed,
-          ),
-          const SizedBox(height: 10),
-          _panicActionCard(
-            label: 'Life in danger?',
-            subtitle: 'Send location only — immediate alert',
-            onTap: widget.onEmergencyNoAiPressed,
           ),
           const SizedBox(height: 28),
           // Emergency Tips
@@ -232,130 +315,6 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
     );
   }
 
-  /// Primary CTA: circular button for "Report with AI".
-  Widget _primaryEmergencyCircularButton({
-    required IconData icon,
-    required String label,
-    required String subtitle,
-    required Color color,
-    VoidCallback? onTap,
-  }) {
-    const size = 88.0;
-    final enabled = onTap != null;
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: enabled ? onTap : null,
-              customBorder: const CircleBorder(),
-              child: Container(
-                width: size,
-                height: size,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: color.withOpacity(0.12),
-                  border: Border.all(color: color.withOpacity(0.8), width: 2),
-                  boxShadow: [
-                    BoxShadow(
-                      color: color.withOpacity(0.25),
-                      blurRadius: 16,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Icon(icon, color: enabled ? color : const Color(0xFF9CA3AF), size: 40),
-              ),
-            ),
-          ),
-          const SizedBox(height: 14),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 17,
-              fontWeight: FontWeight.bold,
-              color: enabled ? const Color(0xFF111827) : const Color(0xFF9CA3AF),
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 4),
-          Text(
-            subtitle,
-            style: TextStyle(
-              fontSize: 13,
-              color: enabled ? const Color(0xFF6B7280) : const Color(0xFF9CA3AF),
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Secondary: subdued "panic / life in danger" — location-only immediate alert.
-  Widget _panicActionCard({
-    required String label,
-    required String subtitle,
-    VoidCallback? onTap,
-  }) {
-    final enabled = onTap != null;
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: enabled ? onTap : null,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFE5E7EB)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.03),
-                blurRadius: 6,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              Icon(Icons.warning_amber_rounded, color: enabled ? const Color(0xFFDC2626) : const Color(0xFF9CA3AF), size: 24),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      label,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: enabled ? const Color(0xFF374151) : const Color(0xFF9CA3AF),
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: enabled ? const Color(0xFF6B7280) : const Color(0xFF9CA3AF),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _tipCard({required String title, required String subtitle}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -371,7 +330,7 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
           ),
         ],
       ),
-          child: Row(
+      child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(8),
@@ -411,10 +370,6 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
     return ReportHistoryScreen(onReportTap: widget.onReportTap);
   }
 
-  Widget _buildNotificationsContent() {
-    return const NotificationsScreen();
-  }
-
   Widget _buildSettingsContent() {
     return SettingsScreen(onLogout: widget.onLogout, onPhoneNumberTap: widget.onPhoneNumberTap, onBarangayTap: widget.onBarangayTap, onEmergencyContactsTap: widget.onEmergencyContactsTap, onChangePasswordTap: widget.onChangePasswordTap, onPrivacySecurityTap: widget.onPrivacySecurityTap);
   }
@@ -424,7 +379,6 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
     final List<Widget> pages = [
       _buildHomeContent(),
       _buildReportHistoryContent(),
-      _buildNotificationsContent(),
       _buildSettingsContent(),
     ];
 
@@ -456,8 +410,7 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
               children: [
                 _navItem(0, Icons.home, 'Home'),
                 _navItem(1, Icons.bar_chart, 'Reports'),
-                _navItem(2, Icons.notifications_none, 'Notifications'),
-                _navItem(3, Icons.settings, 'Settings'),
+                _navItem(2, Icons.settings, 'Settings'),
               ],
             ),
           ),
