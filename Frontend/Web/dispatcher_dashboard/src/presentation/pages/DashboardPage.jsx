@@ -90,7 +90,13 @@ export function DashboardPage() {
     setLoading(true);
     setError(null);
     try {
-      const apiStatus = filterStatus === 'Resolved' ? 'resolved' : (filterStatus === 'New' || filterStatus === 'Verified' || filterStatus === 'In Progress') ? 'pending' : undefined;
+      const apiStatus = filterStatus === 'Resolved'
+        ? 'resolved'
+        : filterStatus === 'Verified'
+          ? 'verified'
+          : filterStatus === 'New'
+            ? 'pending'
+            : undefined;
       const data = await getIncidents({ limit: 100, offset: 0, status: apiStatus });
       setIncidents(Array.isArray(data) ? data.map(mapApiIncidentToDashboard) : []);
     } catch (err) {

@@ -28,6 +28,8 @@ import {
 } from '@/data/mock/mockData';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { getIncidentById, getIncidentAudioUrl, verifyIncident } from '@/data/api/incidents.api';
+import { getResponders } from '@/data/api/responders.api';
+import { createDispatch } from '@/data/api/dispatches.api';
 import { DEV_MODE } from '@/core/config/app.config';
 import { Loader2 } from 'lucide-react';
 
@@ -146,6 +148,36 @@ export function IncidentDetailsPage() {
     };
   }, [id, incident?.audioPath, incident?.id]);
 
+  // Load responders for assignment dropdown
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (DEV_MODE && !token) return;
+
+    let cancelled = false;
+    const loadResponders = async () => {
+      setRespondersLoading(true);
+      try {
+        const data = await getResponders({ limit: 200, offset: 0 });
+        if (!cancelled) {
+          setResponders(Array.isArray(data) ? data : []);
+        }
+      } catch {
+        if (!cancelled) {
+          setResponders([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setRespondersLoading(false);
+        }
+      }
+    };
+
+    loadResponders();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const timeline = incidentTimelines[id || ''] || [];
   const escalations = escalationHistory[id || ''] || [];
   const coordination = coordinationNotes[id || ''] || [];
@@ -164,6 +196,13 @@ export function IncidentDetailsPage() {
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
   const [verifyDialogOpen, setVerifyDialogOpen] = useState(false);
   const [verifyLoading, setVerifyLoading] = useState(false);
+  const [assignDialogOpen, setAssignDialogOpen] = useState(false);
+  const [assignLoading, setAssignLoading] = useState(false);
+
+  // State for responder management
+  const [responders, setResponders] = useState([]);
+  const [respondersLoading, setRespondersLoading] = useState(false);
+  const [selectedResponderId, setSelectedResponderId] = useState('');
 
   // State for forms
   const [newSeverity, setNewSeverity] = useState('');
@@ -277,6 +316,42 @@ export function IncidentDetailsPage() {
     }
   };
 
+  const handleAssignResponder = async (forceUnverified = false) => {
+    const numericId = /^\d+$/.test(String(id));
+    if (!numericId || !incident) return;
+    if (!selectedResponderId) {
+      alert('Please select a responder first.');
+      return;
+    }
+
+    setAssignLoading(true);
+    try {
+      await createDispatch({
+        report_id: Number(id),
+        responder_id: Number(selectedResponderId),
+        response_status: 'dispatched',
+        force_unverified: forceUnverified,
+      });
+      setAssignDialogOpen(false);
+      setSelectedResponderId('');
+      await fetchIncident();
+      alert('Responder assigned successfully.');
+    } catch (err) {
+      if (err.requiresConfirmation && !forceUnverified) {
+        const shouldProceed = window.confirm(
+          'This incident is not yet verified. Do you want to continue and assign a responder anyway?'
+        );
+        if (shouldProceed) {
+          await handleAssignResponder(true);
+          return;
+        }
+      }
+      alert(err.message || 'Failed to assign responder');
+    } finally {
+      setAssignLoading(false);
+    }
+  };
+
   const handleAddCoordinationNote = () => {
     if (coordinationNote.trim()) {
       alert(`Coordination note added: ${coordinationNote}`);
@@ -299,40 +374,45 @@ export function IncidentDetailsPage() {
           </Button>
         </div>
 
-        <div className="mb-6">
-          <div className="flex items-start justify-between">
-            <div>
-              <div className="flex items-center gap-3">
-                <h1 className="text-3xl font-semibold text-foreground">{incident.id}</h1>
-                {incident.highPriority && (
-                  <Badge className="bg-primary/20 text-primary border-primary/50">
-                    <AlertTriangle className="w-3 h-3 mr-1" />
-                    High Priority
-                  </Badge>
-                )}
-                {incident.status === 'Duplicate' && (
-                  <Badge variant="outline" className="bg-card text-muted border-[rgba(19,65,120,0.35)]">
-                    <Copy className="w-3 h-3 mr-1" />
-                    Duplicate
-                  </Badge>
-                )}
-              </div>
-              <p className="text-muted mt-1">{incident.emergencyType} Incident</p>
-              {incident.timeReported && (
-                <p className="text-sm text-muted mt-0.5">
-                  Reported: {incident.timeReported}
-                </p>
-              )}
-            </div>
-            <Badge className={getSeverityColor(incident.severity)}>
+        {/* Compact Header with Status */}
+        <div className="mb-3 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-foreground">{incident.id}</h1>
+            <Badge variant={incident.severity === 'Critical' ? 'destructive' : 'outline'}>
               {incident.severity}
             </Badge>
+            <Badge variant="outline" className={incident.verified ? 'text-green-700' : 'text-amber-700'}>
+              {incident.verified ? (
+                <>
+                  <CheckCircle className="w-3 h-3 mr-1" />
+                  Verified
+                </>
+              ) : (
+                <>
+                  <AlertCircle className="w-3 h-3 mr-1" />
+                  Unverified
+                </>
+              )}
+            </Badge>
+            {incident.highPriority && (
+              <Badge className="bg-primary/20 text-primary border-primary/50">
+                <AlertTriangle className="w-3 h-3 mr-1" />
+                High Priority
+              </Badge>
+            )}
+            {incident.status === 'Duplicate' && (
+              <Badge variant="outline" className="bg-card text-muted border-[rgba(19,65,120,0.35)]">
+                <Copy className="w-3 h-3 mr-1" />
+                Duplicate
+              </Badge>
+            )}
           </div>
         </div>
+        <p className="text-sm text-muted mb-4">{incident.emergencyType} • Reported: {incident.timeReported}</p>
 
         {/* Duplicate Warning */}
         {possibleDuplicates.length > 0 && incident.status !== 'Duplicate' && (
-          <Alert className="mb-6 border-amber-500/40 bg-amber-500/15">
+          <Alert className="mb-3 border-amber-500/40 bg-amber-500/15">
             <AlertCircle className="h-4 w-4 text-amber-400" />
             <AlertTitle className="text-amber-400">Possible Duplicate Detected</AlertTitle>
             <AlertDescription className="text-foreground/90">
@@ -348,8 +428,155 @@ export function IncidentDetailsPage() {
           </Alert>
         )}
 
-        <Tabs defaultValue="details" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5 lg:w-auto lg:inline-grid">
+        {/* Quick Actions Bar - Emergency Response Focused */}
+        <div className="mb-3 p-3 bg-card border border-border rounded-lg">
+          <div className="flex flex-col gap-2">
+            {/* Actions Row */}
+            <div className="flex gap-2 flex-wrap">
+              {!incident.verified && (
+                <Button
+                  className="flex-1 min-w-[140px] bg-[#134178] hover:bg-[#0f3256] gap-2 text-sm"
+                  onClick={() => setVerifyDialogOpen(true)}
+                >
+                  <CheckCircle className="w-4 h-4" />
+                  Verify Incident
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                className="flex-1 min-w-[140px] gap-2 text-sm"
+                onClick={() => setAssignDialogOpen(true)}
+              >
+                <Bell className="w-4 h-4" />
+                Assign Responder
+              </Button>
+              {possibleDuplicates.length > 0 && (
+                <Button 
+                  variant="outline" 
+                  className="flex-1 min-w-[140px] gap-2 text-sm text-amber-600 border-amber-200 hover:bg-amber-50"
+                  onClick={() => setDuplicateDialogOpen(true)}
+                >
+                  <Merge className="w-4 h-4" />
+                  Duplicates ({possibleDuplicates.length})
+                </Button>
+              )}
+              <Button 
+                variant="outline" 
+                className="flex-1 min-w-[140px] gap-2 text-sm text-red-600 border-red-200 hover:bg-red-50"
+                onClick={handleMarkFalse}
+              >
+                <XCircle className="w-4 h-4" />
+                False Report
+              </Button>
+            </div>
+            
+            {/* Responder Assignment Status */}
+            {/* TODO: Show assigned responder info if available */}
+          </div>
+        </div>
+
+        {/* Dialogs for Quick Actions */}
+        {/* Verify Dialog */}
+        <Dialog open={verifyDialogOpen} onOpenChange={setVerifyDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Verify Incident</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to verify this incident? This will record it on the blockchain for tamper-proof audit. This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setVerifyDialogOpen(false)}
+                disabled={verifyLoading}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleVerifyIncident}
+                disabled={verifyLoading}
+                className="gap-2 bg-[#134178] hover:bg-[#0f3256]"
+              >
+                {verifyLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Verifying...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="w-4 h-4" />
+                    Confirm Verify
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Assign Dialog */}
+        <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Assign Responder</DialogTitle>
+              <DialogDescription>
+                Select a responder to assign for this incident dispatch.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-2">
+              <div>
+                <Label htmlFor="responderSelect">Responder</Label>
+                <select
+                  id="responderSelect"
+                  value={selectedResponderId}
+                  onChange={(e) => setSelectedResponderId(e.target.value)}
+                  className="w-full mt-2 px-3 py-2 border border-[rgba(19,65,120,0.35)] rounded-lg bg-card text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-secondary"
+                  disabled={assignLoading || respondersLoading}
+                >
+                  <option value="">Select responder</option>
+                  {responders.map((responder) => (
+                    <option key={responder.responder_id} value={String(responder.responder_id)}>
+                      {responder.name} {responder.organization ? `(${responder.organization})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {!incident.verified && (
+                <Alert className="border-amber-500/40 bg-amber-500/15">
+                  <AlertCircle className="h-4 w-4 text-amber-400" />
+                  <AlertDescription className="text-foreground/90">
+                    This incident is not verified yet. Assigning will require manual confirmation.
+                  </AlertDescription>
+                </Alert>
+              )}
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setAssignDialogOpen(false)} disabled={assignLoading}>
+                Cancel
+              </Button>
+              <Button
+                onClick={() => handleAssignResponder(false)}
+                disabled={!selectedResponderId || assignLoading || respondersLoading}
+                className="gap-2 bg-[#134178] hover:bg-[#0f3256]"
+              >
+                {assignLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Assigning...
+                  </>
+                ) : (
+                  'Assign'
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Tabs defaultValue="details" className="space-y-3">
+          <TabsList className="grid w-full grid-cols-5 lg:w-auto lg:inline-grid text-xs">
             <TabsTrigger value="details">Details</TabsTrigger>
             <TabsTrigger value="timeline">Timeline</TabsTrigger>
             <TabsTrigger value="coordination">Coordination</TabsTrigger>
@@ -358,63 +585,58 @@ export function IncidentDetailsPage() {
           </TabsList>
 
           {/* DETAILS TAB */}
-          <TabsContent value="details" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <TabsContent value="details" className="space-y-3">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
               {/* Left Column - Details */}
-              <div className="lg:col-span-2 space-y-6">
-                {/* Reporter Info */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Reporter Information</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="flex items-center gap-3">
-                      <User className="w-5 h-5 text-muted" />
-                      <div>
-                        <p className="text-sm text-muted">Name</p>
-                        <p className="font-medium text-foreground">{incident.reporterName}</p>
+              <div className="lg:col-span-2 space-y-3">
+                {/* Reporter + Location on one row compact */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                  {/* Reporter Info */}
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm">Reporter</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2 text-sm">
+                      <div className="flex items-center gap-2">
+                        <User className="w-4 h-4 text-muted" />
+                        <div>
+                          <p className="text-xs text-muted">Name</p>
+                          <p className="font-medium text-foreground">{incident.reporterName}</p>
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <Phone className="w-5 h-5 text-muted" />
-                      <div>
-                        <p className="text-sm text-muted">Phone Number</p>
-                        <p className="font-medium text-foreground">{incident.reporterPhone}</p>
+                      <div className="flex items-center gap-2">
+                        <Phone className="w-4 h-4 text-muted" />
+                        <div>
+                          <p className="text-xs text-muted">Phone</p>
+                          <p className="font-medium text-foreground">{incident.reporterPhone}</p>
+                        </div>
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                    </CardContent>
+                  </Card>
 
-                {/* Location */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Location Details</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex items-start gap-3 mb-4">
-                      <MapPin className="w-5 h-5 text-[#134178] mt-1" />
-                      <div>
-                        <p className="font-medium text-foreground">{incident.barangay}</p>
-                        <p className="text-sm text-gray-600">Barangay, Dagupan City</p>
-                        <p className="text-xs text-gray-500 mt-1">
-                          Coordinates: {incident.location.lat}, {incident.location.lng}
-                        </p>
+                  {/* Location */}
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm">Location</CardTitle>
+                    </CardHeader>
+                    <CardContent className="text-sm space-y-1">
+                      <div className="flex items-start gap-2">
+                        <MapPin className="w-4 h-4 text-[#134178] mt-0.5 flex-shrink-0" />
+                        <div>
+                          <p className="font-medium text-foreground">{incident.barangay}</p>
+                          <p className="text-xs text-gray-600">Coordinates: {incident.location.lat}, {incident.location.lng}</p>
+                        </div>
                       </div>
-                    </div>
-                    <IncidentMap
-                      latitude={incident.location.lat}
-                      longitude={incident.location.lng}
-                      className="w-full h-48 rounded-lg overflow-hidden"
-                    />
-                  </CardContent>
-                </Card>
+                    </CardContent>
+                  </Card>
+                </div>
 
                 {/* Incident Description */}
                 <Card>
-                  <CardHeader>
-                    <CardTitle>Incident Description</CardTitle>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm">Description</CardTitle>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="text-sm">
                     <p className="text-foreground">{incident.description}</p>
                     {incident.aiSuggestion && (
                       <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-100">
@@ -555,50 +777,6 @@ export function IncidentDetailsPage() {
 
               {/* Right Column - Actions */}
               <div className="space-y-6">
-                {/* Status */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Status</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div>
-                      <p className="text-sm text-gray-600 mb-1">Current Status</p>
-                      <Badge variant="outline" className="border-gray-300">{incident.status}</Badge>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-600 mb-1">Verified</p>
-                      <div className="flex items-center gap-2">
-                        {incident.verified ? (
-                          <>
-                            <CheckCircle className="w-4 h-4 text-green-600" />
-                            <span className="text-sm text-green-700">Verified</span>
-                          </>
-                        ) : (
-                          <>
-                            <XCircle className="w-4 h-4 text-red-600" />
-                            <span className="text-sm text-red-700">Not Verified</span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-600 mb-1">Time Reported</p>
-                      <p className="text-sm font-medium text-foreground">{incident.timeReported}</p>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Department */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Primary Department</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="font-medium text-foreground">{incident.assignedDepartment}</p>
-                    <p className="text-sm text-gray-600 mt-1">{incident.emergencyType} Response Team</p>
-                  </CardContent>
-                </Card>
-
                 {/* Escalation Controls (Supervisor/Admin Only) */}
                 {isSupervisor && incident.status !== 'Resolved' && incident.status !== 'Duplicate' && (
                   <Card className="border-amber-500/30">
@@ -719,145 +897,6 @@ export function IncidentDetailsPage() {
                     </CardContent>
                   </Card>
                 )}
-
-                {/* Actions */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Quick Actions</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {!incident.verified && (
-                      <>
-                        <Button
-                          className="w-full bg-[#134178] hover:bg-[#0f3256] gap-2"
-                          onClick={() => setVerifyDialogOpen(true)}
-                        >
-                          <CheckCircle className="w-4 h-4" />
-                          Verify Incident
-                        </Button>
-                        <Dialog open={verifyDialogOpen} onOpenChange={setVerifyDialogOpen}>
-                          <DialogContent>
-                            <DialogHeader>
-                              <DialogTitle>Verify Incident</DialogTitle>
-                              <DialogDescription>
-                                Are you sure you want to verify this incident? This will record it on the blockchain for tamper-proof audit. This action cannot be undone.
-                              </DialogDescription>
-                            </DialogHeader>
-                            <DialogFooter>
-                              <Button
-                                variant="outline"
-                                onClick={() => setVerifyDialogOpen(false)}
-                                disabled={verifyLoading}
-                              >
-                                Cancel
-                              </Button>
-                              <Button
-                                onClick={handleVerifyIncident}
-                                disabled={verifyLoading}
-                                className="gap-2 bg-[#134178] hover:bg-[#0f3256]"
-                              >
-                                {verifyLoading ? (
-                                  <>
-                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                    Verifying...
-                                  </>
-                                ) : (
-                                  <>
-                                    <CheckCircle className="w-4 h-4" />
-                                    Confirm Verify
-                                  </>
-                                )}
-                              </Button>
-                            </DialogFooter>
-                          </DialogContent>
-                        </Dialog>
-                      </>
-                    )}
-                    <Button variant="outline" className="w-full gap-2">
-                      <Bell className="w-4 h-4" />
-                      Notify Responders
-                    </Button>
-                    
-                    {/* Duplicate Handling */}
-                    {possibleDuplicates.length > 0 && (
-                      <Button 
-                        variant="outline" 
-                        className="w-full gap-2 text-amber-600 border-amber-200 hover:bg-amber-50"
-                        onClick={() => setDuplicateDialogOpen(true)}
-                      >
-                        <Merge className="w-4 h-4" />
-                        Review Duplicates ({possibleDuplicates.length})
-                      </Button>
-                    )}
-
-                    <Button 
-                      variant="outline" 
-                      className="w-full gap-2 text-red-600 border-red-200 hover:bg-red-50"
-                      onClick={handleMarkFalse}
-                    >
-                      <XCircle className="w-4 h-4" />
-                      Mark as False Report
-                    </Button>
-
-                    {/* Formal Closure (Supervisor/Admin Only) */}
-                    {isSupervisor && incident.status === 'Resolved' && !incident.closureData && (
-                      <Dialog open={closureDialogOpen} onOpenChange={setClosureDialogOpen}>
-                        <DialogTrigger asChild>
-                          <Button className="w-full bg-green-600 hover:bg-green-700 gap-2">
-                            <FileText className="w-4 h-4" />
-                            Formally Close Incident
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle>Close Incident</DialogTitle>
-                            <DialogDescription>
-                              Provide final closure details for this incident. This action is permanent.
-                            </DialogDescription>
-                          </DialogHeader>
-                          <div className="space-y-4 py-4">
-                            <div>
-                              <Label>Outcome Description</Label>
-                              <Textarea 
-                                placeholder="Describe the final outcome..."
-                                value={closureOutcome}
-                                onChange={(e) => setClosureOutcome(e.target.value)}
-                                rows={3}
-                              />
-                            </div>
-                            <div>
-                              <Label>Classification</Label>
-                              <Select value={closureClassification} onValueChange={setClosureClassification}>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select classification" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="Successful Response">Successful Response</SelectItem>
-                                  <SelectItem value="Partial Success">Partial Success</SelectItem>
-                                  <SelectItem value="False Alarm">False Alarm</SelectItem>
-                                  <SelectItem value="Duplicate Report">Duplicate Report</SelectItem>
-                                  <SelectItem value="No Action Required">No Action Required</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          </div>
-                          <DialogFooter>
-                            <Button variant="outline" onClick={() => setClosureDialogOpen(false)}>
-                              Cancel
-                            </Button>
-                            <Button 
-                              className="bg-green-600 hover:bg-green-700"
-                              onClick={handleCloseIncident}
-                              disabled={!closureOutcome || !closureClassification}
-                            >
-                              Close Incident
-                            </Button>
-                          </DialogFooter>
-                        </DialogContent>
-                      </Dialog>
-                    )}
-                  </CardContent>
-                </Card>
 
                 {/* Notes */}
                 <Card>

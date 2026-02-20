@@ -75,6 +75,15 @@ const Dispatch = {
     return res.rows.length > 0;
   },
 
+  // Helper to fetch verification status for an incident report
+  async getIncidentVerification(report_id) {
+    const res = await pool.query(
+      'SELECT report_id, verified, status FROM incident_reports WHERE report_id = $1',
+      [report_id]
+    );
+    return res.rows[0] || null;
+  },
+
   // Helper to check if responder exists
   async responderExists(responder_id) {
     const res = await pool.query(
