@@ -17,8 +17,7 @@ const incidentReportLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: (req) => {
     const userId = req.user?.user_id;
-    const ip = req.ip || 'unknown';
-    return userId != null ? `user:${userId}` : ip;
+    return userId != null ? `user:${userId}` : 'anonymous';
   },
 });
 
