@@ -1,0 +1,664 @@
+{
+  "info": {
+    "name": "RescueLink RBAC Tests",
+    "version": "2.0",
+    "description": "Complete RBAC testing with actual credentials and tokens",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. User Tests",
+      "item": [
+        {
+          "name": "1.1 - Create Incident (User)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{user_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"latitude\": 16.0419,\n  \"longitude\": 120.5351\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/incidents/emergency",
+              "host": ["{{base_url}}"],
+              "path": ["incidents", "emergency"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "1.2 - Read Own Incident (User)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{user_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/incidents/{{report_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["incidents", "{{report_id}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "1.3 - Try Create Dispatch (Denied)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{user_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"report_id\": 500,\n  \"responder_id\": 21,\n  \"response_status\": \"assigned\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/dispatches",
+              "host": ["{{base_url}}"],
+              "path": ["dispatches"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "1.4 - Try Create Responder (Denied)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{user_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Test Unit\",\n  \"organization\": \"City\",\n  \"contact_number\": \"+639123456789\",\n  \"availability_status\": \"available\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/responders",
+              "host": ["{{base_url}}"],
+              "path": ["responders"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "1.5 - List Own Incidents (User)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{user_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/incidents?limit=10&offset=0",
+              "host": ["{{base_url}}"],
+              "path": ["incidents"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "1.6 - Try Access Audit Logs (Denied)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{user_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/audit-logs?limit=10&offset=0",
+              "host": ["{{base_url}}"],
+              "path": ["audit-logs"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "2. Dispatcher Tests",
+      "item": [
+        {
+          "name": "2.1 - Create Incident (Dispatcher)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{dispatcher_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"latitude\": 16.0419,\n  \"longitude\": 120.5351\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/incidents/emergency",
+              "host": ["{{base_url}}"],
+              "path": ["incidents", "emergency"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "2.2 - Create Dispatch (Dispatcher)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{dispatcher_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"report_id\": 500,\n  \"responder_id\": 21,\n  \"response_status\": \"assigned\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/dispatches",
+              "host": ["{{base_url}}"],
+              "path": ["dispatches"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "2.3 - Create Responder (Dispatcher)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{dispatcher_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Fire Engine 7\",\n  \"organization\": \"Fire Dept\",\n  \"contact_number\": \"+639171234567\",\n  \"availability_status\": \"available\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/responders",
+              "host": ["{{base_url}}"],
+              "path": ["responders"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "2.4 - List All Incidents (Dispatcher)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{dispatcher_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/incidents?limit=10&offset=0",
+              "host": ["{{base_url}}"],
+              "path": ["incidents"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "2.5 - Read Own Audit Logs (Dispatcher)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{dispatcher_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/audit-logs?limit=10&offset=0",
+              "host": ["{{base_url}}"],
+              "path": ["audit-logs"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "2.6 - Try Manage Users (Denied)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{dispatcher_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/users",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "users"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "3. Admin Tests",
+      "item": [
+        {
+          "name": "3.1 - List All Users (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/users?limit=10&offset=0",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "users"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "3.2 - Create User (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"newuser@example.com\",\n  \"password\": \"SecurePass123\",\n  \"first_name\": \"New\",\n  \"last_name\": \"User\",\n  \"role\": \"dispatcher\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/users",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "users"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "3.3 - Update User Role (Admin)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"dispatcher\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/users/91/role",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "users", "91", "role"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "3.4 - View System Stats (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/stats",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "stats"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "3.5 - List All Incidents (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/incidents?limit=10&offset=0",
+              "host": ["{{base_url}}"],
+              "path": ["incidents"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "3.6 - Read All Audit Logs (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/audit-logs?limit=10&offset=0",
+              "host": ["{{base_url}}"],
+              "path": ["audit-logs"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "4. Ownership Tests",
+      "item": [
+        {
+          "name": "4.1 - Read Own Incident (User)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{user_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/incidents/{{report_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["incidents", "{{report_id}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "4.2 - Try Read Other Incident (Denied)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{user_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/incidents/1",
+              "host": ["{{base_url}}"],
+              "path": ["incidents", "1"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "4.3 - Read Any Incident (Dispatcher)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{dispatcher_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/incidents/1",
+              "host": ["{{base_url}}"],
+              "path": ["incidents", "1"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "5. Error Tests",
+      "item": [
+        {
+          "name": "5.1 - Missing Token",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/incidents",
+              "host": ["{{base_url}}"],
+              "path": ["incidents"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "5.2 - Invalid Token",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer invalid_token_12345",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/incidents",
+              "host": ["{{base_url}}"],
+              "path": ["incidents"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "5.3 - Wrong Bearer Format",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{user_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/incidents",
+              "host": ["{{base_url}}"],
+              "path": ["incidents"]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000/api",
+      "type": "string"
+    },
+    {
+      "key": "user_token",
+      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjo5MSwicGhvbmUiOiIrNjM5NjY2NjM4OTY3Iiwicm9sZSI6InVzZXIiLCJpYXQiOjE3NzE0Mjk0MzYsImV4cCI6MTc3MjAzNDIzNn0.-oaeIdBhEzSYQsLSFWMK4Ua9hYaY4d81hhfDdtAvpeU",
+      "type": "string"
+    },
+    {
+      "key": "dispatcher_token",
+      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjo5MiwiZW1haWwiOiJhYWJlLnRhbWF5by51cEBwaGlubWFlZC5jb20iLCJyb2xlIjoiZGlzcGF0Y2hlciIsImlhdCI6MTc3MTQyOTkzOCwiZXhwIjoxNzcyMDM0NzM4fQ.UGJEClFIlsPP_RRXtnE2mhp7evmAiNpJ7tdWmixNY8o",
+      "type": "string"
+    },
+    {
+      "key": "admin_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "report_id",
+      "value": "500",
+      "type": "string"
+    },
+    {
+      "key": "user_id",
+      "value": "91",
+      "type": "string"
+    },
+    {
+      "key": "responder_id",
+      "value": "21",
+      "type": "string"
+    }
+  ]
+}

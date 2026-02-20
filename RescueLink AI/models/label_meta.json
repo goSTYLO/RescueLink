@@ -1,0 +1,18 @@
+{
+  "incident_type_labels": [
+    "Fire",
+    "Crime",
+    "Accident",
+    "Medical",
+    "Natural Disaster",
+    "Other"
+  ],
+  "severity_labels": [
+    "Green",
+    "Yellow",
+    "Red",
+    "Black"
+  ],
+  "backbone": "xlm-roberta-base",
+  "threshold": 0.3
+}

@@ -1,11 +1,117 @@
 const express = require('express');
+const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+const crypto = require('crypto');
 const authRoutes = require('./routes/auth');
+const responderRoutes = require('./routes/responder');
+const dispatchRoutes = require('./routes/dispatch');
+const notificationRoutes = require('./routes/notification');
+const locationRoutes = require('./routes/location');
+const incidentRoutes = require('./routes/incident');
+const auditLogRoutes = require('./routes/auditLog');
+const adminRoutes = require('./routes/admin');
+const { startRetryService } = require('./services/retryAiClassification');
 
 const app = express();
 
+// Trust proxy so rate limiter sees real client IP behind reverse proxy
+app.set('trust proxy', 1);
+
+// Security headers (XSS, clickjacking, etc.)
+app.use(helmet());
+
+// CORS: restrict to FRONTEND_URL in production; allow all in dev when unset
+const corsOrigin = process.env.FRONTEND_URL || true;
+app.use(cors({ origin: corsOrigin, credentials: true }));
+
+// Derive a stable account key from auth request body (for per-account rate limit).
+// Used so different accounts on the same IP get separate limits (e.g. user vs dispatcher).
+function getAuthAccountKey(req) {
+  const body = req.body || {};
+  if (typeof body.email === 'string') {
+    return 'e:' + body.email.trim().toLowerCase();
+  }
+  if (typeof body.phone === 'string') {
+    const digits = body.phone.replace(/\D/g, '');
+    return digits ? 'p:' + digits : null;
+  }
+  if (typeof body.sessionToken === 'string') {
+    return 's:' + crypto.createHash('sha256').update(body.sessionToken).digest('hex').slice(0, 16);
+  }
+  if (typeof body.idToken === 'string') {
+    return 'i:' + crypto.createHash('sha256').update(body.idToken).digest('hex').slice(0, 16);
+  }
+  if (typeof body.token === 'string') {
+    return 't:' + crypto.createHash('sha256').update(body.token).digest('hex').slice(0, 16);
+  }
+  return null;
+}
+
+// Global auth rate limit per IP: 50 requests per 15 minutes (stops one IP hammering many accounts)
+const authLimiterGlobal = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 50,
+  message: { message: 'Too many attempts. Please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Per-account auth rate limit: 10 requests per 15 minutes per IP+account (login, register, OTP, etc.)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: { message: 'Too many attempts. Please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const accountKey = getAuthAccountKey(req);
+    return accountKey || 'anonymous';
+  },
+});
+
 app.use(express.json());
 
-app.use('/api/auth', authRoutes);
+// General API rate limit: 200 requests per 15 minutes per IP
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 200,
+  message: { message: 'Too many requests. Please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Sensitive keys to redact from request logs
+const SENSITIVE_KEYS = ['password', 'idToken', 'newPassword', 'currentPassword', 'token', 'otp', 'sessionToken'];
+
+function redactBody(body) {
+  if (!body || typeof body !== 'object') return body;
+  const copy = { ...body };
+  for (const key of SENSITIVE_KEYS) {
+    if (key in copy) copy[key] = '[REDACTED]';
+  }
+  return copy;
+}
+
+// Request logging middleware (never log passwords or tokens)
+app.use((req, res, next) => {
+  const timestamp = new Date().toISOString();
+  console.log(`\n[${timestamp}] ${req.method} ${req.originalUrl}`);
+  if ((req.method === 'POST' || req.method === 'PUT') && req.body && Object.keys(req.body).length > 0) {
+    console.log('Body:', JSON.stringify(redactBody(req.body), null, 2));
+  }
+  next();
+});
+
+app.use('/api/auth', authLimiterGlobal, authLimiter, authRoutes);
+app.use('/api', apiLimiter);
+app.use('/api/responders', responderRoutes);
+app.use('/api/dispatches', dispatchRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/location', locationRoutes);
+app.use('/api/incidents', incidentRoutes);
+app.use('/api/audit-logs', auditLogRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Basic health route
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
@@ -15,5 +121,12 @@ app.use((err, req, res, next) => {
   console.error(err);
   res.status(500).json({ error: 'Internal Server Error' });
 });
+
+// Start AI classification retry service
+console.log('\n🤖 Initializing AI services...');
+const retryTask = startRetryService();
+
+// Store retry task for graceful shutdown
+app.locals.retryTask = retryTask;
 
 module.exports = app;

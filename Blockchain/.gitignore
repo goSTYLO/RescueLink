@@ -1,0 +1,14 @@
+# Environment and secrets
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.venv/
+venv/
+env/
+
+# py-solc-x / solc (if local)
+.solcx/

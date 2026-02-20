@@ -32,6 +32,9 @@ coverage/
 Thumbs.db
 desktop.ini
 
+# DB backups (optional script output)
+backups/
+
 # Misc
 .cache/
 .nyc_output/
