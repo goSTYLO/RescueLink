@@ -45,24 +45,40 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Widget _buildLogo() {
-    return Column(
+    return Row(
       mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min,
       children: [
-        // Logo PNG - Larger size
+        // Logo PNG
         Image.asset(
           'assets/logo/logo.png',
           width: 80,
           height: 80,
           fit: BoxFit.contain,
         ),
-        const SizedBox(height: 12),
-        // Tagline
-        const Text(
-          'Emergency Response & Safety',
-          style: TextStyle(
-            color: Color(0xFF6B7280),
-            fontSize: 12,
-          ),
+        const SizedBox(width: 12),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            RichText(
+              text: const TextSpan(
+                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                children: [
+                  TextSpan(text: 'Rescue', style: TextStyle(color: Color(0xFFEF4444))),
+                  TextSpan(text: 'Link', style: TextStyle(color: Color(0xFFEF4444))),
+                ],
+              ),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Emergency Response & Safety',
+              style: TextStyle(
+                color: Color(0xFF6B7280),
+                fontSize: 12,
+              ),
+            ),
+          ],
         ),
       ],
     );
