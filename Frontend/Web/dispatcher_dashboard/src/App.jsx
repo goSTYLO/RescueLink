@@ -10,11 +10,11 @@ import { IncidentDetailsPage } from '@/presentation/pages/IncidentDetailsPage';
 import { MapViewPage } from '@/presentation/pages/MapViewPage';
 import { DepartmentsPage } from '@/presentation/pages/DepartmentsPage';
 import { DepartmentDetailsPage } from '@/presentation/pages/DepartmentDetailsPage';
-import { TaskBoardPage } from '@/presentation/pages/TaskBoardPage';
 import { AuditLogPage } from '@/presentation/pages/AuditLogPage';
 import { AdminActionsPage } from '@/presentation/pages/AdminActionsPage';
 import { ProfilePage } from '@/presentation/pages/ProfilePage';
 import { SettingsPage } from '@/presentation/pages/SettingsPage';
+import { HelpSupportPage } from '@/presentation/pages/HelpSupportPage';
 import ForgotPassword from '@/presentation/pages/ForgotPassword';
 import EnterCode from '@/presentation/pages/EnterCode';
 import CreateNewPassword from '@/presentation/pages/CreateNewPassword';
@@ -162,11 +162,6 @@ export default function App() {
               <DepartmentDetailsPage />
             </ProtectedRoute>
           } />
-          <Route path="/taskboard" element={
-            <ProtectedRoute>
-              <TaskBoardPage />
-            </ProtectedRoute>
-          } />
           <Route path="/audit" element={
             <ProtectedRoute>
               <AuditLogPage />
@@ -185,6 +180,11 @@ export default function App() {
           <Route path="/settings" element={
             <ProtectedRoute>
               <SettingsPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/help" element={
+            <ProtectedRoute>
+              <HelpSupportPage />
             </ProtectedRoute>
           } />
           <Route path="/incidents/:id" element={

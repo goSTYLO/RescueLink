@@ -1,12 +1,34 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
 
-export function Select({ value, onValueChange, children, className = '' }) {
-  const [isOpen, setIsOpen] = useState(false);
+export function Select({ value, onValueChange, children, className = '', open: controlledOpen, onOpenChange }) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isControlled = controlledOpen !== undefined && controlledOpen !== null;
+  const isOpen = isControlled ? controlledOpen : internalOpen;
+  const setIsOpen = isControlled ? (onOpenChange || (() => {})) : setInternalOpen;
+
+  const [dropdownRect, setDropdownRect] = useState(null);
   const selectRef = useRef(null);
+
+  useLayoutEffect(() => {
+    if (!isOpen || !selectRef.current) {
+      setDropdownRect(null);
+      return;
+    }
+    const el = selectRef.current;
+    const rect = el.getBoundingClientRect();
+    setDropdownRect({
+      top: rect.bottom + 4,
+      left: rect.left,
+      width: rect.width,
+    });
+  }, [isOpen]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (selectRef.current && !selectRef.current.contains(event.target)) {
+        const content = document.querySelector('[data-select-content]');
+        if (content && content.contains(event.target)) return;
         setIsOpen(false);
       }
     };
@@ -15,11 +37,11 @@ export function Select({ value, onValueChange, children, className = '' }) {
       document.addEventListener('mousedown', handleClickOutside);
     }
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isOpen]);
+  }, [isOpen, setIsOpen]);
 
   return (
     <div className={`relative ${className}`} ref={selectRef}>
-      {children({ isOpen, setIsOpen, value, onValueChange })}
+      {children({ isOpen, setIsOpen, value, onValueChange, dropdownRect })}
     </div>
   );
 }
@@ -52,12 +74,39 @@ export function SelectValue({ placeholder, value, options }) {
   return <span className="text-muted">{placeholder || 'Select...'}</span>;
 }
 
-export function SelectContent({ children, isOpen, className = '' }) {
+export function SelectContent({ children, isOpen, className = '', dropdownRect, portal = true }) {
   if (!isOpen) return null;
-  
-  return (
-    <div className={`absolute z-50 w-full mt-1 bg-card border border-[rgba(19,65,120,0.35)] rounded-lg shadow-card-hover max-h-60 overflow-auto ${className}`}>
+
+  const usePortal = portal && dropdownRect && typeof document !== 'undefined';
+  const content = (
+    <div
+      data-select-content
+      role="listbox"
+      className={`bg-card border border-[rgba(19,65,120,0.35)] rounded-xl max-h-60 overflow-auto shadow-xl ${usePortal ? 'ring-1 ring-black/5' : ''} ${className}`}
+      style={
+        usePortal
+          ? {
+              position: 'fixed',
+              zIndex: 9999,
+              top: dropdownRect.top,
+              left: dropdownRect.left,
+              width: dropdownRect.width,
+              minWidth: '8rem',
+            }
+          : undefined
+      }
+    >
       {children}
+    </div>
+  );
+
+  if (usePortal) {
+    return createPortal(content, document.body);
+  }
+
+  return (
+    <div className="absolute z-[100] w-full mt-1">
+      {content}
     </div>
   );
 }

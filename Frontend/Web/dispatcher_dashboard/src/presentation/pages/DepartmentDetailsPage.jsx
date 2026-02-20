@@ -1,5 +1,4 @@
 import { Layout } from '@/presentation/components/layout/Layout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/presentation/components/ui/Card';
 import { Badge } from '@/presentation/components/ui/Badge';
 import { Button } from '@/presentation/components/ui/Button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/presentation/components/ui/Tabs';
@@ -12,11 +11,28 @@ import {
   DialogDescription,
 } from '@/presentation/components/ui/Dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/presentation/components/ui/Select';
-import { ArrowLeft, Truck, Users as UsersIcon, ClipboardList, Wrench, Award, AlertCircle, CheckCircle, AlertTriangle, Plus, Pencil, Trash2 } from 'lucide-react';
+import {
+  ArrowLeft,
+  Truck,
+  Users as UsersIcon,
+  ClipboardList,
+  Wrench,
+  Award,
+  AlertCircle,
+  CheckCircle,
+  Plus,
+  Pencil,
+  Trash2,
+  Building2,
+  Phone,
+  Activity,
+  LayoutGrid,
+} from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { departments, units as initialUnits, personnel as initialPersonnel, incidents } from '@/data/mock/mockData';
 import Swal from 'sweetalert2';
+import { useTheme } from '@/presentation/context/ThemeContext.jsx';
 
 const UNIT_STATUS_OPTIONS = ['Available', 'On Dispatch', 'On Duty', 'Busy', 'Under Maintenance', 'Out of Service'];
 const MAINTENANCE_STATUS_OPTIONS = ['Operational', 'Under Maintenance', 'Out of Service'];
@@ -58,11 +74,23 @@ export function DepartmentDetailsPage() {
 
   const deptIncidents = incidents.filter(i => i.status === 'In Progress');
 
+  const { theme } = useTheme();
+  const isLight = theme === 'light';
+  const panelClass = `rounded-2xl border overflow-hidden transition-all duration-300 ${isLight ? 'glass neumorphic-light bg-white/80' : 'glass neumorphic-dark bg-card/60'}`;
+  const headerClass = `flex items-center gap-3 px-4 py-3 border-b ${isLight ? 'border-gray-200/80 bg-gray-50/50' : 'border-white/10 bg-white/5'}`;
+  const iconBoxClass = (accent = 'primary') =>
+    `w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isLight ? 'neumorphic-light-inset bg-gray-100' : 'neumorphic-dark-inset bg-white/10'} ${
+      accent === 'primary' ? 'text-primary' : accent === 'secondary' ? 'text-secondary' : 'text-foreground'
+    }`;
+  const iconSmClass = (accent = 'primary') =>
+    `w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${isLight ? 'neumorphic-light-inset bg-gray-100' : 'neumorphic-dark-inset bg-white/10'} ${accent === 'primary' ? 'text-primary' : 'text-foreground'}`;
+
   if (!department) {
     return (
       <Layout>
         <div className="p-8">
-          <p>Department not found</p>
+          <p className="text-foreground">Department not found</p>
+          <Button variant="outline" className="mt-4 rounded-xl" onClick={() => navigate('/departments')}>Back to Departments</Button>
         </div>
       </Layout>
     );
@@ -262,246 +290,286 @@ export function DepartmentDetailsPage() {
   return (
     <Layout>
       <div className="p-8">
-        <div className="mb-6 flex items-center gap-4">
-          <Button variant="ghost" onClick={() => navigate('/departments')} className="gap-2">
-            <ArrowLeft className="w-4 h-4" />
-            Back to Departments
-          </Button>
+        <div className={`mb-6 rounded-2xl border overflow-hidden ${isLight ? 'glass neumorphic-light bg-white/80' : 'glass neumorphic-dark bg-card/60'}`}>
+          <div className="flex items-center gap-4 p-4">
+            <Button
+              variant="ghost"
+              onClick={() => navigate('/departments')}
+              className={`gap-2 rounded-xl ${isLight ? 'hover:bg-gray-100 text-foreground' : 'hover:bg-white/10 text-foreground'}`}
+            >
+              <span className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${isLight ? 'neumorphic-light-inset bg-gray-100 text-primary' : 'neumorphic-dark-inset bg-white/10 text-primary'}`}>
+                <ArrowLeft className="w-4 h-4" strokeWidth={2} />
+              </span>
+              Back to Departments
+            </Button>
+          </div>
         </div>
 
-        <div className="mb-6">
-          <h1 className="text-3xl font-semibold text-foreground">{department.name}</h1>
-          <p className="text-gray-600 mt-1">{department.type} Response Department</p>
+        <div className={`mb-6 rounded-2xl border overflow-hidden ${isLight ? 'glass neumorphic-light bg-white/80' : 'glass neumorphic-dark bg-card/60'}`}>
+          <div className="p-6">
+            <h1 className="text-2xl font-semibold text-foreground tracking-tight">{department.name}</h1>
+            <p className="text-muted mt-1">{department.type} Response Department</p>
+          </div>
         </div>
 
-        <Card className="mb-6" hover={false}>
-          <CardContent className="p-6">
+        <div className={`mb-6 ${panelClass}`}>
+          <div className={`${headerClass} rounded-t-2xl`}>
+            <span className={iconBoxClass('primary')}>
+              <LayoutGrid className="w-5 h-5" strokeWidth={2} />
+            </span>
+            <span className="font-medium text-foreground">Overview</span>
+          </div>
+          <div className="p-6">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <div>
-                <p className="text-sm text-gray-600 mb-1">Department Type</p>
+              <div className={`rounded-xl p-4 ${isLight ? 'bg-gray-50/80' : 'bg-white/5'}`}>
+                <div className="flex items-center gap-3 mb-2">
+                  <span className={iconSmClass('primary')}>
+                    <Building2 className="w-4 h-4" strokeWidth={2} />
+                  </span>
+                  <p className="text-xs font-medium uppercase tracking-wider text-muted">Department Type</p>
+                </div>
                 <p className="font-semibold text-foreground">{department.type}</p>
               </div>
-              <div>
-                <p className="text-sm text-gray-600 mb-1">Officer-in-Charge</p>
+              <div className={`rounded-xl p-4 ${isLight ? 'bg-gray-50/80' : 'bg-white/5'}`}>
+                <div className="flex items-center gap-3 mb-2">
+                  <span className={iconSmClass('primary')}>
+                    <UsersIcon className="w-4 h-4" strokeWidth={2} />
+                  </span>
+                  <p className="text-xs font-medium uppercase tracking-wider text-muted">Officer-in-Charge</p>
+                </div>
                 <p className="font-semibold text-foreground">Chief Roberto Santos</p>
-                <p className="text-xs text-gray-500">+63 917 123 4567</p>
+                <p className="text-xs text-muted mt-0.5 flex items-center gap-1">
+                  <Phone className="w-3 h-3" strokeWidth={2} />
+                  +63 917 123 4567
+                </p>
               </div>
-              <div>
-                <p className="text-sm text-gray-600 mb-1">Status</p>
-                <Badge className="bg-green-100 text-green-700 border-green-200">Available</Badge>
+              <div className={`rounded-xl p-4 ${isLight ? 'bg-gray-50/80' : 'bg-white/5'}`}>
+                <div className="flex items-center gap-3 mb-2">
+                  <span className={iconSmClass('primary')}>
+                    <Activity className="w-4 h-4" strokeWidth={2} />
+                  </span>
+                  <p className="text-xs font-medium uppercase tracking-wider text-muted">Status</p>
+                </div>
+                <Badge className="bg-severity-resolved/20 text-severity-resolved border-severity-resolved/40 rounded-lg">Available</Badge>
               </div>
-              <div>
-                <p className="text-sm text-gray-600 mb-1">Operational Units</p>
-                <p className="font-semibold text-[#134178]">
+              <div className={`rounded-xl p-4 ${isLight ? 'bg-gray-50/80' : 'bg-white/5'}`}>
+                <div className="flex items-center gap-3 mb-2">
+                  <span className={iconSmClass('primary')}>
+                    <Truck className="w-4 h-4" strokeWidth={2} />
+                  </span>
+                  <p className="text-xs font-medium uppercase tracking-wider text-muted">Operational Units</p>
+                </div>
+                <p className="font-semibold text-primary">
                   {deptUnits.filter(u => u.maintenanceStatus === 'Operational').length}/{deptUnits.length}
                 </p>
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         <Tabs defaultValue="units" className="w-full">
-          <TabsList className="grid w-full max-w-md grid-cols-3">
-            <TabsTrigger value="units">Units</TabsTrigger>
-            <TabsTrigger value="personnel">Personnel</TabsTrigger>
-            <TabsTrigger value="tasks">Active Tasks</TabsTrigger>
-          </TabsList>
+          <div className={`mb-4 rounded-xl p-1 ${isLight ? 'glass neumorphic-light bg-white/80' : 'glass neumorphic-dark bg-card/60'}`}>
+            <TabsList className={`grid w-full max-w-md grid-cols-3 rounded-xl border-0 bg-transparent p-0 gap-1 ${isLight ? '' : ''}`}>
+              <TabsTrigger value="units" className="rounded-lg">Units</TabsTrigger>
+              <TabsTrigger value="personnel" className="rounded-lg">Personnel</TabsTrigger>
+              <TabsTrigger value="tasks" className="rounded-lg">Active Tasks</TabsTrigger>
+            </TabsList>
+          </div>
 
           <TabsContent value="units" className="mt-6">
-            <Card hover={false}>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center gap-2">
-                    <Truck className="w-5 h-5" />
-                    Department Units & Resources
-                  </CardTitle>
-                  <Button
-                    onClick={openAddUnit}
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl font-medium text-sm text-white bg-[#134178] hover:bg-[#0f3256] focus:ring-2 focus:ring-[#134178] focus:ring-offset-2"
+            <div className={panelClass}>
+              <div className={headerClass}>
+                <span className={iconBoxClass('primary')}>
+                  <Truck className="w-5 h-5" strokeWidth={2} />
+                </span>
+                <span className="font-medium text-foreground flex-1">Department Units & Resources</span>
+                <Button onClick={openAddUnit} className="rounded-xl gap-2 bg-primary hover:bg-primary-hover text-white font-medium" size="default">
+                  <Plus className="w-4 h-4" strokeWidth={2} />
+                  Add Unit
+                </Button>
+              </div>
+              <div className="p-4 space-y-3">
+                {deptUnits.map((unit) => (
+                  <div
+                    key={unit.id}
+                    className={`rounded-xl border p-4 transition-all duration-200 ${isLight ? 'bg-gray-50/80 border-gray-200/80 hover:border-gray-300' : 'bg-white/5 border-white/10 hover:border-white/20'}`}
                   >
-                    <Plus className="w-4 h-4" />
-                    Add Unit
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {deptUnits.map((unit) => (
-                    <div key={unit.id} className="p-4 bg-secondary/20 rounded-lg border border-border">
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-1 flex items-center gap-3">
+                        <span className={iconSmClass('primary')}>
+                          <Truck className="w-4 h-4" strokeWidth={2} />
+                        </span>
+                        <div>
+                          <div className="flex items-center gap-2 mb-0.5">
                             <p className="font-semibold text-foreground">{unit.name}</p>
                             {unit.maintenanceStatus === 'Under Maintenance' && (
-                              <Wrench className="w-4 h-4 text-orange-600" />
+                              <span className={iconSmClass()} title="Under Maintenance">
+                                <Wrench className="w-3.5 h-3.5 text-amber-500" strokeWidth={2} />
+                              </span>
                             )}
                             {unit.maintenanceStatus === 'Out of Service' && (
-                              <AlertCircle className="w-4 h-4 text-red-600" />
+                              <span className={iconSmClass()} title="Out of Service">
+                                <AlertCircle className="w-3.5 h-3.5 text-primary" strokeWidth={2} />
+                              </span>
                             )}
                           </div>
-                          <p className="text-sm text-gray-600">{unit.type}</p>
+                          <p className="text-sm text-muted">{unit.type}</p>
                           {unit.assignedIncident && (
-                            <p className="text-xs text-blue-600 mt-1">
-                              Assigned: <Button 
-                                variant="link" 
-                                className="p-0 h-auto text-xs text-blue-600"
-                                onClick={() => navigate(`/incidents/${unit.assignedIncident}`)}
-                              >
+                            <p className="text-xs text-primary mt-1">
+                              Assigned: <Button variant="link" className="p-0 h-auto text-xs text-primary" onClick={(e) => { e.stopPropagation(); navigate(`/incidents/${unit.assignedIncident}`); }}>
                                 {unit.assignedIncident}
                               </Button>
                             </p>
                           )}
                         </div>
-                        <div className="flex items-center gap-1.5">
-                          <Badge className={getStatusColor(unit.status)}>
-                            {unit.status}
-                          </Badge>
-                          <Button variant="ghost" size="sm" className="h-9 w-9 p-0 min-w-[36px] text-[#134178] hover:bg-blue-50" onClick={(e) => openEditUnit(unit, e)} title="Edit unit" aria-label="Edit unit">
-                            <Pencil className="w-5 h-5" />
-                          </Button>
-                          <Button variant="ghost" size="sm" className="h-9 w-9 p-0 min-w-[36px] text-red-600 hover:bg-red-50" onClick={(e) => handleDeleteUnit(unit.id, e)} title="Delete unit" aria-label="Delete unit">
-                            <Trash2 className="w-5 h-5" />
-                          </Button>
-                        </div>
                       </div>
-
-                      <div className="grid grid-cols-2 gap-3 text-xs">
-                        <div className="p-2 bg-card rounded border border-border">
-                          <p className="text-gray-600 mb-1">Last Maintenance</p>
-                          <p className="font-medium text-foreground">{unit.lastMaintenance}</p>
-                        </div>
-                        <div className="p-2 bg-card rounded border border-border">
-                          <p className="text-gray-600 mb-1">Next Scheduled</p>
-                          <p className="font-medium text-foreground">{unit.nextMaintenance}</p>
-                        </div>
+                      <div className="flex items-center gap-2">
+                        <Badge className={`${getStatusColor(unit.status)} rounded-lg`}>{unit.status}</Badge>
+                        <Button variant="ghost" size="sm" className="h-9 w-9 p-0 min-w-[36px] rounded-lg text-foreground/80 hover:bg-primary/15 hover:text-primary" onClick={(e) => openEditUnit(unit, e)} title="Edit unit" aria-label="Edit unit">
+                          <Pencil className="w-4 h-4" strokeWidth={2} />
+                        </Button>
+                        <Button variant="ghost" size="sm" className={`h-9 w-9 p-0 min-w-[36px] rounded-lg ${isLight ? 'text-foreground/80 hover:bg-red-500/10 hover:text-red-600' : 'text-foreground/80 hover:bg-red-500/20 hover:text-red-400'}`} onClick={(e) => handleDeleteUnit(unit.id, e)} title="Delete unit" aria-label="Delete unit">
+                          <Trash2 className="w-4 h-4" strokeWidth={2} />
+                        </Button>
                       </div>
                     </div>
-                  ))}
-                  {deptUnits.length === 0 && (
-                    <p className="text-center text-gray-500 py-6">No units yet. Add one to get started.</p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+                    <div className="grid grid-cols-2 gap-3 text-xs">
+                      <div className={`rounded-lg p-3 ${isLight ? 'bg-white/80 border border-gray-200/80' : 'bg-white/5 border border-white/10'}`}>
+                        <p className="text-muted mb-0.5">Last Maintenance</p>
+                        <p className="font-medium text-foreground">{unit.lastMaintenance || '—'}</p>
+                      </div>
+                      <div className={`rounded-lg p-3 ${isLight ? 'bg-white/80 border border-gray-200/80' : 'bg-white/5 border border-white/10'}`}>
+                        <p className="text-muted mb-0.5">Next Scheduled</p>
+                        <p className="font-medium text-foreground">{unit.nextMaintenance || '—'}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {deptUnits.length === 0 && (
+                  <p className="text-center text-muted py-8">No units yet. Add one to get started.</p>
+                )}
+              </div>
+            </div>
           </TabsContent>
 
           <TabsContent value="personnel" className="mt-6">
-            <Card hover={false}>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center gap-2">
-                    <UsersIcon className="w-5 h-5" />
-                    Department Personnel
-                  </CardTitle>
-                  <Button
-                    onClick={openAddPersonnel}
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl font-medium text-sm text-white bg-[#134178] hover:bg-[#0f3256] focus:ring-2 focus:ring-[#134178] focus:ring-offset-2"
+            <div className={panelClass}>
+              <div className={headerClass}>
+                <span className={iconBoxClass('primary')}>
+                  <UsersIcon className="w-5 h-5" strokeWidth={2} />
+                </span>
+                <span className="font-medium text-foreground flex-1">Department Personnel</span>
+                <Button onClick={openAddPersonnel} className="rounded-xl gap-2 bg-primary hover:bg-primary-hover text-white font-medium" size="default">
+                  <Plus className="w-4 h-4" strokeWidth={2} />
+                  Add Personnel
+                </Button>
+              </div>
+              <div className="p-4 space-y-3">
+                {deptPersonnel.map((person, index) => (
+                  <div
+                    key={person.id || index}
+                    className={`rounded-xl border p-4 transition-all duration-200 ${isLight ? 'bg-gray-50/80 border-gray-200/80 hover:border-gray-300' : 'bg-white/5 border-white/10 hover:border-white/20'}`}
                   >
-                    <Plus className="w-4 h-4" />
-                    Add Personnel
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {deptPersonnel.map((person, index) => (
-                    <div key={person.id || index} className="p-4 bg-secondary/20 rounded-lg border border-border">
-                      <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        <span className={iconSmClass('primary')}>
+                          <UsersIcon className="w-4 h-4" strokeWidth={2} />
+                        </span>
                         <div>
                           <p className="font-semibold text-foreground">{person.name}</p>
-                          <p className="text-sm text-gray-600">{person.role}</p>
-                          <p className="text-xs text-gray-500 mt-1">Unit: {person.unit}</p>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <Badge className={getStatusColor(person.status)}>
-                            {person.status}
-                          </Badge>
-                          <Button variant="ghost" size="sm" className="h-9 w-9 p-0 min-w-[36px] text-[#134178] hover:bg-blue-50" onClick={(e) => openEditPersonnel(person, e)} title="Edit personnel" aria-label="Edit personnel">
-                            <Pencil className="w-5 h-5" />
-                          </Button>
-                          <Button variant="ghost" size="sm" className="h-9 w-9 p-0 min-w-[36px] text-red-600 hover:bg-red-50" onClick={(e) => handleDeletePersonnel(person, e)} title="Remove personnel" aria-label="Remove personnel">
-                            <Trash2 className="w-5 h-5" />
-                          </Button>
+                          <p className="text-sm text-muted">{person.role}</p>
+                          <p className="text-xs text-muted mt-0.5">Unit: {person.unit}</p>
                         </div>
                       </div>
-
-                      {person.certifications && person.certifications.length > 0 && (
-                        <div className="mb-3">
-                          <Label className="text-xs text-gray-600 mb-2 flex items-center gap-1">
-                            <Award className="w-3 h-3" />
-                            Certifications
-                          </Label>
-                          <div className="space-y-2">
-                            {person.certifications.map((cert, idx) => (
-                              <div key={idx} className="flex items-center justify-between p-2 bg-card rounded border border-border">
-                                <div className="flex-1">
-                                  <p className="text-xs font-medium text-foreground">{cert.name}</p>
-                                  <p className="text-xs text-gray-500">Valid until: {cert.validUntil}</p>
-                                </div>
-                                {getCertificationStatus(cert.status)}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {person.specialSkills && person.specialSkills.length > 0 && (
-                        <div>
-                          <Label className="text-xs text-gray-600 mb-2 block">Special Skills</Label>
-                          <div className="flex flex-wrap gap-1">
-                            {person.specialSkills.map((skill, idx) => (
-                              <Badge key={idx} variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
-                                {skill}
-                              </Badge>
-                            ))}
-                          </div>
-                        </div>
-                      )}
+                      <div className="flex items-center gap-2">
+                        <Badge className={`${getStatusColor(person.status)} rounded-lg`}>{person.status}</Badge>
+                        <Button variant="ghost" size="sm" className="h-9 w-9 p-0 min-w-[36px] rounded-lg text-foreground/80 hover:bg-primary/15 hover:text-primary" onClick={(e) => openEditPersonnel(person, e)} title="Edit personnel" aria-label="Edit personnel">
+                          <Pencil className="w-4 h-4" strokeWidth={2} />
+                        </Button>
+                        <Button variant="ghost" size="sm" className={`h-9 w-9 p-0 min-w-[36px] rounded-lg ${isLight ? 'text-foreground/80 hover:bg-red-500/10 hover:text-red-600' : 'text-foreground/80 hover:bg-red-500/20 hover:text-red-400'}`} onClick={(e) => handleDeletePersonnel(person, e)} title="Remove personnel" aria-label="Remove personnel">
+                          <Trash2 className="w-4 h-4" strokeWidth={2} />
+                        </Button>
+                      </div>
                     </div>
-                  ))}
-                  {deptPersonnel.length === 0 && (
-                    <p className="text-center text-gray-500 py-6">No personnel yet. Add one to get started.</p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+
+                    {person.certifications && person.certifications.length > 0 && (
+                      <div className="mb-3">
+                        <Label className="text-xs text-muted mb-2 flex items-center gap-2">
+                          <span className={iconSmClass()}>
+                            <Award className="w-3.5 h-3.5" strokeWidth={2} />
+                          </span>
+                          Certifications
+                        </Label>
+                        <div className="space-y-2">
+                          {person.certifications.map((cert, idx) => (
+                            <div key={idx} className={`flex items-center justify-between p-3 rounded-lg ${isLight ? 'bg-white/80 border border-gray-200/80' : 'bg-white/5 border border-white/10'}`}>
+                              <div className="flex-1">
+                                <p className="text-xs font-medium text-foreground">{cert.name}</p>
+                                <p className="text-xs text-muted">Valid until: {cert.validUntil}</p>
+                              </div>
+                              {getCertificationStatus(cert.status)}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {person.specialSkills && person.specialSkills.length > 0 && (
+                      <div>
+                        <Label className="text-xs text-muted mb-2 block">Special Skills</Label>
+                        <div className="flex flex-wrap gap-1.5">
+                          {person.specialSkills.map((skill, idx) => (
+                            <Badge key={idx} variant="outline" className="text-xs bg-primary/10 text-primary border-primary/30 rounded-lg">
+                              {skill}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+                {deptPersonnel.length === 0 && (
+                  <p className="text-center text-muted py-8">No personnel yet. Add one to get started.</p>
+                )}
+              </div>
+            </div>
           </TabsContent>
 
           <TabsContent value="tasks" className="mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <ClipboardList className="w-5 h-5" />
-                  Active Tasks
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {deptIncidents.map((incident) => (
-                    <div
-                      key={incident.id}
-                      className="p-4 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 cursor-pointer transition-colors"
-                      onClick={() => navigate(`/incidents/${incident.id}`)}
-                    >
-                      <div className="flex items-start justify-between mb-2">
-                        <p className="font-semibold text-gray-900">{incident.id}</p>
-                        <Badge className="bg-amber-100 text-amber-700 border-amber-200">
-                          {incident.status}
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-gray-600 mb-1">{incident.description}</p>
-                      <p className="text-xs text-gray-500">Barangay: {incident.barangay}</p>
+            <div className={panelClass}>
+              <div className={headerClass}>
+                <span className={iconBoxClass('primary')}>
+                  <ClipboardList className="w-5 h-5" strokeWidth={2} />
+                </span>
+                <span className="font-medium text-foreground">Active Tasks</span>
+              </div>
+              <div className="p-4 space-y-3">
+                {deptIncidents.map((incident) => (
+                  <div
+                    key={incident.id}
+                    className={`rounded-xl border p-4 cursor-pointer transition-all duration-200 ${isLight ? 'bg-gray-50/80 border-gray-200/80 hover:bg-gray-100/80 hover:border-gray-300' : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20'}`}
+                    onClick={() => navigate(`/incidents/${incident.id}`)}
+                  >
+                    <div className="flex items-start justify-between mb-2">
+                      <p className="font-semibold text-foreground">{incident.id}</p>
+                      <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/40 rounded-lg">
+                        {incident.status}
+                      </Badge>
                     </div>
-                  ))}
-                  {deptIncidents.length === 0 && (
-                    <div className="text-center py-12">
-                      <CheckCircle className="w-12 h-12 text-green-600 mx-auto mb-3" />
-                      <p className="text-gray-600">No active tasks at this time</p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+                    <p className="text-sm text-muted mb-1">{incident.description}</p>
+                    <p className="text-xs text-muted">Barangay: {incident.barangay}</p>
+                  </div>
+                ))}
+                {deptIncidents.length === 0 && (
+                  <div className="text-center py-12">
+                    <span className={`inline-flex w-14 h-14 rounded-2xl items-center justify-center mb-4 ${isLight ? 'neumorphic-light-inset bg-gray-100 text-severity-resolved' : 'neumorphic-dark-inset bg-white/10 text-severity-resolved'}`}>
+                      <CheckCircle className="w-7 h-7" strokeWidth={2} />
+                    </span>
+                    <p className="text-muted">No active tasks at this time</p>
+                  </div>
+                )}
+              </div>
+            </div>
           </TabsContent>
         </Tabs>
 
@@ -613,13 +681,13 @@ export function DepartmentDetailsPage() {
                 />
               </div>
             </div>
-            <div className="px-6 py-4 bg-secondary/20 border-t border-border flex justify-start gap-3 rounded-b-2xl">
-              <button type="button" onClick={handleSaveUnit} className="px-5 py-2.5 rounded-xl font-medium text-sm text-white bg-secondary hover:bg-secondary-hover focus:ring-2 focus:ring-secondary focus:ring-offset-2 focus:ring-offset-background">
+            <div className={`px-6 py-4 border-t flex justify-between items-center gap-3 rounded-b-2xl ${isLight ? 'bg-gray-50/90 border-gray-200' : 'bg-white/5 border-border'}`}>
+              <Button type="button" onClick={handleSaveUnit} className="rounded-xl bg-primary hover:bg-primary-hover text-white font-medium px-5 py-2.5">
                 {editingUnit ? 'Save Changes' : 'Add Unit'}
-              </button>
-              <button type="button" onClick={() => setUnitDialogOpen(false)} className="px-4 py-2.5 rounded-xl font-medium text-sm text-foreground bg-card border border-border hover:bg-secondary/30 focus:ring-2 focus:ring-secondary focus:ring-offset-2 focus:ring-offset-background">
+              </Button>
+              <Button type="button" variant="outline" onClick={() => setUnitDialogOpen(false)} className="rounded-xl font-medium px-5 py-2.5 text-foreground hover:bg-muted/50 hover:text-foreground">
                 Cancel
-              </button>
+              </Button>
             </div>
           </DialogContent>
         </Dialog>
@@ -707,13 +775,13 @@ export function DepartmentDetailsPage() {
                 />
               </div>
             </div>
-            <div className="px-6 py-4 bg-secondary/20 border-t border-border flex justify-start gap-3 rounded-b-2xl">
-              <button type="button" onClick={handleSavePersonnel} className="px-5 py-2.5 rounded-xl font-medium text-sm text-white bg-secondary hover:bg-secondary-hover focus:ring-2 focus:ring-secondary focus:ring-offset-2 focus:ring-offset-background">
+            <div className={`px-6 py-4 border-t flex justify-between items-center gap-3 rounded-b-2xl ${isLight ? 'bg-gray-50/90 border-gray-200' : 'bg-white/5 border-border'}`}>
+              <Button type="button" onClick={handleSavePersonnel} className="rounded-xl bg-primary hover:bg-primary-hover text-white font-medium px-5 py-2.5">
                 {editingPersonnel ? 'Save Changes' : 'Add Personnel'}
-              </button>
-              <button type="button" onClick={() => setPersonnelDialogOpen(false)} className="px-4 py-2.5 rounded-xl font-medium text-sm text-foreground bg-card border border-border hover:bg-secondary/30 focus:ring-2 focus:ring-secondary focus:ring-offset-2 focus:ring-offset-background">
+              </Button>
+              <Button type="button" variant="outline" onClick={() => setPersonnelDialogOpen(false)} className="rounded-xl font-medium px-5 py-2.5 text-foreground hover:bg-muted/50 hover:text-foreground">
                 Cancel
-              </button>
+              </Button>
             </div>
           </DialogContent>
         </Dialog>

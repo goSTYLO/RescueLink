@@ -3,6 +3,7 @@ export default {
     "./index.html",
     "./src/**/*.{js,jsx}",
   ],
+  darkMode: ['class', '[data-theme="dark"]'],
   theme: {
     extend: {
       fontFamily: {
@@ -25,6 +26,7 @@ export default {
         foreground: 'var(--color-foreground)',
         muted: 'var(--color-muted)',
         border: 'var(--color-border)',
+        destructive: '#DC2626',
         severity: {
           critical: '#FF4F52',
           warning: '#F59E0B',

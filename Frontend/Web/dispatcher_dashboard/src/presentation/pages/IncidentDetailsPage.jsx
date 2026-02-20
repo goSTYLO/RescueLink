@@ -1,6 +1,5 @@
 import { Layout } from '@/presentation/components/layout/Layout';
 import { IncidentMap } from '@/presentation/components/common/IncidentMap';
-import { Card, CardContent, CardHeader, CardTitle } from '@/presentation/components/ui/Card';
 import { Badge } from '@/presentation/components/ui/Badge';
 import { Button } from '@/presentation/components/ui/Button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/presentation/components/ui/Tabs';
@@ -30,6 +29,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { getIncidentById, getIncidentAudioUrl, verifyIncident } from '@/data/api/incidents.api';
 import { DEV_MODE } from '@/core/config/app.config';
 import { Loader2 } from 'lucide-react';
+import { useTheme } from '@/presentation/context/ThemeContext.jsx';
 
 function mapApiToIncidentDetails(api) {
   const firstName = api.reporter_first_name || '';
@@ -81,6 +81,8 @@ function mapApiToIncidentDetails(api) {
 export function IncidentDetailsPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { theme } = useTheme();
+  const isLight = theme === 'light';
   const [incident, setIncident] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -284,34 +286,33 @@ export function IncidentDetailsPage() {
     }
   };
 
+  const panelClass = `rounded-2xl border overflow-hidden transition-all duration-300 ${isLight ? 'glass neumorphic-light bg-white/80' : 'glass neumorphic-dark bg-card/60'}`;
+  const headerClass = `flex items-center gap-3 px-4 py-3 border-b ${isLight ? 'border-gray-200/80 bg-gray-50/50' : 'border-white/10 bg-white/5'}`;
+  const iconBoxClass = `w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${isLight ? 'neumorphic-light-inset bg-gray-100 text-primary' : 'neumorphic-dark-inset bg-white/10 text-primary'}`;
+
   return (
     <Layout>
-      <div className="p-8">
-        {/* Header */}
-        <div className="mb-6 flex items-center gap-4">
-          <Button
-            variant="ghost"
-            onClick={() => navigate(-1)}
-            className="gap-2"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back
-          </Button>
-        </div>
-
-        <div className="mb-6">
-          <div className="flex items-start justify-between">
+      <div className="p-4 md:p-6">
+        {/* Header with back + incident title – glass */}
+        <div className={`mb-6 rounded-2xl border overflow-hidden ${isLight ? 'glass neumorphic-light bg-white/80' : 'glass neumorphic-dark bg-card/60'}`}>
+          <div className={`flex items-center gap-4 px-4 py-3 border-b ${isLight ? 'border-gray-200/80 bg-gray-50/50' : 'border-white/10 bg-white/5'}`}>
+            <Button variant="ghost" onClick={() => navigate(-1)} className="gap-2 rounded-xl">
+              <ArrowLeft className="w-4 h-4" />
+              Back
+            </Button>
+          </div>
+          <div className="p-5 flex flex-wrap items-start justify-between gap-4">
             <div>
-              <div className="flex items-center gap-3">
-                <h1 className="text-3xl font-semibold text-foreground">{incident.id}</h1>
+              <div className="flex items-center gap-3 flex-wrap">
+                <h1 className="text-2xl font-semibold text-foreground">{incident.id}</h1>
                 {incident.highPriority && (
-                  <Badge className="bg-primary/20 text-primary border-primary/50">
+                  <Badge className="bg-primary/20 text-primary border-primary/50 rounded-lg">
                     <AlertTriangle className="w-3 h-3 mr-1" />
                     High Priority
                   </Badge>
                 )}
                 {incident.status === 'Duplicate' && (
-                  <Badge variant="outline" className="bg-card text-muted border-[rgba(19,65,120,0.35)]">
+                  <Badge variant="outline" className="bg-card text-muted border-border rounded-lg">
                     <Copy className="w-3 h-3 mr-1" />
                     Duplicate
                   </Badge>
@@ -319,12 +320,10 @@ export function IncidentDetailsPage() {
               </div>
               <p className="text-muted mt-1">{incident.emergencyType} Incident</p>
               {incident.timeReported && (
-                <p className="text-sm text-muted mt-0.5">
-                  Reported: {incident.timeReported}
-                </p>
+                <p className="text-sm text-muted mt-0.5">Reported: {incident.timeReported}</p>
               )}
             </div>
-            <Badge className={getSeverityColor(incident.severity)}>
+            <Badge className={`${getSeverityColor(incident.severity)} rounded-lg px-3 py-1`}>
               {incident.severity}
             </Badge>
           </div>
@@ -332,16 +331,12 @@ export function IncidentDetailsPage() {
 
         {/* Duplicate Warning */}
         {possibleDuplicates.length > 0 && incident.status !== 'Duplicate' && (
-          <Alert className="mb-6 border-amber-500/40 bg-amber-500/15">
-            <AlertCircle className="h-4 w-4 text-amber-400" />
-            <AlertTitle className="text-amber-400">Possible Duplicate Detected</AlertTitle>
+          <Alert className={`mb-6 rounded-xl border ${isLight ? 'border-amber-500/40 bg-amber-500/15' : 'border-amber-500/30 bg-amber-500/10'}`}>
+            <AlertCircle className="h-4 w-4 text-amber-500" />
+            <AlertTitle className="text-amber-600 dark:text-amber-400">Possible Duplicate Detected</AlertTitle>
             <AlertDescription className="text-foreground/90">
-              This incident may be related to {possibleDuplicates.length} other report(s). 
-              <Button 
-                variant="link" 
-                className="text-amber-400 underline p-0 ml-2 h-auto"
-                onClick={() => setDuplicateDialogOpen(true)}
-              >
+              This incident may be related to {possibleDuplicates.length} other report(s).{' '}
+              <Button variant="link" className="text-amber-600 dark:text-amber-400 underline p-0 ml-2 h-auto" onClick={() => setDuplicateDialogOpen(true)}>
                 Review duplicates
               </Button>
             </AlertDescription>
@@ -349,7 +344,7 @@ export function IncidentDetailsPage() {
         )}
 
         <Tabs defaultValue="details" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5 lg:w-auto lg:inline-grid">
+          <TabsList className={`grid w-full grid-cols-5 lg:w-auto lg:inline-grid rounded-xl p-1 gap-1 ${isLight ? 'bg-gray-100 border border-gray-200' : 'bg-white/10 border border-white/10'}`}>
             <TabsTrigger value="details">Details</TabsTrigger>
             <TabsTrigger value="timeline">Timeline</TabsTrigger>
             <TabsTrigger value="coordination">Coordination</TabsTrigger>
@@ -363,11 +358,12 @@ export function IncidentDetailsPage() {
               {/* Left Column - Details */}
               <div className="lg:col-span-2 space-y-6">
                 {/* Reporter Info */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Reporter Information</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
+                <div className={panelClass}>
+                  <div className={headerClass}>
+                    <div className={iconBoxClass}><User className="w-4 h-4" /></div>
+                    <h2 className="text-base font-semibold text-foreground">Reporter Information</h2>
+                  </div>
+                  <div className="p-4 space-y-4">
                     <div className="flex items-center gap-3">
                       <User className="w-5 h-5 text-muted" />
                       <div>
@@ -382,21 +378,22 @@ export function IncidentDetailsPage() {
                         <p className="font-medium text-foreground">{incident.reporterPhone}</p>
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
 
                 {/* Location */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Location Details</CardTitle>
-                  </CardHeader>
-                  <CardContent>
+                <div className={panelClass}>
+                  <div className={headerClass}>
+                    <div className={iconBoxClass}><MapPin className="w-4 h-4" /></div>
+                    <h2 className="text-base font-semibold text-foreground">Location Details</h2>
+                  </div>
+                  <div className="p-4">
                     <div className="flex items-start gap-3 mb-4">
-                      <MapPin className="w-5 h-5 text-[#134178] mt-1" />
+                      <MapPin className="w-5 h-5 text-primary mt-1 flex-shrink-0" />
                       <div>
                         <p className="font-medium text-foreground">{incident.barangay}</p>
-                        <p className="text-sm text-gray-600">Barangay, Dagupan City</p>
-                        <p className="text-xs text-gray-500 mt-1">
+                        <p className="text-sm text-muted">Barangay, Dagupan City</p>
+                        <p className="text-xs text-muted mt-1">
                           Coordinates: {incident.location.lat}, {incident.location.lng}
                         </p>
                       </div>
@@ -404,46 +401,49 @@ export function IncidentDetailsPage() {
                     <IncidentMap
                       latitude={incident.location.lat}
                       longitude={incident.location.lng}
-                      className="w-full h-48 rounded-lg overflow-hidden"
+                      className="w-full h-48 rounded-xl overflow-hidden border border-border"
                     />
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
 
                 {/* Incident Description */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Incident Description</CardTitle>
-                  </CardHeader>
-                  <CardContent>
+                <div className={panelClass}>
+                  <div className={headerClass}>
+                    <div className={iconBoxClass}><FileText className="w-4 h-4" /></div>
+                    <h2 className="text-base font-semibold text-foreground">Incident Description</h2>
+                  </div>
+                  <div className="p-4">
                     <p className="text-foreground">{incident.description}</p>
                     {incident.aiSuggestion && (
-                      <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-100">
-                        <p className="text-sm text-blue-900"><strong>AI Suggestion:</strong> {incident.aiSuggestion}</p>
+                      <div className={`mt-4 p-3 rounded-xl border ${isLight ? 'bg-primary/10 border-primary/20' : 'bg-primary/20 border-primary/30'}`}>
+                        <p className="text-sm text-foreground"><strong>AI Suggestion:</strong> {incident.aiSuggestion}</p>
                       </div>
                     )}
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
 
                 {/* Voice Transcription */}
                 {incident.transcription && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Voice Transcription</CardTitle>
-                    </CardHeader>
-                    <CardContent>
+                  <div className={panelClass}>
+                    <div className={headerClass}>
+                      <div className={iconBoxClass}><FileText className="w-4 h-4" /></div>
+                      <h2 className="text-base font-semibold text-foreground">Voice Transcription</h2>
+                    </div>
+                    <div className="p-4">
                       <p className="text-foreground whitespace-pre-wrap">{incident.transcription}</p>
-                    </CardContent>
-                  </Card>
+                    </div>
+                  </div>
                 )}
 
                 {/* Media */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Media & Evidence</CardTitle>
-                  </CardHeader>
-                  <CardContent>
+                <div className={panelClass}>
+                  <div className={headerClass}>
+                    <div className={iconBoxClass}><FileText className="w-4 h-4" /></div>
+                    <h2 className="text-base font-semibold text-foreground">Media & Evidence</h2>
+                  </div>
+                  <div className="p-4">
                     <div className="space-y-3">
-                      <div className="p-4 bg-secondary/20 rounded-lg border border-border">
+                      <div className={`p-4 rounded-xl border ${isLight ? 'bg-gray-50/80 border-gray-200' : 'bg-secondary/20 border-border'}`}>
                         <p className="text-sm text-muted mb-2">Voice Recording</p>
                         {audioLoading && (
                           <div className="flex items-center gap-2 text-muted text-sm">
@@ -471,144 +471,140 @@ export function IncidentDetailsPage() {
                       <div className="grid grid-cols-2 gap-3">
                         {(incident.mediaPaths || []).length > 0 ? (
                           (incident.mediaPaths || []).map((path, idx) => (
-                            <div key={idx} className="aspect-video bg-muted/30 rounded-lg flex items-center justify-center border border-border">
+                            <div key={idx} className="aspect-video bg-muted/30 rounded-xl flex items-center justify-center border border-border">
                               <p className="text-sm text-muted">Photo {idx + 1}</p>
                             </div>
                           ))
                         ) : (
-                          <div className="col-span-2 p-6 bg-muted/20 rounded-lg border border-dashed border-border flex items-center justify-center">
+                          <div className="col-span-2 p-6 bg-muted/20 rounded-xl border border-dashed border-border flex items-center justify-center">
                             <p className="text-sm text-muted">No photos provided for this incident</p>
                           </div>
                         )}
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
 
                 {/* Cross-Department Info */}
                 {incident.assignedDepartments && incident.assignedDepartments.length > 1 && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Users className="w-5 h-5" />
-                        Multi-Department Coordination
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
+                  <div className={panelClass}>
+                    <div className={headerClass}>
+                      <div className={iconBoxClass}><Users className="w-4 h-4" /></div>
+                      <h2 className="text-base font-semibold text-foreground">Multi-Department Coordination</h2>
+                    </div>
+                    <div className="p-4 space-y-4">
                       <div>
-                        <Label className="text-sm text-gray-600">Lead Department</Label>
+                        <Label className="text-sm text-muted">Lead Department</Label>
                         <div className="flex items-center gap-2 mt-1">
-                          <Shield className="w-4 h-4 text-[#134178]" />
+                          <Shield className="w-4 h-4 text-primary" />
                           <span className="font-medium text-foreground">{incident.leadDepartment}</span>
                         </div>
                       </div>
                       <Separator />
                       <div>
-                        <Label className="text-sm text-gray-600 mb-2 block">Supporting Departments</Label>
+                        <Label className="text-sm text-muted mb-2 block">Supporting Departments</Label>
                         <div className="space-y-2">
                           {incident.assignedDepartments
                             .filter(dept => dept !== incident.leadDepartment)
                             .map((dept, idx) => (
-                              <div key={idx} className="flex items-center gap-2 p-2 bg-secondary/20 rounded-lg">
-                                <div className="w-2 h-2 rounded-full bg-[#134178]"></div>
+                              <div key={idx} className={`flex items-center gap-2 p-2 rounded-lg ${isLight ? 'bg-gray-50' : 'bg-secondary/20'}`}>
+                                <div className="w-2 h-2 rounded-full bg-primary" />
                                 <span className="text-sm text-foreground">{dept}</span>
                               </div>
                             ))}
                         </div>
                       </div>
-                    </CardContent>
-                  </Card>
+                    </div>
+                  </div>
                 )}
 
                 {/* Closure Information (if closed) */}
                 {incident.closureData && (
-                  <Card className="border-green-200 bg-green-50">
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2 text-green-900">
-                        <CheckCircle className="w-5 h-5" />
-                        Incident Closure Information
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
+                  <div className={`${panelClass} ${isLight ? 'border-severity-resolved/40' : 'border-severity-resolved/30'}`}>
+                    <div className={headerClass}>
+                      <div className={`${iconBoxClass} ${isLight ? '!bg-severity-resolved/20 !text-severity-resolved' : '!bg-severity-resolved/20 !text-severity-resolved'}`}><CheckCircle className="w-4 h-4" /></div>
+                      <h2 className="text-base font-semibold text-foreground">Incident Closure Information</h2>
+                    </div>
+                    <div className="p-4 space-y-3">
                       <div>
-                        <Label className="text-sm text-green-700">Closed By</Label>
-                        <p className="font-medium text-green-900">{incident.closureData.closedBy}</p>
+                        <Label className="text-sm text-muted">Closed By</Label>
+                        <p className="font-medium text-foreground">{incident.closureData.closedBy}</p>
                       </div>
                       <div>
-                        <Label className="text-sm text-green-700">Closed At</Label>
-                        <p className="text-sm text-green-900">{incident.closureData.closedAt}</p>
+                        <Label className="text-sm text-muted">Closed At</Label>
+                        <p className="text-sm text-foreground">{incident.closureData.closedAt}</p>
                       </div>
                       <div>
-                        <Label className="text-sm text-green-700">Outcome</Label>
-                        <p className="text-sm text-green-900">{incident.closureData.outcome}</p>
+                        <Label className="text-sm text-muted">Outcome</Label>
+                        <p className="text-sm text-foreground">{incident.closureData.outcome}</p>
                       </div>
                       <div>
-                        <Label className="text-sm text-green-700">Classification</Label>
-                        <Badge className="bg-green-100 text-green-800 border-green-300">
+                        <Label className="text-sm text-muted">Classification</Label>
+                        <Badge className="bg-severity-resolved/20 text-severity-resolved border-severity-resolved/40 rounded-lg">
                           {incident.closureData.classification}
                         </Badge>
                       </div>
-                    </CardContent>
-                  </Card>
+                    </div>
+                  </div>
                 )}
               </div>
 
               {/* Right Column - Actions */}
               <div className="space-y-6">
                 {/* Status */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Status</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
+                <div className={panelClass}>
+                  <div className={headerClass}>
+                    <div className={iconBoxClass}><Clock className="w-4 h-4" /></div>
+                    <h2 className="text-base font-semibold text-foreground">Status</h2>
+                  </div>
+                  <div className="p-4 space-y-3">
                     <div>
-                      <p className="text-sm text-gray-600 mb-1">Current Status</p>
-                      <Badge variant="outline" className="border-gray-300">{incident.status}</Badge>
+                      <p className="text-sm text-muted mb-1">Current Status</p>
+                      <Badge variant="outline" className="border-border rounded-lg">{incident.status}</Badge>
                     </div>
                     <div>
-                      <p className="text-sm text-gray-600 mb-1">Verified</p>
+                      <p className="text-sm text-muted mb-1">Verified</p>
                       <div className="flex items-center gap-2">
                         {incident.verified ? (
                           <>
-                            <CheckCircle className="w-4 h-4 text-green-600" />
-                            <span className="text-sm text-green-700">Verified</span>
+                            <CheckCircle className="w-4 h-4 text-severity-resolved" />
+                            <span className="text-sm text-severity-resolved">Verified</span>
                           </>
                         ) : (
                           <>
-                            <XCircle className="w-4 h-4 text-red-600" />
-                            <span className="text-sm text-red-700">Not Verified</span>
+                            <XCircle className="w-4 h-4 text-primary" />
+                            <span className="text-sm text-primary">Not Verified</span>
                           </>
                         )}
                       </div>
                     </div>
                     <div>
-                      <p className="text-sm text-gray-600 mb-1">Time Reported</p>
+                      <p className="text-sm text-muted mb-1">Time Reported</p>
                       <p className="text-sm font-medium text-foreground">{incident.timeReported}</p>
                     </div>
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
 
                 {/* Department */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Primary Department</CardTitle>
-                  </CardHeader>
-                  <CardContent>
+                <div className={panelClass}>
+                  <div className={headerClass}>
+                    <div className={iconBoxClass}><Shield className="w-4 h-4" /></div>
+                    <h2 className="text-base font-semibold text-foreground">Primary Department</h2>
+                  </div>
+                  <div className="p-4">
                     <p className="font-medium text-foreground">{incident.assignedDepartment}</p>
-                    <p className="text-sm text-gray-600 mt-1">{incident.emergencyType} Response Team</p>
-                  </CardContent>
-                </Card>
+                    <p className="text-sm text-muted mt-1">{incident.emergencyType} Response Team</p>
+                  </div>
+                </div>
 
                 {/* Escalation Controls (Supervisor/Admin Only) */}
                 {isSupervisor && incident.status !== 'Resolved' && incident.status !== 'Duplicate' && (
-                  <Card className="border-amber-500/30">
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2 text-amber-900">
-                        <TrendingUp className="w-5 h-5" />
-                        Escalation Controls
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
+                  <div className={`${panelClass} ${isLight ? 'border-amber-500/30' : 'border-amber-500/40'}`}>
+                    <div className={headerClass}>
+                      <div className={`${iconBoxClass} ${isLight ? '!bg-amber-500/20 !text-amber-600' : '!bg-amber-500/20 !text-amber-400'}`}><TrendingUp className="w-4 h-4" /></div>
+                      <h2 className="text-base font-semibold text-foreground">Escalation Controls</h2>
+                    </div>
+                    <div className="p-4 space-y-3">
                       <Dialog open={escalateDialogOpen} onOpenChange={setEscalateDialogOpen}>
                         <DialogTrigger asChild>
                           <Button className="w-full bg-amber-600 hover:bg-amber-700 gap-2">
@@ -716,16 +712,17 @@ export function IncidentDetailsPage() {
                         <Star className="w-4 h-4" />
                         {incident.highPriority ? 'Remove Priority' : 'Mark High Priority'}
                       </Button>
-                    </CardContent>
-                  </Card>
+                    </div>
+                  </div>
                 )}
 
                 {/* Actions */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Quick Actions</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
+                <div className={panelClass}>
+                  <div className={headerClass}>
+                    <div className={iconBoxClass}><Wrench className="w-4 h-4" /></div>
+                    <h2 className="text-base font-semibold text-foreground">Quick Actions</h2>
+                  </div>
+                  <div className="p-4 space-y-3">
                     {!incident.verified && (
                       <>
                         <Button
@@ -773,7 +770,7 @@ export function IncidentDetailsPage() {
                         </Dialog>
                       </>
                     )}
-                    <Button variant="outline" className="w-full gap-2">
+                    <Button variant="outline" className="w-full gap-2 rounded-xl">
                       <Bell className="w-4 h-4" />
                       Notify Responders
                     </Button>
@@ -782,7 +779,7 @@ export function IncidentDetailsPage() {
                     {possibleDuplicates.length > 0 && (
                       <Button 
                         variant="outline" 
-                        className="w-full gap-2 text-amber-600 border-amber-200 hover:bg-amber-50"
+                        className={`w-full gap-2 rounded-xl ${isLight ? 'text-amber-600 border-amber-200 hover:bg-amber-50' : 'text-amber-400 border-amber-500/40 hover:bg-amber-500/20'}`}
                         onClick={() => setDuplicateDialogOpen(true)}
                       >
                         <Merge className="w-4 h-4" />
@@ -792,7 +789,7 @@ export function IncidentDetailsPage() {
 
                     <Button 
                       variant="outline" 
-                      className="w-full gap-2 text-red-600 border-red-200 hover:bg-red-50"
+                      className={`w-full gap-2 rounded-xl ${isLight ? 'text-primary border-primary/40 hover:bg-primary/10' : 'text-primary border-primary/50 hover:bg-primary/20'}`}
                       onClick={handleMarkFalse}
                     >
                       <XCircle className="w-4 h-4" />
@@ -856,60 +853,59 @@ export function IncidentDetailsPage() {
                         </DialogContent>
                       </Dialog>
                     )}
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
 
                 {/* Notes */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Quick Notes</CardTitle>
-                  </CardHeader>
-                  <CardContent>
+                <div className={panelClass}>
+                  <div className={headerClass}>
+                    <div className={iconBoxClass}><FileText className="w-4 h-4" /></div>
+                    <h2 className="text-base font-semibold text-foreground">Quick Notes</h2>
+                  </div>
+                  <div className="p-4">
                     <Textarea
-                      className="w-full resize-none"
+                      className={`w-full resize-none rounded-xl ${isLight ? 'bg-gray-50 border-gray-200' : 'bg-white/5 border-border'}`}
                       rows={4}
                       placeholder="Add quick notes about this incident..."
                     />
-                    <Button className="w-full mt-3 bg-[#134178] hover:bg-[#0f3256]">
+                    <Button className="w-full mt-3 rounded-xl bg-primary hover:bg-primary-hover">
                       Save Notes
                     </Button>
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
               </div>
             </div>
           </TabsContent>
 
           {/* TIMELINE TAB */}
           <TabsContent value="timeline">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Clock className="w-5 h-5" />
-                  Incident Timeline
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
+            <div className={panelClass}>
+              <div className={headerClass}>
+                <div className={iconBoxClass}><Clock className="w-4 h-4" /></div>
+                <h2 className="text-base font-semibold text-foreground">Incident Timeline</h2>
+              </div>
+              <div className="p-4">
                 <div className="space-y-4">
                   {timeline.map((event, idx) => (
                     <div key={idx} className="flex gap-4">
                       <div className="flex flex-col items-center">
-                        <div className="w-3 h-3 rounded-full bg-[#134178]"></div>
+                        <div className="w-3 h-3 rounded-full bg-primary" />
                         {idx < timeline.length - 1 && (
-                          <div className="w-0.5 h-full min-h-[40px] bg-gray-300"></div>
+                          <div className={`w-0.5 h-full min-h-[40px] ${isLight ? 'bg-gray-300' : 'bg-white/20'}`} />
                         )}
                       </div>
                       <div className="flex-1 pb-4">
                         <div className="flex items-start justify-between">
                           <div>
                             <p className="font-medium text-foreground">{event.action}</p>
-                            <p className="text-sm text-gray-600">
+                            <p className="text-sm text-muted">
                               {event.actor} ({event.actorRole})
                             </p>
                             {event.notes && (
-                              <p className="text-sm text-gray-500 mt-1 italic">{event.notes}</p>
+                              <p className="text-sm text-muted mt-1 italic">{event.notes}</p>
                             )}
                           </div>
-                          <span className="text-xs text-gray-500 whitespace-nowrap">
+                          <span className="text-xs text-muted whitespace-nowrap">
                             {event.timestamp}
                           </span>
                         </div>
@@ -917,75 +913,70 @@ export function IncidentDetailsPage() {
                     </div>
                   ))}
                   {timeline.length === 0 && (
-                    <p className="text-center text-gray-500 py-8">No timeline events yet</p>
+                    <p className="text-center text-muted py-8">No timeline events yet</p>
                   )}
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </TabsContent>
 
           {/* COORDINATION TAB */}
           <TabsContent value="coordination">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <MessageSquare className="w-5 h-5" />
-                  Cross-Department Coordination
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
+            <div className={panelClass}>
+              <div className={headerClass}>
+                <div className={iconBoxClass}><MessageSquare className="w-4 h-4" /></div>
+                <h2 className="text-base font-semibold text-foreground">Cross-Department Coordination</h2>
+              </div>
+              <div className="p-4 space-y-4">
                 {/* Coordination Notes */}
                 <div className="space-y-3">
                   {coordination.map((note, idx) => (
-                    <div key={idx} className="p-4 bg-secondary/20 rounded-lg border border-border">
+                    <div key={idx} className={`p-4 rounded-xl border ${isLight ? 'bg-gray-50 border-gray-200' : 'bg-secondary/20 border-border'}`}>
                       <div className="flex items-start justify-between mb-2">
-                        <Badge variant="outline" className="text-xs">
+                        <Badge variant="outline" className="text-xs rounded-lg">
                           {note.department}
                         </Badge>
-                        <span className="text-xs text-gray-500">{note.timestamp}</span>
+                        <span className="text-xs text-muted">{note.timestamp}</span>
                       </div>
                       <p className="text-sm text-foreground mb-1">{note.note}</p>
-                      <p className="text-xs text-gray-600">— {note.author}</p>
+                      <p className="text-xs text-muted">— {note.author}</p>
                     </div>
                   ))}
                   {coordination.length === 0 && (
-                    <p className="text-center text-gray-500 py-4">No coordination notes yet</p>
+                    <p className="text-center text-muted py-4">No coordination notes yet</p>
                   )}
                 </div>
 
                 <Separator />
 
-                {/* Add Coordination Note */}
                 <div>
-                  <Label>Add Coordination Note</Label>
+                  <Label className="text-sm text-muted">Add Coordination Note</Label>
                   <Textarea 
                     placeholder="Share updates with other departments..."
                     value={coordinationNote}
                     onChange={(e) => setCoordinationNote(e.target.value)}
                     rows={3}
-                    className="mt-2"
+                    className={`mt-2 rounded-xl ${isLight ? 'bg-gray-50 border-gray-200' : 'bg-white/5 border-border'}`}
                   />
                   <Button 
-                    className="w-full mt-3 bg-[#134178] hover:bg-[#0f3256]"
+                    className="w-full mt-3 rounded-xl bg-primary hover:bg-primary-hover"
                     onClick={handleAddCoordinationNote}
                   >
                     Add Note
                   </Button>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </TabsContent>
 
           {/* ESCALATION TAB */}
           <TabsContent value="escalation">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <TrendingUp className="w-5 h-5" />
-                  Escalation History
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
+            <div className={panelClass}>
+              <div className={headerClass}>
+                <div className={iconBoxClass}><TrendingUp className="w-4 h-4" /></div>
+                <h2 className="text-base font-semibold text-foreground">Escalation History</h2>
+              </div>
+              <div className="p-4">
                 <div className="space-y-4">
                   {escalations.map((esc, idx) => (
                     <div key={idx} className="p-4 bg-amber-500/10 rounded-lg border border-amber-500/30">
@@ -999,7 +990,7 @@ export function IncidentDetailsPage() {
                             {esc.toSeverity}
                           </Badge>
                         </div>
-                        <span className="text-xs text-gray-500">{esc.timestamp}</span>
+                        <span className="text-xs text-muted">{esc.timestamp}</span>
                       </div>
                       <p className="text-sm text-foreground mb-1">
                         <strong>Escalated by:</strong> {esc.escalatedBy}
@@ -1010,35 +1001,32 @@ export function IncidentDetailsPage() {
                     </div>
                   ))}
                   {escalations.length === 0 && (
-                    <p className="text-center text-gray-500 py-8">No escalations recorded</p>
+                    <p className="text-center text-muted py-8">No escalations recorded</p>
                   )}
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </TabsContent>
 
           {/* REVIEW TAB (Only shown if review exists) */}
           {review && (
             <TabsContent value="review">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <ThumbsUp className="w-5 h-5" />
-                    Post-Incident Review
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  {/* Response Time */}
+              <div className={panelClass}>
+                <div className={headerClass}>
+                  <div className={iconBoxClass}><ThumbsUp className="w-4 h-4" /></div>
+                  <h2 className="text-base font-semibold text-foreground">Post-Incident Review</h2>
+                </div>
+                <div className="p-4 space-y-6">
                   <div>
-                    <Label className="text-sm text-gray-600">Response Time</Label>
+                    <Label className="text-sm text-muted">Response Time</Label>
                     <div className="flex items-center gap-3 mt-1">
                       <p className="font-medium text-foreground">{review.responseTime}</p>
-                      <Badge className={
-                        review.responseTimeRating === 'Excellent' ? 'bg-green-100 text-green-700' :
-                        review.responseTimeRating === 'Good' ? 'bg-blue-100 text-blue-700' :
-                        review.responseTimeRating === 'Fair' ? 'bg-amber-100 text-amber-700' :
-                        'bg-red-100 text-red-700'
-                      }>
+                      <Badge className={`rounded-lg ${
+                        review.responseTimeRating === 'Excellent' ? 'bg-severity-resolved/20 text-severity-resolved border-severity-resolved/40' :
+                        review.responseTimeRating === 'Good' ? 'bg-secondary/20 text-secondary border-secondary/40' :
+                        review.responseTimeRating === 'Fair' ? 'bg-amber-500/20 text-amber-600 border-amber-500/40' :
+                        'bg-primary/20 text-primary border-primary/40'
+                      }`}>
                         {review.responseTimeRating}
                       </Badge>
                     </div>
@@ -1046,9 +1034,8 @@ export function IncidentDetailsPage() {
 
                   <Separator />
 
-                  {/* Issues Encountered */}
                   <div>
-                    <Label className="text-sm text-gray-600 mb-2 block">Issues Encountered</Label>
+                    <Label className="text-sm text-muted mb-2 block">Issues Encountered</Label>
                     <ul className="space-y-2">
                       {review.issuesEncountered.map((issue, idx) => (
                         <li key={idx} className="flex items-start gap-2">
@@ -1061,19 +1048,17 @@ export function IncidentDetailsPage() {
 
                   <Separator />
 
-                  {/* Supervisor Remarks */}
                   <div>
-                    <Label className="text-sm text-gray-600 mb-2 block">Supervisor Remarks</Label>
-                    <p className="text-sm text-foreground p-3 bg-primary/10 rounded-lg border border-primary/20">
+                    <Label className="text-sm text-muted mb-2 block">Supervisor Remarks</Label>
+                    <p className={`text-sm text-foreground p-3 rounded-xl border ${isLight ? 'bg-primary/10 border-primary/20' : 'bg-primary/20 border-primary/30'}`}>
                       {review.supervisorRemarks}
                     </p>
                   </div>
 
                   <Separator />
 
-                  {/* Recommendations */}
                   <div>
-                    <Label className="text-sm text-gray-600 mb-2 block">Recommendations</Label>
+                    <Label className="text-sm text-muted mb-2 block">Recommendations</Label>
                     <ul className="space-y-2">
                       {review.recommendations.map((rec, idx) => (
                         <li key={idx} className="flex items-start gap-2">
@@ -1086,32 +1071,30 @@ export function IncidentDetailsPage() {
 
                   <Separator />
 
-                  {/* Overall Rating */}
                   <div>
-                    <Label className="text-sm text-gray-600 mb-2 block">Overall Rating</Label>
+                    <Label className="text-sm text-muted mb-2 block">Overall Rating</Label>
                     <div className="flex items-center gap-2">
                       {[...Array(5)].map((_, idx) => (
                         <Star 
                           key={idx} 
                           className={`w-5 h-5 ${
-                            idx < review.overallRating ? 'fill-amber-400 text-amber-400' : 'text-gray-300'
+                            idx < review.overallRating ? 'fill-amber-400 text-amber-400' : (isLight ? 'text-gray-300' : 'text-muted')
                           }`}
                         />
                       ))}
-                      <span className="ml-2 text-sm text-gray-600">
+                      <span className="ml-2 text-sm text-muted">
                         {review.overallRating} / 5.0
                       </span>
                     </div>
                   </div>
 
-                  {/* Review Metadata */}
                   <div className="pt-4 border-t border-border">
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-muted">
                       Reviewed by {review.reviewedBy} on {review.reviewDate}
                     </p>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </div>
             </TabsContent>
           )}
         </Tabs>
