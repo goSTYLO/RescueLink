@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Home, Map, User, FileText, Settings, Shield, Building2, LogOut, PanelLeftClose, PanelLeft, Search, Bell, HelpCircle, ChevronDown, AlertCircle, CheckCircle, Info, X } from 'lucide-react';
+import { Home, Map, User, FileText, Settings, Shield, ShieldCheck, Building2, LogOut, PanelLeftClose, PanelLeft, Search, Bell, HelpCircle, ChevronDown, AlertCircle, CheckCircle, Info, X, Users, Truck, ClipboardList } from 'lucide-react';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/infrastructure/firebase';
 import { logout as logoutApi } from '@/data/api/auth.api';
@@ -9,32 +9,63 @@ import logoDark from '@/presentation/assets/logo-dark.svg';
 import Swal from 'sweetalert2';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
 import { ThemeToggle } from '@/presentation/components/common/ThemeToggle';
+import { ROLES, normalizeRole } from '@/core/constants';
+import { DEV_MODE } from '@/core/config/app.config';
 
 const SIDEBAR_STORAGE_KEY = 'rescuelink_sidebar_collapsed';
 
-const NAV_SECTIONS = [
-  {
-    title: 'OVERVIEW',
-    items: [
-      { icon: Home, label: 'Dashboard', path: '/dashboard' },
-      { icon: Map, label: 'Map View', path: '/map' },
-    ],
-  },
-  {
-    title: 'OPERATIONS',
-    items: [
-      { icon: Building2, label: 'Departments', path: '/departments' },
-      { icon: FileText, label: 'Audit Log', path: '/audit' },
-    ],
-  },
-  {
-    title: 'ORGANIZATION',
-    items: [
-      { icon: User, label: 'Profile', path: '/profile' },
-      { icon: Settings, label: 'Settings', path: '/settings' },
-    ],
-  },
+const NAV_SUPER_ADMIN = [
+  { title: 'OVERVIEW', items: [
+    { icon: Home, label: 'Dashboard', path: '/dashboard' },
+    { icon: Map, label: 'Map View', path: '/map' },
+  ]},
+  { title: 'OPERATIONS', items: [
+    { icon: Building2, label: 'Departments', path: '/departments' },
+    { icon: FileText, label: 'Audit Log', path: '/audit' },
+    { icon: ShieldCheck, label: 'Admin Actions', path: '/adminactions' },
+  ]},
+  { title: 'ORGANIZATION', items: [
+    { icon: Shield, label: 'Team', path: '/team' },
+    { icon: User, label: 'Profile', path: '/profile' },
+    { icon: Settings, label: 'Settings', path: '/settings' },
+  ]},
 ];
+
+const NAV_DEPARTMENT_ADMIN = [
+  { title: 'DEPARTMENT', items: [
+    { icon: Home, label: 'Dashboard', path: '/department/dashboard' },
+    { icon: Users, label: 'Personnel', path: '/department/personnel' },
+    { icon: Truck, label: 'Vehicles', path: '/department/vehicles' },
+    { icon: ClipboardList, label: 'Active Tasks', path: '/department/tasks' },
+  ]},
+  { title: 'GENERAL', items: [
+    { icon: Map, label: 'Map View', path: '/map' },
+    { icon: User, label: 'Profile', path: '/profile' },
+  ]},
+];
+
+const NAV_PERSONNEL = [
+  { title: 'TASKS', items: [
+    { icon: ClipboardList, label: 'My Tasks', path: '/department/tasks' },
+  ]},
+  { title: 'GENERAL', items: [
+    { icon: Map, label: 'Map View', path: '/map' },
+    { icon: User, label: 'Profile', path: '/profile' },
+  ]},
+];
+
+// Dev-only: switch role without re-login (uses preset users)
+const DEV_ROLE_PRESETS = [
+  { value: ROLES.SUPER_ADMIN, label: 'Super Admin', user: { name: 'Super Admin', username: 'Super Admin', email: 'admin@rescuelink.dagupan.gov.ph', role: ROLES.SUPER_ADMIN, department: 'All', departmentId: null } },
+  { value: ROLES.DEPARTMENT_ADMIN, label: 'Dept Admin (Fire)', user: { name: 'Fire Chief Mendoza', username: 'Fire Chief Mendoza', email: 'mendoza@fire.dagupan.gov', role: ROLES.DEPARTMENT_ADMIN, department: 'Bureau of Fire Protection (BFP Dagupan)', departmentId: 'bfp' } },
+  { value: ROLES.PERSONNEL, label: 'Personnel (Fire)', user: { name: 'Officer Pedro Ramos', username: 'Officer Pedro Ramos', email: 'pedro.ramos@pnp.dagupan.gov', role: ROLES.PERSONNEL, department: 'Bureau of Fire Protection (BFP Dagupan)', departmentId: 'bfp' } },
+];
+
+function getRedirectPathForRole(r) {
+  if (r === ROLES.DEPARTMENT_ADMIN) return '/department/dashboard';
+  if (r === ROLES.PERSONNEL) return '/department/tasks';
+  return '/dashboard';
+}
 
 export function Layout({ children }) {
   const { theme } = useTheme();
@@ -74,19 +105,30 @@ export function Layout({ children }) {
   }, []);
 
   const currentUser = JSON.parse(localStorage.getItem('user') || JSON.stringify({
-    username: 'Officer Munar',
-    email: 'designer@rescuelink.com',
-    role: 'Operator',
+    username: 'Super Admin',
+    email: 'admin@rescuelink.dagupan.gov.ph',
+    role: ROLES.SUPER_ADMIN,
     department: 'All'
   }));
-  const isAdmin = currentUser.role === 'Admin';
+  const role = normalizeRole(currentUser.role);
+  const isSuperAdmin = role === ROLES.SUPER_ADMIN;
+  const isAdmin = isSuperAdmin; // legacy: Admin Actions / full access
 
   const userName = currentUser.name ||
     ([currentUser.firstName, currentUser.lastName].filter(Boolean).join(' ') || null) ||
     currentUser.username ||
     currentUser.email ||
     'Officer Munar';
-  const userRole = currentUser.role || 'Operator';
+  const userRoleLabel = role === ROLES.SUPER_ADMIN ? 'Super Admin' : role === ROLES.DEPARTMENT_ADMIN ? 'Dept Admin' : 'Personnel';
+  const userRole = currentUser.role ? userRoleLabel : (currentUser.role || 'Operator');
+
+  const handleDevRoleChange = (e) => {
+    const value = e.target.value;
+    const preset = DEV_ROLE_PRESETS.find((p) => p.value === value);
+    if (!preset) return;
+    localStorage.setItem('user', JSON.stringify(preset.user));
+    navigate(getRedirectPathForRole(preset.value));
+  };
 
   const performLogout = async () => {
     try {
@@ -125,15 +167,15 @@ export function Layout({ children }) {
     });
   };
 
-  const sections = NAV_SECTIONS.map((section) => ({
-    ...section,
-    items: section.title === 'ORGANIZATION' && isAdmin
-      ? [{ icon: Shield, label: 'Admin Actions', path: '/adminactions' }, ...section.items]
-      : section.items,
-  }));
+  const getNavSections = () => {
+    if (role === ROLES.DEPARTMENT_ADMIN) return NAV_DEPARTMENT_ADMIN;
+    if (role === ROLES.PERSONNEL) return NAV_PERSONNEL;
+    return NAV_SUPER_ADMIN;
+  };
+  const sections = getNavSections();
 
   const linkClasses = (isActive) => {
-    const base = 'flex items-center rounded-xl transition-all duration-200 group overflow-hidden';
+    const base = 'flex items-center min-h-[40px] rounded-xl transition-all duration-200 group overflow-hidden w-full';
     const size = isCollapsed ? 'justify-center px-3 py-2.5' : 'gap-3 px-3 py-2.5';
     const activeLight = 'bg-primary/15 text-primary shadow-sm';
     const activeDark = 'bg-primary/20 text-primary shadow-sm';
@@ -144,7 +186,7 @@ export function Layout({ children }) {
   };
 
   return (
-    <div className="flex h-screen bg-background">
+    <div className="flex min-h-screen h-full flex-1 bg-background">
       <aside
         className={`flex flex-col overflow-hidden transition-[width] duration-300 ease-out border-r border-border border-l-2 border-l-primary/40 shadow-sm ${
           isLight ? 'bg-white' : 'bg-secondary'
@@ -221,8 +263,31 @@ export function Layout({ children }) {
             ))}
           </div>
 
-          {/* Bottom: Help & Support, Log out */}
+          {/* Bottom: Dev role switcher, Help & Support, Log out */}
           <div className="flex-shrink-0 pt-4 mt-4 border-t border-border/80 space-y-0.5">
+            {DEV_MODE && (
+              <div className={`px-3 py-2 ${!isCollapsed ? 'mb-2' : ''}`}>
+                <label htmlFor="dev-role-switcher" className="sr-only">Switch role (dev)</label>
+                <select
+                  id="dev-role-switcher"
+                  value={role}
+                  onChange={handleDevRoleChange}
+                  title="Switch role (dev only)"
+                  className={`w-full rounded-lg border bg-transparent text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 ${
+                    isCollapsed
+                      ? 'px-2 py-1.5 border-amber-500/50 text-amber-600 dark:text-amber-400'
+                      : 'px-3 py-2 border-amber-500/40 text-amber-600 dark:text-amber-400'
+                  }`}
+                >
+                  {DEV_ROLE_PRESETS.map((p) => (
+                    <option key={p.value} value={p.value}>{isCollapsed ? p.label.split(' ')[0] : p.label}</option>
+                  ))}
+                </select>
+                {!isCollapsed && (
+                  <p className="text-[10px] text-muted mt-1 px-0.5">Dev: switch role</p>
+                )}
+              </div>
+            )}
             <Link
               to="/help"
               title="Help & Support"

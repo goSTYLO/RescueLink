@@ -92,6 +92,8 @@ export function MapViewPage() {
     ...barangays.map(b => ({ value: b, label: b })),
   ];
 
+  const heroCardClass = `rounded-3xl border overflow-hidden transition-all duration-300 ${isLight ? 'glass neumorphic-light bg-white/80 border-gray-200/80 shadow-[8px_8px_24px_rgba(209,213,219,0.5),-8px_-8px_24px_rgba(255,255,255,0.9)]' : 'glass neumorphic-dark bg-card/60 border-white/10 shadow-[8px_8px_24px_rgba(0,0,0,0.35),-6px_-6px_20px_rgba(19,65,120,0.2)]'}`;
+  const heroIconClass = `w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isLight ? 'neumorphic-light-inset bg-gray-100 text-primary' : 'neumorphic-dark-inset bg-white/10 text-primary'}`;
   const panelClass = (inset = false) =>
     `rounded-2xl border overflow-hidden transition-all duration-300 ${
       isLight ? 'glass neumorphic-light bg-white/80' : 'glass neumorphic-dark bg-card/60'
@@ -106,10 +108,19 @@ export function MapViewPage() {
   return (
     <Layout>
       <div className="flex flex-col h-[calc(100vh-6rem)] p-4 md:p-6 gap-4 min-h-0">
-        {/* Header – single row */}
-        <div className="flex-shrink-0">
-          <h1 className="text-2xl font-semibold text-foreground">Live Emergency Map</h1>
-          <p className="text-sm text-muted mt-0.5">Real-time incident locations across Dagupan City</p>
+        {/* Hero card – same style as Team, Dashboard, etc. */}
+        <div className="flex-shrink-0 max-w-7xl w-full mx-auto">
+          <div className={heroCardClass}>
+            <div className="p-8 flex flex-wrap items-center gap-6">
+              <div className={heroIconClass}>
+                <Map className="w-5 h-5" strokeWidth={2} />
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold text-foreground">Live Emergency Map</h1>
+                <p className="text-muted mt-1">Real-time incident locations across Dagupan City</p>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Hierarchical grid: [Filters] [Map] [Incidents] – one row, fits viewport */}

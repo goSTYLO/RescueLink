@@ -103,25 +103,25 @@ export function HelpSupportPage() {
     ? `${cardBase} bg-card neumorphic-light hover:shadow-[10px_10px_20px_rgba(209,213,219,0.85),-10px_-10px_20px_rgba(255,255,255,0.95)]`
     : `${cardBase} bg-card/80 neumorphic-dark hover:shadow-[10px_10px_24px_rgba(0,0,0,0.4),-6px_-6px_16px_rgba(19,65,120,0.3)]`;
 
+  const heroCardClass = `rounded-3xl border overflow-hidden transition-all duration-300 ${isLight ? 'glass neumorphic-light bg-white/80 border-gray-200/80 shadow-[8px_8px_24px_rgba(209,213,219,0.5),-8px_-8px_24px_rgba(255,255,255,0.9)]' : 'glass neumorphic-dark bg-card/60 border-white/10 shadow-[8px_8px_24px_rgba(0,0,0,0.35),-6px_-6px_20px_rgba(19,65,120,0.2)]'}`;
+  const heroIconClass = `w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isLight ? 'neumorphic-light-inset bg-gray-100 text-primary' : 'neumorphic-dark-inset bg-white/10 text-primary'}`;
+
   return (
     <Layout>
-      <div className="p-8 min-h-full">
-        {/* Hero: glassmorphism */}
-        <div className={`${glassCard} p-8 mb-10 rounded-3xl`}>
-          <div className="flex items-center gap-4 mb-4">
-            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${
-              isLight ? 'bg-primary/15 text-primary' : 'bg-primary/20 text-primary'
-            }`}>
-              <HelpCircle className="w-8 h-8" strokeWidth={2} />
+      <div className="p-8 min-h-full max-w-7xl mx-auto">
+        <div className={`${heroCardClass} mb-6`}>
+          <div className="p-8 flex flex-wrap items-center gap-6">
+            <div className={heroIconClass}>
+              <HelpCircle className="w-5 h-5" strokeWidth={2} />
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-foreground tracking-tight">Help & Support</h1>
-              <p className="text-muted mt-0.5">Get assistance and resources for using RescueLink</p>
+              <h1 className="text-3xl font-bold text-foreground">Help & Support</h1>
+              <p className="text-muted mt-1">Get assistance and resources for using RescueLink</p>
+              <p className="text-foreground/90 text-sm max-w-2xl mt-2">
+                Use the search bar in the header to find incidents, services, or agents quickly. For urgent dispatch issues, contact your department supervisor.
+              </p>
             </div>
           </div>
-          <p className="text-foreground/90 text-sm max-w-2xl">
-            Use the search bar in the header to find incidents, services, or agents quickly. For urgent dispatch issues, contact your department supervisor.
-          </p>
         </div>
 
         {/* Guides & instructions */}

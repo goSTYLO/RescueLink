@@ -3,13 +3,16 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/presentation/compone
 import { Badge } from '@/presentation/components/ui/Badge';
 import { Button } from '@/presentation/components/ui/Button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/presentation/components/ui/Select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/presentation/components/ui/Dialog';
+import { Label } from '@/presentation/components/ui/Label';
 import { AlertTriangle, Activity, AlertCircle, Clock, CheckCircle2, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, Loader2, SlidersHorizontal, LayoutList, PhoneCall, CircleCheck, ExternalLink } from 'lucide-react';
-import { incidents as mockIncidents, barangays } from '@/data/mock/mockData';
+import { incidents as mockIncidents, barangays, departments as departmentsList } from '@/data/mock/mockData';
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
 import { getIncidents } from '@/data/api/incidents.api';
 import { DEV_MODE } from '@/core/config/app.config';
+import Swal from 'sweetalert2';
 
 // Icon Container Component (dark theme)
 function IconContainer({ children, className = '' }) {
@@ -78,6 +81,19 @@ export function DashboardPage() {
   const [sortDirection, setSortDirection] = useState('asc');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
+
+  // Verify & Assign modal (new incidents must be verified and assigned to a department first)
+  const [verifyAssignModalOpen, setVerifyAssignModalOpen] = useState(false);
+  const [verifyAssignIncident, setVerifyAssignIncident] = useState(null);
+  const [assignDepartmentId, setAssignDepartmentId] = useState('');
+  const [assignSelectOpen, setAssignSelectOpen] = useState(false);
+
+  // Call modal (call reporter or department)
+  const [callModalOpen, setCallModalOpen] = useState(false);
+  const [callIncident, setCallIncident] = useState(null);
+  const [callTarget, setCallTarget] = useState('reporter'); // 'reporter' | 'department'
+  const [callDepartmentId, setCallDepartmentId] = useState('');
+  const [callDeptSelectOpen, setCallDeptSelectOpen] = useState(false);
 
   const fetchIncidents = useCallback(async () => {
     const token = localStorage.getItem('token');
@@ -220,6 +236,92 @@ export function DashboardPage() {
     }
   };
 
+  const departments = departmentsList || [];
+
+  const openVerifyAssignModal = (incident) => {
+    setVerifyAssignIncident(incident);
+    setAssignDepartmentId(incident.assignedDepartmentId || '');
+    setVerifyAssignModalOpen(true);
+  };
+
+  const closeVerifyAssignModal = () => {
+    setVerifyAssignModalOpen(false);
+    setVerifyAssignIncident(null);
+    setAssignDepartmentId('');
+    setAssignSelectOpen(false);
+  };
+
+  const submitVerifyAndAssign = () => {
+    if (!verifyAssignIncident || !assignDepartmentId) return;
+    const dept = departments.find((d) => d.id === assignDepartmentId);
+    const assignedDepartment = dept ? dept.name : '';
+    Swal.fire({
+      title: 'Confirm verification',
+      html: `Assign incident <strong>${verifyAssignIncident.id}</strong> to <strong>${assignedDepartment}</strong>? The department will be able to give updates.`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#134178',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: 'Verify & Assign',
+      cancelButtonText: 'Cancel',
+      customClass: { popup: 'rounded-2xl shadow-xl', title: 'text-foreground text-xl', htmlContainer: 'text-muted' },
+    }).then((result) => {
+      if (result.isConfirmed) {
+        setIncidents((prev) =>
+          prev.map((inc) =>
+            inc.id === verifyAssignIncident.id
+              ? {
+                  ...inc,
+                  verified: true,
+                  status: 'Verified',
+                  assignedDepartmentId: assignDepartmentId,
+                  assignedDepartment,
+                }
+              : inc
+          )
+        );
+        closeVerifyAssignModal();
+        Swal.fire({
+          icon: 'success',
+          title: 'Incident verified',
+          text: `Assigned to ${assignedDepartment}. The department can now update this incident.`,
+          timer: 2500,
+          showConfirmButton: false,
+          timerProgressBar: true,
+          customClass: { popup: 'rounded-2xl shadow-xl' },
+        });
+      }
+    });
+  };
+
+  const openCallModal = (incident) => {
+    setCallIncident(incident);
+    setCallTarget(incident.assignedDepartmentId ? 'department' : 'reporter');
+    setCallDepartmentId(incident.assignedDepartmentId || (departments[0]?.id || ''));
+    setCallModalOpen(true);
+  };
+
+  const closeCallModal = () => {
+    setCallModalOpen(false);
+    setCallIncident(null);
+    setCallTarget('reporter');
+    setCallDepartmentId('');
+    setCallDeptSelectOpen(false);
+  };
+
+  const getDepartmentContactPhone = (departmentId) => {
+    const dept = departments.find((d) => d.id === departmentId);
+    if (!dept) return null;
+    const contactMap = {
+      bfp: '+63 75 523 1234',
+      pnp: '+63 75 522 5678',
+      health: '+63 75 523 9012',
+      drrmo: '+63 75 524 3456',
+      barangay: '+63 75 522 7890',
+    };
+    return contactMap[departmentId] || null;
+  };
+
   const criticalIncidents = incidents.filter(i => i.severity === 'Critical');
 
   const typeOptions = [
@@ -243,13 +345,22 @@ export function DashboardPage() {
     ...barangays.map(b => ({ value: b, label: b })),
   ];
 
+  const heroCardClass = `rounded-3xl border overflow-hidden transition-all duration-300 ${isLight ? 'glass neumorphic-light bg-white/80 border-gray-200/80 shadow-[8px_8px_24px_rgba(209,213,219,0.5),-8px_-8px_24px_rgba(255,255,255,0.9)]' : 'glass neumorphic-dark bg-card/60 border-white/10 shadow-[8px_8px_24px_rgba(0,0,0,0.35),-6px_-6px_20px_rgba(19,65,120,0.2)]'}`;
+  const heroIconClass = `w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isLight ? 'neumorphic-light-inset bg-gray-100 text-primary' : 'neumorphic-dark-inset bg-white/10 text-primary'}`;
+
   return (
     <Layout>
-      <div className="p-8">
-        {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-3xl font-semibold text-foreground">Incident Overview</h1>
-          <p className="text-muted mt-1">Monitor and manage emergency incidents across Dagupan City</p>
+      <div className="p-8 max-w-7xl mx-auto">
+        <div className={`${heroCardClass} mb-6`}>
+          <div className="p-8 flex flex-wrap items-center gap-6">
+            <div className={heroIconClass}>
+              <Activity className="w-5 h-5" strokeWidth={2} />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold text-foreground">Incident Overview</h1>
+              <p className="text-muted mt-1">Monitor and manage emergency incidents across Dagupan City</p>
+            </div>
+          </div>
         </div>
 
         {/* Error Banner */}
@@ -260,9 +371,9 @@ export function DashboardPage() {
           </div>
         )}
 
-        {/* Alert Banner */}
+        {/* Alert Banner – extra top margin so it sits clearly below the hero */}
         {criticalIncidents.length > 0 && (
-          <div className="mb-6 p-4 bg-primary/15 border-2 border-primary/50 rounded-xl flex items-start gap-3 shadow-card hover:shadow-card-hover transition-all duration-300 animate-pulse-glow">
+          <div className="mt-4 mb-6 p-4 bg-primary/15 border-2 border-primary/50 rounded-xl flex items-start gap-3 shadow-card hover:shadow-card-hover transition-all duration-300 animate-pulse-glow">
             <IconContainer className={isLight ? 'bg-white border-border' : 'bg-primary/20 border-primary/50'}>
               <AlertTriangle className="w-6 h-6 text-primary" />
             </IconContainer>
@@ -550,8 +661,8 @@ export function DashboardPage() {
                                   size="sm"
                                   variant="ghost"
                                   className="h-9 w-9 p-0 rounded-lg text-severity-resolved hover:bg-severity-resolved/20 transition-all"
-                                  onClick={(e) => e.stopPropagation()}
-                                  title="Verify Incident"
+                                  onClick={(e) => { e.stopPropagation(); openVerifyAssignModal(incident); }}
+                                  title="Verify & Assign to Department"
                                 >
                                   <CircleCheck className="w-4 h-4" strokeWidth={2} />
                                 </Button>
@@ -560,8 +671,8 @@ export function DashboardPage() {
                                 size="sm"
                                 variant="ghost"
                                 className="h-9 w-9 p-0 rounded-lg text-foreground/80 hover:bg-secondary/20 hover:text-foreground transition-all"
-                                onClick={(e) => e.stopPropagation()}
-                                title="Call Reporter"
+                                onClick={(e) => { e.stopPropagation(); openCallModal(incident); }}
+                                title="Call Reporter or Department"
                               >
                                 <PhoneCall className="w-4 h-4" strokeWidth={2} />
                               </Button>
@@ -623,6 +734,146 @@ export function DashboardPage() {
             )}
           </div>
         </div>
+
+        {/* Verify & Assign Modal — new incidents must be verified and assigned before department can update */}
+        <Dialog open={verifyAssignModalOpen} onOpenChange={(open) => !open && closeVerifyAssignModal()} className="max-w-md">
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Verify & Assign Incident</DialogTitle>
+              <DialogDescription>
+                Verify this incident and assign it to a department. The department will then be able to give updates to the super admin.
+              </DialogDescription>
+            </DialogHeader>
+            {verifyAssignIncident && (
+              <div className="space-y-4 mt-4">
+                <div className="rounded-xl border border-border/50 p-3 bg-muted/20">
+                  <p className="text-sm font-medium text-foreground">{verifyAssignIncident.id}</p>
+                  <p className="text-sm text-muted">{verifyAssignIncident.reporterName} · {verifyAssignIncident.emergencyType} · {verifyAssignIncident.severity}</p>
+                  {verifyAssignIncident.barangay && <p className="text-xs text-muted mt-1">{verifyAssignIncident.barangay}</p>}
+                </div>
+                <div>
+                  <Label className="text-foreground">Assign to department *</Label>
+                  <Select value={assignDepartmentId} onValueChange={setAssignDepartmentId} open={assignSelectOpen} onOpenChange={setAssignSelectOpen}>
+                    {({ value, onValueChange, dropdownRect }) => (
+                      <>
+                        <SelectTrigger
+                          isOpen={assignSelectOpen}
+                          onClick={() => setAssignSelectOpen((o) => !o)}
+                          className="mt-1.5"
+                        >
+                          <SelectValue
+                            value={value}
+                            options={[{ value: '', label: 'Select department' }, ...departments.map((d) => ({ value: d.id, label: d.name }))]}
+                            placeholder="Select department"
+                          />
+                        </SelectTrigger>
+                        <SelectContent isOpen={assignSelectOpen} dropdownRect={dropdownRect}>
+                          <SelectItem value="" onSelect={() => { setAssignDepartmentId(''); setAssignSelectOpen(false); }}>Select department</SelectItem>
+                          {departments.map((d) => (
+                            <SelectItem key={d.id} value={d.id} onSelect={(v) => { setAssignDepartmentId(v); setAssignSelectOpen(false); }}>{d.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </>
+                    )}
+                  </Select>
+                </div>
+                <DialogFooter>
+                  <Button onClick={submitVerifyAndAssign} disabled={!assignDepartmentId} className="bg-primary text-white hover:bg-primary-hover">
+                    Verify & Assign
+                  </Button>
+                  <Button variant="outline" onClick={closeVerifyAssignModal}>Cancel</Button>
+                </DialogFooter>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Call Modal — call reporter or department */}
+        <Dialog open={callModalOpen} onOpenChange={(open) => !open && closeCallModal()} className="max-w-md">
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Call</DialogTitle>
+              <DialogDescription>
+                Call the reporter or the assigned department for this incident.
+              </DialogDescription>
+            </DialogHeader>
+            {callIncident && (
+              <div className="space-y-4 mt-4">
+                <div className="rounded-xl border border-border/50 p-3 bg-muted/20">
+                  <p className="text-sm font-medium text-foreground">{callIncident.id}</p>
+                  <p className="text-sm text-muted">{callIncident.reporterName} · {callIncident.emergencyType}</p>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant={callTarget === 'reporter' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setCallTarget('reporter')}
+                    className={callTarget === 'reporter' ? 'bg-primary text-white' : ''}
+                  >
+                    Call Reporter
+                  </Button>
+                  <Button
+                    variant={callTarget === 'department' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setCallTarget('department')}
+                    className={callTarget === 'department' ? 'bg-primary text-white' : ''}
+                  >
+                    Call Department
+                  </Button>
+                </div>
+                {callTarget === 'reporter' && (
+                  <div>
+                    <Label className="text-muted text-xs">Reporter phone</Label>
+                    <p className="text-foreground font-medium mt-1">{callIncident.reporterPhone || '—'}</p>
+                    {callIncident.reporterPhone && (
+                      <a href={`tel:${callIncident.reporterPhone.replace(/\s/g, '')}`} className="inline-flex items-center gap-2 mt-2 text-primary hover:underline">
+                        <PhoneCall className="w-4 h-4" />
+                        Dial number
+                      </a>
+                    )}
+                  </div>
+                )}
+                {callTarget === 'department' && (
+                  <div>
+                    <Label className="text-foreground">Department</Label>
+                    <Select value={callDepartmentId} onValueChange={setCallDepartmentId} open={callDeptSelectOpen} onOpenChange={setCallDeptSelectOpen}>
+                      {({ value, onValueChange, dropdownRect }) => (
+                        <>
+                          <SelectTrigger isOpen={callDeptSelectOpen} onClick={() => setCallDeptSelectOpen((o) => !o)} className="mt-1.5">
+                            <SelectValue value={value} options={departments.map((d) => ({ value: d.id, label: d.name }))} />
+                          </SelectTrigger>
+                          <SelectContent isOpen={callDeptSelectOpen} dropdownRect={dropdownRect}>
+                            {departments.map((d) => (
+                              <SelectItem key={d.id} value={d.id} onSelect={(v) => { setCallDepartmentId(v); setCallDeptSelectOpen(false); }}>{d.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </>
+                      )}
+                    </Select>
+                    {(() => {
+                      const phone = getDepartmentContactPhone(callDepartmentId);
+                      return (
+                        <div className="mt-3">
+                          <Label className="text-muted text-xs">Department contact</Label>
+                          <p className="text-foreground font-medium mt-1">{phone || '—'}</p>
+                          {phone && (
+                            <a href={`tel:${phone.replace(/\s/g, '')}`} className="inline-flex items-center gap-2 mt-2 text-primary hover:underline">
+                              <PhoneCall className="w-4 h-4" />
+                              Dial number
+                            </a>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+                <DialogFooter className="justify-end">
+                  <Button variant="outline" onClick={closeCallModal}>Close</Button>
+                </DialogFooter>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </Layout>
   );

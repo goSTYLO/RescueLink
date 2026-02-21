@@ -22,6 +22,7 @@ import {
   ListChecks,
 } from 'lucide-react';
 import { adminActionLogs, incidents, barangays, disasterControlMode } from '@/data/mock/mockData';
+import { ROLES, normalizeRole } from '@/core/constants';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
@@ -30,7 +31,7 @@ import { useTheme } from '@/presentation/context/ThemeContext.jsx';
 export function AdminActionsPage() {
   const navigate = useNavigate();
   const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
-  const isAdmin = currentUser.role === 'Admin';
+  const isAdmin = normalizeRole(currentUser.role) === ROLES.SUPER_ADMIN;
 
   const [disasterMode, setDisasterMode] = useState(disasterControlMode.active);
   const [disasterType, setDisasterType] = useState('');
@@ -150,6 +151,8 @@ export function AdminActionsPage() {
 
   const { theme } = useTheme();
   const isLight = theme === 'light';
+  const heroCardClass = `rounded-3xl border overflow-hidden transition-all duration-300 ${isLight ? 'glass neumorphic-light bg-white/80 border-gray-200/80 shadow-[8px_8px_24px_rgba(209,213,219,0.5),-8px_-8px_24px_rgba(255,255,255,0.9)]' : 'glass neumorphic-dark bg-card/60 border-white/10 shadow-[8px_8px_24px_rgba(0,0,0,0.35),-6px_-6px_20px_rgba(19,65,120,0.2)]'}`;
+  const heroIconClass = `w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isLight ? 'neumorphic-light-inset bg-gray-100 text-primary' : 'neumorphic-dark-inset bg-white/10 text-primary'}`;
   const panelClass = `rounded-2xl border overflow-hidden transition-all duration-300 ${isLight ? 'glass neumorphic-light bg-white/80' : 'glass neumorphic-dark bg-card/60'}`;
   const headerClass = `flex items-center gap-3 px-4 py-3 border-b ${isLight ? 'border-gray-200/80 bg-gray-50/50' : 'border-white/10 bg-white/5'}`;
   const iconBoxClass = (accent = 'primary') =>
@@ -161,10 +164,17 @@ export function AdminActionsPage() {
 
   return (
     <Layout>
-      <div className="p-8">
-        <div className="mb-6">
-          <h1 className="text-2xl font-semibold text-foreground tracking-tight">Admin Actions</h1>
-          <p className="text-muted mt-1">Advanced administrative controls and oversight</p>
+      <div className="p-8 max-w-7xl mx-auto">
+        <div className={`${heroCardClass} mb-6`}>
+          <div className="p-8 flex flex-wrap items-center gap-6">
+            <div className={heroIconClass}>
+              <Shield className="w-5 h-5" strokeWidth={2} />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold text-foreground">Admin Actions</h1>
+              <p className="text-muted mt-1">Advanced administrative controls and oversight</p>
+            </div>
+          </div>
         </div>
 
         {disasterMode && (
@@ -180,11 +190,11 @@ export function AdminActionsPage() {
         )}
 
         <Tabs defaultValue="disaster" className="space-y-6">
-          <div className={`rounded-xl p-1 ${isLight ? 'glass neumorphic-light bg-white/80' : 'glass neumorphic-dark bg-card/60'}`}>
-            <TabsList className="grid w-full grid-cols-3 lg:w-auto lg:inline-grid rounded-xl border-0 bg-transparent p-0 gap-1">
-              <TabsTrigger value="disaster" className="rounded-lg">Disaster Control</TabsTrigger>
-              <TabsTrigger value="duplicates" className="rounded-lg">Duplicate Management</TabsTrigger>
-              <TabsTrigger value="logs" className="rounded-lg">Admin Logs</TabsTrigger>
+          <div className={`w-full rounded-xl p-1 ${isLight ? 'glass neumorphic-light bg-white/80' : 'glass neumorphic-dark bg-card/60'}`}>
+            <TabsList className="flex w-full rounded-xl border-0 bg-transparent p-0 gap-1 h-11">
+              <TabsTrigger value="disaster" className="rounded-lg flex-1 min-w-0">Disaster Control</TabsTrigger>
+              <TabsTrigger value="duplicates" className="rounded-lg flex-1 min-w-0">Duplicate Management</TabsTrigger>
+              <TabsTrigger value="logs" className="rounded-lg flex-1 min-w-0">Admin Logs</TabsTrigger>
             </TabsList>
           </div>
 

@@ -179,6 +179,8 @@ export function ProfilePage() {
 
   const { theme } = useTheme();
   const isLight = theme === 'light';
+  const heroCardClass = `rounded-3xl border overflow-hidden transition-all duration-300 ${isLight ? 'glass neumorphic-light bg-white/80 border-gray-200/80 shadow-[8px_8px_24px_rgba(209,213,219,0.5),-8px_-8px_24px_rgba(255,255,255,0.9)]' : 'glass neumorphic-dark bg-card/60 border-white/10 shadow-[8px_8px_24px_rgba(0,0,0,0.35),-6px_-6px_20px_rgba(19,65,120,0.2)]'}`;
+  const heroIconClass = `w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isLight ? 'neumorphic-light-inset bg-gray-100 text-primary' : 'neumorphic-dark-inset bg-white/10 text-primary'}`;
   const panelClass = `rounded-2xl border overflow-hidden transition-all duration-300 ${isLight ? 'glass neumorphic-light bg-white/80' : 'glass neumorphic-dark bg-card/60'}`;
   const headerClass = `flex items-center gap-3 px-4 py-3 border-b ${isLight ? 'border-gray-200/80 bg-gray-50/50' : 'border-white/10 bg-white/5'}`;
   const iconBoxClass = (accent = 'primary') =>
@@ -188,12 +190,17 @@ export function ProfilePage() {
 
   return (
     <Layout>
-      <div className="p-8 max-w-4xl relative min-h-[calc(100vh-8rem)]">
-        <div className="mb-8">
-          <h1 className="text-2xl font-semibold text-foreground tracking-tight">User Profile</h1>
-          <p className="text-muted mt-1">
-            Manage your account settings and information
-          </p>
+      <div className="p-8 max-w-4xl mx-auto relative min-h-[calc(100vh-8rem)]">
+        <div className={`${heroCardClass} mb-8`}>
+          <div className="p-8 flex flex-wrap items-center gap-6">
+            <div className={heroIconClass}>
+              <User className="w-5 h-5" strokeWidth={2} />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold text-foreground">User Profile</h1>
+              <p className="text-muted mt-1">Manage your account settings and information</p>
+            </div>
+          </div>
         </div>
 
         <div className="space-y-6">

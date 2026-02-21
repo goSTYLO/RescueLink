@@ -1,0 +1,430 @@
+import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Layout } from '@/presentation/components/layout/Layout';
+import { Card } from '@/presentation/components/ui/Card';
+import { Button } from '@/presentation/components/ui/Button';
+import { Badge } from '@/presentation/components/ui/Badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/presentation/components/ui/Dialog';
+import { Eye, Truck, MapPin, CheckCircle, AlertCircle, LayoutDashboard, UserPlus, X, UserCheck, Clock } from 'lucide-react';
+import { incidents as mockIncidents, personnel as mockPersonnel, units as mockUnits } from '@/data/mock/mockData';
+import { ROLES } from '@/core/constants';
+import { useTheme } from '@/presentation/context/ThemeContext';
+import Swal from 'sweetalert2';
+
+const ASSIGNMENTS_STORAGE_KEY = 'rescuelink_incident_personnel_assignments';
+const VEHICLE_ASSIGNMENTS_STORAGE_KEY = 'rescuelink_incident_vehicle_assignments';
+
+function getStoredAssignments() {
+  try {
+    const raw = localStorage.getItem(ASSIGNMENTS_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function getStoredVehicleAssignments() {
+  try {
+    const raw = localStorage.getItem(VEHICLE_ASSIGNMENTS_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+export function DepartmentDashboardPage() {
+  const navigate = useNavigate();
+  const { theme } = useTheme();
+  const isLight = theme === 'light';
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const departmentId = user.departmentId || user.department_id;
+
+  const [assignments, setAssignments] = useState(getStoredAssignments);
+  const [vehicleAssignments, setVehicleAssignments] = useState(getStoredVehicleAssignments);
+  const [assignModalOpen, setAssignModalOpen] = useState(false);
+  const [assigningIncidentId, setAssigningIncidentId] = useState(null);
+  const [vehicleModalOpen, setVehicleModalOpen] = useState(false);
+  const [assigningIncidentIdVehicle, setAssigningIncidentIdVehicle] = useState(null);
+
+  useEffect(() => {
+    if (user.role !== ROLES.DEPARTMENT_ADMIN && user.role !== ROLES.PERSONNEL) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [user.role, navigate]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(ASSIGNMENTS_STORAGE_KEY, JSON.stringify(assignments));
+    } catch (_) {}
+  }, [assignments]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(VEHICLE_ASSIGNMENTS_STORAGE_KEY, JSON.stringify(vehicleAssignments));
+    } catch (_) {}
+  }, [vehicleAssignments]);
+
+  const departmentIncidents = (mockIncidents || []).filter((inc) => inc.assignedDepartmentId === departmentId);
+  const activeIncidents = departmentIncidents.filter((i) => i.status !== 'Resolved' && i.status !== 'resolved');
+
+  const personnelList = (departmentId && mockPersonnel && mockPersonnel[departmentId]) ? mockPersonnel[departmentId] : [];
+  const unitsList = (departmentId && mockUnits && mockUnits[departmentId]) ? mockUnits[departmentId] : [];
+  const getAssignment = useCallback((incidentId) => assignments[incidentId] || null, [assignments]);
+  const getVehicleAssignment = useCallback((incidentId) => vehicleAssignments[incidentId] || null, [vehicleAssignments]);
+  const setVehicleAssignment = useCallback((incidentId, vehicleId, vehicleName) => {
+    setVehicleAssignments((prev) => ({ ...prev, [incidentId]: { vehicleId, name: vehicleName } }));
+    setVehicleModalOpen(false);
+    setAssigningIncidentIdVehicle(null);
+    Swal.fire({
+      icon: 'success',
+      title: 'Vehicle assigned',
+      html: `<strong>${vehicleName}</strong> has been assigned to incident <strong>${incidentId}</strong>.`,
+      timer: 2500,
+      showConfirmButton: false,
+      timerProgressBar: true,
+      customClass: { popup: 'rounded-2xl shadow-xl' },
+    });
+  }, []);
+  const setAssignment = useCallback((incidentId, personnelKey, name) => {
+    setAssignments((prev) => ({ ...prev, [incidentId]: { personnelKey, name } }));
+    setAssignModalOpen(false);
+    setAssigningIncidentId(null);
+    Swal.fire({
+      icon: 'success',
+      title: 'Personnel assigned',
+      html: `<strong>${name}</strong> has been assigned to incident <strong>${incidentId}</strong>.`,
+      timer: 2500,
+      showConfirmButton: false,
+      timerProgressBar: true,
+      customClass: { popup: 'rounded-2xl shadow-xl' },
+    });
+  }, []);
+
+  const openAssignModal = (incidentId) => {
+    setAssigningIncidentId(incidentId);
+    setAssignModalOpen(true);
+  };
+  const closeAssignModal = () => {
+    setAssignModalOpen(false);
+    setAssigningIncidentId(null);
+  };
+  const openVehicleAssignModal = (incidentId) => {
+    setAssigningIncidentIdVehicle(incidentId);
+    setVehicleModalOpen(true);
+  };
+  const closeVehicleAssignModal = () => {
+    setVehicleModalOpen(false);
+    setAssigningIncidentIdVehicle(null);
+  };
+
+  const getSeverityColor = (severity) => {
+    switch (String(severity).toLowerCase()) {
+      case 'critical': return 'bg-primary/20 text-primary border-primary/50';
+      case 'warning': return 'bg-amber-500/20 text-amber-400 border-amber-500/40';
+      case 'resolved':
+      case 'low': return 'bg-green-500/20 text-green-400 border-green-500/40';
+      default: return 'bg-muted text-muted-foreground';
+    }
+  };
+
+  const getStatusBadge = (status) => {
+    const s = String(status || '').toLowerCase();
+    const map = {
+      new: 'bg-blue-500/20 text-blue-400',
+      verified: 'bg-purple-500/20 text-purple-400',
+      'in progress': 'bg-indigo-500/20 text-indigo-400',
+      assigned: 'bg-indigo-500/20 text-indigo-400',
+      resolved: 'bg-green-500/20 text-green-400',
+    };
+    const cls = map[s] || 'bg-muted text-muted-foreground';
+    return <Badge className={cls}>{status || '—'}</Badge>;
+  };
+
+  const getTypeIcon = (type) => {
+    const icons = { Fire: '🔥', Medical: '🏥', Police: '👮', Disaster: '⚠️' };
+    return icons[String(type)] || '📋';
+  };
+
+  const heroCardClass = `rounded-3xl border overflow-hidden transition-all duration-300 ${isLight ? 'glass neumorphic-light bg-white/80 border-gray-200/80 shadow-[8px_8px_24px_rgba(209,213,219,0.5),-8px_-8px_24px_rgba(255,255,255,0.9)]' : 'glass neumorphic-dark bg-card/60 border-white/10 shadow-[8px_8px_24px_rgba(0,0,0,0.35),-6px_-6px_20px_rgba(19,65,120,0.2)]'}`;
+  const heroIconClass = `w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isLight ? 'neumorphic-light-inset bg-gray-100 text-primary' : 'neumorphic-dark-inset bg-white/10 text-primary'}`;
+
+  if (user.role !== ROLES.DEPARTMENT_ADMIN && user.role !== ROLES.PERSONNEL) return null;
+
+  return (
+    <Layout>
+      <div className="p-6 space-y-6 max-w-7xl mx-auto">
+        <div className={heroCardClass}>
+          <div className="p-8 flex flex-wrap items-center gap-6">
+            <div className={heroIconClass}>
+              <LayoutDashboard className="w-5 h-5" strokeWidth={2} />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold text-foreground">Department Dashboard</h1>
+              <p className="text-muted mt-1">{user.department || 'Department'} — Assigned Incidents</p>
+            </div>
+          </div>
+        </div>
+
+        {activeIncidents.length > 0 && (
+          <Card className="bg-amber-500/10 border-amber-500/30 p-4 rounded-2xl">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-amber-500 mt-0.5" />
+              <div>
+                <h3 className="font-semibold text-foreground">
+                  {activeIncidents.length} Active Incident{activeIncidents.length !== 1 ? 's' : ''} Requiring Response
+                </h3>
+                <p className="text-sm text-muted mt-1">Review and update incident statuses below</p>
+              </div>
+            </div>
+          </Card>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card className="p-4 rounded-2xl border border-border">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted">Total Assigned</p>
+                <p className="text-2xl font-bold text-foreground">{departmentIncidents.length}</p>
+              </div>
+              <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center">
+                <Truck className="w-6 h-6 text-primary" />
+              </div>
+            </div>
+          </Card>
+          <Card className="p-4 rounded-2xl border border-border">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted">Awaiting Action</p>
+                <p className="text-2xl font-bold text-foreground">{departmentIncidents.filter((i) => i.status === 'Verified' || i.status === 'verified' || i.status === 'New').length}</p>
+              </div>
+              <div className="w-12 h-12 rounded-xl bg-indigo-500/20 flex items-center justify-center">
+                <AlertCircle className="w-6 h-6 text-indigo-400" />
+              </div>
+            </div>
+          </Card>
+          <Card className="p-4 rounded-2xl border border-border">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted">In Progress</p>
+                <p className="text-2xl font-bold text-foreground">{departmentIncidents.filter((i) => i.status === 'In Progress' || i.status === 'in-progress').length}</p>
+              </div>
+              <div className="w-12 h-12 rounded-xl bg-amber-500/20 flex items-center justify-center">
+                <Truck className="w-6 h-6 text-amber-400" />
+              </div>
+            </div>
+          </Card>
+          <Card className="p-4 rounded-2xl border border-border">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted">Resolved</p>
+                <p className="text-2xl font-bold text-foreground">{departmentIncidents.filter((i) => i.status === 'Resolved' || i.status === 'resolved').length}</p>
+              </div>
+              <div className="w-12 h-12 rounded-xl bg-green-500/20 flex items-center justify-center">
+                <CheckCircle className="w-6 h-6 text-green-400" />
+              </div>
+            </div>
+          </Card>
+        </div>
+
+        <Card className="rounded-2xl border border-border overflow-hidden">
+          <div className="p-4 border-b border-border">
+            <h2 className="text-xl font-semibold text-foreground">Assigned Incidents</h2>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className={isLight ? 'bg-gray-50 border-b border-gray-200' : 'bg-muted/30 border-b border-border'}>
+                <tr>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-foreground">Incident ID</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-foreground">Type</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-foreground">Location</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-foreground">Severity</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-foreground">Status</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-foreground">Assigned To</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-foreground">Vehicle</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-foreground">Reported</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-foreground">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {departmentIncidents.map((incident) => (
+                  <tr key={incident.id} className="hover:bg-muted/20 transition-colors">
+                    <td className="px-4 py-3">
+                      <button type="button" onClick={() => navigate(`/incidents/${incident.id}`)} className="text-sm font-medium text-primary hover:underline">
+                        {incident.id}
+                      </button>
+                    </td>
+                    <td className="px-4 py-3 text-sm">
+                      <span className="inline-flex items-center gap-1">
+                        {getTypeIcon(incident.emergencyType)}
+                        <span className="capitalize text-foreground">{incident.emergencyType}</span>
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-muted">
+                      <div className="flex items-center gap-1">
+                        <MapPin className="w-4 h-4 text-muted" />
+                        {incident.barangay}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge className={getSeverityColor(incident.severity)}>{String(incident.severity || '—')}</Badge>
+                    </td>
+                    <td className="px-4 py-3">{getStatusBadge(incident.status)}</td>
+                    <td className="px-4 py-3 text-sm text-muted">
+                      {getAssignment(incident.id) ? getAssignment(incident.id).name : '—'}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-muted">
+                      {getVehicleAssignment(incident.id) ? getVehicleAssignment(incident.id).name : '—'}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-muted">{incident.timeReported || '—'}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1">
+                        {user.role === ROLES.DEPARTMENT_ADMIN && (
+                          <>
+                            <Button size="sm" variant="ghost" onClick={() => openAssignModal(incident.id)} className="text-primary" title="Assign personnel">
+                              <UserPlus className="w-4 h-4" />
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={() => openVehicleAssignModal(incident.id)} className="text-primary" title="Assign vehicle">
+                              <Truck className="w-4 h-4" />
+                            </Button>
+                          </>
+                        )}
+                        <Button size="sm" variant="ghost" onClick={() => navigate(`/incidents/${incident.id}`)} className="text-primary" title="View details">
+                          <Eye className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+
+        {departmentIncidents.length === 0 && (
+          <div className="text-center py-12 text-muted">
+            <p className="text-lg">No incidents assigned to your department yet</p>
+          </div>
+        )}
+
+        <Card className="p-4 bg-primary/5 border-primary/20 rounded-2xl">
+          <h3 className="font-semibold text-foreground mb-2">Notes</h3>
+          <ul className="text-sm text-muted space-y-1 list-disc list-inside">
+            <li>Click an incident ID to view details and update status</li>
+            <li>Use the assign icons to assign personnel or a vehicle to an incident (Dept Admin)</li>
+            <li>Status updates are visible to the Super Admin control center</li>
+          </ul>
+        </Card>
+
+        {/* Assign Personnel Modal — Dept Admin only */}
+        <Dialog open={assignModalOpen} onOpenChange={(open) => !open && closeAssignModal()} className="max-w-md">
+          <DialogContent className={`max-w-md rounded-2xl overflow-hidden ${isLight ? 'glass neumorphic-light bg-white/95 border-gray-200/80' : 'glass neumorphic-dark bg-card/95 border-white/10'}`}>
+            <div className={`flex items-center justify-between border-b ${isLight ? 'border-gray-200/80 pb-4' : 'border-white/10 pb-4'}`}>
+              <DialogHeader>
+                <DialogTitle className="text-xl font-bold text-foreground">Assign personnel</DialogTitle>
+                <p className="text-sm text-muted mt-1">
+                  {assigningIncidentId ? `Select an available team member for ${assigningIncidentId}` : 'Select a team member'}
+                </p>
+              </DialogHeader>
+              <button
+                type="button"
+                onClick={closeAssignModal}
+                className={`p-2 rounded-xl transition-colors ${isLight ? 'hover:bg-gray-100 text-gray-500' : 'hover:bg-white/10 text-muted'}`}
+                aria-label="Close"
+              >
+                <X className="w-5 h-5" strokeWidth={2} />
+              </button>
+            </div>
+            <div className="mt-4 space-y-3 max-h-[280px] overflow-y-auto pr-1">
+              {personnelList.map((p, idx) => {
+                const personnelKey = `${departmentId}-${idx}`;
+                const isAvailable = String(p.status || '').toLowerCase() === 'available';
+                const Wrapper = isAvailable ? 'button' : 'div';
+                const wrapperProps = isAvailable
+                  ? { type: 'button', onClick: () => setAssignment(assigningIncidentId, personnelKey, p.name) }
+                  : {};
+                return (
+                  <Wrapper
+                    key={personnelKey}
+                    {...wrapperProps}
+                    className={`w-full text-left flex items-center gap-4 px-4 py-3.5 rounded-xl border transition-all duration-200 ${
+                      isAvailable
+                        ? isLight
+                          ? 'border-gray-200/80 bg-white hover:bg-primary/5 hover:border-primary/30 cursor-pointer shadow-sm'
+                          : 'border-white/10 bg-white/5 hover:bg-primary/10 hover:border-primary/30 cursor-pointer'
+                        : isLight
+                          ? 'border-gray-200/60 bg-gray-50/50 opacity-60 cursor-not-allowed'
+                          : 'border-white/5 bg-white/5 opacity-60 cursor-not-allowed'
+                    }`}
+                  >
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isAvailable ? (isLight ? 'bg-green-500/15 text-green-600' : 'bg-green-500/20 text-green-400') : (isLight ? 'bg-amber-500/15 text-amber-600' : 'bg-amber-500/20 text-amber-400')}`}>
+                      {isAvailable ? <UserCheck className="w-5 h-5" strokeWidth={2} /> : <Clock className="w-5 h-5" strokeWidth={2} />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-foreground">{p.name}</p>
+                      <p className="text-sm text-muted">{p.role} · {p.unit}</p>
+                    </div>
+                    <span className={`flex-shrink-0 px-2.5 py-1 rounded-lg text-xs font-medium ${isAvailable ? 'bg-green-500/20 text-green-600' : 'bg-amber-500/20 text-amber-600'}`}>
+                      {p.status}
+                    </span>
+                  </Wrapper>
+                );
+              })}
+            </div>
+            {personnelList.length === 0 && <p className="text-sm text-muted py-6 text-center">No personnel in this department</p>}
+            {personnelList.length > 0 && personnelList.every((p) => String(p.status || '').toLowerCase() !== 'available') && (
+              <p className="text-sm text-amber-600 dark:text-amber-400 mt-3 text-center">No available personnel. Only &quot;Available&quot; can be assigned.</p>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Assign Vehicle Modal — Dept Admin only */}
+        <Dialog open={vehicleModalOpen} onOpenChange={(open) => !open && closeVehicleAssignModal()} className="max-w-md">
+          <DialogContent className={`max-w-md rounded-2xl overflow-hidden ${isLight ? 'glass neumorphic-light bg-white/95 border-gray-200/80' : 'glass neumorphic-dark bg-card/95 border-white/10'}`}>
+            <div className={`flex items-center justify-between border-b ${isLight ? 'border-gray-200/80 pb-4' : 'border-white/10 pb-4'}`}>
+              <DialogHeader>
+                <DialogTitle className="text-xl font-bold text-foreground">Assign vehicle</DialogTitle>
+                <p className="text-sm text-muted mt-1">
+                  {assigningIncidentIdVehicle ? `Select an available vehicle for ${assigningIncidentIdVehicle}` : 'Select a vehicle'}
+                </p>
+              </DialogHeader>
+              <button type="button" onClick={closeVehicleAssignModal} className={`p-2 rounded-xl transition-colors ${isLight ? 'hover:bg-gray-100 text-gray-500' : 'hover:bg-white/10 text-muted'}`} aria-label="Close">
+                <X className="w-5 h-5" strokeWidth={2} />
+              </button>
+            </div>
+            <div className="mt-4 space-y-3 max-h-[280px] overflow-y-auto pr-1">
+              {unitsList.map((u) => {
+                const isAvailable = String(u.status || '').toLowerCase() === 'available';
+                const Wrapper = isAvailable ? 'button' : 'div';
+                const wrapperProps = isAvailable ? { type: 'button', onClick: () => setVehicleAssignment(assigningIncidentIdVehicle, u.id, u.name) } : {};
+                return (
+                  <Wrapper
+                    key={u.id}
+                    {...wrapperProps}
+                    className={`w-full text-left flex items-center gap-4 px-4 py-3.5 rounded-xl border transition-all duration-200 ${
+                      isAvailable
+                        ? isLight ? 'border-gray-200/80 bg-white hover:bg-primary/5 hover:border-primary/30 cursor-pointer shadow-sm' : 'border-white/10 bg-white/5 hover:bg-primary/10 hover:border-primary/30 cursor-pointer'
+                        : isLight ? 'border-gray-200/60 bg-gray-50/50 opacity-60 cursor-not-allowed' : 'border-white/5 bg-white/5 opacity-60 cursor-not-allowed'
+                    }`}
+                  >
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isAvailable ? (isLight ? 'bg-green-500/15 text-green-600' : 'bg-green-500/20 text-green-400') : (isLight ? 'bg-amber-500/15 text-amber-600' : 'bg-amber-500/20 text-amber-400')}`}>
+                      {isAvailable ? <Truck className="w-5 h-5" strokeWidth={2} /> : <Clock className="w-5 h-5" strokeWidth={2} />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-foreground">{u.name}</p>
+                      <p className="text-sm text-muted">{u.type} · {u.id}</p>
+                    </div>
+                    <span className={`flex-shrink-0 px-2.5 py-1 rounded-lg text-xs font-medium ${isAvailable ? 'bg-green-500/20 text-green-600' : 'bg-amber-500/20 text-amber-600'}`}>{u.status}</span>
+                  </Wrapper>
+                );
+              })}
+            </div>
+            {unitsList.length === 0 && <p className="text-sm text-muted py-6 text-center">No vehicles in this department</p>}
+            {unitsList.length > 0 && unitsList.every((u) => String(u.status || '').toLowerCase() !== 'available') && (
+              <p className="text-sm text-amber-600 dark:text-amber-400 mt-3 text-center">No available vehicles. Only &quot;Available&quot; can be assigned.</p>
+            )}
+          </DialogContent>
+        </Dialog>
+      </div>
+    </Layout>
+  );
+}

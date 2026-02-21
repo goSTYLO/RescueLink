@@ -73,7 +73,7 @@ export function DialogDescription({ children, className = '' }) {
 
 export function DialogFooter({ children, className = '' }) {
   return (
-    <div className={`flex justify-end gap-2 mt-6 ${className}`}>
+    <div className={`flex justify-between gap-2 mt-6 ${className}`}>
       {children}
     </div>
   );

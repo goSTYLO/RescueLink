@@ -28,6 +28,7 @@ import {
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { getIncidentById, getIncidentAudioUrl, verifyIncident } from '@/data/api/incidents.api';
 import { DEV_MODE } from '@/core/config/app.config';
+import { ROLES, normalizeRole } from '@/core/constants';
 import { Loader2 } from 'lucide-react';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
 
@@ -156,7 +157,7 @@ export function IncidentDetailsPage() {
 
   // Get current user role
   const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
-  const isAdmin = currentUser.role === 'Admin';
+  const isAdmin = normalizeRole(currentUser.role) === ROLES.SUPER_ADMIN;
   const isSupervisor = currentUser.role === 'Supervisor' || isAdmin;
 
   // State for dialogs
@@ -644,15 +645,15 @@ export function IncidentDetailsPage() {
                             </div>
                           </div>
                           <DialogFooter>
-                            <Button variant="outline" onClick={() => setEscalateDialogOpen(false)}>
-                              Cancel
-                            </Button>
                             <Button 
                               className="bg-amber-600 hover:bg-amber-700"
                               onClick={handleEscalate}
                               disabled={!newSeverity || !escalationReason}
                             >
                               Confirm Escalation
+                            </Button>
+                            <Button variant="outline" onClick={() => setEscalateDialogOpen(false)}>
+                              Cancel
                             </Button>
                           </DialogFooter>
                         </DialogContent>
@@ -690,15 +691,15 @@ export function IncidentDetailsPage() {
                             </div>
                           </div>
                           <DialogFooter>
-                            <Button variant="outline" onClick={() => setAddDepartmentDialogOpen(false)}>
-                              Cancel
-                            </Button>
                             <Button 
                               className="bg-[#134178] hover:bg-[#0f3256]"
                               onClick={handleAddDepartment}
                               disabled={!additionalDepartment}
                             >
                               Add Department
+                            </Button>
+                            <Button variant="outline" onClick={() => setAddDepartmentDialogOpen(false)}>
+                              Cancel
                             </Button>
                           </DialogFooter>
                         </DialogContent>
@@ -742,13 +743,6 @@ export function IncidentDetailsPage() {
                             </DialogHeader>
                             <DialogFooter>
                               <Button
-                                variant="outline"
-                                onClick={() => setVerifyDialogOpen(false)}
-                                disabled={verifyLoading}
-                              >
-                                Cancel
-                              </Button>
-                              <Button
                                 onClick={handleVerifyIncident}
                                 disabled={verifyLoading}
                                 className="gap-2 bg-[#134178] hover:bg-[#0f3256]"
@@ -764,6 +758,13 @@ export function IncidentDetailsPage() {
                                     Confirm Verify
                                   </>
                                 )}
+                              </Button>
+                              <Button
+                                variant="outline"
+                                onClick={() => setVerifyDialogOpen(false)}
+                                disabled={verifyLoading}
+                              >
+                                Cancel
                               </Button>
                             </DialogFooter>
                           </DialogContent>
@@ -839,15 +840,15 @@ export function IncidentDetailsPage() {
                             </div>
                           </div>
                           <DialogFooter>
-                            <Button variant="outline" onClick={() => setClosureDialogOpen(false)}>
-                              Cancel
-                            </Button>
                             <Button 
                               className="bg-green-600 hover:bg-green-700"
                               onClick={handleCloseIncident}
                               disabled={!closureOutcome || !closureClassification}
                             >
                               Close Incident
+                            </Button>
+                            <Button variant="outline" onClick={() => setClosureDialogOpen(false)}>
+                              Cancel
                             </Button>
                           </DialogFooter>
                         </DialogContent>
@@ -1135,9 +1136,6 @@ export function IncidentDetailsPage() {
               ))}
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setDuplicateDialogOpen(false)}>
-                Not a Duplicate
-              </Button>
               <Button 
                 variant="outline"
                 className="text-red-600 border-red-200 hover:bg-red-50"
@@ -1149,6 +1147,9 @@ export function IncidentDetailsPage() {
                 }}
               >
                 Mark as False Report
+              </Button>
+              <Button variant="outline" onClick={() => setDuplicateDialogOpen(false)}>
+                Not a Duplicate
               </Button>
             </DialogFooter>
           </DialogContent>
