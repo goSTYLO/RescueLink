@@ -1,12 +1,22 @@
 #!/usr/bin/env node
 
 require('dotenv').config();
-const pool = require('../src/config/db');
+const { Pool } = require('pg');
 const bcryptjs = require('bcryptjs');
-const { encryptFields } = require('../src/utils/encryptedField');
-const { ROLES } = require('../src/config/roles');
 
-console.log('🌱 Seeding database with encryption and RBAC...');
+const DATABASE_URL = process.env.DATABASE_URL;
+
+if (!DATABASE_URL) {
+  console.error('❌ Error: DATABASE_URL not set in .env file');
+  process.exit(1);
+}
+
+console.log('🌱 Seeding database...');
+console.log(`📍 Database URL: ${DATABASE_URL}`);
+
+const pool = new Pool({
+  connectionString: DATABASE_URL,
+});
 
 // Password hashing utility
 async function hashPassword(password) {
@@ -16,27 +26,26 @@ async function hashPassword(password) {
 
 // Sample data generators
 const generateUsers = () => [
-  // Admin (1)
-  { first_name: 'Super', last_name: 'Admin', email: 'admin@rescuelink.test', phone_number: '639000000000', password: 'admin123', role: ROLES.ADMIN, address: 'Dagupan Barangay, Dagupan City, Pangasinan' },
   // Dispatchers (2)
-  { first_name: 'Alice', last_name: 'Dispatcher', email: 'dispatcher@rescuelink.test', phone_number: '639001234567', password: 'dispatcher123', role: ROLES.DISPATCHER, address: 'Dagupan Barangay, Dagupan City, Pangasinan' },
-  { first_name: 'Bob', last_name: 'Dispatcher', email: 'dispatcher2@rescuelink.test', phone_number: '639009876543', password: 'dispatcher123', role: ROLES.DISPATCHER, address: 'Malur Barangay, Dagupan City, Pangasinan' },
-  // Regular users (14)
-  { first_name: 'Charlie', last_name: 'Firefighter', email: 'user1@rescuelink.test', phone_number: '639111111111', password: 'user123', role: ROLES.USER, address: 'Bonuan Barangay, Dagupan City, Pangasinan' },
-  { first_name: 'Diana', last_name: 'EMT', email: 'user2@rescuelink.test', phone_number: '639222222222', password: 'user123', role: ROLES.USER, address: 'Bacnotan Barangay, Dagupan City, Pangasinan' },
-  { first_name: 'Evan', last_name: 'Police', email: 'user3@rescuelink.test', phone_number: '639333333333', password: 'user123', role: ROLES.USER, address: 'Pantal Barangay, Dagupan City, Pangasinan' },
-  { first_name: 'Fiona', last_name: 'Nurse', email: 'user4@rescuelink.test', phone_number: '639444444444', password: 'user123', role: ROLES.USER, address: 'Dagupan Barangay, Dagupan City, Pangasinan' },
-  { first_name: 'George', last_name: 'Rescuer', email: 'user5@rescuelink.test', phone_number: '639555555555', password: 'user123', role: ROLES.USER, address: 'Malur Barangay, Dagupan City, Pangasinan' },
-  { first_name: 'John', last_name: 'Doe', email: 'user@rescuelink.test', phone_number: '639666666666', password: 'user123', role: ROLES.USER, address: 'Bonuan Barangay, Dagupan City, Pangasinan' },
-  { first_name: 'Jane', last_name: 'Smith', email: 'user6@rescuelink.test', phone_number: '639777777777', password: 'user123', role: ROLES.USER, address: 'Bacnotan Barangay, Dagupan City, Pangasinan' },
-  { first_name: 'Michael', last_name: 'Johnson', email: 'user7@rescuelink.test', phone_number: '639888888888', password: 'user123', role: ROLES.USER, address: 'Pantal Barangay, Dagupan City, Pangasinan' },
-  { first_name: 'Sarah', last_name: 'Williams', email: 'user8@rescuelink.test', phone_number: '639999999999', password: 'user123', role: ROLES.USER, address: 'Dagupan Barangay, Dagupan City, Pangasinan' },
-  { first_name: 'David', last_name: 'Brown', email: 'user9@rescuelink.test', phone_number: '639101010101', password: 'user123', role: ROLES.USER, address: 'Malur Barangay, Dagupan City, Pangasinan' },
-  { first_name: 'Emma', last_name: 'Davis', email: 'user10@rescuelink.test', phone_number: '639121212121', password: 'user123', role: ROLES.USER, address: 'Bonuan Barangay, Dagupan City, Pangasinan' },
-  { first_name: 'Frank', last_name: 'Miller', email: 'user11@rescuelink.test', phone_number: '639131313131', password: 'user123', role: ROLES.USER, address: 'Bacnotan Barangay, Dagupan City, Pangasinan' },
-  { first_name: 'Grace', last_name: 'Wilson', email: 'user12@rescuelink.test', phone_number: '639141414141', password: 'user123', role: ROLES.USER, address: 'Pantal Barangay, Dagupan City, Pangasinan' },
-  { first_name: 'Henry', last_name: 'Moore', email: 'user13@rescuelink.test', phone_number: '639151515151', password: 'user123', role: ROLES.USER, address: 'Dagupan Barangay, Dagupan City, Pangasinan' },
-  { first_name: 'Isabella', last_name: 'Taylor', email: 'user14@rescuelink.test', phone_number: '639161616161', password: 'user123', role: ROLES.USER, address: 'Malur Barangay, Dagupan City, Pangasinan' },
+  { first_name: 'Alice', last_name: 'Dispatcher', email: 'dispatcher@rescuelink.test', phone_number: '639001234567', password: 'dispatcher123', role: 'dispatcher', address: 'Dagupan Barangay, Dagupan City, Pangasinan' },
+  { first_name: 'Bob', last_name: 'Dispatcher', email: 'dispatcher2@rescuelink.test', phone_number: '639009876543', password: 'dispatcher123', role: 'dispatcher', address: 'Malur Barangay, Dagupan City, Pangasinan' },
+  // Responders (5)
+  { first_name: 'Charlie', last_name: 'Firefighter', email: 'responder@rescuelink.test', phone_number: '639111111111', password: 'responder123', role: 'responder', address: 'Bonuan Barangay, Dagupan City, Pangasinan' },
+  { first_name: 'Diana', last_name: 'EMT', email: 'responder2@rescuelink.test', phone_number: '639222222222', password: 'responder123', role: 'responder', address: 'Bacnotan Barangay, Dagupan City, Pangasinan' },
+  { first_name: 'Evan', last_name: 'Police', email: 'responder3@rescuelink.test', phone_number: '639333333333', password: 'responder123', role: 'responder', address: 'Pantal Barangay, Dagupan City, Pangasinan' },
+  { first_name: 'Fiona', last_name: 'Nurse', email: 'responder4@rescuelink.test', phone_number: '639444444444', password: 'responder123', role: 'responder', address: 'Dagupan Barangay, Dagupan City, Pangasinan' },
+  { first_name: 'George', last_name: 'Rescuer', email: 'responder5@rescuelink.test', phone_number: '639555555555', password: 'responder123', role: 'responder', address: 'Malur Barangay, Dagupan City, Pangasinan' },
+  // Regular users (10)
+  { first_name: 'John', last_name: 'Doe', email: 'user@rescuelink.test', phone_number: '639666666666', password: 'user123', role: 'user', address: 'Bonuan Barangay, Dagupan City, Pangasinan' },
+  { first_name: 'Jane', last_name: 'Smith', email: 'user2@rescuelink.test', phone_number: '639777777777', password: 'user123', role: 'user', address: 'Bacnotan Barangay, Dagupan City, Pangasinan' },
+  { first_name: 'Michael', last_name: 'Johnson', email: 'user3@rescuelink.test', phone_number: '639888888888', password: 'user123', role: 'user', address: 'Pantal Barangay, Dagupan City, Pangasinan' },
+  { first_name: 'Sarah', last_name: 'Williams', email: 'user4@rescuelink.test', phone_number: '639999999999', password: 'user123', role: 'user', address: 'Dagupan Barangay, Dagupan City, Pangasinan' },
+  { first_name: 'David', last_name: 'Brown', email: 'user5@rescuelink.test', phone_number: '639101010101', password: 'user123', role: 'user', address: 'Malur Barangay, Dagupan City, Pangasinan' },
+  { first_name: 'Emma', last_name: 'Davis', email: 'user6@rescuelink.test', phone_number: '639121212121', password: 'user123', role: 'user', address: 'Bonuan Barangay, Dagupan City, Pangasinan' },
+  { first_name: 'Frank', last_name: 'Miller', email: 'user7@rescuelink.test', phone_number: '639131313131', password: 'user123', role: 'user', address: 'Bacnotan Barangay, Dagupan City, Pangasinan' },
+  { first_name: 'Grace', last_name: 'Wilson', email: 'user8@rescuelink.test', phone_number: '639141414141', password: 'user123', role: 'user', address: 'Pantal Barangay, Dagupan City, Pangasinan' },
+  { first_name: 'Henry', last_name: 'Moore', email: 'user9@rescuelink.test', phone_number: '639151515151', password: 'user123', role: 'user', address: 'Dagupan Barangay, Dagupan City, Pangasinan' },
+  { first_name: 'Isabella', last_name: 'Taylor', email: 'user10@rescuelink.test', phone_number: '639161616161', password: 'user123', role: 'user', address: 'Malur Barangay, Dagupan City, Pangasinan' },
 ];
 
 const generateResponders = () => [
@@ -124,8 +133,6 @@ async function seedDatabase() {
 
     // Delete in reverse dependency order
     await client.query('DELETE FROM dispatcher_audit_logs');
-    await client.query('DELETE FROM dispatcher_login_otp');
-    await client.query('DELETE FROM token_blacklist');
     await client.query('DELETE FROM notifications');
     await client.query('DELETE FROM dispatches');
     await client.query('DELETE FROM blockchain_records');
@@ -137,76 +144,51 @@ async function seedDatabase() {
     console.log('✅ Cleared old data\n');
 
     // Seed users
-    console.log('👤 Seeding users with encryption...');
+    console.log('👤 Seeding users...');
     const users = generateUsers();
     const userIds = [];
 
     for (const user of users) {
       const hashedPassword = await hashPassword(user.password);
-      
-      // Encrypt sensitive fields: phone_number, email, first_name, last_name, address
-      const encryptedData = encryptFields({
-        phone_number: user.phone_number,
-        email: user.email,
-        first_name: user.first_name,
-        last_name: user.last_name,
-        address: user.address
-      }, ['phone_number', 'email', 'first_name', 'last_name', 'address']);
-
       const result = await client.query(
         `INSERT INTO users (first_name, last_name, email, phone_number, password, role, phone_verified, address)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          RETURNING user_id`,
-        [encryptedData.first_name, encryptedData.last_name, encryptedData.email, 
-         encryptedData.phone_number, hashedPassword, user.role, true, encryptedData.address]
+        [user.first_name, user.last_name, user.email, user.phone_number, hashedPassword, user.role, true, user.address]
       );
       userIds.push(result.rows[0].user_id);
     }
-    console.log(`✅ Seeded ${users.length} users (1 admin, 2 dispatchers, ${users.length - 3} regular users)\n`);
+    console.log(`✅ Seeded ${users.length} users (2 dispatchers, 5 responders, 10 regular users)\n`);
 
     // Seed responders
-    console.log('🚨 Seeding responders with encryption...');
+    console.log('🚨 Seeding responders...');
     const responders = generateResponders();
     const responderIds = [];
 
     for (const responder of responders) {
-      // Encrypt sensitive fields: name, contact_number
-      const encryptedData = encryptFields({
-        name: responder.name,
-        contact_number: responder.contact_number
-      }, ['name', 'contact_number']);
-
       const result = await client.query(
         `INSERT INTO responders (name, organization, contact_number, availability_status)
          VALUES ($1, $2, $3, $4)
          RETURNING responder_id`,
-        [encryptedData.name, responder.organization, encryptedData.contact_number, responder.availability_status]
+        [responder.name, responder.organization, responder.contact_number, responder.availability_status]
       );
       responderIds.push(result.rows[0].responder_id);
     }
     console.log(`✅ Seeded ${responders.length} responders\n`);
 
     // Seed incidents
-    console.log('🚨 Seeding incident reports with encryption...');
+    console.log('🚨 Seeding incident reports...');
     const incidents = generateIncidents(userIds);
     const incidentIds = [];
 
     for (const incident of incidents) {
-      // Encrypt sensitive fields: latitude, longitude, description
-      // Convert coordinates to strings for encryption
-      const encryptedData = encryptFields({
-        latitude: String(incident.latitude),
-        longitude: String(incident.longitude),
-        description: incident.description
-      }, ['latitude', 'longitude', 'description']);
-
       const result = await client.query(
         `INSERT INTO incident_reports
          (user_id, incident_type, severity_level, description, latitude, longitude, barangay, status, verified)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
          RETURNING report_id`,
-        [incident.user_id, incident.incident_type, incident.severity_level, encryptedData.description,
-         encryptedData.latitude, encryptedData.longitude, incident.barangay, incident.status, true]
+        [incident.user_id, incident.incident_type, incident.severity_level, incident.description,
+         incident.latitude, incident.longitude, incident.barangay, incident.status, true]
       );
       incidentIds.push(result.rows[0].report_id);
     }
@@ -240,24 +222,23 @@ async function seedDatabase() {
     console.log('🎉 Database seeding completed successfully!');
     console.log('════════════════════════════════════════════════');
     console.log('\n📋 Summary:');
-    console.log(`   👤  Users: ${userIds.length} (1 admin, 2 dispatchers, ${userIds.length - 3} regular users)`);
+    console.log(`   👤  Users: ${userIds.length} (2 dispatchers, 5 responders, 10 users)`);
     console.log(`   🚨 Responders: ${responderIds.length}`);
     console.log(`   📍 Incidents: ${incidentIds.length}`);
     console.log(`   📤 Dispatches: ${dispatchCount}`);
-    console.log('\n🔐 All sensitive data encrypted with AES-256-GCM');
-    console.log('   - User: phone_number, email, first_name, last_name, address');
-    console.log('   - Responder: name, contact_number');
-    console.log('   - Incident: latitude, longitude, description');
     console.log('\n🔑 Test Credentials (by role):');
-    console.log('   Admin (password: admin123):');
-    console.log('     - admin@rescuelink.test');
     console.log('   Dispatchers (password: dispatcher123):');
     console.log('     - dispatcher@rescuelink.test');
     console.log('     - dispatcher2@rescuelink.test');
+    console.log('   Responders (password: responder123):');
+    console.log('     - responder@rescuelink.test');
+    console.log('     - responder2@rescuelink.test');
+    console.log('     - responder3@rescuelink.test');
+    console.log('     - responder4@rescuelink.test');
+    console.log('     - responder5@rescuelink.test');
     console.log('   Users (password: user123):');
-    console.log('     - user@rescuelink.test, user1@rescuelink.test, user2@rescuelink.test, user3@rescuelink.test, user4@rescuelink.test');
-    console.log('     - user5@rescuelink.test, user6@rescuelink.test, user7@rescuelink.test, user8@rescuelink.test, user9@rescuelink.test');
-    console.log('     - user10@rescuelink.test, user11@rescuelink.test, user12@rescuelink.test, user13@rescuelink.test, user14@rescuelink.test\n');
+    console.log('     - user@rescuelink.test, user2@rescuelink.test, user3@rescuelink.test, user4@rescuelink.test, user5@rescuelink.test');
+    console.log('     - user6@rescuelink.test, user7@rescuelink.test, user8@rescuelink.test, user9@rescuelink.test, user10@rescuelink.test\n');
 
   } catch (err) {
     console.error('❌ Database seeding failed!');
@@ -266,7 +247,6 @@ async function seedDatabase() {
   } finally {
     client.release();
     await pool.end();
-    process.exit(0);
   }
 }
 

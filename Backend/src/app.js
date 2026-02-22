@@ -65,8 +65,9 @@ const authLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => {
+    const ip = req.ip || 'unknown';
     const accountKey = getAuthAccountKey(req);
-    return accountKey || 'anonymous';
+    return accountKey ? `${ip}:${accountKey}` : ip;
   },
 });
 

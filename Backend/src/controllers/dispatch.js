@@ -6,7 +6,7 @@ const dispatchController = {
   // Create new dispatch
   async create(req, res) {
     try {
-      const { report_id, responder_id, response_status, force_unverified = false } = req.body;
+      const { report_id, responder_id, response_status } = req.body;
 
       // Validate required fields
       if (!report_id || !responder_id) {
@@ -24,18 +24,6 @@ const dispatchController = {
         return res.status(404).json({ error: 'Incident report not found' });
       }
 
-      // Enforce manual verification before assignment unless explicitly overridden
-      const incidentMeta = await Dispatch.getIncidentVerification(validatedReportId);
-      const isVerified = incidentMeta?.verified === true || incidentMeta?.status === 'verified';
-      if (!isVerified && force_unverified !== true) {
-        return res.status(409).json({
-          error: 'Incident is not verified yet. Verify first or confirm override to continue assignment.',
-          code: 'INCIDENT_NOT_VERIFIED',
-          requires_confirmation: true,
-          report_id: validatedReportId
-        });
-      }
-
       // Check if responder exists
       const responderExists = await Dispatch.responderExists(validatedResponderId);
       if (!responderExists) {
@@ -51,15 +39,9 @@ const dispatchController = {
       await logDispatcherAction(req, 'dispatch_create', 'dispatch', dispatch.dispatch_id, {
         report_id: validatedReportId,
         responder_id: validatedResponderId,
-        response_status: validatedResponseStatus,
-        forced_unverified_assignment: !isVerified && force_unverified === true
+        response_status: validatedResponseStatus
       });
-      res.status(201).json({
-        ...dispatch,
-        warning: !isVerified && force_unverified === true
-          ? 'Dispatch was created for an unverified incident after manual confirmation.'
-          : undefined
-      });
+      res.status(201).json(dispatch);
     } catch (error) {
       console.error('Error creating dispatch:', error);
       if (error.message.includes('must be') || error.message.includes('must not')) {

@@ -1,51 +1,11 @@
 const pool = require('../config/db');
-const { encryptFields, decryptFields, decryptRows } = require('../utils/encryptedField');
-
-// Sensitive fields that should be encrypted at rest
-const SENSITIVE_FIELDS = ['latitude', 'longitude', 'description', 'transcription', 'audio_path', 'media_url', 'media_paths'];
-
-// Reporter fields from JOIN with users table (also encrypted)
-const REPORTER_FIELDS = ['reporter_first_name', 'reporter_last_name', 'reporter_phone'];
-
-// Field types for proper deserialization
-const FIELD_TYPES = {
-  latitude: 'number',
-  longitude: 'number',
-  description: 'string',
-  transcription: 'string',
-  audio_path: 'string',
-  media_url: 'string',
-  media_paths: 'json',
-  // Reporter field types (from users table JOIN)
-  reporter_first_name: 'string',
-  reporter_last_name: 'string',
-  reporter_phone: 'string'
-};
 
 const Incident = {
   async create({ user_id, incident_type = null, severity_level, description = null, latitude, longitude, barangay = null, media_url = null, status = 'pending' }) {
-    console.log('\n📝 [Incident.create] Received:');
-    console.log(`   Coordinates: lat=${latitude}, lng=${longitude}`);
-    console.log(`   Description: ${description ? description.substring(0, 50) + '...' : 'null'}`);
-    
-    // Encrypt sensitive fields before saving
-    const dataToSave = encryptFields({
-      description,
-      latitude,
-      longitude,
-      media_url
-    }, SENSITIVE_FIELDS);
-
-    console.log('💾 [Incident.create] Inserting to database...');
     const res = await pool.query(
       'INSERT INTO incident_reports(user_id, incident_type, severity_level, description, latitude, longitude, barangay, media_url, status) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *',
-      [user_id, incident_type, severity_level, dataToSave.description, dataToSave.latitude, dataToSave.longitude, barangay, dataToSave.media_url, status]
+      [user_id, incident_type, severity_level, description, latitude, longitude, barangay, media_url, status]
     );
-    console.log('✅ [Incident.create] Database insert successful, decrypting for API response...');
-    // Decrypt sensitive fields before returning
-    if (res.rows[0]) {
-      return decryptFields(res.rows[0], SENSITIVE_FIELDS, FIELD_TYPES);
-    }
     return res.rows[0];
   },
 
@@ -67,37 +27,16 @@ const Incident = {
     ai_attempted = false,
     status = 'pending' 
   }) {
-    console.log('\n📝 [Incident.createWithAi] Received:');
-    console.log(`   Coordinates: lat=${latitude}, lng=${longitude}`);
-    console.log(`   Transcription: ${transcription ? transcription.substring(0, 50) + '...' : 'null'}`);
-    console.log(`   Audio path: ${audio_path || 'null'}`);
-    
-    // Encrypt sensitive fields before saving
-    const dataToSave = encryptFields({
-      description,
-      latitude,
-      longitude,
-      transcription,
-      audio_path,
-      media_paths
-    }, SENSITIVE_FIELDS);
-
-    console.log('💾 [Incident.createWithAi] Inserting to database...');
     const res = await pool.query(
       `INSERT INTO incident_reports(
         user_id, incident_type, severity_level, description, latitude, longitude, barangay,
         transcription, audio_path, media_paths, ai_pending, ai_attempted, status
       ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`,
       [
-        user_id, incident_type, severity_level, dataToSave.description, dataToSave.latitude, dataToSave.longitude, barangay,
-        dataToSave.transcription, dataToSave.audio_path, dataToSave.media_paths, ai_pending, ai_attempted, status
+        user_id, incident_type, severity_level, description, latitude, longitude, barangay,
+        transcription, audio_path, JSON.stringify(media_paths), ai_pending, ai_attempted, status
       ]
     );
-    console.log('✅ [Incident.createWithAi] Database insert successful, decrypting for API response...');
-    // Decrypt sensitive fields before returning
-    if (res.rows[0]) {
-      return decryptFields(res.rows[0], SENSITIVE_FIELDS, FIELD_TYPES);
-    }
     return res.rows[0];
   },
 
@@ -109,11 +48,6 @@ const Incident = {
        WHERE ir.report_id = $1`,
       [report_id]
     );
-    // Decrypt incident fields AND reporter fields (from JOIN with users table)
-    if (res.rows[0]) {
-      const allFieldsToDecrypt = [...SENSITIVE_FIELDS, ...REPORTER_FIELDS];
-      return decryptFields(res.rows[0], allFieldsToDecrypt, FIELD_TYPES);
-    }
     return res.rows[0];
   },
 
@@ -150,9 +84,7 @@ const Incident = {
     params.push(cappedLimit, offset);
 
     const res = await pool.query(query, params);
-    // Decrypt incident fields AND reporter fields (from JOIN with users table)
-    const allFieldsToDecrypt = [...SENSITIVE_FIELDS, ...REPORTER_FIELDS];
-    return decryptRows(res.rows, allFieldsToDecrypt, FIELD_TYPES);
+    return res.rows;
   },
 
   async findByUserId(user_id, { limit = 20, offset = 0 } = {}) {
@@ -161,27 +93,14 @@ const Incident = {
       'SELECT * FROM incident_reports WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3',
       [user_id, cappedLimit, offset]
     );
-    // Decrypt all sensitive fields before returning
-    return decryptRows(res.rows, SENSITIVE_FIELDS, FIELD_TYPES);
+    return res.rows;
   },
 
   async update(report_id, { incident_type, severity_level, description, latitude, longitude, barangay, media_url, status }) {
-    // Encrypt sensitive fields before saving
-    const dataToSave = encryptFields({
-      description,
-      latitude,
-      longitude,
-      media_url
-    }, SENSITIVE_FIELDS);
-
     const res = await pool.query(
       'UPDATE incident_reports SET incident_type = $1, severity_level = $2, description = $3, latitude = $4, longitude = $5, barangay = $6, media_url = $7, status = $8 WHERE report_id = $9 RETURNING *',
-      [incident_type, severity_level, dataToSave.description, dataToSave.latitude, dataToSave.longitude, barangay, dataToSave.media_url, status, report_id]
+      [incident_type, severity_level, description, latitude, longitude, barangay, media_url, status, report_id]
     );
-    // Decrypt sensitive fields before returning
-    if (res.rows[0]) {
-      return decryptFields(res.rows[0], SENSITIVE_FIELDS, FIELD_TYPES);
-    }
     return res.rows[0];
   },
 
@@ -190,10 +109,6 @@ const Incident = {
       'DELETE FROM incident_reports WHERE report_id = $1 RETURNING *',
       [report_id]
     );
-    // Decrypt sensitive fields before returning
-    if (res.rows[0]) {
-      return decryptFields(res.rows[0], SENSITIVE_FIELDS, FIELD_TYPES);
-    }
     return res.rows[0];
   },
 
@@ -241,22 +156,13 @@ const Incident = {
     ai_pending = false,
     ai_attempted = true
   }) {
-    // Encrypt sensitive fields before saving
-    const dataToSave = encryptFields({
-      transcription
-    }, SENSITIVE_FIELDS);
-
     const res = await pool.query(
       `UPDATE incident_reports 
        SET incident_type = $1, severity_level = $2, transcription = $3, 
            ai_pending = $4, ai_attempted = $5
        WHERE report_id = $6 RETURNING *`,
-      [incident_type, severity_level, dataToSave.transcription, ai_pending, ai_attempted, report_id]
+      [incident_type, severity_level, transcription, ai_pending, ai_attempted, report_id]
     );
-    // Decrypt sensitive fields before returning
-    if (res.rows[0]) {
-      return decryptFields(res.rows[0], SENSITIVE_FIELDS, FIELD_TYPES);
-    }
     return res.rows[0];
   },
 
@@ -270,10 +176,6 @@ const Incident = {
        WHERE report_id = $2 RETURNING *`,
       [ai_pending, report_id]
     );
-    // Decrypt sensitive fields before returning
-    if (res.rows[0]) {
-      return decryptFields(res.rows[0], SENSITIVE_FIELDS, FIELD_TYPES);
-    }
     return res.rows[0];
   },
 
@@ -292,8 +194,7 @@ const Incident = {
        LIMIT $1`,
       [limit]
     );
-    // Decrypt all sensitive fields before returning
-    return decryptRows(res.rows, SENSITIVE_FIELDS, FIELD_TYPES);
+    return res.rows;
   },
 
   /**
@@ -322,8 +223,7 @@ const Incident = {
        LIMIT $1 OFFSET $2`,
       [limit, offset]
     );
-    // Decrypt all sensitive fields before returning
-    return decryptRows(res.rows, SENSITIVE_FIELDS, FIELD_TYPES);
+    return res.rows;
   },
 
   /**
@@ -334,10 +234,6 @@ const Incident = {
       'UPDATE incident_reports SET verified = TRUE, status = $2 WHERE report_id = $1 RETURNING *',
       [report_id, 'verified']
     );
-    // Decrypt sensitive fields before returning
-    if (res.rows[0]) {
-      return decryptFields(res.rows[0], SENSITIVE_FIELDS, FIELD_TYPES);
-    }
     return res.rows[0];
   },
 
