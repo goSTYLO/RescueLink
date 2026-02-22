@@ -1,12 +1,58 @@
 const pool = require('../config/db');
+const { encryptFields, decryptFields, decryptRows } = require('../utils/encryptedField');
+
+// Sensitive fields that should be encrypted at rest (from dispatcher_audit_logs table)
+const SENSITIVE_FIELDS = ['ip_address', 'details'];
+
+// User fields from JOIN with users table (also encrypted)
+const USER_FIELDS = ['user_email', 'user_first_name', 'user_last_name'];
+
+// Field types for proper deserialization
+const FIELD_TYPES = {
+  ip_address: 'string',
+  details: 'string', // Store as encrypted string, parse to JSON after decrypt
+  // User field types (from users table JOIN)
+  user_email: 'string',
+  user_first_name: 'string',
+  user_last_name: 'string'
+};
 
 const AuditLog = {
   async create({ user_id, action, resource_type, resource_id = null, details = null, ip_address = null, user_agent = null }) {
+    console.log('\n📝 [AuditLog.create] Creating audit log entry');
+    
+    // Convert details object to JSON string BEFORE encryption
+    const detailsString = details ? JSON.stringify(details) : null;
+    
+    // Encrypt sensitive fields before saving
+    const dataToSave = encryptFields({
+      ip_address,
+      details: detailsString
+    }, SENSITIVE_FIELDS);
+    
+    console.log('💾 [AuditLog.create] Encrypted data ready for database');
+
     const res = await pool.query(
       `INSERT INTO dispatcher_audit_logs(user_id, action, resource_type, resource_id, details, ip_address, user_agent)
        VALUES($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [user_id, action, resource_type, resource_id, details ? JSON.stringify(details) : null, ip_address, user_agent]
+      [user_id, action, resource_type, resource_id, dataToSave.details, dataToSave.ip_address, user_agent]
     );
+    
+    console.log('✅ [AuditLog.create] Audit log created successfully');
+    
+    // Decrypt sensitive fields before returning
+    if (res.rows[0]) {
+      const decrypted = decryptFields(res.rows[0], SENSITIVE_FIELDS, FIELD_TYPES);
+      // Parse details string back to JSON object
+      if (decrypted.details) {
+        try {
+          decrypted.details = JSON.parse(decrypted.details);
+        } catch (e) {
+          console.warn('⚠️  [AuditLog.create] Could not parse details as JSON:', e.message);
+        }
+      }
+      return decrypted;
+    }
     return res.rows[0];
   },
 
@@ -52,7 +98,21 @@ const AuditLog = {
     params.push(cappedLimit, offset);
 
     const res = await pool.query(query, params);
-    return res.rows;
+    // Decrypt audit log fields AND user fields (from JOIN with users table)
+    const allFieldsToDecrypt = [...SENSITIVE_FIELDS, ...USER_FIELDS];
+    const decryptedRows = decryptRows(res.rows, allFieldsToDecrypt, FIELD_TYPES);
+    
+    // Parse details string back to JSON for each row
+    return decryptedRows.map(row => {
+      if (row.details) {
+        try {
+          row.details = JSON.parse(row.details);
+        } catch (e) {
+          console.warn('⚠️  [AuditLog.findAll] Could not parse details as JSON');
+        }
+      }
+      return row;
+    });
   }
 };
 

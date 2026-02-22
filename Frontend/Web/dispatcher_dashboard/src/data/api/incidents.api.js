@@ -17,7 +17,7 @@ function getAuthHeaders() {
  * @param {number} [params.limit=100] - Number of records to return
  * @param {number} [params.offset=0] - Number of records to skip
  * @param {string} [params.severity_level] - Filter by severity (high, medium, low)
- * @param {string} [params.status] - Filter by status (pending, resolved)
+ * @param {string} [params.status] - Filter by status (pending, verified, resolved)
  * @returns {Promise<Array>} Array of incident objects
  */
 export async function getIncidents({ limit = 100, offset = 0, severity_level, status } = {}) {

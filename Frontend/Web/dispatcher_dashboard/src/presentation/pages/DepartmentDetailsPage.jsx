@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ArrowLeft, Truck, Users as UsersIcon, ClipboardList, Wrench, Award, AlertCircle, CheckCircle, AlertTriangle, Plus, Pencil, Trash2 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { departments, units as initialUnits, personnel as initialPersonnel, incidents } from '@/data/mock/mockData';
+import { units as initialUnits, personnel as initialPersonnel, incidents } from '@/data/mock/mockData';
 import Swal from 'sweetalert2';
 
 const UNIT_STATUS_OPTIONS = ['Available', 'On Dispatch', 'On Duty', 'Busy', 'Under Maintenance', 'Out of Service'];
@@ -25,7 +25,20 @@ const PERSONNEL_STATUS_OPTIONS = ['Available', 'On Duty', 'On Leave', 'Off Duty'
 export function DepartmentDetailsPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const department = departments.find(d => d.id === id);
+  const decodedDepartmentName = decodeURIComponent(id || '').trim();
+  const department = {
+    id,
+    name: decodedDepartmentName || 'Department',
+    type: decodedDepartmentName.toLowerCase().includes('fire')
+      ? 'Fire'
+      : decodedDepartmentName.toLowerCase().includes('police')
+        ? 'Police'
+        : decodedDepartmentName.toLowerCase().includes('medical') || decodedDepartmentName.toLowerCase().includes('health')
+          ? 'Medical'
+          : decodedDepartmentName.toLowerCase().includes('disaster')
+            ? 'Disaster'
+            : 'Community',
+  };
 
   const [deptUnits, setDeptUnits] = useState([]);
   const [deptPersonnel, setDeptPersonnel] = useState([]);
@@ -57,16 +70,6 @@ export function DepartmentDetailsPage() {
   });
 
   const deptIncidents = incidents.filter(i => i.status === 'In Progress');
-
-  if (!department) {
-    return (
-      <Layout>
-        <div className="p-8">
-          <p>Department not found</p>
-        </div>
-      </Layout>
-    );
-  }
 
   const getStatusColor = (status) => {
     switch (status) {

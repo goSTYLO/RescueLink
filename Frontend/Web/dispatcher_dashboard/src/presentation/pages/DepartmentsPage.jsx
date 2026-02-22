@@ -13,11 +13,12 @@ import {
   DialogDescription,
 } from '@/presentation/components/ui/Dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/presentation/components/ui/Select';
-import { departments as initialDepartments, units, incidents } from '@/data/mock/mockData';
 import { useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
 import { Flame, Shield, Heart, AlertTriangle, Users, Plus, Pencil, Trash2 } from 'lucide-react';
+import { getResponders, createResponder, updateResponder, deleteResponder } from '@/data/api/responders.api';
+import { getIncidents } from '@/data/api/incidents.api';
 
 const DEPARTMENT_TYPES = [
   { value: 'Fire', label: 'Fire' },
@@ -27,15 +28,73 @@ const DEPARTMENT_TYPES = [
   { value: 'Community', label: 'Community' },
 ];
 
+const DEPARTMENT_META_KEY = 'department_meta_v1';
+
+function slugify(value = '') {
+  return String(value).toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+}
+
+function inferTypeFromDepartmentName(name = '') {
+  const value = name.toLowerCase();
+  if (value.includes('fire')) return 'Fire';
+  if (value.includes('police')) return 'Police';
+  if (value.includes('medical') || value.includes('hospital') || value.includes('health')) return 'Medical';
+  if (value.includes('disaster') || value.includes('rescue')) return 'Disaster';
+  return 'Community';
+}
+
+function getDepartmentMeta() {
+  try {
+    const raw = localStorage.getItem(DEPARTMENT_META_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveDepartmentMeta(meta) {
+  localStorage.setItem(DEPARTMENT_META_KEY, JSON.stringify(meta));
+}
+
+function mapDepartmentsFromResponders(responders = []) {
+  const grouped = responders.reduce((acc, responder) => {
+    const organization = responder.organization?.trim() || 'Unassigned';
+    if (!acc[organization]) acc[organization] = [];
+    acc[organization].push(responder);
+    return acc;
+  }, {});
+
+  const meta = getDepartmentMeta();
+
+  return Object.entries(grouped).map(([name, respondersInDepartment]) => {
+    const availableCount = respondersInDepartment.filter(
+      (r) => String(r.availability_status || '').toLowerCase() === 'available'
+    ).length;
+    const activeTaskCount = respondersInDepartment.filter((r) => {
+      const status = String(r.availability_status || '').toLowerCase();
+      return status === 'busy' || status === 'on dispatch' || status === 'on duty';
+    }).length;
+
+    return {
+      id: slugify(name) || `dept-${Date.now()}`,
+      name,
+      type: meta[name]?.type || inferTypeFromDepartmentName(name),
+      contact_number: respondersInDepartment[0]?.contact_number || '',
+      location: meta[name]?.location || '',
+      personnelCount: respondersInDepartment.length,
+      availableCount,
+      activeTaskCount,
+      responders: respondersInDepartment,
+    };
+  });
+}
+
 export function DepartmentsPage() {
   const navigate = useNavigate();
-  const [departments, setDepartments] = useState(
-    initialDepartments.map((d) => ({
-      ...d,
-      personnelCount: (units[d.id] || []).length,
-      activeTaskCount: (units[d.id] || []).filter((u) => u.activeTaskCount > 0).length,
-    }))
-  );
+  const [departments, setDepartments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [activeIncidentsCount, setActiveIncidentsCount] = useState(0);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingDept, setEditingDept] = useState(null);
   const [typeSelectOpen, setTypeSelectOpen] = useState(false);
@@ -43,11 +102,34 @@ export function DepartmentsPage() {
   const [form, setForm] = useState({
     name: '',
     type: 'Fire',
-    color: 'red',
-    unitsCount: 0,
-    personnelCount: 0,
-    activeTaskCount: 0,
+    contact_number: '',
+    location: '',
   });
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const [responders, incidents] = await Promise.all([
+        getResponders({ limit: 500, offset: 0 }),
+        getIncidents({ limit: 200, offset: 0 }),
+      ]);
+
+      const departmentList = mapDepartmentsFromResponders(Array.isArray(responders) ? responders : []);
+      setDepartments(departmentList);
+
+      const incidentArray = Array.isArray(incidents) ? incidents : [];
+      const activeCount = incidentArray.filter((incident) => String(incident.status || '').toLowerCase() !== 'resolved').length;
+      setActiveIncidentsCount(activeCount);
+    } catch (error) {
+      Swal.fire({ icon: 'error', title: 'Failed to load departments', text: error.message || 'Please try again.', confirmButtonColor: '#134178' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
 
   const getDepartmentIcon = (type) => {
     switch (type) {
@@ -60,10 +142,9 @@ export function DepartmentsPage() {
   };
 
   const getDepartmentStats = (dept) => {
-    const deptUnits = units[dept.id] || [];
-    const activeIncidents = incidents.filter((i) => i.status === 'In Progress').length;
-    const availableUnits = deptUnits.filter((u) => u.status === 'Available').length;
-    const totalUnits = deptUnits.length || (dept.unitsCount ?? 0);
+    const activeIncidents = dept.activeTaskCount || 0;
+    const availableUnits = dept.availableCount || 0;
+    const totalUnits = dept.personnelCount || 0;
 
     let status = 'Available';
     if (totalUnits === 0) status = 'Available';
@@ -87,18 +168,16 @@ export function DepartmentsPage() {
     }
   };
 
-  const totalActiveIncidents = incidents.filter((i) => i.status === 'In Progress').length;
-  const totalAvailableUnits = Object.values(units).flat().filter((u) => u.status === 'Available').length;
+  const totalActiveIncidents = activeIncidentsCount;
+  const totalAvailableUnits = departments.reduce((sum, department) => sum + (department.availableCount || 0), 0);
 
   const openAddDialog = () => {
     setEditingDept(null);
     setForm({
       name: '',
       type: 'Fire',
-      color: 'red',
-      unitsCount: 0,
-      personnelCount: 0,
-      activeTaskCount: 0,
+      contact_number: '',
+      location: '',
     });
     setDialogOpen(true);
   };
@@ -106,61 +185,97 @@ export function DepartmentsPage() {
   const openEditDialog = (dept, e) => {
     e?.stopPropagation();
     setEditingDept(dept);
-    const deptUnits = units[dept.id] || [];
     setForm({
       name: dept.name,
       type: dept.type,
-      color: dept.color || 'red',
-      unitsCount: deptUnits.length,
-      personnelCount: dept.personnelCount ?? deptUnits.length,
-      activeTaskCount: dept.activeTaskCount ?? deptUnits.reduce((s, u) => s + (u.activeTaskCount || 0), 0),
+      contact_number: dept.contact_number || '',
+      location: dept.location || '',
     });
     setDialogOpen(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.name.trim()) {
       Swal.fire({ icon: 'error', title: 'Validation failed', text: 'Please enter a department name.', confirmButtonColor: '#134178' });
       return;
     }
 
-    if (editingDept) {
-      setDepartments((prev) =>
-        prev.map((d) =>
-          d.id === editingDept.id
-            ? {
-                ...d,
-                name: form.name.trim(),
-                type: form.type,
-                color: form.color,
-                unitsCount: form.unitsCount,
-                personnelCount: form.personnelCount,
-                activeTaskCount: form.activeTaskCount,
-              }
-            : d
-        )
-      );
-      Swal.fire({ icon: 'success', title: 'Department updated', text: 'Department details have been saved.', timer: 2000, showConfirmButton: false, timerProgressBar: true });
-    } else {
-      const id = form.name.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-      setDepartments((prev) => [
-        ...prev,
-        {
-          id: id || `dept-${Date.now()}`,
-          name: form.name.trim(),
+    try {
+      setSaving(true);
+      const departmentName = form.name.trim();
+      const metadata = getDepartmentMeta();
+
+      if (editingDept) {
+        const respondersInDepartment = editingDept.responders || [];
+
+        await Promise.all(
+          respondersInDepartment.map((responder) =>
+            updateResponder(responder.responder_id, {
+              name: responder.name,
+              organization: departmentName,
+              contact_number: responder.contact_number,
+              availability_status: responder.availability_status || 'Available',
+            })
+          )
+        );
+
+        if (respondersInDepartment.length === 0) {
+          await createResponder({
+            name: `${departmentName} Department Lead`,
+            organization: departmentName,
+            contact_number: form.contact_number || null,
+            availability_status: 'Available',
+          });
+        } else if (form.contact_number && form.contact_number !== (respondersInDepartment[0]?.contact_number || '')) {
+          const lead = respondersInDepartment[0];
+          await updateResponder(lead.responder_id, {
+            name: lead.name,
+            organization: departmentName,
+            contact_number: form.contact_number,
+            availability_status: lead.availability_status || 'Available',
+          });
+        }
+
+        if (editingDept.name !== departmentName) {
+          delete metadata[editingDept.name];
+        }
+
+        metadata[departmentName] = {
+          ...(metadata[departmentName] || {}),
           type: form.type,
-          color: form.color,
-          unitsCount: form.unitsCount,
-          personnelCount: form.personnelCount,
-          activeTaskCount: form.activeTaskCount,
-        },
-      ]);
-      Swal.fire({ icon: 'success', title: 'Department added', text: 'The new department has been added.', timer: 2000, showConfirmButton: false, timerProgressBar: true });
+          location: form.location || '',
+        };
+        saveDepartmentMeta(metadata);
+
+        Swal.fire({ icon: 'success', title: 'Department updated', text: 'Department details have been saved.', timer: 2000, showConfirmButton: false, timerProgressBar: true });
+      } else {
+        await createResponder({
+          name: `${departmentName} Department Lead`,
+          organization: departmentName,
+          contact_number: form.contact_number || null,
+          availability_status: 'Available',
+        });
+
+        metadata[departmentName] = {
+          ...(metadata[departmentName] || {}),
+          type: form.type,
+          location: form.location || '',
+        };
+        saveDepartmentMeta(metadata);
+
+        Swal.fire({ icon: 'success', title: 'Department added', text: 'The new department has been added.', timer: 2000, showConfirmButton: false, timerProgressBar: true });
+      }
+
+      setDialogOpen(false);
+      await loadData();
+    } catch (error) {
+      Swal.fire({ icon: 'error', title: 'Save failed', text: error.message || 'Unable to save department.', confirmButtonColor: '#134178' });
+    } finally {
+      setSaving(false);
     }
-    setDialogOpen(false);
   };
 
-  const handleDelete = (deptId, e) => {
+  const handleDelete = (department, e) => {
     e?.stopPropagation();
     Swal.fire({
       title: 'Delete department?',
@@ -180,8 +295,20 @@ export function DepartmentsPage() {
       },
     }).then((result) => {
       if (result.isConfirmed) {
-        setDepartments((prev) => prev.filter((d) => d.id !== deptId));
-        Swal.fire({ icon: 'success', title: 'Department deleted', text: 'The department has been removed.', timer: 2000, showConfirmButton: false, timerProgressBar: true });
+        (async () => {
+          try {
+            await Promise.all((department.responders || []).map((responder) => deleteResponder(responder.responder_id)));
+
+            const metadata = getDepartmentMeta();
+            delete metadata[department.name];
+            saveDepartmentMeta(metadata);
+
+            await loadData();
+            Swal.fire({ icon: 'success', title: 'Department deleted', text: 'The department has been removed.', timer: 2000, showConfirmButton: false, timerProgressBar: true });
+          } catch (error) {
+            Swal.fire({ icon: 'error', title: 'Delete failed', text: error.message || 'Unable to delete department.', confirmButtonColor: '#134178' });
+          }
+        })();
       }
     });
   };
@@ -227,18 +354,23 @@ export function DepartmentsPage() {
         </div>
 
         {/* Department Cards - only these are dynamic */}
+        {loading && (
+          <Card className="mb-6" hover={false}>
+            <CardContent className="p-6 text-muted">Loading departments...</CardContent>
+          </Card>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {departments.map((dept) => {
             const Icon = getDepartmentIcon(dept.type);
             const stats = getDepartmentStats(dept);
-            const totalUnitsDisplay = units[dept.id]?.length ?? dept.unitsCount ?? 0;
-            const availableFromUnits = units[dept.id] ? stats.availableUnits : (totalUnitsDisplay - (dept.activeTaskCount || 0));
+            const totalUnitsDisplay = dept.personnelCount ?? 0;
 
             return (
               <Card
                 key={dept.id}
                 className="hover:shadow-lg transition-shadow cursor-pointer"
-                onClick={() => navigate(`/departments/${dept.id}`)}
+                onClick={() => navigate(`/departments/${encodeURIComponent(dept.name)}`)}
               >
                 <CardHeader>
                   <div className="flex items-start justify-between gap-2">
@@ -266,7 +398,7 @@ export function DepartmentsPage() {
                         variant="ghost"
                         size="sm"
                         className="h-9 w-9 p-0 min-w-[36px] text-red-600 hover:bg-red-50 focus:ring-red-500"
-                        onClick={(e) => handleDelete(dept.id, e)}
+                        onClick={(e) => handleDelete(dept, e)}
                         title="Delete"
                         aria-label="Delete department"
                       >
@@ -287,9 +419,7 @@ export function DepartmentsPage() {
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-gray-600">Units</span>
-                      <span className="font-semibold text-[#134178]">
-                        {units[dept.id] ? `${stats.availableUnits}/${stats.totalUnits}` : `${dept.unitsCount ?? 0} total`}
-                      </span>
+                      <span className="font-semibold text-[#134178]">{`${stats.availableUnits}/${stats.totalUnits}`}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-gray-600">Personnel</span>
@@ -304,7 +434,7 @@ export function DepartmentsPage() {
                     className="w-full"
                     onClick={(e) => {
                       e.stopPropagation();
-                      navigate(`/departments/${dept.id}`);
+                      navigate(`/departments/${encodeURIComponent(dept.name)}`);
                     }}
                   >
                     View Department
@@ -369,35 +499,20 @@ export function DepartmentsPage() {
             </div>
             <div className="grid grid-cols-3 gap-4 w-full min-w-0">
               <div className="min-w-0 flex flex-col">
-                <Label className="block text-sm font-medium text-foreground mb-2">Units</Label>
+                <Label className="block text-sm font-medium text-foreground mb-2">Contact Number</Label>
                 <Input
-                  type="number"
-                  min={0}
-                  value={form.unitsCount}
-                  onChange={(e) => setForm((f) => ({ ...f, unitsCount: parseInt(e.target.value, 10) || 0 }))}
-                  placeholder="0"
+                  value={form.contact_number}
+                  onChange={(e) => setForm((f) => ({ ...f, contact_number: e.target.value }))}
+                  placeholder="e.g. +639171234567"
                   className="w-full min-w-0 rounded-xl border-border focus:border-secondary focus:ring-secondary/20"
                 />
               </div>
-              <div className="min-w-0 flex flex-col">
-                <Label className="block text-sm font-medium text-foreground mb-2">Personnel</Label>
+              <div className="min-w-0 flex flex-col col-span-2">
+                <Label className="block text-sm font-medium text-foreground mb-2">Location</Label>
                 <Input
-                  type="number"
-                  min={0}
-                  value={form.personnelCount}
-                  onChange={(e) => setForm((f) => ({ ...f, personnelCount: parseInt(e.target.value, 10) || 0 }))}
-                  placeholder="0"
-                  className="w-full min-w-0 rounded-xl border-border focus:border-secondary focus:ring-secondary/20"
-                />
-              </div>
-              <div className="min-w-0 flex flex-col">
-                <Label className="block text-sm font-medium text-foreground mb-2">Active Tasks</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  value={form.activeTaskCount}
-                  onChange={(e) => setForm((f) => ({ ...f, activeTaskCount: parseInt(e.target.value, 10) || 0 }))}
-                  placeholder="0"
+                  value={form.location}
+                  onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))}
+                  placeholder="e.g. Dagupan City Operations Center"
                   className="w-full min-w-0 rounded-xl border-border focus:border-secondary focus:ring-secondary/20"
                 />
               </div>
@@ -407,9 +522,10 @@ export function DepartmentsPage() {
             <button
               type="button"
               onClick={handleSave}
+              disabled={saving}
               className="px-5 py-2.5 rounded-xl font-medium text-sm text-white bg-secondary hover:bg-secondary-hover focus:outline-none focus:ring-2 focus:ring-secondary focus:ring-offset-2 focus:ring-offset-background shadow-sm hover:shadow-md transition-all duration-200"
             >
-              {editingDept ? 'Save Changes' : 'Add Department'}
+              {saving ? 'Saving...' : editingDept ? 'Save Changes' : 'Add Department'}
             </button>
             <button
               type="button"

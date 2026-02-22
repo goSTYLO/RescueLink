@@ -21,7 +21,7 @@ Use this document to **present** and **test** each security item for your profes
 | **Validation** | NoSQL injection? | ✅ N/A (None) | PostgreSQL only; parameterized queries |
 | **CSRF** | CSRF protection? | ☐ No explicit | Bearer token in header (no auth cookies) reduces classic CSRF risk |
 | **Credential storage** | How are DB creds stored? | ✅ Secure .env | `DATABASE_URL` from env; `.env` in `.gitignore` |
-| **Encryption at rest** | Is data encrypted? | ☐ None (in app) | Passwords hashed; no field encryption in use; TDE recommended in DEPLOYMENT.md |
+| **Encryption at rest** | Is data encrypted? | ✅ AES-256-GCM field-level | PII + location data encrypted: phone, email, names, coordinates, descriptions, audio paths, transcriptions |
 
 ---
 
@@ -214,17 +214,46 @@ Use this document to **present** and **test** each security item for your profes
 
 ## 3. Database security
 
-### 3.1 Encrypted database
+### 3.1 Encrypted database (Field-level encryption)
 
-**What:** Data-at-rest encryption is a deployment/infrastructure concern (e.g. cloud provider or volume encryption), not something the app implements in code.
+**What:** Application-layer field-level encryption for sensitive PII and location data using AES-256-GCM with PBKDF2 key derivation (100,000 iterations). All encryption/decryption is transparent at the model layer—encrypted at-rest in the database, automatically decrypted when retrieved via API.
+
+**Encrypted fields** (16 total):
+- **User:** phone_number, email, first_name, last_name, address
+- **Incident:** latitude, longitude, description, transcription, audio_path, media_url, media_paths
+- **Responder:** contact_number, name
+- **AuditLog:** ip_address, details (JSON)
 
 **Where to show:**
-- **File:** `Backend/DEPLOYMENT.md` – section “Encryption at rest”: “Use your provider’s or host’s option for encrypted storage (e.g. managed PostgreSQL disk encryption). This is not configured in application code.”
+- **File:** `Backend/src/utils/encryption.js` – Core encryption utility with AES-256-GCM + PBKDF2
+- **File:** `Backend/src/utils/encryptedField.js` – Helper functions: encryptFields(), decryptFields(), decryptRows()
+- **Files:** `Backend/src/models/{user.js, incident.js, responder.js, auditLog.js}` – Each model has SENSITIVE_FIELDS array and transparent encrypt/decrypt in create/read/update methods
+- **File:** `Backend/scripts/migrate-encryption.js` – Batch encryption script for existing data (--dry-run preview mode)
+- **File:** `Backend/tests/encryption.test.js` – Comprehensive test suite (40+ tests covering encryption roundtrip, model integration, GDPR compliance, performance)
 
 **How to test:**
-- **Presentation:** Explain that you use (or would use) a managed PostgreSQL with encryption at rest enabled, or an encrypted volume. No code demo required; the checklist is satisfied by documentation and deployment choices.
+1. **View encrypted data in database:**
+   ```sql
+   SELECT id, phone_number FROM users WHERE id = 91;
+   -- Shows: phone_number as hex string (e.g., "3a4b...5f9c")
+   ```
+2. **API returns decrypted data:**
+   ```bash
+   # Get user via API
+   curl -H "Authorization: Bearer {token}" https://api.rescuelink/api/users/91
+   # Returns: { "phone_number": "+639666638967", ... }  # Decrypted
+   ```
+3. **Run test suite:**
+   ```bash
+   cd Backend && npm test -- tests/encryption.test.js
+   # Verifies: roundtrip encryption, all 4 models, GDPR compliance, performance
+   ```
+4. **Dry-run migration (preview without changes):**
+   ```bash
+   cd Backend && node scripts/migrate-encryption.js --dry-run
+   ```
 
-**Demo line:** *“Database encryption at rest is handled by our host or provider; we’ve documented that requirement in the deployment guide.”*
+**Demo line:** *"All PII and sensitive location data is encrypted at the application layer using AES-256-GCM. The database stores unreadable encrypted values (you can show a SELECT query), but when you hit the API endpoint, you get decrypted plaintext back—it's transparent to the frontend. We have a test suite validating the encryption and a migration script for bulk-encrypting existing data."*
 
 ---
 
