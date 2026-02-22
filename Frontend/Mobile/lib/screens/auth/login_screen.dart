@@ -186,10 +186,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         keyboardType: TextInputType.phone,
                         decoration: InputDecoration(
                           hintText: 'Enter your number',
-                          prefixIcon: const Icon(
-                            Icons.phone,
-                            color: Color(0xFF9CA3AF),
-                          ),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide: const BorderSide(
@@ -244,10 +240,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         obscureText: _obscurePassword,
                         decoration: InputDecoration(
                           hintText: 'Enter your password',
-                          prefixIcon: const Icon(
-                            Icons.lock,
-                            color: Color(0xFF9CA3AF),
-                          ),
                           suffixIcon: IconButton(
                             icon: Icon(
                               _obscurePassword
