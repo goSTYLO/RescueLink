@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Layout } from '@/presentation/components/layout/Layout';
 import { getMe, changePassword as changePasswordApi } from '@/data/api/auth.api';
-import { Card, CardContent, CardHeader, CardTitle } from '@/presentation/components/ui/Card';
 import { Button } from '@/presentation/components/ui/Button';
 import { Label } from '@/presentation/components/ui/Label';
 import { Input } from '@/presentation/components/ui/Input';
@@ -23,12 +22,14 @@ import {
   LogOut,
   Eye,
   EyeOff,
+  UserCircle,
+  Activity,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
+import { DEV_MODE } from '@/core/config/app.config';
+import { useTheme } from '@/presentation/context/ThemeContext.jsx';
 
-const PROFILE_THEME = '#134178';
-const PROFILE_THEME_HOVER = '#0f3260';
 const MIN_PASSWORD_LENGTH = 8;
 
 export function ProfilePage() {
@@ -48,8 +49,28 @@ export function ProfilePage() {
 
   useEffect(() => {
     const token = localStorage.getItem('token');
-    if (!token) {
+    if (!token && !DEV_MODE) {
       navigate('/login', { replace: true });
+      return;
+    }
+    if (DEV_MODE && !token) {
+      const stored = localStorage.getItem('user');
+      if (stored) {
+        try {
+          const user = JSON.parse(stored);
+          setProfile({
+            firstName: user.firstName || user.username?.split(' ')[0],
+            lastName: user.lastName || user.username?.split(' ').slice(1).join(' '),
+            email: user.email || 'designer@rescuelink.com',
+            role: user.role?.toLowerCase() === 'admin' ? 'admin' : 'dispatcher',
+            phone: user.phone || '—',
+            created_at: user.created_at || new Date().toISOString(),
+          });
+        } catch (_) {
+          setProfileError('Could not load profile');
+        }
+      }
+      setProfileLoading(false);
       return;
     }
     let cancelled = false;
@@ -112,7 +133,7 @@ export function ProfilePage() {
         icon: 'error',
         title: 'Validation failed',
         text: Object.values(errors).join(' '),
-        confirmButtonColor: PROFILE_THEME,
+        confirmButtonColor: '#134178',
         customClass: { popup: 'rounded-2xl shadow-xl' },
       });
       return;
@@ -140,7 +161,7 @@ export function ProfilePage() {
         icon: 'error',
         title: 'Could not update password',
         text: err.message || 'Current password may be incorrect. Please try again.',
-        confirmButtonColor: PROFILE_THEME,
+        confirmButtonColor: '#134178',
         customClass: { popup: 'rounded-2xl shadow-xl' },
       });
     } finally {
@@ -156,178 +177,168 @@ export function ProfilePage() {
     setPasswordErrors({});
   };
 
+  const { theme } = useTheme();
+  const isLight = theme === 'light';
+  const heroCardClass = `rounded-3xl border overflow-hidden transition-all duration-300 ${isLight ? 'glass neumorphic-light bg-white/80 border-gray-200/80 shadow-[8px_8px_24px_rgba(209,213,219,0.5),-8px_-8px_24px_rgba(255,255,255,0.9)]' : 'glass neumorphic-dark bg-card/60 border-white/10 shadow-[8px_8px_24px_rgba(0,0,0,0.35),-6px_-6px_20px_rgba(19,65,120,0.2)]'}`;
+  const heroIconClass = `w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isLight ? 'neumorphic-light-inset bg-gray-100 text-primary' : 'neumorphic-dark-inset bg-white/10 text-primary'}`;
+  const panelClass = `rounded-2xl border overflow-hidden transition-all duration-300 ${isLight ? 'glass neumorphic-light bg-white/80' : 'glass neumorphic-dark bg-card/60'}`;
+  const headerClass = `flex items-center gap-3 px-4 py-3 border-b ${isLight ? 'border-gray-200/80 bg-gray-50/50' : 'border-white/10 bg-white/5'}`;
+  const iconBoxClass = (accent = 'primary') =>
+    `w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isLight ? 'neumorphic-light-inset bg-gray-100' : 'neumorphic-dark-inset bg-white/10'} ${accent === 'primary' ? 'text-primary' : 'text-foreground'}`;
+  const iconSmClass = () =>
+    `w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${isLight ? 'neumorphic-light-inset bg-gray-100 text-primary' : 'neumorphic-dark-inset bg-white/10 text-primary'}`;
+
   return (
     <Layout>
-      <div className="p-8 max-w-4xl relative min-h-[calc(100vh-8rem)]">
-        <div className="mb-8 animate-fade-in">
-          <h1 className="text-3xl font-semibold text-foreground">User Profile</h1>
-          <p className="text-muted mt-1 text-base">
-            Manage your account settings and information
-          </p>
+      <div className="p-8 max-w-4xl mx-auto relative min-h-[calc(100vh-8rem)]">
+        <div className={`${heroCardClass} mb-8`}>
+          <div className="p-8 flex flex-wrap items-center gap-6">
+            <div className={heroIconClass}>
+              <User className="w-5 h-5" strokeWidth={2} />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold text-foreground">User Profile</h1>
+              <p className="text-muted mt-1">Manage your account settings and information</p>
+            </div>
+          </div>
         </div>
 
         <div className="space-y-6">
           {/* Profile Information */}
-          <Card className="animate-slide-up">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>Profile Information</CardTitle>
+          <div className={panelClass}>
+            <div className={headerClass}>
+              <span className={iconBoxClass('primary')}>
+                <UserCircle className="w-5 h-5" strokeWidth={2} />
+              </span>
+              <span className="font-medium text-foreground flex-1">Profile Information</span>
               {profile?.role && (
-                <span
-                  className="px-3 py-1 rounded-full text-xs font-semibold uppercase border text-white"
-                  style={{
-                    backgroundColor: PROFILE_THEME,
-                    borderColor: PROFILE_THEME,
-                  }}
-                >
-                  {profile.role === 'dispatcher' ? 'OPERATOR' : (profile.role || '').toUpperCase()}
+                <span className="px-3 py-1.5 rounded-xl text-xs font-semibold uppercase bg-primary text-white border border-primary">
+                  {profile.role === 'dispatcher' ? 'Operator' : (profile.role || '').toUpperCase()}
                 </span>
               )}
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {profileLoading && (
-                <p className="text-muted">Loading profile...</p>
-              )}
-              {profileError && (
-                <p className="text-red-500 text-sm">{profileError}</p>
-              )}
+            </div>
+            <div className="p-6 space-y-6">
+              {profileLoading && <p className="text-muted">Loading profile...</p>}
+              {profileError && <p className="text-red-500 text-sm">{profileError}</p>}
               {!profileLoading && !profileError && profile && (
                 <>
-                  <div className="flex items-start gap-5">
-                    <div
-                      className="flex-shrink-0 w-16 h-16 rounded-full flex items-center justify-center text-white shadow-md"
-                      style={{ backgroundColor: PROFILE_THEME }}
-                    >
+                  <div className="flex items-center gap-5">
+                    <span className={`w-16 h-16 rounded-2xl flex items-center justify-center flex-shrink-0 ${isLight ? 'neumorphic-light-inset bg-gray-100 text-primary' : 'neumorphic-dark-inset bg-white/10 text-primary'}`}>
                       <User className="w-8 h-8" strokeWidth={2} />
-                    </div>
+                    </span>
                     <div>
                       <h3 className="text-lg font-semibold text-foreground">
                         {[profile.firstName, profile.lastName].filter(Boolean).join(' ') || '—'}
                       </h3>
-                      <p className="text-sm text-gray-500 mt-0.5">
-                        Emergency Operations Center
-                      </p>
+                      <p className="text-sm text-muted mt-0.5">Emergency Operations Center</p>
                     </div>
                   </div>
-                  <div className="border-t border-border pt-5 grid grid-cols-1 sm:grid-cols-2 gap-5">
-                    <div className="flex items-center gap-3 text-foreground">
-                      <Mail className="w-5 h-5 text-gray-500 flex-shrink-0" />
+                  <div className={`border-t pt-5 grid grid-cols-1 sm:grid-cols-2 gap-5 ${isLight ? 'border-gray-200' : 'border-white/10'}`}>
+                    <div className="flex items-center gap-3">
+                      <span className={iconSmClass()}>
+                        <Mail className="w-4 h-4" strokeWidth={2} />
+                      </span>
                       <div>
-                        <p className="text-xs text-gray-500">Email Address</p>
-                        <p className="text-sm font-medium text-foreground">
-                          {profile.email || '—'}
-                        </p>
+                        <p className="text-xs text-muted">Email Address</p>
+                        <p className="text-sm font-medium text-foreground">{profile.email || '—'}</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3 text-foreground">
-                      <Shield className="w-5 h-5 text-gray-500 flex-shrink-0" />
+                    <div className="flex items-center gap-3">
+                      <span className={iconSmClass()}>
+                        <Shield className="w-4 h-4" strokeWidth={2} />
+                      </span>
                       <div>
-                        <p className="text-xs text-gray-500">Role</p>
+                        <p className="text-xs text-muted">Role</p>
                         <p className="text-sm font-medium text-foreground">
                           {profile.role === 'dispatcher' ? 'Operator' : profile.role || '—'}
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3 text-foreground">
-                      <Phone className="w-5 h-5 text-gray-500 flex-shrink-0" />
+                    <div className="flex items-center gap-3">
+                      <span className={iconSmClass()}>
+                        <Phone className="w-4 h-4" strokeWidth={2} />
+                      </span>
                       <div>
-                        <p className="text-xs text-gray-500">Phone Number</p>
-                        <p className="text-sm font-medium text-foreground">
-                          {profile.phone || '—'}
-                        </p>
+                        <p className="text-xs text-muted">Phone Number</p>
+                        <p className="text-sm font-medium text-foreground">{profile.phone || '—'}</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3 text-foreground">
-                      <Clock className="w-5 h-5 text-gray-500 flex-shrink-0" />
+                    <div className="flex items-center gap-3">
+                      <span className={iconSmClass()}>
+                        <Clock className="w-4 h-4" strokeWidth={2} />
+                      </span>
                       <div>
-                        <p className="text-xs text-gray-500">Member since</p>
+                        <p className="text-xs text-muted">Member since</p>
                         <p className="text-sm font-medium text-foreground">
-                          {profile.created_at
-                            ? new Date(profile.created_at).toLocaleString()
-                            : '—'}
+                          {profile.created_at ? new Date(profile.created_at).toLocaleString() : '—'}
                         </p>
                       </div>
                     </div>
                   </div>
                 </>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
           {/* Change Password */}
-          <Card className="animate-slide-up" style={{ animationDelay: '50ms' }}>
-            <CardHeader className="flex flex-row items-center justify-between gap-4">
-              <div>
-                <CardTitle>Change Password</CardTitle>
-                <p className="text-sm text-gray-500 mt-1">
-                  Update your account password
-                </p>
+          <div className={panelClass}>
+            <div className={headerClass}>
+              <span className={iconBoxClass('primary')}>
+                <KeyRound className="w-5 h-5" strokeWidth={2} />
+              </span>
+              <div className="flex-1">
+                <p className="font-medium text-foreground">Change Password</p>
+                <p className="text-sm text-muted mt-0.5">Update your account password</p>
               </div>
-              <Button
-                className="gap-2 text-white border-0 focus:ring-[#134178] shrink-0"
-                style={{
-                  backgroundColor: PROFILE_THEME,
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = PROFILE_THEME_HOVER;
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = PROFILE_THEME;
-                }}
-                onClick={() => setChangePasswordOpen(true)}
-              >
-                <KeyRound className="w-4 h-4" />
+              <Button className="rounded-xl gap-2 bg-primary hover:bg-primary-hover text-white shrink-0" onClick={() => setChangePasswordOpen(true)}>
+                <KeyRound className="w-4 h-4" strokeWidth={2} />
                 Change Password
               </Button>
-            </CardHeader>
-          </Card>
+            </div>
+          </div>
 
           {/* Session Information */}
-          <Card className="animate-slide-up" style={{ animationDelay: '100ms' }}>
-            <CardHeader>
-              <CardTitle>Session Information</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
+          <div className={panelClass}>
+            <div className={headerClass}>
+              <span className={iconBoxClass('primary')}>
+                <Activity className="w-5 h-5" strokeWidth={2} />
+              </span>
+              <span className="font-medium text-foreground">Session Information</span>
+            </div>
+            <div className="p-6 space-y-2">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-medium text-foreground">
-                    Current Session
-                  </p>
-                  <p className="text-sm text-gray-500 mt-0.5">
-                    Last activity: Just now
-                  </p>
+                  <p className="text-sm font-medium text-foreground">Current Session</p>
+                  <p className="text-sm text-muted mt-0.5">Last activity: Just now</p>
                 </div>
-                <span className="px-3 py-1 rounded-lg text-sm font-medium bg-green-100 text-green-800 border border-green-200">
+                <span className="px-3 py-1.5 rounded-lg text-sm font-medium bg-primary/20 text-primary border border-primary/40">
                   Active
                 </span>
               </div>
               {profile?.created_at && (
-                <p className="text-sm text-gray-500 pt-1">
-                  Member since {new Date(profile.created_at).toLocaleString()}
-                </p>
+                <p className="text-sm text-muted pt-1">Member since {new Date(profile.created_at).toLocaleString()}</p>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
           {/* Sign Out */}
-          <Card className="animate-slide-up bg-red-50/30 border-red-100" style={{ animationDelay: '200ms' }}>
-            <CardContent className="p-6 flex flex-row flex-wrap items-center justify-between gap-4">
-              <div>
-                <h3 className="text-lg font-semibold text-foreground">
-                  Sign Out
-                </h3>
-                <p className="text-sm text-muted mt-0.5">
-                  End your current session
-                </p>
+          <div className={panelClass}>
+            <div className="p-6 flex flex-row flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <span className={iconBoxClass('primary')}>
+                  <LogOut className="w-5 h-5" strokeWidth={2} />
+                </span>
+                <div>
+                  <h3 className="text-lg font-semibold text-foreground">Sign Out</h3>
+                  <p className="text-sm text-muted mt-0.5">End your current session</p>
+                </div>
               </div>
-              <Button
-                className="gap-2 bg-red-500 hover:bg-red-600 text-white border-0 focus:ring-red-500"
-                onClick={handleLogout}
-              >
-                <LogOut className="w-4 h-4" />
+              <Button variant="outline" className="rounded-xl gap-2 border-2 border-primary text-primary hover:bg-primary hover:text-white" onClick={handleLogout}>
+                <LogOut className="w-4 h-4" strokeWidth={2} />
                 Logout
               </Button>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </div>
 
       </div>
@@ -346,9 +357,9 @@ export function ProfilePage() {
         }}
         className="max-w-md w-full"
       >
-        <DialogContent className="rounded-xl shadow-sm border border-border animate-fade-in bg-card">
+        <DialogContent className="rounded-2xl shadow-xl border border-border bg-card p-6">
           <DialogHeader>
-            <DialogTitle className="text-2xl font-semibold text-foreground">
+            <DialogTitle className="text-xl font-semibold text-foreground">
               Change Password
             </DialogTitle>
             <DialogDescription className="text-muted mt-0.5">
@@ -363,7 +374,7 @@ export function ProfilePage() {
                   id="current-password"
                   type={showCurrentPassword ? 'text' : 'password'}
                   placeholder="Enter current password"
-                  className="pr-10 bg-secondary/20 border-border"
+                  className={`pr-10 rounded-xl border-2 py-2.5 ${isLight ? 'border-gray-200 bg-gray-50/80' : 'border-border bg-white/5'}`}
                   value={currentPassword}
                   onChange={(e) => {
                     setCurrentPassword(e.target.value);
@@ -377,7 +388,7 @@ export function ProfilePage() {
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-foreground focus:outline-none"
                   onClick={() => setShowCurrentPassword((v) => !v)}
                 >
-                  {showCurrentPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  {showCurrentPassword ? <EyeOff className="w-5 h-5" strokeWidth={2} /> : <Eye className="w-5 h-5" strokeWidth={2} />}
                 </button>
               </div>
               {passwordErrors.currentPassword && (
@@ -391,7 +402,7 @@ export function ProfilePage() {
                   id="new-password"
                   type={showNewPassword ? 'text' : 'password'}
                   placeholder="Enter new password"
-                  className="pr-10 bg-secondary/20 border-border"
+                  className={`pr-10 rounded-xl border-2 py-2.5 ${isLight ? 'border-gray-200 bg-gray-50/80' : 'border-border bg-white/5'}`}
                   value={newPassword}
                   onChange={(e) => {
                     setNewPassword(e.target.value);
@@ -405,7 +416,7 @@ export function ProfilePage() {
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-foreground focus:outline-none"
                   onClick={() => setShowNewPassword((v) => !v)}
                 >
-                  {showNewPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  {showNewPassword ? <EyeOff className="w-5 h-5" strokeWidth={2} /> : <Eye className="w-5 h-5" strokeWidth={2} />}
                 </button>
               </div>
               {passwordErrors.newPassword && (
@@ -419,7 +430,7 @@ export function ProfilePage() {
                   id="confirm-password"
                   type={showConfirmPassword ? 'text' : 'password'}
                   placeholder="Confirm new password"
-                  className="pr-10 bg-secondary/20 border-border"
+                  className={`pr-10 rounded-xl border-2 py-2.5 ${isLight ? 'border-gray-200 bg-gray-50/80' : 'border-border bg-white/5'}`}
                   value={confirmPassword}
                   onChange={(e) => {
                     setConfirmPassword(e.target.value);
@@ -433,37 +444,27 @@ export function ProfilePage() {
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-foreground focus:outline-none"
                   onClick={() => setShowConfirmPassword((v) => !v)}
                 >
-                  {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  {showConfirmPassword ? <EyeOff className="w-5 h-5" strokeWidth={2} /> : <Eye className="w-5 h-5" strokeWidth={2} />}
                 </button>
               </div>
               {passwordErrors.confirmPassword && (
                 <p className="text-red-500 text-sm mt-1">{passwordErrors.confirmPassword}</p>
               )}
             </div>
-            <DialogFooter className="justify-between mt-6">
+            <DialogFooter className="justify-between mt-6 gap-3">
               <Button
                 type="submit"
                 disabled={passwordSubmitting}
-                className="gap-2 text-white border-0 focus:ring-[#134178]"
-                style={{
-                  backgroundColor: PROFILE_THEME,
-                }}
-                onMouseEnter={(e) => {
-                  if (!passwordSubmitting) e.currentTarget.style.backgroundColor = PROFILE_THEME_HOVER;
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = PROFILE_THEME;
-                }}
+                className="rounded-xl gap-2 bg-primary hover:bg-primary-hover text-white"
               >
                 {passwordSubmitting ? 'Updating...' : 'Update Password'}
               </Button>
               <Button
                 type="button"
-                variant="secondary"
-                className="gap-2 border border-border text-foreground hover:bg-secondary/30"
+                variant="outline"
+                className="rounded-xl gap-2 text-foreground hover:bg-muted/50 hover:text-foreground"
                 onClick={closeChangePasswordModal}
               >
-                <KeyRound className="w-4 h-4" />
                 Cancel
               </Button>
             </DialogFooter>

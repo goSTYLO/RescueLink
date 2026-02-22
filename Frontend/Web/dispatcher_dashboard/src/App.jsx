@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from '@/infrastructure/firebase';
 import { DEV_MODE } from '@/core/config/app.config';
+import { normalizeRole, ROLES } from '@/core/constants';
 import Login from '@/presentation/pages/Login';
 import Dashboard from '@/presentation/pages/Dashboard';
 import { DashboardPage } from '@/presentation/pages/DashboardPage';
@@ -10,11 +11,16 @@ import { IncidentDetailsPage } from '@/presentation/pages/IncidentDetailsPage';
 import { MapViewPage } from '@/presentation/pages/MapViewPage';
 import { DepartmentsPage } from '@/presentation/pages/DepartmentsPage';
 import { DepartmentDetailsPage } from '@/presentation/pages/DepartmentDetailsPage';
-import { TaskBoardPage } from '@/presentation/pages/TaskBoardPage';
 import { AuditLogPage } from '@/presentation/pages/AuditLogPage';
 import { AdminActionsPage } from '@/presentation/pages/AdminActionsPage';
 import { ProfilePage } from '@/presentation/pages/ProfilePage';
 import { SettingsPage } from '@/presentation/pages/SettingsPage';
+import { HelpSupportPage } from '@/presentation/pages/HelpSupportPage';
+import { TeamPage } from '@/presentation/pages/TeamPage';
+import { DepartmentDashboardPage } from '@/presentation/pages/DepartmentDashboardPage';
+import { DepartmentTasksPage } from '@/presentation/pages/DepartmentTasksPage';
+import { DepartmentPersonnelPage } from '@/presentation/pages/DepartmentPersonnelPage';
+import { DepartmentVehiclesPage } from '@/presentation/pages/DepartmentVehiclesPage';
 import ForgotPassword from '@/presentation/pages/ForgotPassword';
 import EnterCode from '@/presentation/pages/EnterCode';
 import CreateNewPassword from '@/presentation/pages/CreateNewPassword';
@@ -28,16 +34,18 @@ function ProtectedRoute({ children }) {
   useEffect(() => {
     // In dev mode, set a mock user and skip auth
     if (DEV_MODE) {
-      // Set mock user in localStorage for Layout component
+      // Set mock user in localStorage for Layout component (Super Admin by default)
       if (!localStorage.getItem('user')) {
         localStorage.setItem('user', JSON.stringify({
-          username: 'designer',
-          email: 'designer@rescuelink.com',
-          role: 'Admin', // Set to Admin to see all menu items
-          department: 'All'
+          username: 'Super Admin',
+          name: 'Super Admin',
+          email: 'admin@rescuelink.dagupan.gov.ph',
+          role: 'super-admin',
+          department: 'All',
+          departmentId: null
         }));
       }
-      setUser({ uid: 'dev-user' }); // Mock user object
+      setUser({ uid: 'dev-user' });
       setLoading(false);
       return;
     }
@@ -86,17 +94,21 @@ export default function App() {
 
   const handleLoginSuccess = (data) => {
     setUserData(data.user);
-    // Store user in localStorage for Layout component
     const displayName = [data.user?.firstName, data.user?.lastName].filter(Boolean).join(' ') ||
       data.user?.phone_number || data.user?.phoneNumber || data.user?.phone || data.user?.email || 'user';
+    const apiRole = data.user?.role || 'Operator';
+    const role = normalizeRole(apiRole);
+    const department = data.user?.department || (role === ROLES.SUPER_ADMIN ? 'All' : '');
+    const departmentId = data.user?.departmentId ?? data.user?.department_id ?? null;
     localStorage.setItem('user', JSON.stringify({
       username: displayName,
       name: displayName,
       email: data.user?.email || '',
       firstName: data.user?.firstName,
       lastName: data.user?.lastName,
-      role: data.user?.role || 'Operator',
-      department: data.user?.department || 'All'
+      role,
+      department,
+      departmentId
     }));
     setPage('dashboard');
   };
@@ -162,11 +174,6 @@ export default function App() {
               <DepartmentDetailsPage />
             </ProtectedRoute>
           } />
-          <Route path="/taskboard" element={
-            <ProtectedRoute>
-              <TaskBoardPage />
-            </ProtectedRoute>
-          } />
           <Route path="/audit" element={
             <ProtectedRoute>
               <AuditLogPage />
@@ -175,6 +182,31 @@ export default function App() {
           <Route path="/adminactions" element={
             <ProtectedRoute>
               <AdminActionsPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/team" element={
+            <ProtectedRoute>
+              <TeamPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/department/dashboard" element={
+            <ProtectedRoute>
+              <DepartmentDashboardPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/department/tasks" element={
+            <ProtectedRoute>
+              <DepartmentTasksPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/department/personnel" element={
+            <ProtectedRoute>
+              <DepartmentPersonnelPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/department/vehicles" element={
+            <ProtectedRoute>
+              <DepartmentVehiclesPage />
             </ProtectedRoute>
           } />
           <Route path="/profile" element={
@@ -187,21 +219,27 @@ export default function App() {
               <SettingsPage />
             </ProtectedRoute>
           } />
+          <Route path="/help" element={
+            <ProtectedRoute>
+              <HelpSupportPage />
+            </ProtectedRoute>
+          } />
           <Route path="/incidents/:id" element={
             <ProtectedRoute>
               <IncidentDetailsPage />
             </ProtectedRoute>
           } />
           <Route path="/" element={
-            DEV_MODE ? (
-              <Navigate to="/dashboard" replace />
-            ) : (
-              localStorage.getItem('token') ? (
-                <Navigate to="/dashboard" replace />
-              ) : (
-                <Navigate to="/login" replace />
-              )
-            )
+            (() => {
+              if (!DEV_MODE && !localStorage.getItem('token')) return <Navigate to="/login" replace />;
+              try {
+                const u = JSON.parse(localStorage.getItem('user') || '{}');
+                const r = normalizeRole(u.role);
+                if (r === ROLES.DEPARTMENT_ADMIN) return <Navigate to="/department/dashboard" replace />;
+                if (r === ROLES.PERSONNEL) return <Navigate to="/department/tasks" replace />;
+              } catch (_) {}
+              return <Navigate to="/dashboard" replace />;
+            })()
           } />
 
           {/* Legacy Dashboard Route (for backward compatibility) */}
