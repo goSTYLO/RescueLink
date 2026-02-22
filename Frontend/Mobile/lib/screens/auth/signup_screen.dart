@@ -165,7 +165,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
   }
 
-  Widget _buildLogo() {
+Widget _buildLogo() {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -175,15 +175,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
           width: 80,
           height: 80,
           fit: BoxFit.contain,
-        ),
-        const SizedBox(height: 12),
-        // Tagline
-        const Text(
-          'Emergency Response & Safety',
-          style: TextStyle(
-            color: Color(0xFF6B7280),
-            fontSize: 12,
-          ),
         ),
       ],
     );
