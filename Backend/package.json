@@ -7,6 +7,7 @@
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
     "test": "jest --detectOpenHandles --forceExit",
+    "test:security": "jest --detectOpenHandles --forceExit tests/aiService.test.js tests/fileScanService.test.js tests/uploadMiddleware.integration.test.js tests/incidentController.security.test.js",
     "test:rbac": "jest tests/rbac.test.js --detectOpenHandles --forceExit",
     "setup-db": "node setup-db.js",
     "seed-db": "node scripts/seed-db.js",

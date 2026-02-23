@@ -309,6 +309,15 @@ x-ai-service-token: <token>
 
 This is intended for Backend-to-AI internal traffic and should be enabled in production.
 
+### Security Trigger Logs
+
+Watch these AI logs to verify security behavior:
+- `Unauthorized AI access attempt: missing/invalid x-ai-service-token` (token protection triggered)
+- `Keyword fallback applied in /classify` (text fallback path triggered)
+- `Keyword fallback applied in /v1/classify-audio` (audio fallback path triggered)
+- `Keyword fallback applied in /v1/classify-mic` (mic fallback path triggered)
+- `Low confidence classification: ...` (classification confidence guardrail triggered)
+
 ### Step 4: Verify Setup
 
 ```bash

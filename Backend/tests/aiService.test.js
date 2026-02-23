@@ -4,9 +4,13 @@ jest.mock('axios', () => ({
 }));
 
 describe('aiService integration contract', () => {
-  const loadService = () => {
+  const loadService = ({ withToken = true } = {}) => {
     jest.resetModules();
-    process.env.AI_SERVICE_TOKEN = 'test-token';
+    if (withToken) {
+      process.env.AI_SERVICE_TOKEN = 'test-token';
+    } else {
+      delete process.env.AI_SERVICE_TOKEN;
+    }
     process.env.AI_CIRCUIT_FAILURE_THRESHOLD = '2';
     process.env.AI_CIRCUIT_RESET_MS = '1000';
 
@@ -51,5 +55,23 @@ describe('aiService integration contract', () => {
     await service.checkAiHealth();
 
     await expect(service.classifyText('test')).rejects.toThrow('AI circuit is open');
+  });
+
+  it('omits auth header when AI_SERVICE_TOKEN is not set', async () => {
+    const { axios, service } = loadService({ withToken: false });
+
+    axios.post.mockResolvedValueOnce({
+      data: {
+        incident_types: ['Medical'],
+        severity: 'Red',
+        confidence_scores: { Medical: 0.9 },
+      },
+    });
+
+    await service.classifyText('Need help quickly');
+
+    expect(axios.post).toHaveBeenCalledTimes(1);
+    const call = axios.post.mock.calls[0];
+    expect(call[2].headers['x-ai-service-token']).toBeUndefined();
   });
 });

@@ -90,7 +90,10 @@ const validateFileSize = (req, res, next) => {
 const validateFileSecurity = (req, res, next) => {
   const scanResult = runUploadSecurityChecks(req.files || {});
 
+  console.log('🛡️ Upload quick scan status:', scanResult.quick.status);
+
   if (scanResult.quick.status === 'blocked') {
+    console.warn('⛔ Upload blocked by quick scan findings:', scanResult.quick.findings);
     return res.status(400).json({
       success: false,
       message: 'File security scan blocked one or more uploads',
@@ -99,11 +102,20 @@ const validateFileSecurity = (req, res, next) => {
   }
 
   if (scanResult.deep.status === 'unavailable' && !FILE_SCAN_FAIL_OPEN) {
+    console.error('❌ Upload rejected because deep scanner is unavailable and fail-open is disabled');
     return res.status(503).json({
       success: false,
       message: 'Upload scanner unavailable. Please try again later.',
       scan: scanResult
     });
+  }
+
+  if (scanResult.deep.status === 'unavailable' && FILE_SCAN_FAIL_OPEN) {
+    console.warn('⚠️ Fail-open triggered: accepting upload while deep scanner is unavailable');
+  }
+
+  if (scanResult.deep.status === 'ready') {
+    console.log(`🧪 Deep scan engine ready: ${scanResult.deep.engine}`);
   }
 
   req.uploadSecurity = scanResult;

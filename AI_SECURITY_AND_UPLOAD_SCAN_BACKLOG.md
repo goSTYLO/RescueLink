@@ -48,7 +48,7 @@ Reject obviously unsafe uploads immediately and mark incidents for follow-up dee
 - [x] Integrate quick scan in upload middleware before controller execution.
 - [x] Add deep-scan queue scaffold with fail-open semantics when scanner is unavailable.
 - [x] Surface scan metadata in incident creation responses.
-- [ ] Integrate real deep scanner engine (e.g., ClamAV daemon) behind queue worker.
+- [x] Integrate real deep scanner engine (e.g., ClamAV daemon) behind queue worker.
 - [x] Persist scan status in database fields (e.g., `scan_status`, `scan_engine`, `scan_error`, `scanned_at`).
 - [x] Add quarantine storage path and access restrictions for suspicious files.
 - [x] Add retry worker for deep-scan pending items.
@@ -70,8 +70,8 @@ Ensure backend-to-AI requests remain consistent, authenticated, and resilient.
 ### Tasks
 - [x] Add optional `AI_SERVICE_TOKEN` propagation from backend to AI headers.
 - [x] Fix text classification payload contract to `{"text": "..."}`.
-- [ ] Add integration tests for token-enabled and token-disabled modes.
-- [ ] Add health-check degradation policy (circuit breaker/retry budget).
+- [x] Add integration tests for token-enabled and token-disabled modes.
+- [x] Add health-check degradation policy (circuit breaker/retry budget).
 
 ### Files
 - `Backend/src/services/aiService.js`
@@ -83,16 +83,17 @@ Validate new fallback and upload scan paths with deterministic fixtures.
 
 ### Tasks
 - [ ] Add unit tests for AI keyword fallback trigger matrix:
+- [x] Add unit tests for AI keyword fallback trigger matrix:
   - low confidence,
   - no labels above threshold,
   - model exception path.
-- [ ] Add backend middleware tests for:
+- [x] Add backend middleware tests for:
   - clean uploads accepted,
   - blocked signatures rejected,
   - signature mismatch rejected,
   - scanner unavailable + fail-open accepted with flags.
-- [ ] Add controller response tests to verify `security_scan` metadata shape.
-- [ ] Add manual QA checklist for image/video/audio samples.
+- [x] Add controller response tests to verify `security_scan` metadata shape.
+- [x] Add manual QA checklist for image/video/audio samples.
 
 ## Epic 5: Documentation and Operations
 
@@ -103,7 +104,7 @@ Document security behavior and required environment variables.
 - [x] Update `Backend/README.md` with upload scanner env vars and behavior matrix.
 - [x] Update `RescueLink AI/README.md` with token auth + fallback metadata contract.
 - [x] Update `Backend/API_DOCUMENTATION.md` for `POST /api/incidents/with-audio` scan metadata.
-- [ ] Add runbook section for scanner outage handling and follow-up triage.
+- [x] Add runbook section for scanner outage handling and follow-up triage.
 
 ## Environment Variables (Planned/Used)
 
@@ -134,6 +135,6 @@ Document security behavior and required environment variables.
 4. Add DB scan status columns + migration.
 5. Enable production token auth and endpoint audit logging.
 
-## Remaining External Dependency
-- Deep scan currently uses a `stub` engine hook for queue/retry/quarantine flow validation.
-- Production malware detection still requires deploying and wiring a real scanner runtime (e.g., ClamAV daemon).
+## Deployment Note
+- ClamAV deep-scan integration is implemented in service code and controlled by env flags.
+- Production still requires deploying/operating the ClamAV daemon and setting `FILE_DEEP_SCAN_ENGINE=clamav`, `FILE_SCANNER_AVAILABLE=true`, and ClamAV connection variables.

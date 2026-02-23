@@ -55,10 +55,15 @@ Node.js + Express backend for RescueLink, using PostgreSQL. Handles authenticati
 | `MAX_VIDEO_SIZE` | Max video size in bytes (default: 50MB) | No |
 | `AI_SERVICE_URL` | RescueLink AI service URL | No |
 | `AI_SERVICE_TOKEN` | Optional token sent as `x-ai-service-token` to AI service | No |
+| `AI_CIRCUIT_FAILURE_THRESHOLD` | Consecutive AI request failures before opening circuit (`default: 3`) | No |
+| `AI_CIRCUIT_RESET_MS` | Circuit open duration in milliseconds (`default: 30000`) | No |
 | `FILE_SCAN_FAIL_OPEN` | If `true`, accepts uploads when deep scanner is unavailable and flags them (`default: true`) | No |
 | `FILE_DEEP_SCAN_ENABLED` | Enables async deep scan workflow (`default: true`) | No |
 | `FILE_DEEP_SCAN_ENGINE` | Deep scan engine identifier (`stub`, `clamav`, etc.) | No |
 | `FILE_SCANNER_AVAILABLE` | Marks scanner runtime availability (`default: false`) | No |
+| `CLAMAV_HOST` | ClamAV daemon host (`default: 127.0.0.1`) | No |
+| `CLAMAV_PORT` | ClamAV daemon port (`default: 3310`) | No |
+| `CLAMAV_TIMEOUT_MS` | ClamAV stream scan timeout (`default: 15000`) | No |
 | `FILE_SCAN_RETRY_CRON` | Cron schedule for scan retry worker (`default: */10 * * * *`) | No |
 | `FILE_SCAN_MAX_BATCH` | Max incidents processed per scan retry run (`default: 30`) | No |
 | `QUARANTINE_DIR` | Directory used for quarantined files (`default: uploads/quarantine`) | No |
@@ -114,3 +119,23 @@ Run migrations in order for existing databases. New setups via `setup-db` use `s
 ## Deployment
 
 See [DEPLOYMENT.md](DEPLOYMENT.md) for production deployment steps and checklist.
+
+## Security Runbook
+
+Operational scanner outage and quarantine procedures are documented in [SECURITY_RUNBOOK.md](SECURITY_RUNBOOK.md).
+
+## Security Test Runner
+
+- Backend-only suite: `npm run test:security`
+- Full security suite (Backend + AI fallback tests): run [run_security_integration_tests.ps1](../run_security_integration_tests.ps1) from the repository root.
+
+## Security Trigger Logs
+
+Watch these backend logs to confirm security features are firing:
+- `🛡️ Upload quick scan status:` (quick scan executed)
+- `⛔ Upload blocked by quick scan findings:` (malicious/signature mismatch blocked)
+- `⚠️ Fail-open triggered:` (scanner unavailable but upload accepted)
+- `🛡️ Performing deep scan using engine=...` (deep scan execution)
+- `☣️ ClamAV detected threat...` / `✅ ClamAV clean result...` (deep scan outcomes)
+- `🗜️ Image compressed...` / `🗜️ Video compressed...` (compression applied)
+- `🚨 File moved to quarantine...` (quarantine action triggered)

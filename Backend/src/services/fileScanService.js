@@ -7,12 +7,17 @@
 
 require('dotenv').config();
 const fs = require('fs').promises;
+const fsSync = require('fs');
 const path = require('path');
+const net = require('net');
 
 const FILE_SCAN_FAIL_OPEN = String(process.env.FILE_SCAN_FAIL_OPEN || 'true').toLowerCase() === 'true';
 const FILE_DEEP_SCAN_ENABLED = String(process.env.FILE_DEEP_SCAN_ENABLED || 'true').toLowerCase() === 'true';
 const FILE_DEEP_SCAN_ENGINE = process.env.FILE_DEEP_SCAN_ENGINE || 'stub';
 const FILE_SCANNER_AVAILABLE = String(process.env.FILE_SCANNER_AVAILABLE || 'false').toLowerCase() === 'true';
+const CLAMAV_HOST = process.env.CLAMAV_HOST || '127.0.0.1';
+const CLAMAV_PORT = parseInt(process.env.CLAMAV_PORT || '3310', 10);
+const CLAMAV_TIMEOUT_MS = parseInt(process.env.CLAMAV_TIMEOUT_MS || '15000', 10);
 
 const BLOCKED_SIGNATURES = [
   { name: 'windows_executable', bytes: Buffer.from([0x4d, 0x5a]) }, // MZ
@@ -83,10 +88,25 @@ const runQuickScan = (files = []) => {
   }
 
   const blocked = findings.some((item) => item.severity === 'high');
+    if (blocked) {
+      console.warn('⛔ Quick scan flagged upload(s):', findings);
+    }
   return {
     status: blocked ? 'blocked' : 'clean',
     findings,
   };
+};
+
+const isEngineConfigured = () => {
+  if (FILE_DEEP_SCAN_ENGINE === 'clamav') {
+    return Boolean(CLAMAV_HOST && CLAMAV_PORT > 0);
+  }
+
+  if (FILE_DEEP_SCAN_ENGINE === 'stub') {
+    return false;
+  }
+
+  return false;
 };
 
 const getDeepScanStatus = () => {
@@ -99,7 +119,7 @@ const getDeepScanStatus = () => {
     };
   }
 
-  if (!FILE_SCANNER_AVAILABLE || FILE_DEEP_SCAN_ENGINE === 'stub') {
+  if (!FILE_SCANNER_AVAILABLE || !isEngineConfigured()) {
     return {
       status: 'unavailable',
       engine: FILE_DEEP_SCAN_ENGINE,
@@ -116,6 +136,103 @@ const getDeepScanStatus = () => {
   };
 };
 
+const parseClamAvResponse = (responseBuffer) => {
+  const message = responseBuffer.toString('utf8').replace(/\0/g, '').trim();
+
+  if (!message) {
+    return { status: 'error', reason: 'empty_response', signature: null };
+  }
+
+  if (message.includes('FOUND')) {
+    const signature = message.replace(/^.*:\s*/g, '').replace(/\s+FOUND$/g, '').trim();
+    return { status: 'infected', reason: 'threat_detected', signature };
+  }
+
+  if (message.endsWith('OK') || message.includes(' OK')) {
+    return { status: 'clean', reason: null, signature: null };
+  }
+
+  return { status: 'error', reason: message, signature: null };
+};
+
+const scanFileWithClamAv = async (absolutePath) => {
+  return new Promise((resolve, reject) => {
+    const socket = net.createConnection({ host: CLAMAV_HOST, port: CLAMAV_PORT });
+    const readStream = fsSync.createReadStream(absolutePath, { highWaterMark: 8192 });
+    const responseChunks = [];
+    let streamFinished = false;
+    let rejected = false;
+
+    const fail = (error) => {
+      if (rejected) return;
+      rejected = true;
+      readStream.destroy();
+      socket.destroy();
+      reject(error);
+    };
+
+    socket.setTimeout(CLAMAV_TIMEOUT_MS);
+
+    socket.on('connect', () => {
+      socket.write(Buffer.from('zINSTREAM\0', 'utf8'));
+      readStream.resume();
+    });
+
+    socket.on('timeout', () => fail(new Error('clamav_timeout')));
+    socket.on('error', (error) => fail(error));
+    readStream.on('error', (error) => fail(error));
+
+    readStream.pause();
+    readStream.on('data', (chunk) => {
+      if (rejected) return;
+      readStream.pause();
+
+      const size = Buffer.alloc(4);
+      size.writeUInt32BE(chunk.length, 0);
+
+      socket.write(Buffer.concat([size, chunk]), (error) => {
+        if (error) {
+          fail(error);
+          return;
+        }
+        readStream.resume();
+      });
+    });
+
+    readStream.on('end', () => {
+      if (rejected) return;
+      const endMarker = Buffer.alloc(4);
+      endMarker.writeUInt32BE(0, 0);
+      socket.write(endMarker, (error) => {
+        if (error) {
+          fail(error);
+          return;
+        }
+        streamFinished = true;
+      });
+    });
+
+    socket.on('data', (chunk) => {
+      responseChunks.push(chunk);
+    });
+
+    socket.on('end', () => {
+      if (rejected || !streamFinished) return;
+      const parsed = parseClamAvResponse(Buffer.concat(responseChunks));
+      if (parsed.status === 'error') {
+        reject(new Error(`clamav_scan_error:${parsed.reason}`));
+        return;
+      }
+      if (parsed.status === 'infected') {
+        console.warn(`☣️ ClamAV detected threat in ${absolutePath}: ${parsed.signature || 'unknown-signature'}`);
+      } else {
+        console.log(`✅ ClamAV clean result for ${absolutePath}`);
+      }
+      resolve(parsed);
+    });
+  });
+};
+
 const normalizeIncomingFiles = (filesObj = {}) => {
   const audioFiles = (filesObj.audio || []).map((file) => ({ ...file, extension: require('path').extname(file.originalname).toLowerCase() }));
   const mediaFiles = (filesObj.media || []).map((file) => ({ ...file, extension: require('path').extname(file.originalname).toLowerCase() }));
@@ -126,6 +243,10 @@ const runUploadSecurityChecks = (filesObj = {}) => {
   const files = normalizeIncomingFiles(filesObj);
   const quick = runQuickScan(files);
   const deep = getDeepScanStatus();
+
+  if (deep.status === 'unavailable') {
+    console.warn(`⚠️ Deep scan unavailable (engine=${deep.engine}, fail_open=${deep.fail_open})`);
+  }
 
   return {
     quick,
@@ -145,6 +266,7 @@ const queueDeepScanJob = async ({ reportId, filePaths = [] }) => {
     return { ...deep, queued: false, job_id: null };
   }
 
+  console.log(`🛡️ Deep scan queued for report ${reportId}:`, filePaths);
   const jobId = `deep-scan-${reportId}-${Date.now()}`;
   console.log(`🛡️ Deep scan queued (${jobId}) for report ${reportId}:`, filePaths);
 
@@ -204,6 +326,7 @@ const detectSimulatedThreat = async (absolutePath) => {
 
 const performDeepScan = async ({ filePaths = [] }) => {
   const deep = getDeepScanStatus();
+  console.log(`🛡️ Performing deep scan using engine=${deep.engine} for ${filePaths.length} file(s)`);
 
   if (deep.status === 'disabled') {
     return {
@@ -216,6 +339,7 @@ const performDeepScan = async ({ filePaths = [] }) => {
   }
 
   if (deep.status === 'unavailable') {
+    console.warn(`⚠️ Deep scan unavailable during execution (engine=${deep.engine}, fail_open=${deep.fail_open})`);
     return {
       status: deep.fail_open ? 'unscanned' : 'error',
       engine: deep.engine,
@@ -229,11 +353,19 @@ const performDeepScan = async ({ filePaths = [] }) => {
   for (const relativePath of filePaths) {
     const absolutePath = path.join(process.cwd(), relativePath);
     try {
-      const result = await detectSimulatedThreat(absolutePath);
-      if (result.infected) {
+      const result = FILE_DEEP_SCAN_ENGINE === 'clamav'
+        ? await scanFileWithClamAv(absolutePath)
+        : await detectSimulatedThreat(absolutePath);
+
+      const infected = FILE_DEEP_SCAN_ENGINE === 'clamav'
+        ? result.status === 'infected'
+        : result.infected;
+
+      if (infected) {
         infectedFiles.push({
           path: relativePath,
           reason: result.reason,
+          signature: result.signature || null,
         });
       }
     } catch (error) {

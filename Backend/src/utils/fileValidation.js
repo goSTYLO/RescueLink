@@ -43,6 +43,7 @@ const createTempPath = (ext) => {
 
 const compressImageBuffer = async (buffer, ext) => {
   if (!IMAGE_COMPRESSION_ENABLED || !sharp) {
+    console.log(`ℹ️ Image compression skipped (enabled=${IMAGE_COMPRESSION_ENABLED}, sharp_available=${Boolean(sharp)})`);
     return { buffer, ext, compressed: false };
   }
 
@@ -51,11 +52,15 @@ const compressImageBuffer = async (buffer, ext) => {
 
     if (ext === '.png') {
       pipeline = pipeline.png({ compressionLevel: 9, palette: true, quality: 80 });
-      return { buffer: await pipeline.toBuffer(), ext: '.png', compressed: true };
+      const output = await pipeline.toBuffer()
+      console.log(`🗜️ Image compressed (${ext}): ${buffer.length}B -> ${output.length}B`);
+      return { buffer: output, ext: '.png', compressed: true };
     }
 
+    const output = await pipeline.jpeg({ quality: IMAGE_JPEG_QUALITY, mozjpeg: true }).toBuffer()
+    console.log(`🗜️ Image compressed (${ext}): ${buffer.length}B -> ${output.length}B`);
     return {
-      buffer: await pipeline.jpeg({ quality: IMAGE_JPEG_QUALITY, mozjpeg: true }).toBuffer(),
+      buffer: output,
       ext: '.jpg',
       compressed: true,
     };
@@ -84,6 +89,7 @@ const transcodeVideoToMp4 = async (inputPath, outputPath) => {
 
 const compressVideoBuffer = async (buffer, ext) => {
   if (!VIDEO_COMPRESSION_ENABLED || !ffmpeg || !ffmpegPath) {
+    console.log(`ℹ️ Video compression skipped (enabled=${VIDEO_COMPRESSION_ENABLED}, ffmpeg_available=${Boolean(ffmpeg && ffmpegPath)})`);
     return { buffer, ext, compressed: false };
   }
 
@@ -96,8 +102,11 @@ const compressVideoBuffer = async (buffer, ext) => {
     const outputBuffer = await fs.readFile(outputPath);
 
     if (outputBuffer.length >= buffer.length) {
+      console.log(`ℹ️ Video compression not applied (${ext}): output not smaller (${buffer.length}B -> ${outputBuffer.length}B)`);
       return { buffer, ext, compressed: false };
     }
+
+    console.log(`🗜️ Video compressed (${ext}): ${buffer.length}B -> ${outputBuffer.length}B`);
 
     return { buffer: outputBuffer, ext: '.mp4', compressed: true };
   } catch (error) {
@@ -344,6 +353,7 @@ const quarantineFile = async (relativePath, reportId) => {
   const targetPath = path.join(quarantineDir, targetName);
 
   await fs.rename(sourcePath, targetPath);
+  console.warn(`🚨 File moved to quarantine: ${relativePath} -> ${targetPath}`);
   const quarantineRelativeRoot = process.env.QUARANTINE_DIR || 'uploads/quarantine';
   return path.join(quarantineRelativeRoot, targetName).replace(/\\/g, '/');
 };

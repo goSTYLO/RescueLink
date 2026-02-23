@@ -18,6 +18,7 @@ from dotenv import load_dotenv
 
 from models.emergency_classifier import EmergencyClassifier
 from audio.whisper_handler import get_whisper_handler
+from utils.fallback_rules import apply_keyword_fallback, decide_fallback_reason
 
 # Load environment variables
 load_dotenv()
@@ -201,6 +202,7 @@ def _validate_internal_token(request: Request):
 
     received_token = request.headers.get("x-ai-service-token")
     if not received_token or received_token != AI_INTERNAL_TOKEN:
+        logger.warning(f"[{request.state.request_id}] Unauthorized AI access attempt: missing/invalid x-ai-service-token")
         raise HTTPException(status_code=401, detail="Unauthorized AI service access")
 
 
@@ -217,36 +219,11 @@ def _resolve_label(label: str, available_labels: list[str]) -> str:
 
 
 def _apply_keyword_fallback(text: str) -> tuple[list[str], str, dict[str, list[str]]]:
-    normalized = _normalize_text(text)
-    type_matches: dict[str, list[str]] = {}
-    severity_matches: dict[str, list[str]] = {}
-
-    for incident_type, keywords in FALLBACK_INCIDENT_KEYWORDS.items():
-        matched = [keyword for keyword in keywords if keyword in normalized]
-        if matched:
-            type_matches[incident_type] = matched
-
-    for severity_level, keywords in FALLBACK_SEVERITY_KEYWORDS.items():
-        matched = [keyword for keyword in keywords if keyword in normalized]
-        if matched:
-            severity_matches[severity_level] = matched
-
-    selected_types = sorted(type_matches.keys(), key=lambda item: len(type_matches[item]), reverse=True)
-    if not selected_types:
-        selected_types = ["Other"]
-
-    if severity_matches:
-        selected_severity = max(severity_matches.items(), key=lambda item: len(item[1]))[0]
-    else:
-        selected_severity = "Yellow"
-
-    resolved_types = [_resolve_label(item, meta.get("incident_type_labels", [])) for item in selected_types]
-    resolved_severity = _resolve_label(selected_severity, meta.get("severity_labels", []))
-
-    return resolved_types, resolved_severity, {
-        "incident_type_matches": [f"{k}:{','.join(v)}" for k, v in type_matches.items()],
-        "severity_matches": [f"{k}:{','.join(v)}" for k, v in severity_matches.items()],
-    }
+    return apply_keyword_fallback(
+        text,
+        incident_labels=meta.get("incident_type_labels", []),
+        severity_labels=meta.get("severity_labels", []),
+    )
 
 
 def _predict_text(text: str, threshold: float):
@@ -322,7 +299,11 @@ def classify_emergency(request: EmergencyRequest, http_request: Request):
 
         if no_types_above_threshold or max_confidence < LOW_CONFIDENCE_THRESHOLD:
             fallback_used = True
-            fallback_reason = "low_confidence" if max_confidence < LOW_CONFIDENCE_THRESHOLD else "no_type_above_threshold"
+            fallback_reason = decide_fallback_reason(
+                max_confidence=max_confidence,
+                no_types_above_threshold=no_types_above_threshold,
+                threshold=LOW_CONFIDENCE_THRESHOLD,
+            )
             predicted_types, predicted_severity, fallback_keywords = _apply_keyword_fallback(request.text)
             logger.warning(f"[{http_request.state.request_id}] Keyword fallback applied in /classify ({fallback_reason})")
         elif not predicted_types:
@@ -489,7 +470,11 @@ async def classify_audio_endpoint(request: Request, file: UploadFile = File(...)
 
                 if no_types_above_threshold or max_confidence < LOW_CONFIDENCE_THRESHOLD:
                     fallback_used = True
-                    fallback_reason = "low_confidence" if max_confidence < LOW_CONFIDENCE_THRESHOLD else "no_type_above_threshold"
+                    fallback_reason = decide_fallback_reason(
+                        max_confidence=max_confidence,
+                        no_types_above_threshold=no_types_above_threshold,
+                        threshold=LOW_CONFIDENCE_THRESHOLD,
+                    )
                     predicted_types, predicted_severity, fallback_keywords = _apply_keyword_fallback(transcription)
                     logger.warning(f"[{request.state.request_id}] Keyword fallback applied in /v1/classify-audio ({fallback_reason})")
                 elif not predicted_types:
@@ -650,7 +635,11 @@ async def classify_microphone(request: Request, duration_seconds: int = 30, samp
 
             if no_types_above_threshold or max_confidence < LOW_CONFIDENCE_THRESHOLD:
                 fallback_used = True
-                fallback_reason = "low_confidence" if max_confidence < LOW_CONFIDENCE_THRESHOLD else "no_type_above_threshold"
+                fallback_reason = decide_fallback_reason(
+                    max_confidence=max_confidence,
+                    no_types_above_threshold=no_types_above_threshold,
+                    threshold=LOW_CONFIDENCE_THRESHOLD,
+                )
                 predicted_types, predicted_severity, fallback_keywords = _apply_keyword_fallback(transcription)
                 logger.warning(f"[{request.state.request_id}] Keyword fallback applied in /v1/classify-mic ({fallback_reason})")
             elif not predicted_types:
