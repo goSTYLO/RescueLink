@@ -20,6 +20,7 @@ const MIGRATION_ORDER = [
   'add_incident_barangay.sql',
   'add_incident_verified.sql',
   'add_ai_fields.sql',
+  'add_upload_scan_fields.sql',
 ];
 
 console.log('🔧 Setting up database...');

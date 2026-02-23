@@ -10,9 +10,15 @@ require('dotenv').config();
 
 // Configuration
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://localhost:8000';
+const AI_SERVICE_TOKEN = process.env.AI_SERVICE_TOKEN || null;
 const AI_CONFIDENCE_THRESHOLD = parseFloat(process.env.AI_CONFIDENCE_THRESHOLD) || 0.3;
 const AI_LOW_CONFIDENCE_THRESHOLD = parseFloat(process.env.AI_LOW_CONFIDENCE_THRESHOLD) || 0.7;
 const AI_REQUEST_TIMEOUT = 60000; // 60 seconds
+const AI_CIRCUIT_FAILURE_THRESHOLD = parseInt(process.env.AI_CIRCUIT_FAILURE_THRESHOLD || '3', 10);
+const AI_CIRCUIT_RESET_MS = parseInt(process.env.AI_CIRCUIT_RESET_MS || '30000', 10);
+
+let consecutiveFailures = 0;
+let circuitOpenUntil = 0;
 
 /**
  * Severity mapping from AI output to database format
@@ -26,15 +32,51 @@ const SEVERITY_MAP = {
   Black: 'high' // Black (deceased) mapped to high severity
 };
 
+const buildAuthHeaders = (headers = {}) => ({
+  ...headers,
+  ...(AI_SERVICE_TOKEN ? { 'x-ai-service-token': AI_SERVICE_TOKEN } : {})
+});
+
+const isCircuitOpen = () => Date.now() < circuitOpenUntil;
+
+const markFailure = () => {
+  consecutiveFailures += 1;
+  if (consecutiveFailures >= AI_CIRCUIT_FAILURE_THRESHOLD) {
+    circuitOpenUntil = Date.now() + AI_CIRCUIT_RESET_MS;
+    console.error(`🚫 AI circuit opened for ${AI_CIRCUIT_RESET_MS}ms after ${consecutiveFailures} failures`);
+  }
+};
+
+const markSuccess = () => {
+  consecutiveFailures = 0;
+  circuitOpenUntil = 0;
+};
+
+const guardedRequest = async (requestFn) => {
+  if (isCircuitOpen()) {
+    throw new Error('AI circuit is open due to recent failures');
+  }
+
+  try {
+    const result = await requestFn();
+    markSuccess();
+    return result;
+  } catch (error) {
+    markFailure();
+    throw error;
+  }
+};
+
 /**
  * Check if AI service is available
  * @returns {Promise<boolean>}
  */
 const checkAiHealth = async () => {
   try {
-    const response = await axios.get(`${AI_SERVICE_URL}/health`, {
+    const response = await guardedRequest(() => axios.get(`${AI_SERVICE_URL}/health`, {
+      headers: buildAuthHeaders(),
       timeout: 5000
-    });
+    }));
     return response.status === 200 && response.data.status === 'healthy';
   } catch (error) {
     console.error('❌ AI service health check failed:', error.message);
@@ -53,16 +95,16 @@ const transcribeAudio = async (audioBuffer, filename) => {
     const formData = new FormData();
     formData.append('file', audioBuffer, { filename }); // FastAPI expects 'file', not 'audio'
     
-    const response = await axios.post(
+    const response = await guardedRequest(() => axios.post(
       `${AI_SERVICE_URL}/v1/transcribe`,
       formData,
       {
-        headers: formData.getHeaders(),
+        headers: buildAuthHeaders(formData.getHeaders()),
         timeout: AI_REQUEST_TIMEOUT,
         maxContentLength: Infinity,
         maxBodyLength: Infinity
       }
-    );
+    ));
     
     if (response.data.error) {
       throw new Error(response.data.error);
@@ -93,16 +135,16 @@ const classifyAudio = async (audioBuffer, filename) => {
     const formData = new FormData();
     formData.append('file', audioBuffer, { filename });
     
-    const response = await axios.post(
+    const response = await guardedRequest(() => axios.post(
       `${AI_SERVICE_URL}/v1/classify-audio`,
       formData,
       {
-        headers: formData.getHeaders(),
+        headers: buildAuthHeaders(formData.getHeaders()),
         timeout: AI_REQUEST_TIMEOUT,
         maxContentLength: Infinity,
         maxBodyLength: Infinity
       }
-    );
+    ));
     
     if (response.data.error) {
       throw new Error(response.data.error);
@@ -152,14 +194,16 @@ const classifyAudio = async (audioBuffer, filename) => {
  */
 const classifyText = async (text) => {
   try {
-    const response = await axios.post(
+    const response = await guardedRequest(() => axios.post(
       `${AI_SERVICE_URL}/classify`,
-      { message: text },
+      { text },
       {
-        headers: { 'Content-Type': 'application/json' },
+        headers: buildAuthHeaders({
+          'Content-Type': 'application/json',
+        }),
         timeout: AI_REQUEST_TIMEOUT
       }
-    );
+    ));
     
     if (response.data.error) {
       throw new Error(response.data.error);
@@ -265,5 +309,12 @@ module.exports = {
   retryClassification,
   SEVERITY_MAP,
   AI_CONFIDENCE_THRESHOLD,
-  AI_LOW_CONFIDENCE_THRESHOLD
+  AI_LOW_CONFIDENCE_THRESHOLD,
+  _internal: {
+    buildAuthHeaders,
+    guardedRequest,
+    markFailure,
+    markSuccess,
+    isCircuitOpen,
+  }
 };

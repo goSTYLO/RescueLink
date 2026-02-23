@@ -3,6 +3,7 @@ const pool = require('../config/db');
 const { validateLatitude, validateLongitude, validateInteger, validatePagination, validateOptionalString, validateAllowedValue } = require('../utils/validation');
 const { getBarangayFromCoordinates } = require('../utils/geolocation');
 const { processIncidentWithAudio } = require('../services/aiService');
+const { queueDeepScanJob, computeInitialScanStatus } = require('../services/fileScanService');
 const { verifyIncidentOnBlockchain } = require('../services/blockchainService');
 const { saveAudioFile, saveMediaFiles, deleteIncidentFiles, fileExists, getAbsolutePath } = require('../utils/fileValidation');
 const { logDispatcherAction, logUserAction } = require('../utils/auditLog');
@@ -235,6 +236,9 @@ const incidentController = {
         media_paths: [],
         ai_pending: true, // Mark as pending AI processing
         ai_attempted: false,
+        scan_status: 'pending',
+        scan_engine: 'stub',
+        scan_error: null,
         status: 'pending'
       });
 
@@ -254,6 +258,24 @@ const incidentController = {
           mediaPaths = await saveMediaFiles(mediaFiles, reportId);
           console.log(`💾 Media saved: ${mediaPaths.length} files`);
         }
+
+        const deepScanResult = await queueDeepScanJob({
+          reportId,
+          filePaths: [audioPath, ...mediaPaths].filter(Boolean)
+        });
+        const initialScanStatus = computeInitialScanStatus({
+          uploadSecurity: req.uploadSecurity,
+          deepScanResult,
+        });
+
+        await Incident.updateScanStatus(reportId, {
+          scan_status: initialScanStatus.scan_status,
+          scan_engine: initialScanStatus.scan_engine,
+          scan_error: initialScanStatus.scan_error,
+          scanned_at: initialScanStatus.scan_status === 'clean' ? new Date() : null,
+          quarantined: false,
+          quarantine_reason: null,
+        });
 
         // Process with AI
         console.log('🤖 Starting AI classification...');
@@ -309,6 +331,11 @@ const incidentController = {
             confidence: aiResult.maxConfidence,
             low_confidence_flag: aiResult.lowConfidenceFlag,
             transcription: aiResult.transcription
+          },
+          security_scan: {
+            quick_scan: req.uploadSecurity?.quick || null,
+            deep_scan: deepScanResult,
+            fail_open_flagged: Boolean(req.uploadSecurity?.requires_follow_up)
           }
         });
 
@@ -327,6 +354,24 @@ const incidentController = {
           [audioPath, JSON.stringify(mediaPaths), reportId]
         );
 
+        const deepScanResult = await queueDeepScanJob({
+          reportId,
+          filePaths: [audioPath, ...mediaPaths].filter(Boolean)
+        });
+        const initialScanStatus = computeInitialScanStatus({
+          uploadSecurity: req.uploadSecurity,
+          deepScanResult,
+        });
+
+        await Incident.updateScanStatus(reportId, {
+          scan_status: initialScanStatus.scan_status,
+          scan_engine: initialScanStatus.scan_engine,
+          scan_error: initialScanStatus.scan_error,
+          scanned_at: initialScanStatus.scan_status === 'clean' ? new Date() : null,
+          quarantined: false,
+          quarantine_reason: null,
+        });
+
         console.log(`⏳ Incident ${reportId} created, AI classification pending retry`);
 
         res.status(201).json({
@@ -338,7 +383,12 @@ const incidentController = {
             media_paths: mediaPaths
           },
           ai_status: 'pending',
-          ai_error: 'AI classification will be retried automatically'
+          ai_error: 'AI classification will be retried automatically',
+          security_scan: {
+            quick_scan: req.uploadSecurity?.quick || null,
+            deep_scan: deepScanResult,
+            fail_open_flagged: Boolean(req.uploadSecurity?.requires_follow_up)
+          }
         });
       }
 
@@ -364,6 +414,10 @@ const incidentController = {
 
       if (!incident.audio_path) {
         return res.status(404).json({ error: 'No audio file found for this incident' });
+      }
+
+      if (incident.quarantined) {
+        return res.status(403).json({ error: 'Audio file is quarantined and unavailable for download' });
       }
 
       const absolutePath = getAbsolutePath(incident.audio_path);
@@ -413,6 +467,10 @@ const incidentController = {
         return res.status(404).json({ 
           error: `Invalid media index. Available: 0-${mediaPaths.length - 1}` 
         });
+      }
+
+      if (incident.quarantined) {
+        return res.status(403).json({ error: 'Media files are quarantined and unavailable for download' });
       }
 
       const mediaPath = mediaPaths[validatedIndex];

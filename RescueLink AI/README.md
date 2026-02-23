@@ -1,6 +1,6 @@
 # RescueLink AI - Audio Pipeline & Emergency Classification Microservice
 
-**Version**: 2.1.2  
+**Version**: 2.1.3  
 **Status**: Full audio pipeline with GPU acceleration & microphone feedback
 
 ---
@@ -41,6 +41,15 @@ RescueLink AI is a multilingual emergency classification microservice that:
 ---
 
 ## What's New (Audio Pipeline)
+
+### v2.1.3 - Security Hardening & Rule-Based Fallback
+
+**Latest improvements:**
+- ✅ **Service-to-Service Auth (Optional):** AI endpoints can require `x-ai-service-token` when `AI_INTERNAL_TOKEN` is configured
+- ✅ **Text Input Guardrail:** `/classify` now enforces max text length via `AI_MAX_TEXT_LENGTH`
+- ✅ **Rule-Based Fallback:** Keyword fallback is automatically used when model inference fails, confidence is low, or no labels pass threshold
+- ✅ **Fallback Transparency:** API responses now include `fallback_used`, `fallback_reason`, and matched fallback keyword metadata
+- ✅ **Low-Confidence Safety:** fallback trigger threshold is configurable via `AI_LOW_CONFIDENCE_THRESHOLD`
 
 ### v2.1.2 - GPU Acceleration & Unified Environment
 
@@ -162,6 +171,7 @@ Audio File (30-60s, <25MB)
 - **Transcription Failure (503)**: Service unavailable; users can use text-only endpoint
 - **Classification Failure (500)**: Internal error; suggest retry
 - **Low Confidence Flag**: Alerts when max confidence < 0.7
+- **Keyword Fallback**: Deterministic fallback for emergency terms when confidence is low/no label selected/model fails
 
 ### 6. **Monitoring & Analytics**
 - **Usage Tracking**: Total calls, success rate, average latency
@@ -280,7 +290,24 @@ WHISPER_MODEL_ID=openai/whisper-large-v3-turbo
 # Environment
 ENVIRONMENT=development
 LOG_LEVEL=INFO
+
+# Optional backend-to-AI auth
+AI_INTERNAL_TOKEN=
+
+# Safety controls
+AI_MAX_TEXT_LENGTH=4000
+AI_LOW_CONFIDENCE_THRESHOLD=0.7
 ```
+
+### Security Note
+
+When `AI_INTERNAL_TOKEN` is set, clients must include header:
+
+```http
+x-ai-service-token: <token>
+```
+
+This is intended for Backend-to-AI internal traffic and should be enabled in production.
 
 ### Step 4: Verify Setup
 

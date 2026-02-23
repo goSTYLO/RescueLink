@@ -34,6 +34,12 @@ CREATE TABLE IF NOT EXISTS incident_reports (
   media_paths JSONB,
   ai_pending BOOLEAN DEFAULT FALSE,
   ai_attempted BOOLEAN DEFAULT FALSE,
+  scan_status VARCHAR(30) DEFAULT 'pending',
+  scan_engine VARCHAR(120),
+  scan_error TEXT,
+  scanned_at TIMESTAMP,
+  quarantined BOOLEAN DEFAULT FALSE,
+  quarantine_reason TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -55,6 +61,13 @@ ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS ai_pending BOOLEAN DEFAULT
 ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS ai_attempted BOOLEAN DEFAULT FALSE;
 ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS barangay VARCHAR(150);
 ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS verified BOOLEAN DEFAULT FALSE;
+ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS scan_status VARCHAR(30) DEFAULT 'pending';
+ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS scan_engine VARCHAR(120);
+ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS scan_error TEXT;
+ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS scanned_at TIMESTAMP;
+ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS quarantined BOOLEAN DEFAULT FALSE;
+ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS quarantine_reason TEXT;
+CREATE INDEX IF NOT EXISTS idx_incident_reports_scan_status ON incident_reports(scan_status);
 
 -- Create responders table
 CREATE TABLE IF NOT EXISTS responders (

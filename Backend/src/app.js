@@ -12,6 +12,7 @@ const incidentRoutes = require('./routes/incident');
 const auditLogRoutes = require('./routes/auditLog');
 const adminRoutes = require('./routes/admin');
 const { startRetryService } = require('./services/retryAiClassification');
+const { startFileScanRetryService } = require('./services/retryFileScan');
 
 const app = express();
 
@@ -126,8 +127,10 @@ app.use((err, req, res, next) => {
 // Start AI classification retry service
 console.log('\n🤖 Initializing AI services...');
 const retryTask = startRetryService();
+const scanRetryTask = startFileScanRetryService();
 
 // Store retry task for graceful shutdown
 app.locals.retryTask = retryTask;
+app.locals.scanRetryTask = scanRetryTask;
 
 module.exports = app;

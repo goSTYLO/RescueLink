@@ -3,15 +3,16 @@ import json
 import os
 import sys
 import logging
+import uuid
 from pathlib import Path
 from typing import Optional
 
 # Add parent directory to path to import models
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from fastapi import FastAPI, HTTPException, File, UploadFile
+from fastapi import FastAPI, HTTPException, File, UploadFile, Request
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from transformers import AutoTokenizer
 from dotenv import load_dotenv
 
@@ -28,12 +29,34 @@ logger = logging.getLogger(__name__)
 # Paths
 MODEL_PATH = "models/emergency_model.pt"
 META_PATH = "models/label_meta.json"
+MAX_TEXT_LENGTH = int(os.getenv("AI_MAX_TEXT_LENGTH", "4000"))
+LOW_CONFIDENCE_THRESHOLD = float(os.getenv("AI_LOW_CONFIDENCE_THRESHOLD", "0.7"))
+AI_INTERNAL_TOKEN = os.getenv("AI_INTERNAL_TOKEN")
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development").lower()
 
 app = FastAPI(
     title="RescueLink Emergency Classification AI",
     description="Microservice for classifying emergency type and severity using XLM-RoBERTa",
     version="2.0.0"
 )
+
+
+def _preview_text_for_log(text: Optional[str], limit: int = 80) -> str:
+    normalized = (text or "").replace("\n", " ").strip()
+    if not normalized:
+        return "[empty]"
+    if len(normalized) <= limit:
+        return normalized
+    return f"{normalized[:limit]}..."
+
+
+@app.middleware("http")
+async def add_request_id_middleware(request: Request, call_next):
+    request_id = request.headers.get("x-request-id") or str(uuid.uuid4())
+    request.state.request_id = request_id
+    response = await call_next(request)
+    response.headers["x-request-id"] = request_id
+    return response
 
 # Add CORS middleware for frontend integration
 app.add_middleware(
@@ -112,6 +135,9 @@ class EmergencyResponse(BaseModel):
     severity_color: str
     confidence_scores: dict[str, float]
     model_version: str
+    fallback_used: bool = False
+    fallback_reason: Optional[str] = None
+    fallback_keywords: dict[str, list[str]] = Field(default_factory=dict)
 
 class HealthResponse(BaseModel):
     status: str
@@ -136,6 +162,9 @@ class AudioClassificationResponse(BaseModel):
     confidence_scores: dict[str, float]
     low_confidence_flag: bool
     model_version: str
+    fallback_used: bool = False
+    fallback_reason: Optional[str] = None
+    fallback_keywords: dict[str, list[str]] = Field(default_factory=dict)
 
 class UsageStatsResponse(BaseModel):
     total_requests: int
@@ -144,6 +173,114 @@ class UsageStatsResponse(BaseModel):
     success_rate: float
     total_audio_duration_minutes: float
     avg_latency_seconds: float
+
+
+FALLBACK_INCIDENT_KEYWORDS = {
+    "Fire": ["sunog", "fire", "usok", "smoke", "apoy", "nasusunog"],
+    "Crime": ["nakaw", "theft", "holdap", "robbery", "baril", "shooting", "crime", "assault"],
+    "Accident": ["aksidente", "accident", "bangga", "collision", "nahulog", "crash"],
+    "Medical": ["dugo", "bleeding", "hika", "asthma", "atake", "heart attack", "medical", "hinimatay"],
+    "Natural Disaster": ["baha", "flood", "bagyo", "storm", "landslide", "lindol", "earthquake", "disaster"],
+}
+
+FALLBACK_SEVERITY_KEYWORDS = {
+    "Red": ["hindi humihinga", "not breathing", "critical", "critical condition", "malubha", "severe bleeding", "unconscious"],
+    "Yellow": ["nasugatan", "injured", "urgent", "kailangan agad", "delayed"],
+    "Green": ["minor", "gasgas", "stable", "kalmado", "non urgent"],
+    "Black": ["deceased", "patay", "no pulse"],
+}
+
+
+def _normalize_text(text: str) -> str:
+    return (text or "").strip().lower()
+
+
+def _validate_internal_token(request: Request):
+    if not AI_INTERNAL_TOKEN:
+        return
+
+    received_token = request.headers.get("x-ai-service-token")
+    if not received_token or received_token != AI_INTERNAL_TOKEN:
+        raise HTTPException(status_code=401, detail="Unauthorized AI service access")
+
+
+def _resolve_label(label: str, available_labels: list[str]) -> str:
+    if label in available_labels:
+        return label
+
+    target = "".join(label.lower().split())
+    for candidate in available_labels:
+        if "".join(candidate.lower().split()) == target:
+            return candidate
+
+    return available_labels[0] if available_labels else label
+
+
+def _apply_keyword_fallback(text: str) -> tuple[list[str], str, dict[str, list[str]]]:
+    normalized = _normalize_text(text)
+    type_matches: dict[str, list[str]] = {}
+    severity_matches: dict[str, list[str]] = {}
+
+    for incident_type, keywords in FALLBACK_INCIDENT_KEYWORDS.items():
+        matched = [keyword for keyword in keywords if keyword in normalized]
+        if matched:
+            type_matches[incident_type] = matched
+
+    for severity_level, keywords in FALLBACK_SEVERITY_KEYWORDS.items():
+        matched = [keyword for keyword in keywords if keyword in normalized]
+        if matched:
+            severity_matches[severity_level] = matched
+
+    selected_types = sorted(type_matches.keys(), key=lambda item: len(type_matches[item]), reverse=True)
+    if not selected_types:
+        selected_types = ["Other"]
+
+    if severity_matches:
+        selected_severity = max(severity_matches.items(), key=lambda item: len(item[1]))[0]
+    else:
+        selected_severity = "Yellow"
+
+    resolved_types = [_resolve_label(item, meta.get("incident_type_labels", [])) for item in selected_types]
+    resolved_severity = _resolve_label(selected_severity, meta.get("severity_labels", []))
+
+    return resolved_types, resolved_severity, {
+        "incident_type_matches": [f"{k}:{','.join(v)}" for k, v in type_matches.items()],
+        "severity_matches": [f"{k}:{','.join(v)}" for k, v in severity_matches.items()],
+    }
+
+
+def _predict_text(text: str, threshold: float):
+    encoding = tokenizer(
+        text,
+        truncation=True,
+        padding=True,
+        max_length=128,
+        return_tensors="pt"
+    )
+
+    input_ids = encoding["input_ids"].to(device)
+    attention_mask = encoding["attention_mask"].to(device)
+
+    with torch.no_grad():
+        outputs = model(input_ids, attention_mask)
+        type_probs = torch.sigmoid(outputs["type_logits"]).cpu().numpy()[0]
+        predicted_types = [
+            meta["incident_type_labels"][i]
+            for i, prob in enumerate(type_probs)
+            if prob >= threshold
+        ]
+
+        severity_idx = torch.argmax(outputs["severity_logits"], dim=1).item()
+        predicted_severity = meta["severity_labels"][severity_idx]
+
+    confidence_scores = {
+        meta["incident_type_labels"][i]: round(float(prob), 4)
+        for i, prob in enumerate(type_probs)
+    }
+    max_confidence = max(confidence_scores.values()) if confidence_scores else 0.0
+    no_types_above_threshold = len(predicted_types) == 0
+
+    return predicted_types, predicted_severity, confidence_scores, max_confidence, no_types_above_threshold
 
 # ---------- Endpoints ----------
 
@@ -157,68 +294,57 @@ def health_check():
     }
 
 @app.post("/classify", response_model=EmergencyResponse)
-def classify_emergency(request: EmergencyRequest):
+def classify_emergency(request: EmergencyRequest, http_request: Request):
     """Classify emergency report into incident types and severity"""
+    _validate_internal_token(http_request)
+
     if not request.text.strip():
         raise HTTPException(status_code=400, detail="Empty text provided")
+    if len(request.text.strip()) > MAX_TEXT_LENGTH:
+        raise HTTPException(status_code=400, detail=f"Text too long. Max length is {MAX_TEXT_LENGTH} characters")
     
+    severity_colors = {
+        "Green": "🟢 Non-urgent",
+        "Yellow": "🟡 Delayed",
+        "Red": "🔴 Immediate",
+        "Black": "⚫ Deceased"
+    }
+
+    fallback_used = False
+    fallback_reason = None
+    fallback_keywords: dict[str, list[str]] = {}
+
     try:
-        # Tokenize
-        encoding = tokenizer(
+        predicted_types, predicted_severity, confidence_scores, max_confidence, no_types_above_threshold = _predict_text(
             request.text,
-            truncation=True,
-            padding=True,
-            max_length=128,
-            return_tensors="pt"
+            request.threshold
         )
-        
-        input_ids = encoding["input_ids"].to(device)
-        attention_mask = encoding["attention_mask"].to(device)
-        
-        # Predict
-        with torch.no_grad():
-            outputs = model(input_ids, attention_mask)
-            
-            # Multi-label incident type predictions
-            type_probs = torch.sigmoid(outputs["type_logits"]).cpu().numpy()[0]
-            predicted_types = [
-                meta["incident_type_labels"][i] 
-                for i, prob in enumerate(type_probs) 
-                if prob >= request.threshold
-            ]
-            
-            # Severity prediction (single-label)
-            severity_idx = torch.argmax(outputs["severity_logits"], dim=1).item()
-            predicted_severity = meta["severity_labels"][severity_idx]
-        
-        # Default to "Other" if no types predicted
-        if not predicted_types:
+
+        if no_types_above_threshold or max_confidence < LOW_CONFIDENCE_THRESHOLD:
+            fallback_used = True
+            fallback_reason = "low_confidence" if max_confidence < LOW_CONFIDENCE_THRESHOLD else "no_type_above_threshold"
+            predicted_types, predicted_severity, fallback_keywords = _apply_keyword_fallback(request.text)
+            logger.warning(f"[{http_request.state.request_id}] Keyword fallback applied in /classify ({fallback_reason})")
+        elif not predicted_types:
             predicted_types = ["Other"]
-        
-        # Severity color mapping
-        severity_colors = {
-            "Green": "🟢 Non-urgent",
-            "Yellow": "🟡 Delayed",
-            "Red": "🔴 Immediate",
-            "Black": "⚫ Deceased"
-        }
-        
-        # Confidence scores for all incident types
-        confidence_scores = {
-            meta["incident_type_labels"][i]: round(float(prob), 4)
-            for i, prob in enumerate(type_probs)
-        }
-        
-        return {
-            "incident_types": predicted_types,
-            "severity": predicted_severity,
-            "severity_color": severity_colors.get(predicted_severity, "⚪ Unknown"),
-            "confidence_scores": confidence_scores,
-            "model_version": "2.0.0-xlm-roberta-filipino"
-        }
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Prediction error: {str(e)}")
+
+    except Exception as error:
+        logger.error(f"[{http_request.state.request_id}] Model prediction failed, applying fallback: {error}")
+        fallback_used = True
+        fallback_reason = "model_error"
+        confidence_scores = {}
+        predicted_types, predicted_severity, fallback_keywords = _apply_keyword_fallback(request.text)
+
+    return {
+        "incident_types": predicted_types,
+        "severity": predicted_severity,
+        "severity_color": severity_colors.get(predicted_severity, "⚪ Unknown"),
+        "confidence_scores": confidence_scores,
+        "model_version": "2.1.3-xlm-roberta-fallback",
+        "fallback_used": fallback_used,
+        "fallback_reason": fallback_reason,
+        "fallback_keywords": fallback_keywords,
+    }
 
 @app.get("/labels")
 def get_labels():
@@ -231,7 +357,7 @@ def get_labels():
 # ---------- Audio Endpoints ----------
 
 @app.post("/v1/transcribe", response_model=TranscriptionResponse)
-async def transcribe_audio_endpoint(file: UploadFile = File(...)):
+async def transcribe_audio_endpoint(request: Request, file: UploadFile = File(...)):
     """
     Transcribe audio file using Whisper Large V3 Turbo via HF Inference API
     
@@ -240,6 +366,7 @@ async def transcribe_audio_endpoint(file: UploadFile = File(...)):
     Max file size: 25MB
     """
     try:
+        _validate_internal_token(request)
         whisper = get_whisper_handler()
         
         # Validate file size
@@ -263,7 +390,7 @@ async def transcribe_audio_endpoint(file: UploadFile = File(...)):
             
             if not result["success"]:
                 # Fallback to text-only endpoint if transcription fails
-                logger.warning(f"Transcription failed: {result.get('error')}")
+                logger.warning(f"[{request.state.request_id}] Transcription failed: {result.get('error')}")
                 return TranscriptionResponse(
                     transcription=None,
                     duration=result.get("duration", 0.0),
@@ -289,14 +416,14 @@ async def transcribe_audio_endpoint(file: UploadFile = File(...)):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Transcription endpoint error: {e}")
+        logger.error(f"[{request.state.request_id}] Transcription endpoint error: {e}")
         raise HTTPException(
             status_code=500,
             detail=f"Transcription error: {str(e)}"
         )
 
 @app.post("/v1/classify-audio", response_model=AudioClassificationResponse)
-async def classify_audio_endpoint(file: UploadFile = File(...), threshold: float = 0.5):
+async def classify_audio_endpoint(request: Request, file: UploadFile = File(...), threshold: float = 0.5):
     """
     End-to-end audio classification pipeline:
     1. Transcribe audio (Whisper Large V3 Turbo)
@@ -305,6 +432,7 @@ async def classify_audio_endpoint(file: UploadFile = File(...), threshold: float
     Returns: Transcription + Incident Types + Severity
     """
     try:
+        _validate_internal_token(request)
         whisper = get_whisper_handler()
         
         # Step 1: Validate and transcribe audio
@@ -327,7 +455,7 @@ async def classify_audio_endpoint(file: UploadFile = File(...), threshold: float
             
             if not transcription_result["success"]:
                 # Fallback to text-only
-                logger.warning(f"Transcription failed, returning 503")
+                logger.warning(f"[{request.state.request_id}] Transcription failed, returning 503")
                 raise HTTPException(
                     status_code=503,
                     detail=f"Speech-to-text service unavailable: {transcription_result.get('error')}. "
@@ -348,38 +476,31 @@ async def classify_audio_endpoint(file: UploadFile = File(...), threshold: float
             # Step 2: Classify transcription
             if not transcription.strip():
                 raise HTTPException(status_code=400, detail="Empty transcription from audio")
-            
-            # Tokenize
-            encoding = tokenizer(
-                transcription,
-                truncation=True,
-                padding=True,
-                max_length=128,
-                return_tensors="pt"
-            )
-            
-            input_ids = encoding["input_ids"].to(device)
-            attention_mask = encoding["attention_mask"].to(device)
-            
-            # Predict
-            with torch.no_grad():
-                outputs = model(input_ids, attention_mask)
-                
-                # Multi-label incident type predictions
-                type_probs = torch.sigmoid(outputs["type_logits"]).cpu().numpy()[0]
-                predicted_types = [
-                    meta["incident_type_labels"][i] 
-                    for i, prob in enumerate(type_probs) 
-                    if prob >= threshold
-                ]
-                
-                # Severity prediction (single-label)
-                severity_idx = torch.argmax(outputs["severity_logits"], dim=1).item()
-                predicted_severity = meta["severity_labels"][severity_idx]
-            
-            # Default to "Other" if no types predicted
-            if not predicted_types:
-                predicted_types = ["Other"]
+
+            fallback_used = False
+            fallback_reason = None
+            fallback_keywords: dict[str, list[str]] = {}
+
+            try:
+                predicted_types, predicted_severity, confidence_scores, max_confidence, no_types_above_threshold = _predict_text(
+                    transcription,
+                    threshold
+                )
+
+                if no_types_above_threshold or max_confidence < LOW_CONFIDENCE_THRESHOLD:
+                    fallback_used = True
+                    fallback_reason = "low_confidence" if max_confidence < LOW_CONFIDENCE_THRESHOLD else "no_type_above_threshold"
+                    predicted_types, predicted_severity, fallback_keywords = _apply_keyword_fallback(transcription)
+                    logger.warning(f"[{request.state.request_id}] Keyword fallback applied in /v1/classify-audio ({fallback_reason})")
+                elif not predicted_types:
+                    predicted_types = ["Other"]
+            except Exception as error:
+                logger.error(f"[{request.state.request_id}] Audio classification model error, applying fallback: {error}")
+                fallback_used = True
+                fallback_reason = "model_error"
+                confidence_scores = {}
+                predicted_types, predicted_severity, fallback_keywords = _apply_keyword_fallback(transcription)
+                max_confidence = 0.0
             
             # Severity color mapping
             severity_colors = {
@@ -389,14 +510,7 @@ async def classify_audio_endpoint(file: UploadFile = File(...), threshold: float
                 "Black": "⚫ Deceased"
             }
             
-            # Confidence scores
-            confidence_scores = {
-                meta["incident_type_labels"][i]: round(float(prob), 4)
-                for i, prob in enumerate(type_probs)
-            }
-            
             # Check if any incident type confidence is low
-            max_confidence = max(confidence_scores.values()) if confidence_scores else 0.0
             low_confidence_flag = max_confidence < whisper.confidence_threshold
             
             if low_confidence_flag:
@@ -414,7 +528,10 @@ async def classify_audio_endpoint(file: UploadFile = File(...), threshold: float
                 severity_color=severity_colors.get(predicted_severity, "⚪ Unknown"),
                 confidence_scores=confidence_scores,
                 low_confidence_flag=low_confidence_flag,
-                model_version="2.0.0-xlm-roberta-whisper"
+                model_version="2.1.3-xlm-roberta-whisper-fallback",
+                fallback_used=fallback_used,
+                fallback_reason=fallback_reason,
+                fallback_keywords=fallback_keywords,
             )
         
         finally:
@@ -424,14 +541,14 @@ async def classify_audio_endpoint(file: UploadFile = File(...), threshold: float
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Audio classification endpoint error: {e}")
+        logger.error(f"[{request.state.request_id}] Audio classification endpoint error: {e}")
         raise HTTPException(
             status_code=500,
             detail=f"Classification error: {str(e)}"
         )
 
 @app.post("/v1/classify-mic", response_model=AudioClassificationResponse)
-async def classify_microphone(duration_seconds: int = 30, sample_rate: int = 16000, threshold: float = 0.3):
+async def classify_microphone(request: Request, duration_seconds: int = 30, sample_rate: int = 16000, threshold: float = 0.3):
     """
     Combined microphone recording + auto-classification endpoint.
     
@@ -439,6 +556,7 @@ async def classify_microphone(duration_seconds: int = 30, sample_rate: int = 160
     Provides live feedback at each step.
     """
     try:
+        _validate_internal_token(request)
         import sounddevice as sd
         import soundfile as sf
         import tempfile
@@ -504,9 +622,9 @@ async def classify_microphone(duration_seconds: int = 30, sample_rate: int = 160
         transcription_latency = transcription_result.get("latency_seconds", 0.0)
         duration_recorded = transcription_result.get("duration", float(duration_seconds))
         
-        logger.info(f"✅ Transcription: {transcription}")
+        logger.info(f"[{request.state.request_id}] ✅ Transcription preview: {_preview_text_for_log(transcription)}")
         print(f"✅ Transcription complete")
-        print(f"   Text: {transcription}")
+        print(f"   Text Preview: {_preview_text_for_log(transcription, 120)}")
         print(f"   Latency: {transcription_latency:.2f}s")
         print(f"   Duration: {duration_recorded:.2f}s\n")
         
@@ -519,38 +637,31 @@ async def classify_microphone(duration_seconds: int = 30, sample_rate: int = 160
         # === STEP 3: CLASSIFY TRANSCRIPTION ===
         logger.info(f"🚨 Classifying transcription...")
         print(f"🚨 Classifying emergency incident...\n")
-        
-        # Tokenize
-        encoding = tokenizer(
-            transcription,
-            truncation=True,
-            padding=True,
-            max_length=128,
-            return_tensors="pt"
-        )
-        
-        input_ids = encoding["input_ids"].to(device)
-        attention_mask = encoding["attention_mask"].to(device)
-        
-        # Predict
-        with torch.no_grad():
-            outputs = model(input_ids, attention_mask)
-            
-            # Multi-label incident type predictions
-            type_probs = torch.sigmoid(outputs["type_logits"]).cpu().numpy()[0]
-            predicted_types = [
-                meta["incident_type_labels"][i]
-                for i, prob in enumerate(type_probs)
-                if prob >= threshold
-            ]
-            
-            # Severity prediction (single-label)
-            severity_idx = torch.argmax(outputs["severity_logits"], dim=1).item()
-            predicted_severity = meta["severity_labels"][severity_idx]
-        
-        # Default to "Other" if no types predicted
-        if not predicted_types:
-            predicted_types = ["Other"]
+
+        fallback_used = False
+        fallback_reason = None
+        fallback_keywords: dict[str, list[str]] = {}
+
+        try:
+            predicted_types, predicted_severity, confidence_scores, max_confidence, no_types_above_threshold = _predict_text(
+                transcription,
+                threshold
+            )
+
+            if no_types_above_threshold or max_confidence < LOW_CONFIDENCE_THRESHOLD:
+                fallback_used = True
+                fallback_reason = "low_confidence" if max_confidence < LOW_CONFIDENCE_THRESHOLD else "no_type_above_threshold"
+                predicted_types, predicted_severity, fallback_keywords = _apply_keyword_fallback(transcription)
+                logger.warning(f"[{request.state.request_id}] Keyword fallback applied in /v1/classify-mic ({fallback_reason})")
+            elif not predicted_types:
+                predicted_types = ["Other"]
+        except Exception as error:
+            logger.error(f"[{request.state.request_id}] Microphone model error, applying fallback: {error}")
+            fallback_used = True
+            fallback_reason = "model_error"
+            confidence_scores = {}
+            predicted_types, predicted_severity, fallback_keywords = _apply_keyword_fallback(transcription)
+            max_confidence = 0.0
         
         # Severity color mapping
         severity_colors = {
@@ -560,24 +671,17 @@ async def classify_microphone(duration_seconds: int = 30, sample_rate: int = 160
             "Black": "⚫ Deceased"
         }
         
-        # Confidence scores
-        confidence_scores = {
-            meta["incident_type_labels"][i]: round(float(prob), 4)
-            for i, prob in enumerate(type_probs)
-        }
-        
         # Check if any incident type confidence is low
-        max_confidence = max(confidence_scores.values()) if confidence_scores else 0.0
         low_confidence_flag = max_confidence < whisper.confidence_threshold
         
         # === DISPLAY RESULTS ===
-        logger.info(f"✅ Classification complete: {predicted_types} / {predicted_severity}")
+        logger.info(f"[{request.state.request_id}] ✅ Classification complete: {predicted_types} / {predicted_severity}")
         print(f"✅ Classification complete\n")
         print(f"{'='*70}")
         print(f"CLASSIFICATION RESULTS")
         print(f"{'='*70}")
         print(f"\n📋 Original Message:")
-        print(f"   {transcription}")
+        print(f"   {_preview_text_for_log(transcription, 180)}")
         print(f"\n🚨 Incident Types: {', '.join(predicted_types)}")
         print(f"{severity_colors.get(predicted_severity, '⚪ Unknown')} Severity Level")
         print(f"\n🤖 Model: {meta.get('backbone', 'xlm-roberta-base')}")
@@ -607,13 +711,16 @@ async def classify_microphone(duration_seconds: int = 30, sample_rate: int = 160
             severity_color=severity_colors.get(predicted_severity, "⚪ Unknown"),
             confidence_scores=confidence_scores,
             low_confidence_flag=low_confidence_flag,
-            model_version="2.0.0-xlm-roberta-whisper"
+            model_version="2.1.3-xlm-roberta-whisper-fallback",
+            fallback_used=fallback_used,
+            fallback_reason=fallback_reason,
+            fallback_keywords=fallback_keywords,
         )
     
     except HTTPException:
         raise
     except Exception as e:
-        logger.exception(f"Microphone classification failed: {e}")
+        logger.exception(f"[{request.state.request_id}] Microphone classification failed: {e}")
         print(f"\n❌ Error: {e}\n")
         raise HTTPException(
             status_code=500,
@@ -662,6 +769,9 @@ async def startup_event():
     print(f"Threshold: {meta.get('threshold', 0.5)}")
     print("")
     print("✓ Emergency Classifier loaded")
+
+    if not AI_INTERNAL_TOKEN and ENVIRONMENT != "development":
+        logger.warning("⚠️ AI_INTERNAL_TOKEN is not set outside development environment")
     
     # Initialize Whisper handler
     try:

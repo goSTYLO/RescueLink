@@ -25,16 +25,21 @@ const Incident = {
     media_paths = [],
     ai_pending = false,
     ai_attempted = false,
+    scan_status = 'pending',
+    scan_engine = null,
+    scan_error = null,
     status = 'pending' 
   }) {
     const res = await pool.query(
       `INSERT INTO incident_reports(
         user_id, incident_type, severity_level, description, latitude, longitude, barangay,
-        transcription, audio_path, media_paths, ai_pending, ai_attempted, status
-      ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`,
+        transcription, audio_path, media_paths, ai_pending, ai_attempted,
+        scan_status, scan_engine, scan_error, status
+      ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *`,
       [
         user_id, incident_type, severity_level, description, latitude, longitude, barangay,
-        transcription, audio_path, JSON.stringify(media_paths), ai_pending, ai_attempted, status
+        transcription, audio_path, JSON.stringify(media_paths), ai_pending, ai_attempted,
+        scan_status, scan_engine, scan_error, status
       ]
     );
     return res.rows[0];
@@ -194,6 +199,45 @@ const Incident = {
        LIMIT $1`,
       [limit]
     );
+    return res.rows;
+  },
+
+  async updateScanStatus(report_id, {
+    scan_status,
+    scan_engine = null,
+    scan_error = null,
+    scanned_at = null,
+    quarantined = false,
+    quarantine_reason = null,
+  }) {
+    const res = await pool.query(
+      `UPDATE incident_reports
+       SET scan_status = $1,
+           scan_engine = $2,
+           scan_error = $3,
+           scanned_at = $4,
+           quarantined = $5,
+           quarantine_reason = $6
+       WHERE report_id = $7
+       RETURNING *`,
+      [scan_status, scan_engine, scan_error, scanned_at, quarantined, quarantine_reason, report_id]
+    );
+
+    return res.rows[0];
+  },
+
+  async getPendingFileScans(limit = 50) {
+    const res = await pool.query(
+      `SELECT *
+       FROM incident_reports
+       WHERE (scan_status = 'pending' OR scan_status = 'unscanned')
+         AND quarantined = FALSE
+         AND (audio_path IS NOT NULL OR (media_paths IS NOT NULL AND jsonb_array_length(media_paths) > 0))
+       ORDER BY created_at ASC
+       LIMIT $1`,
+      [limit]
+    );
+
     return res.rows;
   },
 

@@ -53,6 +53,20 @@ Node.js + Express backend for RescueLink, using PostgreSQL. Handles authenticati
 | `MAX_AUDIO_SIZE` | Max audio file size in bytes (default: 25MB) | No |
 | `MAX_PHOTO_SIZE` | Max photo size in bytes (default: 10MB) | No |
 | `MAX_VIDEO_SIZE` | Max video size in bytes (default: 50MB) | No |
+| `AI_SERVICE_URL` | RescueLink AI service URL | No |
+| `AI_SERVICE_TOKEN` | Optional token sent as `x-ai-service-token` to AI service | No |
+| `FILE_SCAN_FAIL_OPEN` | If `true`, accepts uploads when deep scanner is unavailable and flags them (`default: true`) | No |
+| `FILE_DEEP_SCAN_ENABLED` | Enables async deep scan workflow (`default: true`) | No |
+| `FILE_DEEP_SCAN_ENGINE` | Deep scan engine identifier (`stub`, `clamav`, etc.) | No |
+| `FILE_SCANNER_AVAILABLE` | Marks scanner runtime availability (`default: false`) | No |
+| `FILE_SCAN_RETRY_CRON` | Cron schedule for scan retry worker (`default: */10 * * * *`) | No |
+| `FILE_SCAN_MAX_BATCH` | Max incidents processed per scan retry run (`default: 30`) | No |
+| `QUARANTINE_DIR` | Directory used for quarantined files (`default: uploads/quarantine`) | No |
+| `IMAGE_COMPRESSION_ENABLED` | Enables image compression before save (`default: true`) | No |
+| `VIDEO_COMPRESSION_ENABLED` | Enables video compression/transcoding before save (`default: true`) | No |
+| `IMAGE_MAX_WIDTH` | Max image width during compression (`default: 1920`) | No |
+| `IMAGE_JPEG_QUALITY` | JPEG compression quality (`default: 78`) | No |
+| `VIDEO_CRF` | FFmpeg CRF value for video compression (`default: 30`) | No |
 
 For production, use a secrets manager or vault for sensitive values. Never commit `.env` to version control.
 
@@ -71,7 +85,14 @@ Incident reports can include audio and media. Use `POST /api/incidents/with-audi
 - `audio` – Single audio file (wav, mp3, m4a, flac), max 25MB
 - `media` – Up to 5 photos/videos (jpg, png, mp4, mov, avi)
 
-File type and size are validated server-side.
+Server-side upload protections and optimizations:
+- **Quick security gate (sync):** signature validation + blocked binary/script signatures + extension mismatch rejection
+- **Deep scan workflow (async):** queued scan status (`pending`, `clean`, `unscanned`, `quarantined`, `error`)
+- **Fail-open mode:** if scanner is unavailable and `FILE_SCAN_FAIL_OPEN=true`, incident is accepted but flagged for follow-up
+- **Quarantine support:** suspicious files are moved to `QUARANTINE_DIR` and blocked from download
+- **Compression:** photos are resized/compressed (Sharp), videos are transcoded/compressed (FFmpeg) before storage
+
+`/api/incidents/with-audio` responses now include `security_scan` metadata so clients can display scan status.
 
 ## Audit logging
 

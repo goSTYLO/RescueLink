@@ -7,6 +7,7 @@
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs').promises;
+const { runUploadSecurityChecks, FILE_SCAN_FAIL_OPEN } = require('../services/fileScanService');
 require('dotenv').config();
 
 // Get configuration from environment
@@ -84,6 +85,32 @@ const validateFileSize = (req, res, next) => {
 };
 
 /**
+ * Quick malware/signature checks + deep scan availability checks
+ */
+const validateFileSecurity = (req, res, next) => {
+  const scanResult = runUploadSecurityChecks(req.files || {});
+
+  if (scanResult.quick.status === 'blocked') {
+    return res.status(400).json({
+      success: false,
+      message: 'File security scan blocked one or more uploads',
+      scan: scanResult
+    });
+  }
+
+  if (scanResult.deep.status === 'unavailable' && !FILE_SCAN_FAIL_OPEN) {
+    return res.status(503).json({
+      success: false,
+      message: 'Upload scanner unavailable. Please try again later.',
+      scan: scanResult
+    });
+  }
+
+  req.uploadSecurity = scanResult;
+  next();
+};
+
+/**
  * Multer upload configuration
  * - audio: single audio file
  * - media: up to 5 photos/videos
@@ -127,8 +154,14 @@ const uploadMiddleware = (req, res, next) => {
       });
     }
     
-    // No errors, proceed to file size validation
-    validateFileSize(req, res, next);
+    // No errors, proceed to file size + security validation
+    validateFileSize(req, res, (sizeError) => {
+      if (sizeError) {
+        return next(sizeError);
+      }
+
+      validateFileSecurity(req, res, next);
+    });
   });
 };
 

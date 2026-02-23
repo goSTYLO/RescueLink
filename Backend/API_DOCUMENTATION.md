@@ -149,6 +149,72 @@ All endpoints under `/api/admin/*` require the `admin` role:
 
 ## Authentication API
 
+---
+
+## Incident Upload API (AI + Scan)
+
+### Create Incident with Audio + Media
+
+**POST** `/api/incidents/with-audio`
+
+Create a new incident with required audio and optional media files. Endpoint performs:
+- upload size/type validation,
+- quick security scan (signature + blocked binary/script detection),
+- optional compression (images/videos),
+- asynchronous deep-scan workflow with fail-open support when configured.
+
+**Auth Required:** Yes (`user`, `dispatcher`, `admin`)
+
+**Content-Type:** `multipart/form-data`
+
+**Form Fields:**
+- `latitude` (required)
+- `longitude` (required)
+- `description` (optional)
+- `audio` (required; single file)
+- `media` (optional; up to 5 files)
+
+**Response:** `201 Created`
+
+```json
+{
+  "success": true,
+  "message": "Incident reported successfully with AI classification",
+  "incident": {
+    "report_id": 123,
+    "scan_status": "pending"
+  },
+  "ai_classification": {
+    "primary_type": "Medical",
+    "low_confidence_flag": false
+  },
+  "security_scan": {
+    "quick_scan": {
+      "status": "clean",
+      "findings": []
+    },
+    "deep_scan": {
+      "status": "ready",
+      "engine": "stub",
+      "queued": true,
+      "job_id": "deep-scan-123-1700000000000"
+    },
+    "fail_open_flagged": false
+  }
+}
+```
+
+**Common Scan States**
+- `clean`: latest scan completed without threat
+- `pending`: queued for deep scan
+- `unscanned`: scanner unavailable but upload accepted (fail-open)
+- `quarantined`: threat found and files moved to quarantine storage
+- `error`: scanner processing failure
+
+**Security Error Responses**
+- `400 Bad Request`: quick scan blocked suspicious file
+- `503 Service Unavailable`: scanner unavailable and fail-open disabled
+
 ### Register
 
 **POST** `/api/auth/register`
