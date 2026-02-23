@@ -356,10 +356,7 @@ Widget _buildLogo() {
                         keyboardType: TextInputType.phone,
                         decoration: InputDecoration(
                           hintText: 'Enter your number',
-                          prefixIcon: const Icon(
-                            Icons.phone,
-                            color: Color(0xFF9CA3AF),
-                          ),
+                          // Removed prefixIcon here
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide: const BorderSide(
@@ -421,10 +418,7 @@ Widget _buildLogo() {
                           initialValue: _selectedBarangay,
                           decoration: const InputDecoration(
                             hintText: 'Select your barangay',
-                            prefixIcon: Icon(
-                              Icons.location_on,
-                              color: Color(0xFF9CA3AF),
-                            ),
+                            // Removed prefixIcon here
                             suffixIcon: Icon(
                               Icons.arrow_drop_down,
                               color: Color(0xFF9CA3AF),
@@ -482,10 +476,7 @@ Widget _buildLogo() {
                         },
                         decoration: InputDecoration(
                           hintText: 'Minimum 8 characters',
-                          prefixIcon: const Icon(
-                            Icons.lock,
-                            color: Color(0xFF9CA3AF),
-                          ),
+                          // Removed prefixIcon here
                           suffixIcon: IconButton(
                             icon: Icon(
                               _obscurePassword
@@ -711,4 +702,3 @@ Widget _buildLogo() {
     );
   }
 }
-
