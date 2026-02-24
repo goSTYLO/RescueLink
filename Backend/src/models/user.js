@@ -1,4 +1,40 @@
 const pool = require('../config/db');
+const { decrypt } = require('../utils/encryption');
+
+function looksEncryptedValue(value) {
+  return typeof value === 'string'
+    && /^[0-9a-f]+$/i.test(value)
+    && value.length >= 184
+    && value.length % 2 === 0;
+}
+
+function tryDecryptValue(value) {
+  if (!looksEncryptedValue(value)) {
+    return value;
+  }
+
+  try {
+    return decrypt(value);
+  } catch {
+    return value;
+  }
+}
+
+function decodeUserFields(row) {
+  if (!row || typeof row !== 'object') {
+    return row;
+  }
+
+  return {
+    ...row,
+    email: tryDecryptValue(row.email),
+    first_name: tryDecryptValue(row.first_name),
+    last_name: tryDecryptValue(row.last_name),
+    phone_number: tryDecryptValue(row.phone_number),
+    address: tryDecryptValue(row.address),
+    role: tryDecryptValue(row.role),
+  };
+}
 
 const User = {
   async findByEmail(email) {
@@ -6,7 +42,7 @@ const User = {
       'SELECT user_id, email, phone_number, address, password, phone_verified, first_name, last_name, role, created_at FROM users WHERE LOWER(email) = LOWER($1)',
       [email]
     );
-    return res.rows[0];
+    return decodeUserFields(res.rows[0]);
   },
 
   async findByPhone(phone) {
@@ -14,7 +50,7 @@ const User = {
       'SELECT user_id, email, phone_number, address, password, phone_verified, first_name, last_name, role, created_at FROM users WHERE phone_number = $1',
       [phone]
     );
-    return res.rows[0];
+    return decodeUserFields(res.rows[0]);
   },
 
   async findById(user_id) {
@@ -22,7 +58,7 @@ const User = {
       'SELECT user_id, email, phone_number, address, password, phone_verified, first_name, last_name, role, created_at FROM users WHERE user_id = $1',
       [user_id]
     );
-    return res.rows[0];
+    return decodeUserFields(res.rows[0]);
   },
 
   async create({ email = null, phone_number = null, address = null, password = null, phone_verified = false, first_name = null, last_name = null, role = 'user' }) {
@@ -30,7 +66,7 @@ const User = {
       'INSERT INTO users(email, phone_number, address, password, phone_verified, first_name, last_name, role) VALUES($1, $2, $3, $4, $5, $6, $7, $8) RETURNING user_id, email, phone_number, address, phone_verified, first_name, last_name, role, created_at',
       [email, phone_number, address, password, phone_verified, first_name, last_name, role]
     );
-    return res.rows[0];
+    return decodeUserFields(res.rows[0]);
   },
 
   async updatePhoneVerified(phone_number, verified = true) {
@@ -38,7 +74,7 @@ const User = {
       'UPDATE users SET phone_verified = $1 WHERE phone_number = $2 RETURNING user_id, email, phone_number, address, phone_verified, first_name, last_name, role, created_at',
       [verified, phone_number]
     );
-    return res.rows[0];
+    return decodeUserFields(res.rows[0]);
   },
 
   async updatePassword(user_id, password_hash) {
@@ -46,7 +82,7 @@ const User = {
       'UPDATE users SET password = $1 WHERE user_id = $2 RETURNING user_id, email, phone_number, address, phone_verified, first_name, last_name, role, created_at',
       [password_hash, user_id]
     );
-    return res.rows[0];
+    return decodeUserFields(res.rows[0]);
   },
 
   /**
@@ -66,7 +102,7 @@ const User = {
       [limit, offset]
     );
 
-    return { users: usersRes.rows, total };
+    return { users: usersRes.rows.map(decodeUserFields), total };
   },
 
   /**
@@ -93,7 +129,7 @@ const User = {
       'UPDATE users SET role = $1 WHERE user_id = $2 RETURNING user_id, email, phone_number, address, phone_verified, first_name, last_name, role, is_active, created_at',
       [role, user_id]
     );
-    return res.rows[0];
+    return decodeUserFields(res.rows[0]);
   },
 
   /**
@@ -106,7 +142,7 @@ const User = {
       'UPDATE users SET is_active = false WHERE user_id = $1 RETURNING user_id, email, phone_number, address, phone_verified, first_name, last_name, role, is_active, created_at',
       [user_id]
     );
-    return res.rows[0];
+    return decodeUserFields(res.rows[0]);
   },
 
   /**

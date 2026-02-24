@@ -1,4 +1,50 @@
 const pool = require('../config/db');
+const { decrypt } = require('../utils/encryption');
+
+function looksEncryptedValue(value) {
+  return typeof value === 'string'
+    && /^[0-9a-f]+$/i.test(value)
+    && value.length >= 184
+    && value.length % 2 === 0;
+}
+
+function tryDecryptValue(value) {
+  if (!looksEncryptedValue(value)) {
+    return value;
+  }
+
+  try {
+    return decrypt(value);
+  } catch {
+    return value;
+  }
+}
+
+function decodeReporterFields(row) {
+  if (!row || typeof row !== 'object') {
+    return row;
+  }
+
+  function safeParseNumber(value) {
+    const v = tryDecryptValue(value);
+    if (v === null || v === undefined) return v;
+    if (typeof v === 'number') return v;
+    const s = String(v).trim();
+    const n = Number(s);
+    return Number.isNaN(n) ? v : n;
+  }
+
+  return {
+    ...row,
+    reporter_first_name: tryDecryptValue(row.reporter_first_name),
+    reporter_last_name: tryDecryptValue(row.reporter_last_name),
+    reporter_phone: tryDecryptValue(row.reporter_phone),
+    description: tryDecryptValue(row.description),
+    barangay: tryDecryptValue(row.barangay),
+    latitude: safeParseNumber(row.latitude),
+    longitude: safeParseNumber(row.longitude),
+  };
+}
 
 const Incident = {
   async create({ user_id, incident_type = null, severity_level, description = null, latitude, longitude, barangay = null, media_url = null, status = 'pending' }) {
@@ -53,7 +99,7 @@ const Incident = {
        WHERE ir.report_id = $1`,
       [report_id]
     );
-    return res.rows[0];
+    return decodeReporterFields(res.rows[0]);
   },
 
   async findAll({ limit = 20, offset = 0, user_id = null, severity_level = null, status = null } = {}) {
@@ -89,7 +135,7 @@ const Incident = {
     params.push(cappedLimit, offset);
 
     const res = await pool.query(query, params);
-    return res.rows;
+    return res.rows.map(decodeReporterFields);
   },
 
   async findByUserId(user_id, { limit = 20, offset = 0 } = {}) {

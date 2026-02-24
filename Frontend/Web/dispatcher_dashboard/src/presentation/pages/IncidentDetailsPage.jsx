@@ -31,6 +31,7 @@ import { DEV_MODE } from '@/core/config/app.config';
 import { ROLES, normalizeRole } from '@/core/constants';
 import { Loader2 } from 'lucide-react';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
+import Swal from 'sweetalert2';
 
 function mapApiToIncidentDetails(api) {
   const firstName = api.reporter_first_name || '';
@@ -166,12 +167,20 @@ export function IncidentDetailsPage() {
   const [closureDialogOpen, setClosureDialogOpen] = useState(false);
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
   const [verifyDialogOpen, setVerifyDialogOpen] = useState(false);
+  const [notifyDialogOpen, setNotifyDialogOpen] = useState(false);
   const [verifyLoading, setVerifyLoading] = useState(false);
+
+  // Select dropdown state
+  const [severitySelectOpen, setSeveritySelectOpen] = useState(false);
+  const [additionalDeptSelectOpen, setAdditionalDeptSelectOpen] = useState(false);
+  const [notifyDeptSelectOpen, setNotifyDeptSelectOpen] = useState(false);
+  const [closureClassSelectOpen, setClosureClassSelectOpen] = useState(false);
 
   // State for forms
   const [newSeverity, setNewSeverity] = useState('');
   const [escalationReason, setEscalationReason] = useState('');
   const [additionalDepartment, setAdditionalDepartment] = useState('');
+  const [notifyDepartment, setNotifyDepartment] = useState('');
   const [closureOutcome, setClosureOutcome] = useState('');
   const [closureClassification, setClosureClassification] = useState('');
   const [coordinationNote, setCoordinationNote] = useState('');
@@ -223,6 +232,24 @@ export function IncidentDetailsPage() {
     }
   };
 
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'Pending':
+      case 'New':
+        return 'bg-secondary/30 text-secondary-light border-secondary/50';
+      case 'Verified':
+        return 'bg-severity-resolved/20 text-severity-resolved border-emerald-500/40';
+      case 'In Progress':
+        return 'bg-amber-500/20 text-amber-400 border-amber-500/40';
+      case 'Resolved':
+        return 'bg-severity-resolved/20 text-severity-resolved border-emerald-500/40';
+      case 'Duplicate':
+        return 'bg-card text-muted border-border';
+      default:
+        return 'bg-card text-muted border-border';
+    }
+  };
+
   const getWorkloadColor = (count) => {
     if (count === 0) return 'text-severity-resolved';
     if (count <= 2) return 'text-amber-400';
@@ -233,6 +260,101 @@ export function IncidentDetailsPage() {
     if (count === 0) return <Badge variant="outline" className="bg-severity-resolved/20 text-severity-resolved border-emerald-500/40">Available</Badge>;
     if (count <= 2) return <Badge variant="outline" className="bg-amber-500/20 text-amber-400 border-amber-500/40">Moderate Load ({count})</Badge>;
     return <Badge variant="outline" className="bg-primary/20 text-primary border-primary/50">Overloaded ({count})</Badge>;
+  };
+
+  const getDepartmentContactPhone = (departmentName) => {
+    const normalized = String(departmentName || '').toLowerCase();
+    if (!normalized) return null;
+
+    if (normalized.includes('bfp') || normalized.includes('fire')) return '+63 75 523 1234';
+    if (normalized.includes('pnp') || normalized.includes('police')) return '+63 75 522 5678';
+    if (normalized.includes('health') || normalized.includes('hospital') || normalized.includes('medical')) return '+63 75 523 9012';
+    if (normalized.includes('drrmo') || normalized.includes('disaster')) return '+63 75 524 3456';
+    if (normalized.includes('barangay')) return '+63 75 522 7890';
+
+    return null;
+  };
+
+  const openNotifyRespondersDialog = () => {
+    const defaultDepartment =
+      incident?.assignedDepartment
+      || (Array.isArray(incident?.assignedDepartments) ? incident.assignedDepartments[0] : null)
+      || departments?.[0]?.name
+      || '';
+
+    setNotifyDepartment(defaultDepartment);
+    setNotifyDialogOpen(true);
+  };
+
+  const handleNotifyResponders = async () => {
+    const selectedDepartment = notifyDepartment;
+    const departmentExists = departments.some((dept) => dept.name === selectedDepartment);
+
+    if (!selectedDepartment || !departmentExists) {
+      await Swal.fire({
+        icon: 'warning',
+        title: 'Select response team',
+        text: 'Please choose a department before notifying responders.',
+        confirmButtonColor: '#134178',
+      });
+      return;
+    }
+
+    const responderPhone = getDepartmentContactPhone(selectedDepartment);
+
+    if (!responderPhone || responderPhone === '—') {
+      await Swal.fire({
+        icon: 'warning',
+        title: 'No contact available',
+        text: `Responder contact number is not available for ${selectedDepartment}.`,
+        confirmButtonColor: '#134178',
+      });
+      return;
+    }
+
+    setIncident((prev) => {
+      if (!prev) return prev;
+      const existingDepartments = Array.isArray(prev.assignedDepartments)
+        ? prev.assignedDepartments
+        : [];
+      return {
+        ...prev,
+        assignedDepartment: selectedDepartment,
+        assignedDepartments: [...new Set([...existingDepartments, selectedDepartment])],
+      };
+    });
+
+    setNotifyDialogOpen(false);
+
+    const cleanPhone = String(responderPhone).replace(/\s+/g, '');
+
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(responderPhone);
+      }
+    } catch (_) {
+      // clipboard can fail in non-secure contexts; continue with dial intent
+    }
+
+    const dialWindow = window.open(`tel:${cleanPhone}`, '_blank', 'noopener,noreferrer');
+    if (!dialWindow) {
+      await Swal.fire({
+        icon: 'info',
+        title: 'Manual call required',
+        text: `Your browser blocked the dial intent. Please call ${responderPhone} manually.`,
+        confirmButtonColor: '#134178',
+      });
+      return;
+    }
+
+    await Swal.fire({
+      icon: 'success',
+      title: 'Response team notified',
+      text: `${selectedDepartment} has been assigned and notified.`,
+      timer: 2200,
+      showConfirmButton: false,
+      timerProgressBar: true,
+    });
   };
 
   const handleEscalate = () => {
@@ -302,31 +424,108 @@ export function IncidentDetailsPage() {
               Back
             </Button>
           </div>
-          <div className="p-5 flex flex-wrap items-start justify-between gap-4">
-            <div>
+          <div className="p-4 md:p-5 space-y-4">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
               <div className="flex items-center gap-3 flex-wrap">
-                <h1 className="text-2xl font-semibold text-foreground">{incident.id}</h1>
-                {incident.highPriority && (
-                  <Badge className="bg-primary/20 text-primary border-primary/50 rounded-lg">
-                    <AlertTriangle className="w-3 h-3 mr-1" />
-                    High Priority
-                  </Badge>
-                )}
-                {incident.status === 'Duplicate' && (
-                  <Badge variant="outline" className="bg-card text-muted border-border rounded-lg">
-                    <Copy className="w-3 h-3 mr-1" />
-                    Duplicate
-                  </Badge>
+                  <h1 className="text-2xl font-semibold text-foreground">{incident.id}</h1>
+                  {incident.highPriority && (
+                    <Badge className="bg-primary/20 text-primary border-primary/50 rounded-lg">
+                      <AlertTriangle className="w-3 h-3 mr-1" />
+                      High Priority
+                    </Badge>
+                  )}
+                  {incident.status === 'Duplicate' && (
+                    <Badge variant="outline" className="bg-card text-muted border-border rounded-lg">
+                      <Copy className="w-3 h-3 mr-1" />
+                      Duplicate
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-muted mt-1">{incident.emergencyType} Incident</p>
+                {incident.timeReported && (
+                  <p className="text-sm text-muted mt-0.5">Reported: {incident.timeReported}</p>
                 )}
               </div>
-              <p className="text-muted mt-1">{incident.emergencyType} Incident</p>
-              {incident.timeReported && (
-                <p className="text-sm text-muted mt-0.5">Reported: {incident.timeReported}</p>
+              <div className="flex items-center gap-2 flex-wrap">
+                <Badge className={`${getStatusColor(incident.status)} rounded-lg px-3 py-1`}>
+                  {incident.status}
+                </Badge>
+                <Badge className={`${getSeverityColor(incident.severity)} rounded-lg px-3 py-1`}>
+                  {incident.severity}
+                </Badge>
+                <Badge variant="outline" className="rounded-lg border-border">
+                  {incident.verified ? 'Verified' : 'Not Verified'}
+                </Badge>
+              </div>
+            </div>
+
+            <div className={`grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2.5 p-3 rounded-xl border ${isLight ? 'bg-gray-50/70 border-gray-200/80' : 'bg-white/5 border-white/10'}`}>
+              <div>
+                <p className="text-[11px] uppercase tracking-wide text-muted">Status</p>
+                <p className="text-sm font-semibold text-foreground">{incident.status}</p>
+              </div>
+              <div>
+                <p className="text-[11px] uppercase tracking-wide text-muted">Severity</p>
+                <p className="text-sm font-semibold text-foreground">{incident.severity}</p>
+              </div>
+              <div>
+                <p className="text-[11px] uppercase tracking-wide text-muted">Type</p>
+                <p className="text-sm font-semibold text-foreground">{incident.emergencyType}</p>
+              </div>
+              <div>
+                <p className="text-[11px] uppercase tracking-wide text-muted">Reporter</p>
+                <p className="text-sm font-semibold text-foreground truncate" title={incident.reporterName}>{incident.reporterName}</p>
+              </div>
+              <div>
+                <p className="text-[11px] uppercase tracking-wide text-muted">Contact</p>
+                <p className="text-sm font-semibold text-foreground truncate" title={incident.reporterPhone}>{incident.reporterPhone}</p>
+              </div>
+              <div>
+                <p className="text-[11px] uppercase tracking-wide text-muted">Barangay</p>
+                <p className="text-sm font-semibold text-foreground truncate" title={incident.barangay}>{incident.barangay}</p>
+              </div>
+            </div>
+
+            {/* Incident Description - Top Priority */}
+            <div className={`p-4 rounded-xl border ${isLight ? 'bg-blue-50/70 border-blue-200/80' : 'bg-blue-500/10 border-blue-500/30'}`}>
+              <div className="flex items-start gap-2 mb-2">
+                <FileText className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+                <p className="text-xs uppercase tracking-wide text-muted font-semibold">Incident Description</p>
+              </div>
+              <p className="text-sm text-foreground leading-relaxed">{incident.description}</p>
+              {incident.aiSuggestion && (
+                <div className={`mt-3 p-2.5 rounded-lg border ${isLight ? 'bg-primary/10 border-primary/20' : 'bg-primary/20 border-primary/30'}`}>
+                  <p className="text-xs text-foreground"><strong>AI Suggestion:</strong> {incident.aiSuggestion}</p>
+                </div>
               )}
             </div>
-            <Badge className={`${getSeverityColor(incident.severity)} rounded-lg px-3 py-1`}>
-              {incident.severity}
-            </Badge>
+
+            <div className="flex flex-wrap gap-2">
+              {!incident.verified && (
+                <Button
+                  className="gap-2 bg-[#134178] hover:bg-[#0f3256]"
+                  onClick={() => setVerifyDialogOpen(true)}
+                >
+                  <CheckCircle className="w-4 h-4" />
+                  Verify Incident
+                </Button>
+              )}
+              <Button variant="outline" className="gap-2 rounded-xl" onClick={openNotifyRespondersDialog}>
+                <Bell className="w-4 h-4" />
+                Notify Responders
+              </Button>
+              {possibleDuplicates.length > 0 && (
+                <Button
+                  variant="outline"
+                  className={`gap-2 rounded-xl ${isLight ? 'text-amber-600 border-amber-200 hover:bg-amber-50' : 'text-amber-400 border-amber-500/40 hover:bg-amber-500/20'}`}
+                  onClick={() => setDuplicateDialogOpen(true)}
+                >
+                  <Merge className="w-4 h-4" />
+                  Review Duplicates ({possibleDuplicates.length})
+                </Button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -404,22 +603,6 @@ export function IncidentDetailsPage() {
                       longitude={incident.location.lng}
                       className="w-full h-48 rounded-xl overflow-hidden border border-border"
                     />
-                  </div>
-                </div>
-
-                {/* Incident Description */}
-                <div className={panelClass}>
-                  <div className={headerClass}>
-                    <div className={iconBoxClass}><FileText className="w-4 h-4" /></div>
-                    <h2 className="text-base font-semibold text-foreground">Incident Description</h2>
-                  </div>
-                  <div className="p-4">
-                    <p className="text-foreground">{incident.description}</p>
-                    {incident.aiSuggestion && (
-                      <div className={`mt-4 p-3 rounded-xl border ${isLight ? 'bg-primary/10 border-primary/20' : 'bg-primary/20 border-primary/30'}`}>
-                        <p className="text-sm text-foreground"><strong>AI Suggestion:</strong> {incident.aiSuggestion}</p>
-                      </div>
-                    )}
                   </div>
                 </div>
 
@@ -560,11 +743,11 @@ export function IncidentDetailsPage() {
                   </div>
                   <div className="p-4 space-y-3">
                     <div>
-                      <p className="text-sm text-muted mb-1">Current Status</p>
-                      <Badge variant="outline" className="border-border rounded-lg">{incident.status}</Badge>
+                      <p className="text-sm text-muted mb-1">Workflow Status</p>
+                      <Badge className={`${getStatusColor(incident.status)} rounded-lg`}>{incident.status}</Badge>
                     </div>
                     <div>
-                      <p className="text-sm text-muted mb-1">Verified</p>
+                      <p className="text-sm text-muted mb-1">Verification</p>
                       <div className="flex items-center gap-2">
                         {incident.verified ? (
                           <>
@@ -580,8 +763,8 @@ export function IncidentDetailsPage() {
                       </div>
                     </div>
                     <div>
-                      <p className="text-sm text-muted mb-1">Time Reported</p>
-                      <p className="text-sm font-medium text-foreground">{incident.timeReported}</p>
+                      <p className="text-sm text-muted mb-1">Workflow State Guide</p>
+                      <p className="text-xs text-muted">Pending → Verified → In Progress → Resolved</p>
                     </div>
                   </div>
                 </div>
@@ -623,15 +806,23 @@ export function IncidentDetailsPage() {
                           <div className="space-y-4 py-4">
                             <div>
                               <Label>New Severity Level</Label>
-                              <Select value={newSeverity} onValueChange={setNewSeverity}>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select severity" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="Critical">Critical</SelectItem>
-                                  <SelectItem value="Warning">Warning</SelectItem>
-                                  <SelectItem value="Low">Low</SelectItem>
-                                </SelectContent>
+                              <Select value={newSeverity} onValueChange={setNewSeverity} open={severitySelectOpen} onOpenChange={setSeveritySelectOpen}>
+                                {({ value, onValueChange, dropdownRect }) => (
+                                  <>
+                                    <SelectTrigger isOpen={severitySelectOpen} onClick={() => setSeveritySelectOpen(o => !o)}>
+                                      <SelectValue value={value} options={[
+                                        { value: 'Critical', label: 'Critical' },
+                                        { value: 'Warning', label: 'Warning' },
+                                        { value: 'Low', label: 'Low' }
+                                      ]} placeholder="Select severity" />
+                                    </SelectTrigger>
+                                    <SelectContent isOpen={severitySelectOpen} dropdownRect={dropdownRect}>
+                                      <SelectItem value="Critical" onSelect={(v) => { onValueChange(v); setSeveritySelectOpen(false); }}>Critical</SelectItem>
+                                      <SelectItem value="Warning" onSelect={(v) => { onValueChange(v); setSeveritySelectOpen(false); }}>Warning</SelectItem>
+                                      <SelectItem value="Low" onSelect={(v) => { onValueChange(v); setSeveritySelectOpen(false); }}>Low</SelectItem>
+                                    </SelectContent>
+                                  </>
+                                )}
                               </Select>
                             </div>
                             <div>
@@ -676,17 +867,21 @@ export function IncidentDetailsPage() {
                           <div className="space-y-4 py-4">
                             <div>
                               <Label>Select Department</Label>
-                              <Select value={additionalDepartment} onValueChange={setAdditionalDepartment}>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Choose department" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {departments.map(dept => (
-                                    <SelectItem key={dept.id} value={dept.name}>
-                                      {dept.name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
+                              <Select value={additionalDepartment} onValueChange={setAdditionalDepartment} open={additionalDeptSelectOpen} onOpenChange={setAdditionalDeptSelectOpen}>
+                                {({ value, onValueChange, dropdownRect }) => (
+                                  <>
+                                    <SelectTrigger isOpen={additionalDeptSelectOpen} onClick={() => setAdditionalDeptSelectOpen(o => !o)}>
+                                      <SelectValue value={value} options={departments.map(d => ({ value: d.name, label: d.name }))} placeholder="Choose department" />
+                                    </SelectTrigger>
+                                    <SelectContent isOpen={additionalDeptSelectOpen} dropdownRect={dropdownRect}>
+                                      {departments.map(dept => (
+                                        <SelectItem key={dept.id} value={dept.name} onSelect={(v) => { onValueChange(v); setAdditionalDeptSelectOpen(false); }}>
+                                          {dept.name}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </>
+                                )}
                               </Select>
                             </div>
                           </div>
@@ -771,7 +966,7 @@ export function IncidentDetailsPage() {
                         </Dialog>
                       </>
                     )}
-                    <Button variant="outline" className="w-full gap-2 rounded-xl">
+                    <Button variant="outline" className="w-full gap-2 rounded-xl" onClick={openNotifyRespondersDialog}>
                       <Bell className="w-4 h-4" />
                       Notify Responders
                     </Button>
@@ -825,17 +1020,27 @@ export function IncidentDetailsPage() {
                             </div>
                             <div>
                               <Label>Classification</Label>
-                              <Select value={closureClassification} onValueChange={setClosureClassification}>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select classification" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="Successful Response">Successful Response</SelectItem>
-                                  <SelectItem value="Partial Success">Partial Success</SelectItem>
-                                  <SelectItem value="False Alarm">False Alarm</SelectItem>
-                                  <SelectItem value="Duplicate Report">Duplicate Report</SelectItem>
-                                  <SelectItem value="No Action Required">No Action Required</SelectItem>
-                                </SelectContent>
+                              <Select value={closureClassification} onValueChange={setClosureClassification} open={closureClassSelectOpen} onOpenChange={setClosureClassSelectOpen}>
+                                {({ value, onValueChange, dropdownRect }) => (
+                                  <>
+                                    <SelectTrigger isOpen={closureClassSelectOpen} onClick={() => setClosureClassSelectOpen(o => !o)}>
+                                      <SelectValue value={value} options={[
+                                        { value: 'Successful Response', label: 'Successful Response' },
+                                        { value: 'Partial Success', label: 'Partial Success' },
+                                        { value: 'False Alarm', label: 'False Alarm' },
+                                        { value: 'Duplicate Report', label: 'Duplicate Report' },
+                                        { value: 'No Action Required', label: 'No Action Required' }
+                                      ]} placeholder="Select classification" />
+                                    </SelectTrigger>
+                                    <SelectContent isOpen={closureClassSelectOpen} dropdownRect={dropdownRect}>
+                                      <SelectItem value="Successful Response" onSelect={(v) => { onValueChange(v); setClosureClassSelectOpen(false); }}>Successful Response</SelectItem>
+                                      <SelectItem value="Partial Success" onSelect={(v) => { onValueChange(v); setClosureClassSelectOpen(false); }}>Partial Success</SelectItem>
+                                      <SelectItem value="False Alarm" onSelect={(v) => { onValueChange(v); setClosureClassSelectOpen(false); }}>False Alarm</SelectItem>
+                                      <SelectItem value="Duplicate Report" onSelect={(v) => { onValueChange(v); setClosureClassSelectOpen(false); }}>Duplicate Report</SelectItem>
+                                      <SelectItem value="No Action Required" onSelect={(v) => { onValueChange(v); setClosureClassSelectOpen(false); }}>No Action Required</SelectItem>
+                                    </SelectContent>
+                                  </>
+                                )}
                               </Select>
                             </div>
                           </div>
@@ -877,6 +1082,51 @@ export function IncidentDetailsPage() {
               </div>
             </div>
           </TabsContent>
+
+          {/* DIALOGS - Rendered outside cards for proper z-index and portal behavior */}
+          <Dialog open={notifyDialogOpen} onOpenChange={setNotifyDialogOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Notify Response Team</DialogTitle>
+                <DialogDescription>
+                  Assign and notify the selected response team for this incident.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div>
+                  <Label>Select Department / Team</Label>
+                  <Select value={notifyDepartment} onValueChange={setNotifyDepartment} open={notifyDeptSelectOpen} onOpenChange={setNotifyDeptSelectOpen}>
+                    {({ value, onValueChange, dropdownRect }) => (
+                      <>
+                        <SelectTrigger isOpen={notifyDeptSelectOpen} onClick={() => setNotifyDeptSelectOpen(o => !o)}>
+                          <SelectValue value={value} options={departments.map(d => ({ value: d.name, label: d.name }))} placeholder="Choose department" />
+                        </SelectTrigger>
+                        <SelectContent isOpen={notifyDeptSelectOpen} dropdownRect={dropdownRect}>
+                          {departments.map((dept) => (
+                            <SelectItem key={dept.id} value={dept.name} onSelect={(v) => { onValueChange(v); setNotifyDeptSelectOpen(false); }}>
+                              {dept.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </>
+                    )}
+                  </Select>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setNotifyDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  className="bg-[#134178] hover:bg-[#0f3256]"
+                  onClick={handleNotifyResponders}
+                  disabled={!notifyDepartment}
+                >
+                  Assign & Notify
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
           {/* TIMELINE TAB */}
           <TabsContent value="timeline">
