@@ -192,7 +192,7 @@ async function testIncidentWithAudio() {
   log('=== TEST SUITE 2: Incident with Audio (AI-Enhanced) ===', 'info');
   
   // Prepare audio file
-  const audioPath = path.join(__dirname, '../../RescueLink AI/test/test_report.m4a');
+  const audioPath = path.join(__dirname, '../../RescueLink AI/test/test_report_1.m4a');
   let audioBuffer;
   
   if (fs.existsSync(audioPath)) {
@@ -223,7 +223,7 @@ async function testIncidentWithAudio() {
     {
       audio: {
         buffer: audioBuffer,
-        originalname: 'test_report.m4a'
+        originalname: 'test_report_1.m4a'
       }
     },
     {

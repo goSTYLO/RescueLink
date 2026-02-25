@@ -76,6 +76,33 @@ def record_incident_on_blockchain(
     contract = get_contract(w3)
     account = w3.eth.account.from_key(PRIVATE_KEY.strip())
 
+    existing_logs = contract.events.IncidentVerified().get_logs(
+        from_block=0,
+        to_block="latest",
+        argument_filters={"reportId": report_id},
+    )
+    if existing_logs:
+        last_log = existing_logs[-1]
+        existing_tx_hash = last_log["transactionHash"].hex()
+        existing_block = int(last_log["blockNumber"])
+        existing_hash_value = last_log["args"].get("hashValue")
+        if isinstance(existing_hash_value, bytes):
+            existing_hash_value = existing_hash_value.hex()
+        elif hasattr(existing_hash_value, "hex"):
+            existing_hash_value = existing_hash_value.hex()
+        if isinstance(existing_hash_value, str) and existing_hash_value.startswith("0x"):
+            existing_hash_value = existing_hash_value[2:]
+
+        return {
+            "hash_value": existing_hash_value or hash_value,
+            "tx_hash": existing_tx_hash,
+            "block_number": existing_block,
+            "gas_used": 0,
+            "effective_gas_price": "0",
+            "gas_cost_wei": "0",
+            "already_recorded": True,
+        }
+
     tx_hash = contract.functions.recordIncident(
         report_id,
         hash_bytes,
@@ -87,4 +114,8 @@ def record_incident_on_blockchain(
         "hash_value": hash_value,
         "tx_hash": tx_hash.hex(),
         "block_number": receipt["blockNumber"],
+        "gas_used": int(receipt.get("gasUsed") or 0),
+        "effective_gas_price": str(receipt.get("effectiveGasPrice") or 0),
+        "gas_cost_wei": str((receipt.get("gasUsed") or 0) * (receipt.get("effectiveGasPrice") or 0)),
+        "already_recorded": False,
     }

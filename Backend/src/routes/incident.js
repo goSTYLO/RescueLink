@@ -46,6 +46,18 @@ router.get('/:id/with-ai', authMiddleware, checkOwnership('user_id'), incidentCo
 // Dispatcher and admin only
 router.post('/:id/verify', authMiddleware, authorize([ROLES.DISPATCHER, ROLES.ADMIN]), incidentController.verifyIncident);
 
+// Manual reclassification with AI override audit trail
+// Dispatcher/admin/supervisor including admin role aliases
+router.post('/:id/reclassify', authMiddleware, authorize([
+  ROLES.DISPATCHER,
+  ROLES.ADMIN,
+  'supervisor',
+  'Supervisor',
+  'super-admin',
+  'superadmin',
+  'Super Admin'
+]), incidentController.reclassifyIncident);
+
 // Get current user's incidents (always filtered to own)
 router.get('/user/my', authMiddleware, incidentController.getMyIncidents);
 

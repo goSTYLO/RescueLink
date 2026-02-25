@@ -42,6 +42,22 @@ RescueLink AI is a multilingual emergency classification microservice that:
 
 ## What's New (Audio Pipeline)
 
+### v2.1.4 - Performance Session Updates (Session 2)
+
+**Implemented in this session:**
+- ✅ **Startup warmup controls**: classifier warmup at startup plus optional Whisper warmup
+- ✅ **Whisper preprocessing optimization**: non-WAV files are decoded once and reused for validation + WAV normalization
+- ✅ **m4a reliability hardening**: bundled ffmpeg backend bootstrap for environments without system ffmpeg
+- ✅ **Request correlation support**: `x-request-id` is accepted/propagated in API middleware for end-to-end traceability
+- ✅ **Text-only benchmark scenario**: performance runner now supports AI-3 as long-report `/classify` testing using dataset samples
+
+**New/updated environment flags:**
+- `AI_STARTUP_WARMUP` (default: `true`) — enables startup warmup path
+- `AI_STARTUP_WARMUP_WHISPER` (default: `true`) — enables optional Whisper startup warmup
+
+**Performance note from latest run:**
+- Audio classification remained stable (`0%` error), while long text-only classification (`/classify`) showed lower latency than audio pipeline calls for the tested dataset sample.
+
 ### v2.1.3 - Security Hardening & Rule-Based Fallback
 
 **Latest improvements:**

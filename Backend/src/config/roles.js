@@ -6,6 +6,8 @@
 const ROLES = {
   USER: 'user',           // Mobile app users who report incidents
   DISPATCHER: 'dispatcher', // Web app administrators who manage dispatches
+  RESPONDER: 'responder', // Authenticated responders
+  SUPERVISOR: 'supervisor', // Supervisors for escalation/reclassification
   ADMIN: 'admin'          // Super-users with full system access
 };
 
@@ -41,6 +43,24 @@ const PERMISSIONS = {
     responders: ['create', 'read', 'update', 'delete', 'list', 'listAll', 'manage'],
     notifications: ['create', 'read', 'update', 'delete', 'list', 'manage'],
     auditLogs: ['readOwn'],  // Read only own dispatcher actions
+    users: [],
+    settings: []
+  },
+  [ROLES.RESPONDER]: {
+    incidents: ['create', 'readOwn', 'updateOwn', 'deleteOwn'],
+    dispatches: [],
+    responders: ['read'],
+    notifications: ['readOwn'],
+    auditLogs: [],
+    users: [],
+    settings: []
+  },
+  [ROLES.SUPERVISOR]: {
+    incidents: ['create', 'read', 'update', 'delete', 'list', 'listAll', 'manage'],
+    dispatches: ['read', 'list'],
+    responders: ['read', 'list'],
+    notifications: ['create', 'read', 'update', 'list'],
+    auditLogs: ['readOwn'],
     users: [],
     settings: []
   },

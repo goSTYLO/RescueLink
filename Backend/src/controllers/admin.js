@@ -89,7 +89,7 @@ const adminController = {
    *   first_name: string (optional),
    *   last_name: string (optional),
    *   password: string,
-   *   role: 'user' | 'dispatcher' | 'admin'
+  *   role: 'user' | 'dispatcher' | 'responder' | 'supervisor' | 'admin'
    * }
    */
   async createUser(req, res) {
@@ -172,7 +172,7 @@ const adminController = {
    * PUT /api/admin/users/:id/role
    * 
    * Body: {
-   *   role: 'user' | 'dispatcher' | 'admin'
+  *   role: 'user' | 'dispatcher' | 'responder' | 'supervisor' | 'admin'
    * }
    */
   async updateUserRole(req, res) {

@@ -74,6 +74,13 @@ const authLimiter = rateLimit({
 
 app.use(express.json());
 
+app.use((req, res, next) => {
+  const requestId = req.headers['x-request-id'] || crypto.randomUUID();
+  req.requestId = requestId;
+  res.setHeader('x-request-id', requestId);
+  next();
+});
+
 // General API rate limit: 200 requests per 15 minutes per IP
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -98,7 +105,7 @@ function redactBody(body) {
 // Request logging middleware (never log passwords or tokens)
 app.use((req, res, next) => {
   const timestamp = new Date().toISOString();
-  console.log(`\n[${timestamp}] ${req.method} ${req.originalUrl}`);
+  console.log(`\n[${timestamp}] request_id=${req.requestId} ${req.method} ${req.originalUrl}`);
   if ((req.method === 'POST' || req.method === 'PUT') && req.body && Object.keys(req.body).length > 0) {
     console.log('Body:', JSON.stringify(redactBody(req.body), null, 2));
   }

@@ -3,6 +3,8 @@
 require('dotenv').config();
 const { Pool } = require('pg');
 const bcryptjs = require('bcryptjs');
+const { ROLES } = require('../src/config/roles');
+const { encrypt } = require('../src/utils/encryption');
 
 const DATABASE_URL = process.env.DATABASE_URL;
 
@@ -24,28 +26,68 @@ async function hashPassword(password) {
   return bcryptjs.hash(password, salt);
 }
 
+function encryptNullable(value) {
+  if (value === null || value === undefined) return null;
+  return encrypt(String(value));
+}
+
+function estimateEncryptedHexLength(value) {
+  if (value === null || value === undefined) return 0;
+  const plainBytes = Buffer.byteLength(String(value), 'utf8');
+  // hex(salt[64] + iv[12] + tag[16] + ciphertext[n]) => 2 * (92 + plainBytes)
+  return 2 * (92 + plainBytes);
+}
+
+async function getColumnMeta(client, tableName, columnName) {
+  const res = await client.query(
+    `SELECT data_type, character_maximum_length
+     FROM information_schema.columns
+     WHERE table_schema = 'public' AND table_name = $1 AND column_name = $2`,
+    [tableName, columnName]
+  );
+  return res.rows[0] || null;
+}
+
+function shouldEncryptForColumn(columnMeta, value) {
+  if (!columnMeta || value === null || value === undefined) return false;
+
+  if (columnMeta.data_type === 'text') {
+    return true;
+  }
+
+  const maxLen = columnMeta.character_maximum_length;
+  if (!maxLen) {
+    return false;
+  }
+
+  return estimateEncryptedHexLength(value) <= maxLen;
+}
+
+function maybeEncrypt(value, columnMeta) {
+  if (value === null || value === undefined) return null;
+  if (shouldEncryptForColumn(columnMeta, value)) {
+    return encryptNullable(value);
+  }
+  return value;
+}
+
 // Sample data generators
 const generateUsers = () => [
+  // Admins (2)
+  { first_name: 'Ariel', last_name: 'Admin', email: 'admin@rescuelink.test', phone_number: '639001000001', password: 'admin123', role: ROLES.ADMIN, address: 'Dagupan Barangay, Dagupan City, Pangasinan' },
+  { first_name: 'Bianca', last_name: 'Admin', email: 'admin2@rescuelink.test', phone_number: '639001000002', password: 'admin123', role: ROLES.ADMIN, address: 'Malur Barangay, Dagupan City, Pangasinan' },
   // Dispatchers (2)
-  { first_name: 'Alice', last_name: 'Dispatcher', email: 'dispatcher@rescuelink.test', phone_number: '639001234567', password: 'dispatcher123', role: 'dispatcher', address: 'Dagupan Barangay, Dagupan City, Pangasinan' },
-  { first_name: 'Bob', last_name: 'Dispatcher', email: 'dispatcher2@rescuelink.test', phone_number: '639009876543', password: 'dispatcher123', role: 'dispatcher', address: 'Malur Barangay, Dagupan City, Pangasinan' },
-  // Responders (5)
-  { first_name: 'Charlie', last_name: 'Firefighter', email: 'responder@rescuelink.test', phone_number: '639111111111', password: 'responder123', role: 'responder', address: 'Bonuan Barangay, Dagupan City, Pangasinan' },
-  { first_name: 'Diana', last_name: 'EMT', email: 'responder2@rescuelink.test', phone_number: '639222222222', password: 'responder123', role: 'responder', address: 'Bacnotan Barangay, Dagupan City, Pangasinan' },
-  { first_name: 'Evan', last_name: 'Police', email: 'responder3@rescuelink.test', phone_number: '639333333333', password: 'responder123', role: 'responder', address: 'Pantal Barangay, Dagupan City, Pangasinan' },
-  { first_name: 'Fiona', last_name: 'Nurse', email: 'responder4@rescuelink.test', phone_number: '639444444444', password: 'responder123', role: 'responder', address: 'Dagupan Barangay, Dagupan City, Pangasinan' },
-  { first_name: 'George', last_name: 'Rescuer', email: 'responder5@rescuelink.test', phone_number: '639555555555', password: 'responder123', role: 'responder', address: 'Malur Barangay, Dagupan City, Pangasinan' },
-  // Regular users (10)
-  { first_name: 'John', last_name: 'Doe', email: 'user@rescuelink.test', phone_number: '639666666666', password: 'user123', role: 'user', address: 'Bonuan Barangay, Dagupan City, Pangasinan' },
-  { first_name: 'Jane', last_name: 'Smith', email: 'user2@rescuelink.test', phone_number: '639777777777', password: 'user123', role: 'user', address: 'Bacnotan Barangay, Dagupan City, Pangasinan' },
-  { first_name: 'Michael', last_name: 'Johnson', email: 'user3@rescuelink.test', phone_number: '639888888888', password: 'user123', role: 'user', address: 'Pantal Barangay, Dagupan City, Pangasinan' },
-  { first_name: 'Sarah', last_name: 'Williams', email: 'user4@rescuelink.test', phone_number: '639999999999', password: 'user123', role: 'user', address: 'Dagupan Barangay, Dagupan City, Pangasinan' },
-  { first_name: 'David', last_name: 'Brown', email: 'user5@rescuelink.test', phone_number: '639101010101', password: 'user123', role: 'user', address: 'Malur Barangay, Dagupan City, Pangasinan' },
-  { first_name: 'Emma', last_name: 'Davis', email: 'user6@rescuelink.test', phone_number: '639121212121', password: 'user123', role: 'user', address: 'Bonuan Barangay, Dagupan City, Pangasinan' },
-  { first_name: 'Frank', last_name: 'Miller', email: 'user7@rescuelink.test', phone_number: '639131313131', password: 'user123', role: 'user', address: 'Bacnotan Barangay, Dagupan City, Pangasinan' },
-  { first_name: 'Grace', last_name: 'Wilson', email: 'user8@rescuelink.test', phone_number: '639141414141', password: 'user123', role: 'user', address: 'Pantal Barangay, Dagupan City, Pangasinan' },
-  { first_name: 'Henry', last_name: 'Moore', email: 'user9@rescuelink.test', phone_number: '639151515151', password: 'user123', role: 'user', address: 'Dagupan Barangay, Dagupan City, Pangasinan' },
-  { first_name: 'Isabella', last_name: 'Taylor', email: 'user10@rescuelink.test', phone_number: '639161616161', password: 'user123', role: 'user', address: 'Malur Barangay, Dagupan City, Pangasinan' },
+  { first_name: 'Alice', last_name: 'Dispatcher', email: 'dispatcher@rescuelink.test', phone_number: '639002000001', password: 'dispatcher123', role: ROLES.DISPATCHER, address: 'Bonuan Barangay, Dagupan City, Pangasinan' },
+  { first_name: 'Bob', last_name: 'Dispatcher', email: 'dispatcher2@rescuelink.test', phone_number: '639002000002', password: 'dispatcher123', role: ROLES.DISPATCHER, address: 'Bacnotan Barangay, Dagupan City, Pangasinan' },
+  // Responders (2)
+  { first_name: 'Charlie', last_name: 'Responder', email: 'responder@rescuelink.test', phone_number: '639003000001', password: 'responder123', role: ROLES.RESPONDER, address: 'Pantal Barangay, Dagupan City, Pangasinan' },
+  { first_name: 'Diana', last_name: 'Responder', email: 'responder2@rescuelink.test', phone_number: '639003000002', password: 'responder123', role: ROLES.RESPONDER, address: 'Dagupan Barangay, Dagupan City, Pangasinan' },
+  // Supervisors (2)
+  { first_name: 'Evan', last_name: 'Supervisor', email: 'supervisor@rescuelink.test', phone_number: '639004000001', password: 'supervisor123', role: ROLES.SUPERVISOR, address: 'Malur Barangay, Dagupan City, Pangasinan' },
+  { first_name: 'Fiona', last_name: 'Supervisor', email: 'supervisor2@rescuelink.test', phone_number: '639004000002', password: 'supervisor123', role: ROLES.SUPERVISOR, address: 'Bonuan Barangay, Dagupan City, Pangasinan' },
+  // Regular users (2)
+  { first_name: 'John', last_name: 'Doe', email: 'user@rescuelink.test', phone_number: '639005000001', password: 'user123', role: ROLES.USER, address: 'Bacnotan Barangay, Dagupan City, Pangasinan' },
+  { first_name: 'Jane', last_name: 'Smith', email: 'user2@rescuelink.test', phone_number: '639005000002', password: 'user123', role: ROLES.USER, address: 'Pantal Barangay, Dagupan City, Pangasinan' },
 ];
 
 const generateResponders = () => [
@@ -56,15 +98,15 @@ const generateResponders = () => [
   { name: 'Dagupan Civil Defense', organization: 'Disaster Management', contact_number: '09174445555', availability_status: 'available' },
 ];
 
-const generateIncidents = (userIds) => {
+const generateIncidents = (reportingUserIds) => {
   const incidentTypes = ['Fire', 'Accident', 'Crime', 'Medical', 'Natural Disaster', 'Other'];
   const severities = ['Green', 'Yellow', 'Red', 'Black'];
   const statuses = ['pending', 'in_progress', 'resolved', 'cancelled'];
   const barangays = ['Dagupan', 'Malur', 'Bonuan', 'Bacnotan', 'Pantal'];
 
-  return [
+  const baseIncidents = [
     {
-      user_id: userIds[6],
+      user_id: null,
       incident_type: incidentTypes[0],
       severity_level: severities[2],
       description: 'House fire at residential area. Smoke visible from street.',
@@ -74,7 +116,7 @@ const generateIncidents = (userIds) => {
       status: statuses[2],
     },
     {
-      user_id: userIds[7],
+      user_id: null,
       incident_type: incidentTypes[1],
       severity_level: severities[1],
       description: 'Car accident on main highway. Two vehicles involved.',
@@ -84,7 +126,7 @@ const generateIncidents = (userIds) => {
       status: statuses[1],
     },
     {
-      user_id: userIds[8],
+      user_id: null,
       incident_type: incidentTypes[3],
       severity_level: severities[2],
       description: 'Person collapsed in public area. Requires emergency medical attention.',
@@ -94,7 +136,7 @@ const generateIncidents = (userIds) => {
       status: statuses[2],
     },
     {
-      user_id: userIds[9],
+      user_id: null,
       incident_type: incidentTypes[2],
       severity_level: severities[1],
       description: 'Robbery attempt at convenience store.',
@@ -104,7 +146,7 @@ const generateIncidents = (userIds) => {
       status: statuses[0],
     },
     {
-      user_id: userIds[10],
+      user_id: null,
       incident_type: incidentTypes[4],
       severity_level: severities[1],
       description: 'Heavy flooding in low-lying areas.',
@@ -114,7 +156,7 @@ const generateIncidents = (userIds) => {
       status: statuses[0],
     },
     {
-      user_id: userIds[11],
+      user_id: null,
       incident_type: incidentTypes[0],
       severity_level: severities[3],
       description: 'Large wildfire spreading towards residential areas.',
@@ -124,6 +166,10 @@ const generateIncidents = (userIds) => {
       status: statuses[1],
     },
   ];
+  return baseIncidents.map((incident, index) => ({
+    ...incident,
+    user_id: reportingUserIds[index % reportingUserIds.length]
+  }));
 };
 
 async function seedDatabase() {
@@ -132,6 +178,8 @@ async function seedDatabase() {
     console.log('\n🔄 Clearing existing data (maintaining referential integrity)...');
 
     // Delete in reverse dependency order
+    await client.query('DELETE FROM dispatcher_login_otp');
+    await client.query('DELETE FROM token_blacklist');
     await client.query('DELETE FROM dispatcher_audit_logs');
     await client.query('DELETE FROM notifications');
     await client.query('DELETE FROM dispatches');
@@ -143,22 +191,51 @@ async function seedDatabase() {
 
     console.log('✅ Cleared old data\n');
 
+    const userColumnMeta = {
+      first_name: await getColumnMeta(client, 'users', 'first_name'),
+      last_name: await getColumnMeta(client, 'users', 'last_name'),
+      email: await getColumnMeta(client, 'users', 'email'),
+      phone_number: await getColumnMeta(client, 'users', 'phone_number'),
+      address: await getColumnMeta(client, 'users', 'address'),
+    };
+
+    const incidentColumnMeta = {
+      description: await getColumnMeta(client, 'incident_reports', 'description'),
+      latitude: await getColumnMeta(client, 'incident_reports', 'latitude'),
+      longitude: await getColumnMeta(client, 'incident_reports', 'longitude'),
+      barangay: await getColumnMeta(client, 'incident_reports', 'barangay'),
+    };
+
     // Seed users
     console.log('👤 Seeding users...');
     const users = generateUsers();
     const userIds = [];
+    const userIdsByRole = {
+      [ROLES.ADMIN]: [],
+      [ROLES.DISPATCHER]: [],
+      [ROLES.RESPONDER]: [],
+      [ROLES.SUPERVISOR]: [],
+      [ROLES.USER]: []
+    };
 
     for (const user of users) {
       const hashedPassword = await hashPassword(user.password);
+      const encryptedFirstName = maybeEncrypt(user.first_name, userColumnMeta.first_name);
+      const encryptedLastName = maybeEncrypt(user.last_name, userColumnMeta.last_name);
+      const encryptedEmail = maybeEncrypt(user.email, userColumnMeta.email);
+      const encryptedPhone = maybeEncrypt(user.phone_number, userColumnMeta.phone_number);
+      const encryptedAddress = maybeEncrypt(user.address, userColumnMeta.address);
       const result = await client.query(
         `INSERT INTO users (first_name, last_name, email, phone_number, password, role, phone_verified, address)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          RETURNING user_id`,
-        [user.first_name, user.last_name, user.email, user.phone_number, hashedPassword, user.role, true, user.address]
+        [encryptedFirstName, encryptedLastName, encryptedEmail, encryptedPhone, hashedPassword, user.role, true, encryptedAddress]
       );
-      userIds.push(result.rows[0].user_id);
+      const newUserId = result.rows[0].user_id;
+      userIds.push(newUserId);
+      userIdsByRole[user.role].push(newUserId);
     }
-    console.log(`✅ Seeded ${users.length} users (2 dispatchers, 5 responders, 10 regular users)\n`);
+    console.log(`✅ Seeded ${users.length} users (2 admins, 2 dispatchers, 2 responders, 2 supervisors, 2 users)\n`);
 
     // Seed responders
     console.log('🚨 Seeding responders...');
@@ -178,17 +255,26 @@ async function seedDatabase() {
 
     // Seed incidents
     console.log('🚨 Seeding incident reports...');
-    const incidents = generateIncidents(userIds);
+    const reportOwners = [
+      ...userIdsByRole[ROLES.USER],
+      ...userIdsByRole[ROLES.DISPATCHER],
+      ...userIdsByRole[ROLES.SUPERVISOR]
+    ];
+    const incidents = generateIncidents(reportOwners);
     const incidentIds = [];
 
     for (const incident of incidents) {
+      const encryptedDescription = maybeEncrypt(incident.description, incidentColumnMeta.description);
+      const encryptedLatitude = maybeEncrypt(incident.latitude, incidentColumnMeta.latitude);
+      const encryptedLongitude = maybeEncrypt(incident.longitude, incidentColumnMeta.longitude);
+      const encryptedBarangay = maybeEncrypt(incident.barangay, incidentColumnMeta.barangay);
       const result = await client.query(
         `INSERT INTO incident_reports
          (user_id, incident_type, severity_level, description, latitude, longitude, barangay, status, verified)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
          RETURNING report_id`,
-        [incident.user_id, incident.incident_type, incident.severity_level, incident.description,
-         incident.latitude, incident.longitude, incident.barangay, incident.status, true]
+        [incident.user_id, incident.incident_type, incident.severity_level, encryptedDescription,
+         encryptedLatitude, encryptedLongitude, encryptedBarangay, incident.status, true]
       );
       incidentIds.push(result.rows[0].report_id);
     }
@@ -209,11 +295,11 @@ async function seedDatabase() {
 
     // Seed sample notifications
     console.log('💬 Seeding notifications...');
-    for (let i = 0; i < Math.min(3, userIds.length); i++) {
+    for (let i = 0; i < Math.min(3, userIdsByRole[ROLES.USER].length); i++) {
       await client.query(
         `INSERT INTO notifications (user_id, report_id, message, sent_via)
          VALUES ($1, $2, $3, $4)`,
-        [userIds[6 + i], incidentIds[i], `Your incident report #${incidentIds[i]} has been processed.`, 'sms']
+        [userIdsByRole[ROLES.USER][i], incidentIds[i], `Your incident report #${incidentIds[i]} has been processed.`, 'sms']
       );
     }
     console.log(`✅ Seeded sample notifications\n`);
@@ -222,23 +308,26 @@ async function seedDatabase() {
     console.log('🎉 Database seeding completed successfully!');
     console.log('════════════════════════════════════════════════');
     console.log('\n📋 Summary:');
-    console.log(`   👤  Users: ${userIds.length} (2 dispatchers, 5 responders, 10 users)`);
+    console.log(`   👤  Users: ${userIds.length} (2 admins, 2 dispatchers, 2 responders, 2 supervisors, 2 users)`);
     console.log(`   🚨 Responders: ${responderIds.length}`);
     console.log(`   📍 Incidents: ${incidentIds.length}`);
     console.log(`   📤 Dispatches: ${dispatchCount}`);
     console.log('\n🔑 Test Credentials (by role):');
+    console.log('   Admins (password: admin123):');
+    console.log('     - admin@rescuelink.test');
+    console.log('     - admin2@rescuelink.test');
     console.log('   Dispatchers (password: dispatcher123):');
     console.log('     - dispatcher@rescuelink.test');
     console.log('     - dispatcher2@rescuelink.test');
     console.log('   Responders (password: responder123):');
     console.log('     - responder@rescuelink.test');
     console.log('     - responder2@rescuelink.test');
-    console.log('     - responder3@rescuelink.test');
-    console.log('     - responder4@rescuelink.test');
-    console.log('     - responder5@rescuelink.test');
+    console.log('   Supervisors (password: supervisor123):');
+    console.log('     - supervisor@rescuelink.test');
+    console.log('     - supervisor2@rescuelink.test');
     console.log('   Users (password: user123):');
-    console.log('     - user@rescuelink.test, user2@rescuelink.test, user3@rescuelink.test, user4@rescuelink.test, user5@rescuelink.test');
-    console.log('     - user6@rescuelink.test, user7@rescuelink.test, user8@rescuelink.test, user9@rescuelink.test, user10@rescuelink.test\n');
+    console.log('     - user@rescuelink.test');
+    console.log('     - user2@rescuelink.test\n');
 
   } catch (err) {
     console.error('❌ Database seeding failed!');

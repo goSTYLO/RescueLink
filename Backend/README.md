@@ -2,6 +2,17 @@
 
 Node.js + Express backend for RescueLink, using PostgreSQL. Handles authentication, incident reporting, dispatcher workflows, AI-powered incident classification, and audit logging.
 
+## Session Updates (Performance Session 2)
+
+Implemented updates during this session:
+
+- **AI request path optimization**: per-request AI health precheck can now be gated to avoid extra round-trip latency
+- **With-audio flow cleanup**: duplicate deep-scan invocation in AI-fallback path was removed
+- **Blockchain observability passthrough**: verify responses now include gas metrics from blockchain service
+- **Duplicate blockchain write awareness**: backend verify response now includes `already_recorded` when chain service skips duplicate writes
+
+These changes were validated in the latest local performance reruns.
+
 ## Quick start
 
 1. **Copy environment file and configure:**
@@ -35,6 +46,12 @@ Node.js + Express backend for RescueLink, using PostgreSQL. Handles authenticati
    npm run dev
    ```
 
+5. **Seed test data (optional, local/dev only):**
+   ```bash
+   node scripts/seed-db.js
+   ```
+   Seed creates 2 accounts per role (`admin`, `dispatcher`, `supervisor`, `responder`, `user`) plus responders/incidents/dispatches.
+
 ## Environment variables
 
 | Variable | Description | Required |
@@ -55,6 +72,7 @@ Node.js + Express backend for RescueLink, using PostgreSQL. Handles authenticati
 | `MAX_VIDEO_SIZE` | Max video size in bytes (default: 50MB) | No |
 | `AI_SERVICE_URL` | RescueLink AI service URL | No |
 | `AI_SERVICE_TOKEN` | Optional token sent as `x-ai-service-token` to AI service | No |
+| `AI_HEALTH_PRECHECK_ENABLED` | Enables per-request AI `/health` precheck before classification (`default: false`) | No |
 | `AI_CIRCUIT_FAILURE_THRESHOLD` | Consecutive AI request failures before opening circuit (`default: 3`) | No |
 | `AI_CIRCUIT_RESET_MS` | Circuit open duration in milliseconds (`default: 30000`) | No |
 | `FILE_SCAN_FAIL_OPEN` | If `true`, accepts uploads when deep scanner is unavailable and flags them (`default: true`) | No |
@@ -84,6 +102,14 @@ For production, use a secrets manager or vault for sensitive values. Never commi
 
 See [API_DOCUMENTATION.md](API_DOCUMENTATION.md) for full endpoint details.
 
+## Seeded Test Accounts
+
+- Admin: `admin@rescuelink.test`, `admin2@rescuelink.test` (password: `admin123`)
+- Dispatcher: `dispatcher@rescuelink.test`, `dispatcher2@rescuelink.test` (password: `dispatcher123`)
+- Supervisor: `supervisor@rescuelink.test`, `supervisor2@rescuelink.test` (password: `supervisor123`)
+- Responder: `responder@rescuelink.test`, `responder2@rescuelink.test` (password: `responder123`)
+- User: `user@rescuelink.test`, `user2@rescuelink.test` (password: `user123`)
+
 ## File uploads
 
 Incident reports can include audio and media. Use `POST /api/incidents/with-audio` with `multipart/form-data`:
@@ -98,6 +124,14 @@ Server-side upload protections and optimizations:
 - **Compression:** photos are resized/compressed (Sharp), videos are transcoded/compressed (FFmpeg) before storage
 
 `/api/incidents/with-audio` responses now include `security_scan` metadata so clients can display scan status.
+
+### Incident verify response additions
+
+`POST /api/incidents/:id/verify` now includes blockchain metadata fields:
+- `gas_used`
+- `effective_gas_price`
+- `gas_cost_wei`
+- `already_recorded`
 
 ## Audit logging
 

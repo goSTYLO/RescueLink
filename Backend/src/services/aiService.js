@@ -16,6 +16,7 @@ const AI_LOW_CONFIDENCE_THRESHOLD = parseFloat(process.env.AI_LOW_CONFIDENCE_THR
 const AI_REQUEST_TIMEOUT = 60000; // 60 seconds
 const AI_CIRCUIT_FAILURE_THRESHOLD = parseInt(process.env.AI_CIRCUIT_FAILURE_THRESHOLD || '3', 10);
 const AI_CIRCUIT_RESET_MS = parseInt(process.env.AI_CIRCUIT_RESET_MS || '30000', 10);
+const AI_HEALTH_PRECHECK_ENABLED = ['1', 'true', 'yes', 'on'].includes(String(process.env.AI_HEALTH_PRECHECK_ENABLED || 'false').toLowerCase());
 
 let consecutiveFailures = 0;
 let circuitOpenUntil = 0;
@@ -32,8 +33,9 @@ const SEVERITY_MAP = {
   Black: 'high' // Black (deceased) mapped to high severity
 };
 
-const buildAuthHeaders = (headers = {}) => ({
+const buildAuthHeaders = (headers = {}, requestId = null) => ({
   ...headers,
+  ...(requestId ? { 'x-request-id': requestId } : {}),
   ...(AI_SERVICE_TOKEN ? { 'x-ai-service-token': AI_SERVICE_TOKEN } : {})
 });
 
@@ -71,15 +73,17 @@ const guardedRequest = async (requestFn) => {
  * Check if AI service is available
  * @returns {Promise<boolean>}
  */
-const checkAiHealth = async () => {
+const checkAiHealth = async (requestId = null) => {
+  const startTime = Date.now();
   try {
     const response = await guardedRequest(() => axios.get(`${AI_SERVICE_URL}/health`, {
-      headers: buildAuthHeaders(),
+      headers: buildAuthHeaders({}, requestId),
       timeout: 5000
     }));
+    console.log(`[backend][ai][health] request_id=${requestId || 'none'} status=${response.status} latency_ms=${Date.now() - startTime}`);
     return response.status === 200 && response.data.status === 'healthy';
   } catch (error) {
-    console.error('❌ AI service health check failed:', error.message);
+    console.error(`[backend][ai][health] request_id=${requestId || 'none'} status=error latency_ms=${Date.now() - startTime} error=${error.message}`);
     return false;
   }
 };
@@ -90,7 +94,8 @@ const checkAiHealth = async () => {
  * @param {string} filename - Original filename
  * @returns {Promise<Object>} { transcription, duration, confidence, language }
  */
-const transcribeAudio = async (audioBuffer, filename) => {
+const transcribeAudio = async (audioBuffer, filename, requestId = null) => {
+  const startTime = Date.now();
   try {
     const formData = new FormData();
     formData.append('file', audioBuffer, { filename }); // FastAPI expects 'file', not 'audio'
@@ -118,7 +123,7 @@ const transcribeAudio = async (audioBuffer, filename) => {
       latency: response.data.latency
     };
   } catch (error) {
-    console.error('❌ Audio transcription failed:', error.message);
+    console.error(`[backend][ai][transcribe] request_id=${requestId || 'none'} filename=${filename} status=error latency_ms=${Date.now() - startTime} error=${error.message}`);
     throw new Error(`Transcription failed: ${error.message}`);
   }
 };
@@ -130,7 +135,8 @@ const transcribeAudio = async (audioBuffer, filename) => {
  * @param {string} filename - Original filename (e.g. recording.wav)
  * @returns {Promise<Object>} Classification result
  */
-const classifyAudio = async (audioBuffer, filename) => {
+const classifyAudio = async (audioBuffer, filename, requestId = null) => {
+  const startTime = Date.now();
   try {
     const formData = new FormData();
     formData.append('file', audioBuffer, { filename });
@@ -139,7 +145,7 @@ const classifyAudio = async (audioBuffer, filename) => {
       `${AI_SERVICE_URL}/v1/classify-audio`,
       formData,
       {
-        headers: buildAuthHeaders(formData.getHeaders()),
+        headers: buildAuthHeaders(formData.getHeaders(), requestId),
         timeout: AI_REQUEST_TIMEOUT,
         maxContentLength: Infinity,
         maxBodyLength: Infinity
@@ -168,7 +174,7 @@ const classifyAudio = async (audioBuffer, filename) => {
       primaryType = result.incident_types[0];
     }
     
-    return {
+    const resultPayload = {
       transcription: result.transcription || null,
       incidentTypes: result.incident_types || [],
       severity: mappedSeverity,
@@ -181,8 +187,10 @@ const classifyAudio = async (audioBuffer, filename) => {
       language: result.language,
       latency: result.latency
     };
+    console.log(`[backend][ai][classify] request_id=${requestId || 'none'} filename=${filename} status=success latency_ms=${Date.now() - startTime} severity=${resultPayload.severity} low_confidence=${resultPayload.lowConfidenceFlag}`);
+    return resultPayload;
   } catch (error) {
-    console.error('❌ Audio classification failed:', error.message);
+    console.error(`[backend][ai][classify] request_id=${requestId || 'none'} filename=${filename} status=error latency_ms=${Date.now() - startTime} error=${error.message}`);
     throw new Error(`Classification failed: ${error.message}`);
   }
 };
@@ -244,29 +252,27 @@ const classifyText = async (text) => {
  * @param {string} description - Optional text description
  * @returns {Promise<Object>} Complete classification result
  */
-const processIncidentWithAudio = async (audioBuffer, filename, description = null) => {
+const processIncidentWithAudio = async (audioBuffer, filename, description = null, options = {}) => {
+  const requestId = options.requestId || null;
+  const startTime = Date.now();
   try {
-    console.log(`🎤 Processing incident audio: ${filename}`);
+    console.log(`[backend][ai][process] request_id=${requestId || 'none'} filename=${filename} status=start`);
     
-    // Check AI service health
-    const isHealthy = await checkAiHealth();
-    if (!isHealthy) {
-      throw new Error('AI service is unavailable');
+    if (AI_HEALTH_PRECHECK_ENABLED) {
+      const isHealthy = await checkAiHealth(requestId);
+      if (!isHealthy) {
+        throw new Error('AI service is unavailable');
+      }
     }
     
     // Classify audio (includes transcription)
-    const aiResult = await classifyAudio(audioBuffer, filename);
+    const aiResult = await classifyAudio(audioBuffer, filename, requestId);
     
-    console.log(`✅ AI Classification complete:`);
-    console.log(`   - Transcription: "${aiResult.transcription?.substring(0, 50)}..."`);
-    console.log(`   - Primary Type: ${aiResult.primaryType}`);
-    console.log(`   - Severity: ${aiResult.severity} (${aiResult.severityRaw})`);
-    console.log(`   - Confidence: ${(aiResult.maxConfidence * 100).toFixed(1)}%`);
-    console.log(`   - Low Confidence Flag: ${aiResult.lowConfidenceFlag}`);
+    console.log(`[backend][ai][process] request_id=${requestId || 'none'} status=success latency_ms=${Date.now() - startTime} primary_type=${aiResult.primaryType || 'unknown'} severity=${aiResult.severity}`);
     
     return aiResult;
   } catch (error) {
-    console.error('❌ AI processing failed:', error.message);
+    console.error(`[backend][ai][process] request_id=${requestId || 'none'} status=error latency_ms=${Date.now() - startTime} error=${error.message}`);
     
     // Return null to indicate AI processing should be retried later
     throw error;
@@ -293,7 +299,7 @@ const retryClassification = async (audioPath) => {
     console.log(`🔄 Retrying classification for: ${audioPath}`);
     
     // Attempt classification
-    return await processIncidentWithAudio(audioBuffer, filename);
+    return await processIncidentWithAudio(audioBuffer, filename, null, { requestId: `retry-${Date.now()}` });
   } catch (error) {
     console.error(`❌ Retry failed for ${audioPath}:`, error.message);
     throw error;

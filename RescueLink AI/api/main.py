@@ -4,6 +4,7 @@ import os
 import sys
 import logging
 import uuid
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -412,9 +413,11 @@ async def classify_audio_endpoint(request: Request, file: UploadFile = File(...)
     
     Returns: Transcription + Incident Types + Severity
     """
+    endpoint_start = time.time()
     try:
         _validate_internal_token(request)
         whisper = get_whisper_handler()
+        logger.info(f"[{request.state.request_id}] classify-audio start filename={file.filename} threshold={threshold}")
         
         # Step 1: Validate and transcribe audio
         contents = await file.read()
@@ -518,12 +521,15 @@ async def classify_audio_endpoint(request: Request, file: UploadFile = File(...)
                 fallback_reason=fallback_reason,
                 fallback_keywords=fallback_keywords,
             )
+
+            
         
         finally:
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)
     
     except HTTPException:
+        logger.warning(f"[{request.state.request_id}] classify-audio http_error latency_ms={(time.time() - endpoint_start) * 1000:.0f}")
         raise
     except Exception as e:
         logger.error(f"[{request.state.request_id}] Audio classification endpoint error: {e}")
@@ -531,6 +537,8 @@ async def classify_audio_endpoint(request: Request, file: UploadFile = File(...)
             status_code=500,
             detail=f"Classification error: {str(e)}"
         )
+    finally:
+        logger.info(f"[{request.state.request_id}] classify-audio end latency_ms={(time.time() - endpoint_start) * 1000:.0f}")
 
 @app.post("/v1/classify-mic", response_model=AudioClassificationResponse)
 async def classify_microphone(request: Request, duration_seconds: int = 30, sample_rate: int = 16000, threshold: float = 0.3):
@@ -763,6 +771,7 @@ async def startup_event():
         logger.warning("⚠️ AI_INTERNAL_TOKEN is not set outside development environment")
     
     # Initialize Whisper handler
+    whisper = None
     try:
         whisper = get_whisper_handler()
         print(f"✓ Whisper Handler initialized (HF Inference API)")
@@ -773,6 +782,52 @@ async def startup_event():
     except Exception as e:
         print(f"⚠ Whisper Handler NOT available: {e}")
         print("  - Audio endpoints will return errors until configured")
+
+    # Startup warmup (Session 2): pre-load common inference path to reduce first-request latency
+    warmup_enabled = os.getenv("AI_STARTUP_WARMUP", "true").strip().lower() in {"1", "true", "yes", "on"}
+    whisper_warmup_enabled = os.getenv("AI_STARTUP_WARMUP_WHISPER", "true").strip().lower() in {"1", "true", "yes", "on"}
+    if warmup_enabled:
+        try:
+            _predict_text("Emergency report warmup request", threshold=0.5)
+            print("✓ Classifier warmup completed")
+        except Exception as e:
+            logger.warning(f"Classifier warmup skipped: {e}")
+
+        if whisper and whisper_warmup_enabled:
+            import tempfile
+            import wave
+
+            temp_warmup_wav = None
+            try:
+                sample_rate = 16000
+                duration_seconds = max(float(whisper.min_duration), 1.0)
+                frame_count = int(sample_rate * duration_seconds)
+                silence_bytes = (b"\x00\x00" * frame_count)
+
+                with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as warmup_file:
+                    temp_warmup_wav = warmup_file.name
+
+                with wave.open(temp_warmup_wav, "wb") as wav_file:
+                    wav_file.setnchannels(1)
+                    wav_file.setsampwidth(2)
+                    wav_file.setframerate(sample_rate)
+                    wav_file.writeframes(silence_bytes)
+
+                warmup_result = whisper.transcribe_audio(temp_warmup_wav)
+                if warmup_result.get("success"):
+                    print("✓ Whisper warmup completed")
+                else:
+                    logger.warning(f"Whisper warmup returned non-success: {warmup_result.get('error')}")
+            except Exception as e:
+                logger.warning(f"Whisper warmup skipped: {e}")
+            finally:
+                if temp_warmup_wav and os.path.exists(temp_warmup_wav):
+                    try:
+                        os.remove(temp_warmup_wav)
+                    except Exception:
+                        pass
+    else:
+        print("• Startup warmup disabled (AI_STARTUP_WARMUP=false)")
     
     print("=" * 60)
 

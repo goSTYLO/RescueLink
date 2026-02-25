@@ -180,6 +180,8 @@ const incidentController = {
 
   // Create incident with audio and optional media files (AI-enhanced)
   async createWithAudio(req, res) {
+    const startedAt = Date.now();
+    const requestId = req.requestId || 'none';
     try {
       const { latitude, longitude, description } = req.body;
       const user_id = req.user?.user_id;
@@ -218,9 +220,7 @@ const incidentController = {
       // Get media files if provided
       const mediaFiles = req.files?.media || [];
 
-      console.log(`📝 Creating incident with audio for user ${user_id}`);
-      console.log(`   - Audio: ${audioFile.originalname} (${audioFile.size} bytes)`);
-      console.log(`   - Media files: ${mediaFiles.length}`);
+      console.log(`[backend][incident][createWithAudio] request_id=${requestId} status=start user_id=${user_id} audio_name=${audioFile.originalname} audio_bytes=${audioFile.size} media_count=${mediaFiles.length}`);
 
       // Create initial incident record (without AI classification)
       const incident = await Incident.createWithAi({
@@ -247,22 +247,27 @@ const incidentController = {
 
       let audioPath = null;
       let mediaPaths = [];
+      let deepScanResult = null;
 
       try {
         // Save audio file to disk
+        const saveStart = Date.now();
         audioPath = await saveAudioFile(audioFile, reportId);
-        console.log(`💾 Audio saved: ${audioPath}`);
+        console.log(`[backend][incident][createWithAudio] request_id=${requestId} report_id=${reportId} stage=save_audio latency_ms=${Date.now() - saveStart}`);
 
         // Save media files to disk
         if (mediaFiles.length > 0) {
+          const mediaStart = Date.now();
           mediaPaths = await saveMediaFiles(mediaFiles, reportId);
-          console.log(`💾 Media saved: ${mediaPaths.length} files`);
+          console.log(`[backend][incident][createWithAudio] request_id=${requestId} report_id=${reportId} stage=save_media latency_ms=${Date.now() - mediaStart} media_count=${mediaPaths.length}`);
         }
 
-        const deepScanResult = await queueDeepScanJob({
+        const scanStart = Date.now();
+        deepScanResult = await queueDeepScanJob({
           reportId,
           filePaths: [audioPath, ...mediaPaths].filter(Boolean)
         });
+        console.log(`[backend][incident][createWithAudio] request_id=${requestId} report_id=${reportId} stage=deep_scan latency_ms=${Date.now() - scanStart} deep_scan_status=${deepScanResult?.status || 'unknown'}`);
         const initialScanStatus = computeInitialScanStatus({
           uploadSecurity: req.uploadSecurity,
           deepScanResult,
@@ -278,12 +283,14 @@ const incidentController = {
         });
 
         // Process with AI
-        console.log('🤖 Starting AI classification...');
+        const aiStart = Date.now();
         const aiResult = await processIncidentWithAudio(
           audioFile.buffer,
           audioFile.originalname,
-          validatedDescription
+          validatedDescription,
+          { requestId }
         );
+        console.log(`[backend][incident][createWithAudio] request_id=${requestId} report_id=${reportId} stage=ai_classification latency_ms=${Date.now() - aiStart} primary_type=${aiResult.primaryType || 'unknown'} severity=${aiResult.severity}`);
 
         // Update incident with AI results
         const updatedIncident = await Incident.updateWithAiResults(reportId, {
@@ -314,7 +321,7 @@ const incidentController = {
           [audioPath, JSON.stringify(mediaPaths), reportId]
         );
 
-        console.log(`✅ Incident ${reportId} created successfully with AI classification`);
+        console.log(`[backend][incident][createWithAudio] request_id=${requestId} report_id=${reportId} status=success latency_ms=${Date.now() - startedAt} ai_pending=false`);
 
         res.status(201).json({
           success: true,
@@ -340,7 +347,7 @@ const incidentController = {
         });
 
       } catch (aiError) {
-        console.error('❌ AI processing failed:', aiError.message);
+        console.error(`[backend][incident][createWithAudio] request_id=${requestId} report_id=${reportId} status=ai_fallback error=${aiError.message}`);
 
         // AI processing failed, but incident was created
         // Mark as pending for retry by background job
@@ -354,25 +361,7 @@ const incidentController = {
           [audioPath, JSON.stringify(mediaPaths), reportId]
         );
 
-        const deepScanResult = await queueDeepScanJob({
-          reportId,
-          filePaths: [audioPath, ...mediaPaths].filter(Boolean)
-        });
-        const initialScanStatus = computeInitialScanStatus({
-          uploadSecurity: req.uploadSecurity,
-          deepScanResult,
-        });
-
-        await Incident.updateScanStatus(reportId, {
-          scan_status: initialScanStatus.scan_status,
-          scan_engine: initialScanStatus.scan_engine,
-          scan_error: initialScanStatus.scan_error,
-          scanned_at: initialScanStatus.scan_status === 'clean' ? new Date() : null,
-          quarantined: false,
-          quarantine_reason: null,
-        });
-
-        console.log(`⏳ Incident ${reportId} created, AI classification pending retry`);
+        console.log(`[backend][incident][createWithAudio] request_id=${requestId} report_id=${reportId} status=pending_ai_retry latency_ms=${Date.now() - startedAt}`);
 
         res.status(201).json({
           success: true,
@@ -393,11 +382,15 @@ const incidentController = {
       }
 
     } catch (error) {
-      console.error('Error creating incident with audio:', error);
+      console.error(`[backend][incident][createWithAudio] request_id=${requestId} status=error latency_ms=${Date.now() - startedAt} error=${error.message}`);
       if (error.message.includes('must be') || error.message.includes('required')) {
         return res.status(400).json({ error: error.message });
       }
-      res.status(500).json({ error: 'Failed to create incident' });
+      const isDev = (process.env.NODE_ENV || 'development') !== 'production';
+      res.status(500).json({
+        error: 'Failed to create incident',
+        ...(isDev ? { detail: error.message } : {}),
+      });
     }
   },
 
@@ -502,9 +495,13 @@ const incidentController = {
 
   // Verify incident and record on blockchain
   async verifyIncident(req, res) {
+    const startedAt = Date.now();
+    const requestId = req.requestId || 'none';
     try {
       const { id } = req.params;
       const validatedId = validateInteger(id, 'report_id');
+
+      console.log(`[backend][incident][verify] request_id=${requestId} report_id=${validatedId} status=start`);
 
       const incident = await Incident.findById(validatedId);
       if (!incident) {
@@ -527,7 +524,7 @@ const incidentController = {
         created_at: incident.created_at
       };
 
-      const blockchainResult = await verifyIncidentOnBlockchain(validatedId, incidentData);
+      const blockchainResult = await verifyIncidentOnBlockchain(validatedId, incidentData, { requestId });
 
       const networkReference = `${blockchainResult.tx_hash}#block${blockchainResult.block_number}`;
       await Incident.createBlockchainRecord({
@@ -541,7 +538,11 @@ const incidentController = {
       await logIncidentAction(req, 'incident_verify', validatedId, {
         tx_hash: blockchainResult.tx_hash,
         block_number: blockchainResult.block_number,
-        hash_value: blockchainResult.hash_value
+        hash_value: blockchainResult.hash_value,
+        gas_used: blockchainResult.gas_used,
+        effective_gas_price: blockchainResult.effective_gas_price,
+        gas_cost_wei: blockchainResult.gas_cost_wei,
+        already_recorded: Boolean(blockchainResult.already_recorded)
       });
 
       res.json({
@@ -550,11 +551,16 @@ const incidentController = {
         blockchain: {
           tx_hash: blockchainResult.tx_hash,
           block_number: blockchainResult.block_number,
-          hash_value: blockchainResult.hash_value
+          hash_value: blockchainResult.hash_value,
+          gas_used: blockchainResult.gas_used,
+          effective_gas_price: blockchainResult.effective_gas_price,
+          gas_cost_wei: blockchainResult.gas_cost_wei,
+          already_recorded: Boolean(blockchainResult.already_recorded)
         }
       });
+      console.log(`[backend][incident][verify] request_id=${requestId} report_id=${validatedId} status=success latency_ms=${Date.now() - startedAt} block_number=${blockchainResult.block_number}`);
     } catch (error) {
-      console.error('Error verifying incident:', error);
+      console.error(`[backend][incident][verify] request_id=${requestId} status=error latency_ms=${Date.now() - startedAt} error=${error.message}`);
       if (error.message.includes('must be') || error.message.includes('must not')) {
         return res.status(400).json({ error: error.message });
       }
@@ -562,6 +568,69 @@ const incidentController = {
         return res.status(503).json({ error: error.message });
       }
       res.status(500).json({ error: 'Failed to verify incident' });
+    }
+  },
+
+  // Manually reclassify incident (human override with AI audit trail)
+  async reclassifyIncident(req, res) {
+    try {
+      const { id } = req.params;
+      const validatedId = validateInteger(id, 'report_id');
+      const validatedType = validateAllowedValue(req.body?.incident_type, ['fire', 'medical', 'police', 'disaster'], 'incident_type');
+      const validatedSeverity = validateAllowedValue(req.body?.severity_level, ['low', 'medium', 'high'], 'severity_level');
+      const reason = req.body?.reason != null && req.body?.reason !== ''
+        ? validateOptionalString(req.body.reason, 'reason', 500)
+        : null;
+
+      if (!validatedType || !validatedSeverity) {
+        return res.status(400).json({ error: 'incident_type and severity_level are required' });
+      }
+
+      const incident = await Incident.findById(validatedId);
+      if (!incident) {
+        return res.status(404).json({ error: 'Incident not found' });
+      }
+
+      const previousClassification = await Incident.getClassificationByReportId(validatedId);
+
+      const updatedIncident = await Incident.updateClassification(validatedId, {
+        incident_type: validatedType,
+        severity_level: validatedSeverity,
+      });
+
+      const overrideClassification = await Incident.createClassification({
+        report_id: validatedId,
+        predicted_type: validatedType,
+        predicted_severity: validatedSeverity,
+        confidence_score: previousClassification?.confidence_score ?? null,
+        low_confidence_flag: false,
+        is_duplicate: false,
+        is_override: true,
+        retry_count: previousClassification?.retry_count ?? 0,
+      });
+
+      await logIncidentAction(req, 'incident_reclassify', validatedId, {
+        previous_type: incident.incident_type,
+        previous_severity: incident.severity_level,
+        new_type: validatedType,
+        new_severity: validatedSeverity,
+        reason,
+        previous_confidence_score: previousClassification?.confidence_score ?? null,
+        was_low_confidence: Boolean(previousClassification?.low_confidence_flag),
+      });
+
+      res.json({
+        success: true,
+        message: 'Incident reclassified successfully',
+        incident: updatedIncident,
+        ai_classification: overrideClassification,
+      });
+    } catch (error) {
+      console.error('Error reclassifying incident:', error);
+      if (error.message.includes('must be') || error.message.includes('must not')) {
+        return res.status(400).json({ error: error.message });
+      }
+      res.status(500).json({ error: 'Failed to reclassify incident' });
     }
   },
 

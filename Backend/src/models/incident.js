@@ -76,19 +76,36 @@ const Incident = {
     scan_error = null,
     status = 'pending' 
   }) {
-    const res = await pool.query(
-      `INSERT INTO incident_reports(
-        user_id, incident_type, severity_level, description, latitude, longitude, barangay,
-        transcription, audio_path, media_paths, ai_pending, ai_attempted,
-        scan_status, scan_engine, scan_error, status
-      ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *`,
-      [
-        user_id, incident_type, severity_level, description, latitude, longitude, barangay,
-        transcription, audio_path, JSON.stringify(media_paths), ai_pending, ai_attempted,
-        scan_status, scan_engine, scan_error, status
-      ]
-    );
-    return res.rows[0];
+    try {
+      const res = await pool.query(
+        `INSERT INTO incident_reports(
+          user_id, incident_type, severity_level, description, latitude, longitude, barangay,
+          transcription, audio_path, media_paths, ai_pending, ai_attempted,
+          scan_status, scan_engine, scan_error, status
+        ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *`,
+        [
+          user_id, incident_type, severity_level, description, latitude, longitude, barangay,
+          transcription, audio_path, JSON.stringify(media_paths), ai_pending, ai_attempted,
+          scan_status, scan_engine, scan_error, status
+        ]
+      );
+      return res.rows[0];
+    } catch (error) {
+      if (error.code === '42703' || /scan_status|scan_engine|scan_error/i.test(error.message)) {
+        const fallbackRes = await pool.query(
+          `INSERT INTO incident_reports(
+            user_id, incident_type, severity_level, description, latitude, longitude, barangay,
+            transcription, audio_path, media_paths, ai_pending, ai_attempted, status
+          ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`,
+          [
+            user_id, incident_type, severity_level, description, latitude, longitude, barangay,
+            transcription, audio_path, JSON.stringify(media_paths), ai_pending, ai_attempted, status
+          ]
+        );
+        return fallbackRes.rows[0];
+      }
+      throw error;
+    }
   },
 
   async findById(report_id) {
@@ -151,6 +168,18 @@ const Incident = {
     const res = await pool.query(
       'UPDATE incident_reports SET incident_type = $1, severity_level = $2, description = $3, latitude = $4, longitude = $5, barangay = $6, media_url = $7, status = $8 WHERE report_id = $9 RETURNING *',
       [incident_type, severity_level, description, latitude, longitude, barangay, media_url, status, report_id]
+    );
+    return res.rows[0];
+  },
+
+  async updateClassification(report_id, { incident_type, severity_level }) {
+    const res = await pool.query(
+      `UPDATE incident_reports
+       SET incident_type = $1,
+           severity_level = $2
+       WHERE report_id = $3
+       RETURNING *`,
+      [incident_type, severity_level, report_id]
     );
     return res.rows[0];
   },
@@ -256,20 +285,31 @@ const Incident = {
     quarantined = false,
     quarantine_reason = null,
   }) {
-    const res = await pool.query(
-      `UPDATE incident_reports
-       SET scan_status = $1,
-           scan_engine = $2,
-           scan_error = $3,
-           scanned_at = $4,
-           quarantined = $5,
-           quarantine_reason = $6
-       WHERE report_id = $7
-       RETURNING *`,
-      [scan_status, scan_engine, scan_error, scanned_at, quarantined, quarantine_reason, report_id]
-    );
+    try {
+      const res = await pool.query(
+        `UPDATE incident_reports
+         SET scan_status = $1,
+             scan_engine = $2,
+             scan_error = $3,
+             scanned_at = $4,
+             quarantined = $5,
+             quarantine_reason = $6
+         WHERE report_id = $7
+         RETURNING *`,
+        [scan_status, scan_engine, scan_error, scanned_at, quarantined, quarantine_reason, report_id]
+      );
 
-    return res.rows[0];
+      return res.rows[0];
+    } catch (error) {
+      if (error.code === '42703' || /scan_status|scan_engine|scan_error|scanned_at|quarantine/i.test(error.message)) {
+        const fallback = await pool.query(
+          'SELECT * FROM incident_reports WHERE report_id = $1',
+          [report_id]
+        );
+        return fallback.rows[0] || null;
+      }
+      throw error;
+    }
   },
 
   async getPendingFileScans(limit = 50) {

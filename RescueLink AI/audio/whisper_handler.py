@@ -6,6 +6,8 @@ Handles speech-to-text transcription with file validation, error handling, and u
 import os
 import time
 import logging
+import shutil
+import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, Any
@@ -14,7 +16,43 @@ from huggingface_hub import InferenceClient
 import librosa
 import soundfile as sf
 
+try:
+    import imageio_ffmpeg
+except Exception:
+    imageio_ffmpeg = None
+
 logger = logging.getLogger(__name__)
+
+
+def _ensure_ffmpeg_backend() -> None:
+    if imageio_ffmpeg is None:
+        logger.warning("imageio-ffmpeg not available; m4a decoding may fail without system ffmpeg")
+        return
+
+    try:
+        ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
+        ffmpeg_dir = str(Path(ffmpeg_exe).parent)
+
+        shim_dir = Path(tempfile.gettempdir()) / "rescuelink_ffmpeg"
+        shim_dir.mkdir(parents=True, exist_ok=True)
+        shim_exe = shim_dir / "ffmpeg.exe"
+        if not shim_exe.exists():
+            shutil.copy2(ffmpeg_exe, shim_exe)
+
+        current_path = os.environ.get("PATH", "")
+        path_entries = current_path.split(os.pathsep)
+
+        new_entries = []
+        if str(shim_dir) not in path_entries:
+            new_entries.append(str(shim_dir))
+        if ffmpeg_dir not in path_entries:
+            new_entries.append(ffmpeg_dir)
+
+        if new_entries:
+            os.environ["PATH"] = os.pathsep.join(new_entries + [current_path])
+            logger.info("✓ Added bundled ffmpeg backend from imageio-ffmpeg")
+    except Exception as error:
+        logger.warning(f"Failed to initialize bundled ffmpeg backend: {error}")
 
 
 class WhisperHandler:
@@ -46,6 +84,8 @@ class WhisperHandler:
         self.min_duration = min_duration
         self.max_file_size_mb = max_file_size_mb
         self.confidence_threshold = confidence_threshold
+
+        _ensure_ffmpeg_backend()
         
         # Initialize InferenceClient with HF token
         self.client = InferenceClient(token=hf_api_token)
@@ -125,10 +165,49 @@ class WhisperHandler:
         self.usage_stats["total_requests"] += 1
         
         path_to_use = Path(audio_path)
+        temp_wav_path: Optional[Path] = None
         
         try:
-            # Validate audio file (duration, size)
-            validation = self.validate_audio_file(str(path_to_use))
+            # Validate audio and normalize to WAV only when needed.
+            # For non-WAV inputs, reuse the same decoded signal for validation + conversion
+            # to avoid loading the same file twice.
+            if path_to_use.suffix.lower() != ".wav":
+                file_size_mb = path_to_use.stat().st_size / (1024 * 1024)
+                if file_size_mb > self.max_file_size_mb:
+                    raise ValueError(
+                        f"File too large: {file_size_mb:.1f}MB (max: {self.max_file_size_mb}MB)"
+                    )
+
+                try:
+                    y, sr = librosa.load(str(path_to_use), sr=None)
+                    duration = librosa.get_duration(y=y, sr=sr)
+                except Exception as e:
+                    raise ValueError(f"Could not process audio file: {e!r}")
+
+                if duration < self.min_duration:
+                    raise ValueError(
+                        f"Audio too short: {duration:.1f}s (min: {self.min_duration}s)"
+                    )
+
+                if duration > self.max_duration:
+                    raise ValueError(
+                        f"Audio too long: {duration:.1f}s (max: {self.max_duration}s)"
+                    )
+
+                validation = {
+                    "valid": True,
+                    "duration": duration,
+                    "file_size_mb": file_size_mb,
+                    "sample_rate": sr,
+                    "num_samples": len(y),
+                }
+
+                with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_wav:
+                    temp_wav_path = Path(tmp_wav.name)
+                sf.write(str(temp_wav_path), y, sr)
+                path_to_use = temp_wav_path
+            else:
+                validation = self.validate_audio_file(str(path_to_use))
             
             # Call HF Inference API using official InferenceClient with path string
             logger.info(f"Sending audio to Whisper API (duration: {validation['duration']:.1f}s, model: {self.model_id})")
@@ -180,6 +259,12 @@ class WhisperHandler:
                 "duration": 0.0,
                 "latency_seconds": time.time() - start_time,
             }
+        finally:
+            if temp_wav_path and temp_wav_path.exists():
+                try:
+                    temp_wav_path.unlink()
+                except Exception:
+                    pass
     
     def transcribe_bytes(
         self, audio_bytes: bytes, filename: str = "audio.wav", language: Optional[str] = None

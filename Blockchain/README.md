@@ -2,6 +2,16 @@
 
 FastAPI service that records verified incident hashes on Ganache via the IncidentRegistry Solidity contract.
 
+## Session Updates (Performance & Gas Optimization)
+
+The blockchain verify flow was updated during the latest performance session with the following behavior:
+
+- **Gas observability in API response**: `/verify-incident` now returns `gas_used`, `effective_gas_price`, and `gas_cost_wei`
+- **Duplicate-write prevention**: before sending a new transaction, the service checks existing `IncidentVerified` logs for the same `report_id`
+- **No extra gas for duplicates**: when already recorded, the API returns the existing transaction reference with `already_recorded: true` and zero gas fields
+
+This keeps functional behavior for verification while reducing unnecessary repeated on-chain writes.
+
 ## Setup
 
 1. Install dependencies:
@@ -36,7 +46,14 @@ On the first POST to `/verify-incident` with no `CONTRACT_ADDRESS` in `.env`, th
 ## Endpoints
 
 - `GET /health` - Health check, verifies Ganache connection
-- `POST /verify-incident` - Body: `{ report_id: int, incident_data: object }` - Records hash on blockchain via IncidentRegistry, returns `{ hash_value, tx_hash, block_number }`
+- `POST /verify-incident` - Body: `{ report_id: int, incident_data: object }` - Records hash on blockchain via IncidentRegistry, returns:
+   - `hash_value`
+   - `tx_hash`
+   - `block_number`
+   - `gas_used`
+   - `effective_gas_price`
+   - `gas_cost_wei`
+   - `already_recorded`
 
 ## Automated test
 There is a Node.js Mocha test harness that verifies the FastAPI service can connect to Ganache and record an incident on-chain. The test is minimal and meant for local verification (not CI) unless you adapt the environment handling.

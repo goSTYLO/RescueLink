@@ -38,19 +38,53 @@ function decodeUserFields(row) {
 
 const User = {
   async findByEmail(email) {
-    const res = await pool.query(
+    const directMatch = await pool.query(
       'SELECT user_id, email, phone_number, address, password, phone_verified, first_name, last_name, role, created_at FROM users WHERE LOWER(email) = LOWER($1)',
       [email]
     );
-    return decodeUserFields(res.rows[0]);
+
+    if (directMatch.rows[0]) {
+      return decodeUserFields(directMatch.rows[0]);
+    }
+
+    const allUsers = await pool.query(
+      'SELECT user_id, email, phone_number, address, password, phone_verified, first_name, last_name, role, created_at FROM users'
+    );
+
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const matchedUser = allUsers.rows
+      .map(decodeUserFields)
+      .find((user) => {
+        if (!user?.email) return false;
+        return String(user.email).trim().toLowerCase() === normalizedEmail;
+      });
+
+    return matchedUser || null;
   },
 
   async findByPhone(phone) {
-    const res = await pool.query(
+    const directMatch = await pool.query(
       'SELECT user_id, email, phone_number, address, password, phone_verified, first_name, last_name, role, created_at FROM users WHERE phone_number = $1',
       [phone]
     );
-    return decodeUserFields(res.rows[0]);
+
+    if (directMatch.rows[0]) {
+      return decodeUserFields(directMatch.rows[0]);
+    }
+
+    const allUsers = await pool.query(
+      'SELECT user_id, email, phone_number, address, password, phone_verified, first_name, last_name, role, created_at FROM users'
+    );
+
+    const normalizedPhone = String(phone).trim();
+    const matchedUser = allUsers.rows
+      .map(decodeUserFields)
+      .find((user) => {
+        if (!user?.phone_number) return false;
+        return String(user.phone_number).trim() === normalizedPhone;
+      });
+
+    return matchedUser || null;
   },
 
   async findById(user_id) {

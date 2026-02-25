@@ -26,14 +26,14 @@ import {
   units
 } from '@/data/mock/mockData';
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { getIncidentById, getIncidentAudioUrl, verifyIncident } from '@/data/api/incidents.api';
+import { getIncidentById, getIncidentAudioUrl, getIncidentWithAi, reclassifyIncident, verifyIncident } from '@/data/api/incidents.api';
 import { DEV_MODE } from '@/core/config/app.config';
 import { ROLES, normalizeRole } from '@/core/constants';
 import { Loader2 } from 'lucide-react';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
 import Swal from 'sweetalert2';
 
-function mapApiToIncidentDetails(api) {
+function mapApiToIncidentDetails(api, aiClassification = null) {
   const firstName = api.reporter_first_name || '';
   const lastName = api.reporter_last_name || '';
   const reporterName = (firstName || lastName)
@@ -69,6 +69,13 @@ function mapApiToIncidentDetails(api) {
     description: api.description || 'No description provided.',
     location: { lat: api.latitude, lng: api.longitude },
     aiSuggestion: null,
+    aiConfidenceScore: aiClassification?.confidence_score ?? null,
+    aiLowConfidenceFlag: Boolean(aiClassification?.low_confidence_flag),
+    aiPredictedType: aiClassification?.predicted_type || null,
+    aiPredictedSeverity: aiClassification?.predicted_severity || null,
+    aiIsOverride: Boolean(aiClassification?.is_override),
+    incidentTypeRaw: api.incident_type || null,
+    severityRaw: api.severity_level || null,
     transcription: api.transcription || null,
     audioPath: api.audio_path || null,
     mediaPaths: Array.isArray(api.media_paths) ? api.media_paths : [],
@@ -99,8 +106,13 @@ export function IncidentDetailsPage() {
       setLoading(true);
       setError(null);
       try {
-        const data = await getIncidentById(id);
-        setIncident(mapApiToIncidentDetails(data));
+        try {
+          const data = await getIncidentWithAi(id);
+          setIncident(mapApiToIncidentDetails(data.incident, data.ai_classification));
+        } catch {
+          const fallbackData = await getIncidentById(id);
+          setIncident(mapApiToIncidentDetails(fallbackData));
+        }
       } catch (err) {
         setError(err.message || 'Failed to fetch incident');
         setIncident(null);
@@ -161,6 +173,28 @@ export function IncidentDetailsPage() {
   const isAdmin = normalizeRole(currentUser.role) === ROLES.SUPER_ADMIN;
   const isSupervisor = currentUser.role === 'Supervisor' || isAdmin;
 
+  const roleLower = String(currentUser.role || '').toLowerCase();
+  const normalizedRole = normalizeRole(currentUser.role);
+  const canManualReclassify = (
+    normalizedRole === ROLES.SUPER_ADMIN
+    || ['dispatcher', 'supervisor', 'admin', 'super-admin', 'superadmin'].includes(roleLower)
+  );
+
+  const getConfidencePercent = (score) => {
+    if (score == null || Number.isNaN(Number(score))) return null;
+    const numeric = Number(score);
+    const normalized = numeric <= 1 ? numeric * 100 : numeric;
+    return Math.max(0, Math.min(100, Math.round(normalized)));
+  };
+
+  const getConfidenceLabel = (score) => {
+    const pct = getConfidencePercent(score);
+    if (pct == null) return 'Unknown';
+    if (pct >= 90) return 'High';
+    if (pct >= 70) return 'Medium';
+    return 'Low';
+  };
+
   // State for dialogs
   const [escalateDialogOpen, setEscalateDialogOpen] = useState(false);
   const [addDepartmentDialogOpen, setAddDepartmentDialogOpen] = useState(false);
@@ -169,6 +203,8 @@ export function IncidentDetailsPage() {
   const [verifyDialogOpen, setVerifyDialogOpen] = useState(false);
   const [notifyDialogOpen, setNotifyDialogOpen] = useState(false);
   const [verifyLoading, setVerifyLoading] = useState(false);
+  const [reclassDialogOpen, setReclassDialogOpen] = useState(false);
+  const [reclassLoading, setReclassLoading] = useState(false);
 
   // Select dropdown state
   const [severitySelectOpen, setSeveritySelectOpen] = useState(false);
@@ -184,6 +220,9 @@ export function IncidentDetailsPage() {
   const [closureOutcome, setClosureOutcome] = useState('');
   const [closureClassification, setClosureClassification] = useState('');
   const [coordinationNote, setCoordinationNote] = useState('');
+  const [reclassType, setReclassType] = useState('');
+  const [reclassSeverity, setReclassSeverity] = useState('');
+  const [reclassReason, setReclassReason] = useState('');
 
   // Get all units for workload display
   const getAllUnits = () => {
@@ -402,6 +441,56 @@ export function IncidentDetailsPage() {
     }
   };
 
+  const openReclassDialog = () => {
+    if (!incident) return;
+    setReclassType((incident.incidentTypeRaw || '').toLowerCase());
+    setReclassSeverity((incident.severityRaw || '').toLowerCase());
+    setReclassReason('');
+    setReclassDialogOpen(true);
+  };
+
+  const handleManualReclassify = async () => {
+    const numericId = /^\d+$/.test(String(id));
+    if (!numericId || !incident) return;
+    if (!reclassType || !reclassSeverity) {
+      alert('Please select both incident type and severity.');
+      return;
+    }
+
+    const confidencePct = getConfidencePercent(incident.aiConfidenceScore);
+    if (confidencePct != null && confidencePct >= 90) {
+      const confirmation = await Swal.fire({
+        icon: 'warning',
+        title: 'High AI Confidence Detected',
+        text: `AI confidence is ${confidencePct}%. Are you sure you want to manually reclassify this incident?`,
+        showCancelButton: true,
+        confirmButtonText: 'Yes, reclassify',
+        cancelButtonText: 'Cancel',
+        confirmButtonColor: '#134178',
+      });
+
+      if (!confirmation.isConfirmed) {
+        return;
+      }
+    }
+
+    setReclassLoading(true);
+    try {
+      await reclassifyIncident(id, {
+        incident_type: reclassType,
+        severity_level: reclassSeverity,
+        reason: reclassReason?.trim() || undefined,
+      });
+      setReclassDialogOpen(false);
+      await fetchIncident();
+      alert('Incident reclassified successfully.');
+    } catch (err) {
+      alert(err.message || 'Failed to reclassify incident');
+    } finally {
+      setReclassLoading(false);
+    }
+  };
+
   const handleAddCoordinationNote = () => {
     if (coordinationNote.trim()) {
       alert(`Coordination note added: ${coordinationNote}`);
@@ -457,6 +546,11 @@ export function IncidentDetailsPage() {
                 <Badge variant="outline" className="rounded-lg border-border">
                   {incident.verified ? 'Verified' : 'Not Verified'}
                 </Badge>
+                {getConfidencePercent(incident.aiConfidenceScore) != null && (
+                  <Badge variant="outline" className="rounded-lg border-border">
+                    AI {getConfidencePercent(incident.aiConfidenceScore)}% ({getConfidenceLabel(incident.aiConfidenceScore)})
+                  </Badge>
+                )}
               </div>
             </div>
 
@@ -501,6 +595,31 @@ export function IncidentDetailsPage() {
               )}
             </div>
 
+            {incident.transcription && (
+              <div className={`p-4 rounded-xl border ${isLight ? 'bg-white/80 border-gray-200/80' : 'bg-white/5 border-white/10'}`}>
+                <div className="flex items-start gap-2 mb-2">
+                  <FileText className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+                  <p className="text-xs uppercase tracking-wide text-muted font-semibold">Voice Transcription</p>
+                </div>
+                <p className="text-sm text-foreground whitespace-pre-wrap">{incident.transcription}</p>
+              </div>
+            )}
+
+            {canManualReclassify && (
+              <Alert className={`rounded-xl border ${isLight ? 'border-amber-500/40 bg-amber-500/10' : 'border-amber-500/40 bg-amber-500/10'}`}>
+                <AlertCircle className="h-4 w-4 text-amber-500" />
+                <AlertTitle className="text-amber-600 dark:text-amber-400">
+                  {incident.aiLowConfidenceFlag ? 'Low AI Confidence — Manual Review Recommended' : 'Manual Reclassification Available'}
+                </AlertTitle>
+                <AlertDescription className="text-foreground/90 flex flex-wrap items-center gap-2">
+                  AI confidence is {getConfidencePercent(incident.aiConfidenceScore) ?? 'N/A'}%. Personnel can manually reclassify incident type and severity.
+                  <Button size="sm" variant="outline" className="rounded-lg" onClick={openReclassDialog}>
+                    Reclassify Incident
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            )}
+
             <div className="flex flex-wrap gap-2">
               {!incident.verified && (
                 <Button
@@ -524,6 +643,80 @@ export function IncidentDetailsPage() {
                   <Merge className="w-4 h-4" />
                   Review Duplicates ({possibleDuplicates.length})
                 </Button>
+              )}
+              <Button
+                variant="outline"
+                className={`gap-2 rounded-xl ${isLight ? 'text-primary border-primary/40 hover:bg-primary/10' : 'text-primary border-primary/50 hover:bg-primary/20'}`}
+                onClick={handleMarkFalse}
+              >
+                <XCircle className="w-4 h-4" />
+                Mark as False Report
+              </Button>
+              {isSupervisor && incident.status === 'Resolved' && !incident.closureData && (
+                <Dialog open={closureDialogOpen} onOpenChange={setClosureDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button className="bg-green-600 hover:bg-green-700 gap-2">
+                      <FileText className="w-4 h-4" />
+                      Formally Close Incident
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Close Incident</DialogTitle>
+                      <DialogDescription>
+                        Provide final closure details for this incident. This action is permanent.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                      <div>
+                        <Label>Outcome Description</Label>
+                        <Textarea
+                          placeholder="Describe the final outcome..."
+                          value={closureOutcome}
+                          onChange={(e) => setClosureOutcome(e.target.value)}
+                          rows={3}
+                        />
+                      </div>
+                      <div>
+                        <Label>Classification</Label>
+                        <Select value={closureClassification} onValueChange={setClosureClassification} open={closureClassSelectOpen} onOpenChange={setClosureClassSelectOpen}>
+                          {({ value, onValueChange, dropdownRect }) => (
+                            <>
+                              <SelectTrigger isOpen={closureClassSelectOpen} onClick={() => setClosureClassSelectOpen(o => !o)}>
+                                <SelectValue value={value} options={[
+                                  { value: 'Successful Response', label: 'Successful Response' },
+                                  { value: 'Partial Success', label: 'Partial Success' },
+                                  { value: 'False Alarm', label: 'False Alarm' },
+                                  { value: 'Duplicate Report', label: 'Duplicate Report' },
+                                  { value: 'No Action Required', label: 'No Action Required' }
+                                ]} placeholder="Select classification" />
+                              </SelectTrigger>
+                              <SelectContent isOpen={closureClassSelectOpen} dropdownRect={dropdownRect}>
+                                <SelectItem value="Successful Response" onSelect={(v) => { onValueChange(v); setClosureClassSelectOpen(false); }}>Successful Response</SelectItem>
+                                <SelectItem value="Partial Success" onSelect={(v) => { onValueChange(v); setClosureClassSelectOpen(false); }}>Partial Success</SelectItem>
+                                <SelectItem value="False Alarm" onSelect={(v) => { onValueChange(v); setClosureClassSelectOpen(false); }}>False Alarm</SelectItem>
+                                <SelectItem value="Duplicate Report" onSelect={(v) => { onValueChange(v); setClosureClassSelectOpen(false); }}>Duplicate Report</SelectItem>
+                                <SelectItem value="No Action Required" onSelect={(v) => { onValueChange(v); setClosureClassSelectOpen(false); }}>No Action Required</SelectItem>
+                              </SelectContent>
+                            </>
+                          )}
+                        </Select>
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button
+                        className="bg-green-600 hover:bg-green-700"
+                        onClick={handleCloseIncident}
+                        disabled={!closureOutcome || !closureClassification}
+                      >
+                        Close Incident
+                      </Button>
+                      <Button variant="outline" onClick={() => setClosureDialogOpen(false)}>
+                        Cancel
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
               )}
             </div>
           </div>
@@ -554,78 +747,23 @@ export function IncidentDetailsPage() {
 
           {/* DETAILS TAB */}
           <TabsContent value="details" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Left Column - Details */}
-              <div className="lg:col-span-2 space-y-6">
-                {/* Reporter Info */}
-                <div className={panelClass}>
-                  <div className={headerClass}>
-                    <div className={iconBoxClass}><User className="w-4 h-4" /></div>
-                    <h2 className="text-base font-semibold text-foreground">Reporter Information</h2>
-                  </div>
-                  <div className="p-4 space-y-4">
-                    <div className="flex items-center gap-3">
-                      <User className="w-5 h-5 text-muted" />
-                      <div>
-                        <p className="text-sm text-muted">Name</p>
-                        <p className="font-medium text-foreground">{incident.reporterName}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <Phone className="w-5 h-5 text-muted" />
-                      <div>
-                        <p className="text-sm text-muted">Phone Number</p>
-                        <p className="font-medium text-foreground">{incident.reporterPhone}</p>
-                      </div>
-                    </div>
-                  </div>
+            <div className={panelClass}>
+                <div className={headerClass}>
+                  <div className={iconBoxClass}><MapPin className="w-4 h-4" /></div>
+                  <h2 className="text-base font-semibold text-foreground">Secondary Context</h2>
                 </div>
-
-                {/* Location */}
-                <div className={panelClass}>
-                  <div className={headerClass}>
-                    <div className={iconBoxClass}><MapPin className="w-4 h-4" /></div>
-                    <h2 className="text-base font-semibold text-foreground">Location Details</h2>
-                  </div>
-                  <div className="p-4">
-                    <div className="flex items-start gap-3 mb-4">
-                      <MapPin className="w-5 h-5 text-primary mt-1 flex-shrink-0" />
-                      <div>
-                        <p className="font-medium text-foreground">{incident.barangay}</p>
-                        <p className="text-sm text-muted">Barangay, Dagupan City</p>
-                        <p className="text-xs text-muted mt-1">
-                          Coordinates: {incident.location.lat}, {incident.location.lng}
-                        </p>
-                      </div>
-                    </div>
+                <div className="p-4 space-y-4">
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-muted font-semibold mb-2">Map</p>
                     <IncidentMap
                       latitude={incident.location.lat}
                       longitude={incident.location.lng}
                       className="w-full h-48 rounded-xl overflow-hidden border border-border"
                     />
                   </div>
-                </div>
 
-                {/* Voice Transcription */}
-                {incident.transcription && (
-                  <div className={panelClass}>
-                    <div className={headerClass}>
-                      <div className={iconBoxClass}><FileText className="w-4 h-4" /></div>
-                      <h2 className="text-base font-semibold text-foreground">Voice Transcription</h2>
-                    </div>
-                    <div className="p-4">
-                      <p className="text-foreground whitespace-pre-wrap">{incident.transcription}</p>
-                    </div>
-                  </div>
-                )}
-
-                {/* Media */}
-                <div className={panelClass}>
-                  <div className={headerClass}>
-                    <div className={iconBoxClass}><FileText className="w-4 h-4" /></div>
-                    <h2 className="text-base font-semibold text-foreground">Media & Evidence</h2>
-                  </div>
-                  <div className="p-4">
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-muted font-semibold mb-2">Media & Evidence</p>
                     <div className="space-y-3">
                       <div className={`p-4 rounded-xl border ${isLight ? 'bg-gray-50/80 border-gray-200' : 'bg-secondary/20 border-border'}`}>
                         <p className="text-sm text-muted mb-2">Voice Recording</p>
@@ -635,16 +773,9 @@ export function IncidentDetailsPage() {
                             Loading audio...
                           </div>
                         )}
-                        {audioError && (
-                          <p className="text-sm text-primary">{audioError}</p>
-                        )}
+                        {audioError && <p className="text-sm text-primary">{audioError}</p>}
                         {audioUrl && !audioLoading && (
-                          <audio
-                            controls
-                            src={audioUrl}
-                            className="w-full h-10"
-                            preload="metadata"
-                          >
+                          <audio controls src={audioUrl} className="w-full h-10" preload="metadata">
                             Your browser does not support the audio element.
                           </audio>
                         )}
@@ -652,6 +783,7 @@ export function IncidentDetailsPage() {
                           <p className="text-sm text-muted">No voice recording available</p>
                         )}
                       </div>
+
                       <div className="grid grid-cols-2 gap-3">
                         {(incident.mediaPaths || []).length > 0 ? (
                           (incident.mediaPaths || []).map((path, idx) => (
@@ -667,128 +799,15 @@ export function IncidentDetailsPage() {
                       </div>
                     </div>
                   </div>
-                </div>
 
-                {/* Cross-Department Info */}
-                {incident.assignedDepartments && incident.assignedDepartments.length > 1 && (
-                  <div className={panelClass}>
-                    <div className={headerClass}>
-                      <div className={iconBoxClass}><Users className="w-4 h-4" /></div>
-                      <h2 className="text-base font-semibold text-foreground">Multi-Department Coordination</h2>
-                    </div>
-                    <div className="p-4 space-y-4">
-                      <div>
-                        <Label className="text-sm text-muted">Lead Department</Label>
-                        <div className="flex items-center gap-2 mt-1">
-                          <Shield className="w-4 h-4 text-primary" />
-                          <span className="font-medium text-foreground">{incident.leadDepartment}</span>
-                        </div>
-                      </div>
-                      <Separator />
-                      <div>
-                        <Label className="text-sm text-muted mb-2 block">Supporting Departments</Label>
-                        <div className="space-y-2">
-                          {incident.assignedDepartments
-                            .filter(dept => dept !== incident.leadDepartment)
-                            .map((dept, idx) => (
-                              <div key={idx} className={`flex items-center gap-2 p-2 rounded-lg ${isLight ? 'bg-gray-50' : 'bg-secondary/20'}`}>
-                                <div className="w-2 h-2 rounded-full bg-primary" />
-                                <span className="text-sm text-foreground">{dept}</span>
-                              </div>
-                            ))}
-                        </div>
-                      </div>
-                    </div>
+                  <div className={`p-3 rounded-xl border ${isLight ? 'bg-gray-50/70 border-gray-200/80' : 'bg-white/5 border-white/10'}`}>
+                    <p className="text-xs uppercase tracking-wide text-muted font-semibold mb-1">Workflow Guide</p>
+                    <p className="text-xs text-muted">Pending → Verified → In Progress → Resolved</p>
                   </div>
-                )}
 
-                {/* Closure Information (if closed) */}
-                {incident.closureData && (
-                  <div className={`${panelClass} ${isLight ? 'border-severity-resolved/40' : 'border-severity-resolved/30'}`}>
-                    <div className={headerClass}>
-                      <div className={`${iconBoxClass} ${isLight ? '!bg-severity-resolved/20 !text-severity-resolved' : '!bg-severity-resolved/20 !text-severity-resolved'}`}><CheckCircle className="w-4 h-4" /></div>
-                      <h2 className="text-base font-semibold text-foreground">Incident Closure Information</h2>
-                    </div>
-                    <div className="p-4 space-y-3">
-                      <div>
-                        <Label className="text-sm text-muted">Closed By</Label>
-                        <p className="font-medium text-foreground">{incident.closureData.closedBy}</p>
-                      </div>
-                      <div>
-                        <Label className="text-sm text-muted">Closed At</Label>
-                        <p className="text-sm text-foreground">{incident.closureData.closedAt}</p>
-                      </div>
-                      <div>
-                        <Label className="text-sm text-muted">Outcome</Label>
-                        <p className="text-sm text-foreground">{incident.closureData.outcome}</p>
-                      </div>
-                      <div>
-                        <Label className="text-sm text-muted">Classification</Label>
-                        <Badge className="bg-severity-resolved/20 text-severity-resolved border-severity-resolved/40 rounded-lg">
-                          {incident.closureData.classification}
-                        </Badge>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Right Column - Actions */}
-              <div className="space-y-6">
-                {/* Status */}
-                <div className={panelClass}>
-                  <div className={headerClass}>
-                    <div className={iconBoxClass}><Clock className="w-4 h-4" /></div>
-                    <h2 className="text-base font-semibold text-foreground">Status</h2>
-                  </div>
-                  <div className="p-4 space-y-3">
-                    <div>
-                      <p className="text-sm text-muted mb-1">Workflow Status</p>
-                      <Badge className={`${getStatusColor(incident.status)} rounded-lg`}>{incident.status}</Badge>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted mb-1">Verification</p>
-                      <div className="flex items-center gap-2">
-                        {incident.verified ? (
-                          <>
-                            <CheckCircle className="w-4 h-4 text-severity-resolved" />
-                            <span className="text-sm text-severity-resolved">Verified</span>
-                          </>
-                        ) : (
-                          <>
-                            <XCircle className="w-4 h-4 text-primary" />
-                            <span className="text-sm text-primary">Not Verified</span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted mb-1">Workflow State Guide</p>
-                      <p className="text-xs text-muted">Pending → Verified → In Progress → Resolved</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Department */}
-                <div className={panelClass}>
-                  <div className={headerClass}>
-                    <div className={iconBoxClass}><Shield className="w-4 h-4" /></div>
-                    <h2 className="text-base font-semibold text-foreground">Primary Department</h2>
-                  </div>
-                  <div className="p-4">
-                    <p className="font-medium text-foreground">{incident.assignedDepartment}</p>
-                    <p className="text-sm text-muted mt-1">{incident.emergencyType} Response Team</p>
-                  </div>
-                </div>
-
-                {/* Escalation Controls (Supervisor/Admin Only) */}
-                {isSupervisor && incident.status !== 'Resolved' && incident.status !== 'Duplicate' && (
-                  <div className={`${panelClass} ${isLight ? 'border-amber-500/30' : 'border-amber-500/40'}`}>
-                    <div className={headerClass}>
-                      <div className={`${iconBoxClass} ${isLight ? '!bg-amber-500/20 !text-amber-600' : '!bg-amber-500/20 !text-amber-400'}`}><TrendingUp className="w-4 h-4" /></div>
-                      <h2 className="text-base font-semibold text-foreground">Escalation Controls</h2>
-                    </div>
-                    <div className="p-4 space-y-3">
+                  {isSupervisor && incident.status !== 'Resolved' && incident.status !== 'Duplicate' && (
+                    <div className="space-y-2">
+                      <p className="text-xs uppercase tracking-wide text-muted font-semibold">Escalation Controls</p>
                       <Dialog open={escalateDialogOpen} onOpenChange={setEscalateDialogOpen}>
                         <DialogTrigger asChild>
                           <Button className="w-full bg-amber-600 hover:bg-amber-700 gap-2">
@@ -827,7 +846,7 @@ export function IncidentDetailsPage() {
                             </div>
                             <div>
                               <Label>Escalation Reason</Label>
-                              <Textarea 
+                              <Textarea
                                 placeholder="Explain why this escalation is necessary..."
                                 value={escalationReason}
                                 onChange={(e) => setEscalationReason(e.target.value)}
@@ -836,7 +855,7 @@ export function IncidentDetailsPage() {
                             </div>
                           </div>
                           <DialogFooter>
-                            <Button 
+                            <Button
                               className="bg-amber-600 hover:bg-amber-700"
                               onClick={handleEscalate}
                               disabled={!newSeverity || !escalationReason}
@@ -886,7 +905,7 @@ export function IncidentDetailsPage() {
                             </div>
                           </div>
                           <DialogFooter>
-                            <Button 
+                            <Button
                               className="bg-[#134178] hover:bg-[#0f3256]"
                               onClick={handleAddDepartment}
                               disabled={!additionalDepartment}
@@ -900,8 +919,8 @@ export function IncidentDetailsPage() {
                         </DialogContent>
                       </Dialog>
 
-                      <Button 
-                        variant="outline" 
+                      <Button
+                        variant="outline"
                         className="w-full gap-2"
                         onClick={() => alert('Incident marked as high priority')}
                       >
@@ -909,181 +928,146 @@ export function IncidentDetailsPage() {
                         {incident.highPriority ? 'Remove Priority' : 'Mark High Priority'}
                       </Button>
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {/* Actions */}
-                <div className={panelClass}>
-                  <div className={headerClass}>
-                    <div className={iconBoxClass}><Wrench className="w-4 h-4" /></div>
-                    <h2 className="text-base font-semibold text-foreground">Quick Actions</h2>
-                  </div>
-                  <div className="p-4 space-y-3">
-                    {!incident.verified && (
-                      <>
-                        <Button
-                          className="w-full bg-[#134178] hover:bg-[#0f3256] gap-2"
-                          onClick={() => setVerifyDialogOpen(true)}
-                        >
-                          <CheckCircle className="w-4 h-4" />
-                          Verify Incident
-                        </Button>
-                        <Dialog open={verifyDialogOpen} onOpenChange={setVerifyDialogOpen}>
-                          <DialogContent>
-                            <DialogHeader>
-                              <DialogTitle>Verify Incident</DialogTitle>
-                              <DialogDescription>
-                                Are you sure you want to verify this incident? This will record it on the blockchain for tamper-proof audit. This action cannot be undone.
-                              </DialogDescription>
-                            </DialogHeader>
-                            <DialogFooter>
-                              <Button
-                                onClick={handleVerifyIncident}
-                                disabled={verifyLoading}
-                                className="gap-2 bg-[#134178] hover:bg-[#0f3256]"
-                              >
-                                {verifyLoading ? (
-                                  <>
-                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                    Verifying...
-                                  </>
-                                ) : (
-                                  <>
-                                    <CheckCircle className="w-4 h-4" />
-                                    Confirm Verify
-                                  </>
-                                )}
-                              </Button>
-                              <Button
-                                variant="outline"
-                                onClick={() => setVerifyDialogOpen(false)}
-                                disabled={verifyLoading}
-                              >
-                                Cancel
-                              </Button>
-                            </DialogFooter>
-                          </DialogContent>
-                        </Dialog>
-                      </>
-                    )}
-                    <Button variant="outline" className="w-full gap-2 rounded-xl" onClick={openNotifyRespondersDialog}>
-                      <Bell className="w-4 h-4" />
-                      Notify Responders
-                    </Button>
-                    
-                    {/* Duplicate Handling */}
-                    {possibleDuplicates.length > 0 && (
-                      <Button 
-                        variant="outline" 
-                        className={`w-full gap-2 rounded-xl ${isLight ? 'text-amber-600 border-amber-200 hover:bg-amber-50' : 'text-amber-400 border-amber-500/40 hover:bg-amber-500/20'}`}
-                        onClick={() => setDuplicateDialogOpen(true)}
-                      >
-                        <Merge className="w-4 h-4" />
-                        Review Duplicates ({possibleDuplicates.length})
-                      </Button>
-                    )}
-
-                    <Button 
-                      variant="outline" 
-                      className={`w-full gap-2 rounded-xl ${isLight ? 'text-primary border-primary/40 hover:bg-primary/10' : 'text-primary border-primary/50 hover:bg-primary/20'}`}
-                      onClick={handleMarkFalse}
-                    >
-                      <XCircle className="w-4 h-4" />
-                      Mark as False Report
-                    </Button>
-
-                    {/* Formal Closure (Supervisor/Admin Only) */}
-                    {isSupervisor && incident.status === 'Resolved' && !incident.closureData && (
-                      <Dialog open={closureDialogOpen} onOpenChange={setClosureDialogOpen}>
-                        <DialogTrigger asChild>
-                          <Button className="w-full bg-green-600 hover:bg-green-700 gap-2">
-                            <FileText className="w-4 h-4" />
-                            Formally Close Incident
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle>Close Incident</DialogTitle>
-                            <DialogDescription>
-                              Provide final closure details for this incident. This action is permanent.
-                            </DialogDescription>
-                          </DialogHeader>
-                          <div className="space-y-4 py-4">
-                            <div>
-                              <Label>Outcome Description</Label>
-                              <Textarea 
-                                placeholder="Describe the final outcome..."
-                                value={closureOutcome}
-                                onChange={(e) => setClosureOutcome(e.target.value)}
-                                rows={3}
-                              />
+                  {incident.assignedDepartments && incident.assignedDepartments.length > 1 && (
+                    <div className="space-y-2">
+                      <p className="text-xs uppercase tracking-wide text-muted font-semibold">Multi-Department Coordination</p>
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 text-sm">
+                          <Shield className="w-4 h-4 text-primary" />
+                          <span className="font-medium text-foreground">Lead: {incident.leadDepartment}</span>
+                        </div>
+                        {incident.assignedDepartments
+                          .filter(dept => dept !== incident.leadDepartment)
+                          .map((dept, idx) => (
+                            <div key={idx} className={`flex items-center gap-2 p-2 rounded-lg ${isLight ? 'bg-gray-50' : 'bg-secondary/20'}`}>
+                              <div className="w-2 h-2 rounded-full bg-primary" />
+                              <span className="text-sm text-foreground">{dept}</span>
                             </div>
-                            <div>
-                              <Label>Classification</Label>
-                              <Select value={closureClassification} onValueChange={setClosureClassification} open={closureClassSelectOpen} onOpenChange={setClosureClassSelectOpen}>
-                                {({ value, onValueChange, dropdownRect }) => (
-                                  <>
-                                    <SelectTrigger isOpen={closureClassSelectOpen} onClick={() => setClosureClassSelectOpen(o => !o)}>
-                                      <SelectValue value={value} options={[
-                                        { value: 'Successful Response', label: 'Successful Response' },
-                                        { value: 'Partial Success', label: 'Partial Success' },
-                                        { value: 'False Alarm', label: 'False Alarm' },
-                                        { value: 'Duplicate Report', label: 'Duplicate Report' },
-                                        { value: 'No Action Required', label: 'No Action Required' }
-                                      ]} placeholder="Select classification" />
-                                    </SelectTrigger>
-                                    <SelectContent isOpen={closureClassSelectOpen} dropdownRect={dropdownRect}>
-                                      <SelectItem value="Successful Response" onSelect={(v) => { onValueChange(v); setClosureClassSelectOpen(false); }}>Successful Response</SelectItem>
-                                      <SelectItem value="Partial Success" onSelect={(v) => { onValueChange(v); setClosureClassSelectOpen(false); }}>Partial Success</SelectItem>
-                                      <SelectItem value="False Alarm" onSelect={(v) => { onValueChange(v); setClosureClassSelectOpen(false); }}>False Alarm</SelectItem>
-                                      <SelectItem value="Duplicate Report" onSelect={(v) => { onValueChange(v); setClosureClassSelectOpen(false); }}>Duplicate Report</SelectItem>
-                                      <SelectItem value="No Action Required" onSelect={(v) => { onValueChange(v); setClosureClassSelectOpen(false); }}>No Action Required</SelectItem>
-                                    </SelectContent>
-                                  </>
-                                )}
-                              </Select>
-                            </div>
-                          </div>
-                          <DialogFooter>
-                            <Button 
-                              className="bg-green-600 hover:bg-green-700"
-                              onClick={handleCloseIncident}
-                              disabled={!closureOutcome || !closureClassification}
-                            >
-                              Close Incident
-                            </Button>
-                            <Button variant="outline" onClick={() => setClosureDialogOpen(false)}>
-                              Cancel
-                            </Button>
-                          </DialogFooter>
-                        </DialogContent>
-                      </Dialog>
-                    )}
-                  </div>
-                </div>
+                          ))}
+                      </div>
+                    </div>
+                  )}
 
-                {/* Notes */}
-                <div className={panelClass}>
-                  <div className={headerClass}>
-                    <div className={iconBoxClass}><FileText className="w-4 h-4" /></div>
-                    <h2 className="text-base font-semibold text-foreground">Quick Notes</h2>
-                  </div>
-                  <div className="p-4">
-                    <Textarea
-                      className={`w-full resize-none rounded-xl ${isLight ? 'bg-gray-50 border-gray-200' : 'bg-white/5 border-border'}`}
-                      rows={4}
-                      placeholder="Add quick notes about this incident..."
-                    />
-                    <Button className="w-full mt-3 rounded-xl bg-primary hover:bg-primary-hover">
-                      Save Notes
-                    </Button>
-                  </div>
+                  {incident.closureData && (
+                    <div className={`p-3 rounded-xl border ${isLight ? 'border-severity-resolved/40 bg-severity-resolved/10' : 'border-severity-resolved/30 bg-severity-resolved/10'}`}>
+                      <p className="text-xs uppercase tracking-wide text-muted font-semibold mb-2">Closure Information</p>
+                      <p className="text-sm text-foreground"><span className="text-muted">Closed By:</span> {incident.closureData.closedBy}</p>
+                      <p className="text-sm text-foreground"><span className="text-muted">Closed At:</span> {incident.closureData.closedAt}</p>
+                      <p className="text-sm text-foreground"><span className="text-muted">Outcome:</span> {incident.closureData.outcome}</p>
+                    </div>
+                  )}
                 </div>
               </div>
-            </div>
           </TabsContent>
 
           {/* DIALOGS - Rendered outside cards for proper z-index and portal behavior */}
+          <Dialog open={reclassDialogOpen} onOpenChange={setReclassDialogOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Manual Incident Reclassification</DialogTitle>
+                <DialogDescription>
+                  Override AI classification for incident type and severity. This action is audit logged.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-4 py-2">
+                <div>
+                  <Label>Incident Type</Label>
+                  <select
+                    value={reclassType}
+                    onChange={(e) => setReclassType(e.target.value)}
+                    className="w-full mt-2 px-3 py-2 border border-border rounded-lg bg-card text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-secondary"
+                    disabled={reclassLoading}
+                  >
+                    <option value="">Select incident type</option>
+                    <option value="fire">Fire</option>
+                    <option value="medical">Medical</option>
+                    <option value="police">Police</option>
+                    <option value="disaster">Disaster</option>
+                  </select>
+                </div>
+
+                <div>
+                  <Label>Severity</Label>
+                  <select
+                    value={reclassSeverity}
+                    onChange={(e) => setReclassSeverity(e.target.value)}
+                    className="w-full mt-2 px-3 py-2 border border-border rounded-lg bg-card text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-secondary"
+                    disabled={reclassLoading}
+                  >
+                    <option value="">Select severity</option>
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                  </select>
+                </div>
+
+                <div>
+                  <Label>Reason (optional)</Label>
+                  <Textarea
+                    placeholder="Add context for this manual override..."
+                    value={reclassReason}
+                    onChange={(e) => setReclassReason(e.target.value)}
+                    rows={3}
+                    disabled={reclassLoading}
+                  />
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setReclassDialogOpen(false)} disabled={reclassLoading}>
+                  Cancel
+                </Button>
+                <Button onClick={handleManualReclassify} disabled={reclassLoading || !reclassType || !reclassSeverity} className="bg-[#134178] hover:bg-[#0f3256]">
+                  {reclassLoading ? (
+                    <span className="inline-flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Saving...</span>
+                  ) : (
+                    'Confirm Reclassification'
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={verifyDialogOpen} onOpenChange={setVerifyDialogOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Verify Incident</DialogTitle>
+                <DialogDescription>
+                  Are you sure you want to verify this incident? This will record it on the blockchain for tamper-proof audit. This action cannot be undone.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <Button
+                  onClick={handleVerifyIncident}
+                  disabled={verifyLoading}
+                  className="gap-2 bg-[#134178] hover:bg-[#0f3256]"
+                >
+                  {verifyLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Verifying...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="w-4 h-4" />
+                      Confirm Verify
+                    </>
+                  )}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setVerifyDialogOpen(false)}
+                  disabled={verifyLoading}
+                >
+                  Cancel
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
           <Dialog open={notifyDialogOpen} onOpenChange={setNotifyDialogOpen}>
             <DialogContent>
               <DialogHeader>
