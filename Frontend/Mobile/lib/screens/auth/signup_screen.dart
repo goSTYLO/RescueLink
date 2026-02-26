@@ -165,7 +165,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
   }
 
-  Widget _buildLogo() {
+Widget _buildLogo() {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -175,15 +175,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
           width: 80,
           height: 80,
           fit: BoxFit.contain,
-        ),
-        const SizedBox(height: 12),
-        // Tagline
-        const Text(
-          'Emergency Response & Safety',
-          style: TextStyle(
-            color: Color(0xFF6B7280),
-            fontSize: 12,
-          ),
         ),
       ],
     );
@@ -365,10 +356,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         keyboardType: TextInputType.phone,
                         decoration: InputDecoration(
                           hintText: 'Enter your number',
-                          prefixIcon: const Icon(
-                            Icons.phone,
-                            color: Color(0xFF9CA3AF),
-                          ),
+                          // Removed prefixIcon here
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide: const BorderSide(
@@ -430,10 +418,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           initialValue: _selectedBarangay,
                           decoration: const InputDecoration(
                             hintText: 'Select your barangay',
-                            prefixIcon: Icon(
-                              Icons.location_on,
-                              color: Color(0xFF9CA3AF),
-                            ),
+                            // Removed prefixIcon here
                             suffixIcon: Icon(
                               Icons.arrow_drop_down,
                               color: Color(0xFF9CA3AF),
@@ -491,10 +476,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         },
                         decoration: InputDecoration(
                           hintText: 'Minimum 8 characters',
-                          prefixIcon: const Icon(
-                            Icons.lock,
-                            color: Color(0xFF9CA3AF),
-                          ),
+                          // Removed prefixIcon here
                           suffixIcon: IconButton(
                             icon: Icon(
                               _obscurePassword
@@ -720,4 +702,3 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
   }
 }
-

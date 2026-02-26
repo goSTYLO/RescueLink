@@ -37,11 +37,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           height: 80,
           fit: BoxFit.contain,
         ),
-        const SizedBox(height: 12),
-        const Text(
-          'Emergency Response & Safety',
-          style: TextStyle(color: Color(0xFF6B7280), fontSize: 12),
-        ),
+        // The SizedBox and Text widget have been removed from here
       ],
     );
   }

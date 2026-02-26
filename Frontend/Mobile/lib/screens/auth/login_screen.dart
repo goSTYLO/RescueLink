@@ -44,43 +44,13 @@ class _LoginScreenState extends State<LoginScreen> {
         ));
   }
 
-  Widget _buildLogo() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Logo PNG
-        Image.asset(
-          'assets/logo/logo.png',
-          width: 80,
-          height: 80,
-          fit: BoxFit.contain,
-        ),
-        const SizedBox(width: 12),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            RichText(
-              text: const TextSpan(
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-                children: [
-                  TextSpan(text: 'Rescue', style: TextStyle(color: Color(0xFFEF4444))),
-                  TextSpan(text: 'Link', style: TextStyle(color: Color(0xFFEF4444))),
-                ],
-              ),
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              'Emergency Response & Safety',
-              style: TextStyle(
-                color: Color(0xFF6B7280),
-                fontSize: 12,
-              ),
-            ),
-          ],
-        ),
-      ],
+ Widget _buildLogo() {
+    return Center(
+      child: Image.asset(
+        'assets/logo/logo.png',
+        width: 220, // Nice and big!
+        // Notice we completely removed the 'height' and 'fit' lines
+      ),
     );
   }
 
@@ -130,13 +100,13 @@ class _LoginScreenState extends State<LoginScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 24.0),
                 child: Column(
                   children: [
-                const SizedBox(height: 20),
+                const SizedBox(height: 0),
                 // Logo Section
                 _buildLogo(),
                 const SizedBox(height: 20),
                 // Illustration
                 _buildIllustration(),
-                const SizedBox(height: 20),
+                const SizedBox(height: 40),
                 // Welcome Message
                 const Text(
                   'Welcome Back',
