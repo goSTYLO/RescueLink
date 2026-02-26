@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'dart:async';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import '../utils/app_config.dart';
 
@@ -23,9 +25,13 @@ class ApiService {
       final response = await client.get(
         uri,
         headers: _buildHeaders(headers),
-      );
+      ).timeout(AppConfig.apiTimeout);
 
       return _handleResponse(response);
+    } on TimeoutException {
+      throw ApiException('GET request timed out after ${AppConfig.apiTimeout.inSeconds}s. Check connection to $baseUrl');
+    } on SocketException {
+      throw ApiException('Unable to connect to $baseUrl. Check network and API_BASE_URL.');
     } catch (e) {
       throw ApiException('GET request failed: $e');
     }
@@ -47,12 +53,18 @@ class ApiService {
         uri,
         headers: _buildHeaders(headers),
         body: body != null ? jsonEncode(body) : null,
-      );
+      ).timeout(AppConfig.apiTimeout);
 
       print('🌐 [API POST] Response status: ${response.statusCode}');
       print('🌐 [API POST] Response body: ${response.body}');
 
       return _handleResponse(response);
+    } on TimeoutException {
+      print('❌ [API POST] Request timed out after ${AppConfig.apiTimeout.inSeconds}s to $baseUrl');
+      throw ApiException('POST request timed out after ${AppConfig.apiTimeout.inSeconds}s. Check connection to $baseUrl');
+    } on SocketException {
+      print('❌ [API POST] Socket connection failed to $baseUrl');
+      throw ApiException('Unable to connect to $baseUrl. Check network and API_BASE_URL.');
     } catch (e) {
       print('❌ [API POST] Request failed: $e');
       if (e is ApiException) rethrow;
@@ -72,9 +84,13 @@ class ApiService {
         uri,
         headers: _buildHeaders(headers),
         body: body != null ? jsonEncode(body) : null,
-      );
+      ).timeout(AppConfig.apiTimeout);
 
       return _handleResponse(response);
+    } on TimeoutException {
+      throw ApiException('PUT request timed out after ${AppConfig.apiTimeout.inSeconds}s. Check connection to $baseUrl');
+    } on SocketException {
+      throw ApiException('Unable to connect to $baseUrl. Check network and API_BASE_URL.');
     } catch (e) {
       throw ApiException('PUT request failed: $e');
     }
@@ -90,9 +106,13 @@ class ApiService {
       final response = await client.delete(
         uri,
         headers: _buildHeaders(headers),
-      );
+      ).timeout(AppConfig.apiTimeout);
 
       return _handleResponse(response);
+    } on TimeoutException {
+      throw ApiException('DELETE request timed out after ${AppConfig.apiTimeout.inSeconds}s. Check connection to $baseUrl');
+    } on SocketException {
+      throw ApiException('Unable to connect to $baseUrl. Check network and API_BASE_URL.');
     } catch (e) {
       throw ApiException('DELETE request failed: $e');
     }

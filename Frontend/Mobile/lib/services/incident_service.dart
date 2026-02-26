@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'dart:async';
+import 'dart:io';
 import 'dart:math';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
@@ -122,9 +124,31 @@ class IncidentService {
       }
     }
 
-    final streamedResponse = await request.send();
-    final response = await http.Response.fromStream(streamedResponse);
-    stopwatch.stop();
+    _logInfo('[mobile][incident][reportWithAudio] request_id=$requestId status=start url=$uri audio_bytes=${audioBytes.length} media_count=${mediaFiles?.length ?? 0} timeout_s=${AppConfig.apiTimeout.inSeconds}');
+
+    http.StreamedResponse streamedResponse;
+    http.Response response;
+    try {
+      streamedResponse = await request.send().timeout(AppConfig.apiTimeout);
+      response = await http.Response.fromStream(streamedResponse).timeout(AppConfig.apiTimeout);
+      stopwatch.stop();
+    } on TimeoutException {
+      stopwatch.stop();
+      _logError('[mobile][incident][reportWithAudio] request_id=$requestId status=timeout latency_ms=${stopwatch.elapsedMilliseconds} url=$uri');
+      throw IncidentServiceException(
+        'Connection timed out while uploading audio. Check API_BASE_URL (${AppConfig.apiBaseUrl}) and network connectivity.',
+      );
+    } on SocketException catch (error) {
+      stopwatch.stop();
+      _logError('[mobile][incident][reportWithAudio] request_id=$requestId status=socket_error latency_ms=${stopwatch.elapsedMilliseconds} url=$uri error=$error');
+      throw IncidentServiceException(
+        'Unable to connect to server at ${AppConfig.apiBaseUrl}. If using a real device, set API_BASE_URL to your PC LAN IP.',
+      );
+    } on http.ClientException catch (error) {
+      stopwatch.stop();
+      _logError('[mobile][incident][reportWithAudio] request_id=$requestId status=client_error latency_ms=${stopwatch.elapsedMilliseconds} url=$uri error=$error');
+      throw IncidentServiceException('Network request failed: ${error.message}');
+    }
 
     if (response.statusCode >= 200 && response.statusCode < 300) {
       _logInfo('[mobile][incident][reportWithAudio] request_id=$requestId status=${response.statusCode} latency_ms=${stopwatch.elapsedMilliseconds}');
