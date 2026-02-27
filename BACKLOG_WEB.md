@@ -1,0 +1,147 @@
+# Web Backlog
+
+Last updated: 2026-02-27  
+Component path: `Frontend/Web/dispatcher_dashboard/`
+
+## Manuscript Traceability
+- FR-08 Responder Dashboard
+- FR-07 Blockchain logging visibility (backend-fed)
+- FR-09 Notification and coordination surfaces
+- NFR: usability, reliability, security, performance
+
+## Component Roll-up
+- Progress: 55%
+- Status: `In Progress`
+
+## WE-E1 Dispatcher Authentication and Access Control UX
+- Progress: 72% | Status: `In Progress`
+- Sub-epic WE-SE1.1 Login and session flow (83%, `In Progress`)
+  - Story WE-US1.1.1 Authenticated route access (83%, `In Progress`)
+    - WE-T101 Login page and auth submission — `Done`
+      - Evidence: `src/presentation/pages/Login.jsx`
+    - WE-T102 Protected route redirects/guards — `Done`
+      - Evidence: `src/App.jsx`
+    - WE-T103 Session persistence and logout edge handling — `In Progress`
+- Sub-epic WE-SE1.2 Role-aware navigation (63%, `In Progress`)
+  - Story WE-US1.2.1 Role-scoped UX access (63%, `In Progress`)
+    - WE-T104 Route-level role gating completeness — `In Progress`
+    - WE-T105 Action-level permission checks — `In Progress`
+    - WE-T106 Unauthorized flow feedback polish — `In Progress`
+
+## WE-E2 Incident Dashboard and Queue Management
+- Progress: 69% | Status: `In Progress`
+- Sub-epic WE-SE2.1 Dashboard summary/filtering (83%, `In Progress`)
+  - Story WE-US2.1.1 Priority-based queue monitoring (83%, `In Progress`)
+    - WE-T201 Dashboard summaries/cards — `Done`
+      - Evidence: `src/presentation/pages/DashboardPage.jsx`
+    - WE-T202 Incident filtering controls — `Done`
+    - WE-T203 Prioritization/sorting policy completion — `In Progress`
+- Sub-epic WE-SE2.2 Incident API integration (83%, `In Progress`)
+  - Story WE-US2.2.1 Consistent list/detail API usage (83%, `In Progress`)
+    - WE-T204 Incident list API client — `Done`
+      - Evidence: `src/data/api/incidents.api.js`
+    - WE-T205 Incident detail API client — `Done`
+    - WE-T206 Error/retry/empty-state standardization — `In Progress`
+
+## WE-E3 Incident Command and Response Operations
+- Progress: 66% | Status: `In Progress`
+- Sub-epic WE-SE3.1 Incident detail operations (88%, `In Progress`)
+  - Story WE-US3.1.1 Inspect and act on incident detail (88%, `In Progress`)
+    - WE-T301 Incident detail page timeline/context — `Done`
+      - Evidence: `src/presentation/pages/IncidentDetailsPage.jsx`
+    - WE-T302 Verify action integration — `Done`
+    - WE-T303 Reclassify action integration — `Done`
+    - WE-T304 Manual override reason governance — `In Progress`
+- Sub-epic WE-SE3.2 Dispatch coordination (50%, `In Progress`)
+  - Story WE-US3.2.1 Department coordination workflow depth (50%, `In Progress`)
+    - WE-T305 Department assignment UX completion — `In Progress`
+    - WE-T306 Availability integration depth — `In Progress`
+    - WE-T307 Cross-department communication log consistency — `In Progress`
+
+## WE-E4 Map and Geospatial Operations
+- Progress: 58% | Status: `In Progress`
+- Sub-epic WE-SE4.1 Map views (83%, `In Progress`)
+  - Story WE-US4.1.1 Incident map with filtering (83%, `In Progress`)
+    - WE-T401 Map rendering page — `Done`
+      - Evidence: `src/presentation/pages/MapViewPage.jsx`
+    - WE-T402 Department/barangay filters — `Done`
+    - WE-T403 Live update cadence completion — `In Progress`
+- Sub-epic WE-SE4.2 Geospatial intelligence (0%, `Not Started`)
+  - Story WE-US4.2.1 Route/alert/heatmap optimization (0%, `Not Started`)
+    - WE-T404 Closest-unit/ETA suggestions — `Not Started`
+    - WE-T405 Geofence/area alerting — `Not Started`
+    - WE-T406 Heatmap/hotspot layers — `Not Started`
+
+## WE-E5 Department, Team, and Admin Management
+- Progress: 64% | Status: `In Progress`
+- Sub-epic WE-SE5.1 Department operations (83%, `In Progress`)
+  - Story WE-US5.1.1 Manage departments/units/personnel (83%, `In Progress`)
+    - WE-T501 Department CRUD workflows — `Done`
+      - Evidence: `DepartmentsPage.jsx`
+    - WE-T502 Department details forms — `Done`
+      - Evidence: `DepartmentDetailsPage.jsx`
+    - WE-T503 Department metrics/backend sync depth — `In Progress`
+- Sub-epic WE-SE5.2 Team and admin actions (100%, `Done`)
+  - Story WE-US5.2.1 Admin governance actions (100%, `Done`)
+    - WE-T504 Team management page — `Done`
+    - WE-T505 Admin actions page — `Done`
+    - WE-T506 Profile/password management page — `Done`
+
+## WE-E6 Audit, Security, and Compliance UX
+- Progress: 56% | Status: `In Progress`
+- Sub-epic WE-SE6.1 Audit trail visibility (83%, `In Progress`)
+  - Story WE-US6.1.1 Historical platform actions review (83%, `In Progress`)
+    - WE-T601 Audit log page — `Done`
+    - WE-T602 Audit API integration — `Done`
+      - Evidence: `src/data/api/auditLog.api.js`
+    - WE-T603 Filter/export maturity — `In Progress`
+- Sub-epic WE-SE6.2 Frontend security posture (42%, `In Progress`)
+  - Story WE-US6.2.1 Client-side security hardening (42%, `In Progress`)
+    - WE-T604 Environment-safe API base URL policy — `In Progress`
+      - Evidence: `src/core/config/app.config.js`
+    - WE-T605 Sensitive state cleanup on logout/session expiry — `In Progress`
+    - WE-T606 Permission-hardening audit completion — `In Progress`
+
+## WE-E7 Testing, Configuration, and Production Readiness
+- Progress: 21% | Status: `In Progress`
+- Sub-epic WE-SE7.1 Automated tests (0%, `Not Started`)
+  - Story WE-US7.1.1 Regression test baseline (0%, `Not Started`)
+    - WE-T701 API client unit tests — `Not Started`
+    - WE-T702 Component/page interaction tests — `Not Started`
+    - WE-T703 E2E smoke tests for critical routes — `Not Started`
+- Sub-epic WE-SE7.2 Environment/deployment hardening (42%, `In Progress`)
+  - Story WE-US7.2.1 Production configuration readiness (42%, `In Progress`)
+    - WE-T704 Externalize API base URL by environment — `In Progress`
+    - WE-T705 Build/release pipeline quality gates — `In Progress`
+    - WE-T706 Production runbook/smoke checklist closure — `In Progress`
+
+## WE-E8 Backend Contract, Queue Sync, and Operational Consistency
+- Progress: 30% | Status: `In Progress`
+- Depends on: BE-E2, BE-E4, BE-E6
+- Sub-epic WE-SE8.1 Queue fetch/sync correctness (38%, `In Progress`)
+  - Story WE-US8.1.1 Accurate queue state during operations (38%, `In Progress`)
+    - WE-T801 Polling-first queue sync with deterministic interval policy — `In Progress`
+    - WE-T802 Optimistic update rollback for verify/reclassify failures — `Not Started`
+    - WE-T803 Duplicate suppression/reconciliation after refresh — `In Progress`
+    - WE-T804 Preserve pagination/filter state across route changes — `In Progress`
+- Sub-epic WE-SE8.2 Incident API contract hardening (33%, `In Progress`)
+  - Story WE-US8.2.1 Strict client/backend contract parity (33%, `In Progress`)
+    - WE-T805 Canonical lifecycle enum mapping (`pending`, `verified`, `resolved`) — `In Progress`
+    - WE-T806 Standardize error mapping across incident calls — `In Progress`
+    - WE-T807 Contract tests for list/detail/with-ai/verify/reclassify — `Not Started`
+    - WE-T808 Role-scoped behavior notes and ownership constraints — `In Progress`
+- Sub-epic WE-SE8.3 Dispatcher action consistency (25%, `In Progress`)
+  - Story WE-US8.3.1 Fast and correct post-action UI convergence (25%, `In Progress`)
+    - WE-T809 Refresh dashboard cards/map markers after verify/reclassify — `In Progress`
+    - WE-T810 Blockchain verification metadata refresh path — `Not Started`
+    - WE-T811 Client-to-backend correlation ID propagation in action logs — `Not Started`
+- Sub-epic WE-SE8.4 Hybrid sync roadmap and readiness gates (25%, `In Progress`)
+  - Story WE-US8.4.1 Polling now, realtime migration next (25%, `In Progress`)
+    - WE-T812 Pre-release backend contract checklist and dependency gates — `In Progress`
+    - WE-T813 Fallback UX when event/notification channel is unavailable — `In Progress`
+    - WE-T814 Realtime migration design (SSE/WebSocket) with merge/de-dup policy — `Not Started`
+
+## Audit Notes
+- Strongest area: rich dispatcher page and action surface.
+- Primary risk: missing automated tests and incomplete environment hardening.
+- New priority: WE-E8 to stabilize backend contract alignment and queue synchronization behavior.

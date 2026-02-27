@@ -33,6 +33,29 @@ import { Loader2 } from 'lucide-react';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
 import Swal from 'sweetalert2';
 
+function normalizeSeverityToDbLevel(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  const map = {
+    high: 'high',
+    medium: 'medium',
+    low: 'low',
+    critical: 'high',
+    warning: 'medium',
+    red: 'high',
+    black: 'high',
+    yellow: 'medium',
+    green: 'low',
+  };
+
+  return map[normalized] || null;
+}
+
+function mapSeverityToDisplay(value) {
+  const level = normalizeSeverityToDbLevel(value);
+  const labels = { high: 'Critical', medium: 'Warning', low: 'Low' };
+  return labels[level] || (value || '—');
+}
+
 function mapApiToIncidentDetails(api, aiClassification = null) {
   const firstName = api.reporter_first_name || '';
   const lastName = api.reporter_last_name || '';
@@ -43,8 +66,8 @@ function mapApiToIncidentDetails(api, aiClassification = null) {
   const typeMap = { fire: 'Fire', medical: 'Medical', police: 'Police', disaster: 'Disaster' };
   const emergencyType = typeMap[api.incident_type?.toLowerCase()] || (api.incident_type ? String(api.incident_type).charAt(0).toUpperCase() + String(api.incident_type).slice(1) : '—');
 
-  const severityMap = { high: 'Critical', medium: 'Warning', low: 'Low' };
-  const severity = severityMap[api.severity_level?.toLowerCase()] || (api.severity_level || '—');
+  const normalizedSeverity = normalizeSeverityToDbLevel(api.severity_level);
+  const severity = mapSeverityToDisplay(api.severity_level);
 
   const statusMap = { pending: 'Pending', resolved: 'Resolved', verified: 'Verified' };
   const status = statusMap[api.status?.toLowerCase()] || (api.status || 'Pending');
@@ -75,12 +98,12 @@ function mapApiToIncidentDetails(api, aiClassification = null) {
     aiPredictedSeverity: aiClassification?.predicted_severity || null,
     aiIsOverride: Boolean(aiClassification?.is_override),
     incidentTypeRaw: api.incident_type || null,
-    severityRaw: api.severity_level || null,
+    severityRaw: normalizedSeverity || null,
     transcription: api.transcription || null,
     audioPath: api.audio_path || null,
     mediaPaths: Array.isArray(api.media_paths) ? api.media_paths : [],
     verified: api.verified ?? false,
-    highPriority: api.severity_level === 'high',
+    highPriority: normalizedSeverity === 'high',
     possibleDuplicates: [],
     closureData: null,
     timeReported,
