@@ -341,7 +341,7 @@ def get_labels():
 @app.post("/v1/transcribe", response_model=TranscriptionResponse)
 async def transcribe_audio_endpoint(request: Request, file: UploadFile = File(...)):
     """
-    Transcribe audio file using Whisper Large V3 Turbo via HF Inference API
+    Transcribe audio file using Whisper STT (local quantized by default, API fallback optional)
     
     Supported formats: .wav, .mp3, .m4a, .flac
     Duration: 30-60 seconds
@@ -408,7 +408,7 @@ async def transcribe_audio_endpoint(request: Request, file: UploadFile = File(..
 async def classify_audio_endpoint(request: Request, file: UploadFile = File(...), threshold: float = 0.5):
     """
     End-to-end audio classification pipeline:
-    1. Transcribe audio (Whisper Large V3 Turbo)
+    1. Transcribe audio (Whisper STT)
     2. Classify transcription (Emergency Classifier)
     
     Returns: Transcription + Incident Types + Severity
@@ -726,7 +726,7 @@ async def classify_microphone(request: Request, duration_seconds: int = 30, samp
 
 @app.get("/v1/audio/stats", response_model=UsageStatsResponse)
 def get_audio_stats():
-    """Get Whisper API usage statistics (monitoring)"""
+    """Get Whisper STT usage statistics (monitoring)"""
     try:
         whisper = get_whisper_handler()
         stats = whisper.get_usage_stats()
@@ -774,11 +774,17 @@ async def startup_event():
     whisper = None
     try:
         whisper = get_whisper_handler()
-        print(f"✓ Whisper Handler initialized (HF Inference API)")
+        print(f"✓ Whisper Handler initialized ({whisper.provider_mode} mode)")
         print(f"  - Max duration: {whisper.max_duration}s")
         print(f"  - Min duration: {whisper.min_duration}s")
         print(f"  - Max file size: {whisper.max_file_size_mb}MB")
         print(f"  - Confidence threshold: {whisper.confidence_threshold}")
+        whisper_stats = whisper.get_usage_stats()
+        local_runtime = whisper_stats.get("local_runtime")
+        if local_runtime:
+            print(f"  - STT runtime device: {local_runtime.get('device')}")
+            print(f"  - STT compute type: {local_runtime.get('compute_type')}")
+            print(f"  - STT model: {local_runtime.get('model_size_or_path')}")
     except Exception as e:
         print(f"⚠ Whisper Handler NOT available: {e}")
         print("  - Audio endpoints will return errors until configured")

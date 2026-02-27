@@ -27,7 +27,7 @@
 
 RescueLink AI is a multilingual emergency classification microservice that:
 - **Classifies emergency reports** by incident type (6 categories) and severity (4 levels)
-- **Transcribes emergency audio** using OpenAI Whisper Large V3 Turbo (via HF Inference API)
+- **Transcribes emergency audio** using local quantized Faster-Whisper (with optional HF API fallback)
 - **Chains both models** for end-to-end audio→classification pipeline
 - **Validates input** with strict audio constraints (30-60 seconds, <25MB)
 - **Handles failures gracefully** with fallback mechanisms
@@ -41,6 +41,23 @@ RescueLink AI is a multilingual emergency classification microservice that:
 ---
 
 ## What's New (Audio Pipeline)
+
+### v2.2.0 - Local Quantized STT Migration (In Progress)
+
+**Migration updates:**
+- ✅ **Local-first STT provider**: Faster-Whisper (CTranslate2) is the default transcription backend
+- ✅ **Hybrid quantization policy**: `STT_COMPUTE_TYPE=auto` chooses CPU=`int8`, GPU=`int8_float16`
+- ✅ **Temporary rollout fallback**: optional HF API fallback when local inference fails
+- ✅ **Provider configuration controls** in `.env` for model size/path/device/threads/cache
+
+**New environment flags:**
+- `STT_PROVIDER` (`local` | `api` | `auto`)
+- `STT_ENABLE_API_FALLBACK` (`true`/`false`)
+- `STT_LOCAL_MODEL_SIZE` (default: `medium`)
+- `STT_MODEL_PATH` (optional local model directory)
+- `STT_DEVICE` (`auto` | `cpu` | `cuda`)
+- `STT_COMPUTE_TYPE` (`auto`, `int8`, `int8_float16`, `float16`, ...)
+- `STT_CPU_THREADS`, `STT_BEAM_SIZE`, `STT_CACHE_DIR`
 
 ### v2.1.4 - Performance Session Updates (Session 2)
 

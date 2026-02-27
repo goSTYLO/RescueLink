@@ -20,7 +20,7 @@ Scope source: `ITE 401_ Platform Technologies _ Final Manuscript.md` + codebase 
 
 ## Component Snapshot
 - Backend: 61% (`In Progress`) — API/security baseline is strong, but deep scan engine and notifications are incomplete.
-- AI: 47% (`In Progress`) — Direction changed to offline-first local quantized STT; migration, benchmarking, and reliability hardening are now top priority.
+- AI: 56% (`In Progress`) — Local quantized STT foundation and endpoint test runner are implemented; benchmark, packaging hardening, and release validation remain top priority.
 - Mobile: 46% (`In Progress`) — Core auth/reporting works, but dashboard polish, tests, and backend-sync hardening remain.
 - Web: 55% (`In Progress`) — Dispatcher UI breadth is high, but tests, env hardening, and backend-sync consistency need work.
 
@@ -33,16 +33,16 @@ Scope source: `ITE 401_ Platform Technologies _ Final Manuscript.md` + codebase 
 ## Cross-Component Dependencies
 - Mobile and Web incident history/queue UX depend on Backend incident API contract stability.
 - Backend AI orchestration quality depends on AI service reliability for transcription/classification.
-- Backend AI orchestration now depends on local model packaging, quantized model selection, and offline inference readiness in AI.
+- Backend AI orchestration now depends on local model benchmark thresholds, packaging consistency, and release hardening in AI.
 - Backend verification trust chain depends on blockchain write + persistence + web visibility.
 - Security and performance acceptance requires all components to close test and hardening gaps.
 
 ## Program-Level Risks
 - Deep file scan remains `stub` driven in backend default configuration.
-- AI local STT migration is incomplete; reliability may regress until local model selection, warmup strategy, and fallback policy are validated.
+- AI local STT foundation is complete, but performance/reliability acceptance is still at risk until benchmark thresholds and rollout gates are finalized.
 - Mobile and Web automated test coverage is limited.
 - Web production environment configuration still needs hardening beyond localhost defaults.
 
 ## Near-Term Sprint Focus
-- Sprint A (stabilization): backend security-critical completion, AI local-quantized STT migration foundation, mobile/web backend integration hardening.
-- Sprint B (operationalization): local-STT benchmark + cutover validation, test coverage expansion, environment hardening, observability, and performance validation.
+- Sprint A (stabilization): backend security-critical completion, AI local-STT benchmark/packaging hardening, mobile/web backend integration hardening.
+- Sprint B (operationalization): local-STT cutover validation and release gates, test coverage expansion, environment hardening, observability, and performance validation.

@@ -10,7 +10,7 @@ Component path: `RescueLink AI/`
 - NFR: performance, reliability, security, scalability
 
 ## Component Roll-up
-- Progress: 47%
+- Progress: 56%
 - Status: `In Progress`
 - Direction change: STT will migrate from internet-dependent HF inference to local quantized inference suitable for current machine capacity.
 
@@ -33,7 +33,7 @@ Component path: `RescueLink AI/`
     - AI-T109 Backend environment contract clarity — `Done`
 
 ## AI-E2 Audio Transcription Pipeline
-- Progress: 58% | Status: `In Progress`
+- Progress: 76% | Status: `In Progress`
 - Sub-epic AI-SE2.1 Cloud STT baseline (legacy path) (100%, `Done`)
   - Story AI-US2.1.1 Legacy constrained transcription flow (100%, `Done`)
     - AI-T201 Whisper handler implementation — `Done`
@@ -41,13 +41,18 @@ Component path: `RescueLink AI/`
     - AI-T202 HF InferenceClient integration — `Done`
     - AI-T203 Duration/payload guardrails — `Done`
     - AI-T204 Structured usage statistics — `Done`
-- Sub-epic AI-SE2.2 Local quantized STT migration (15%, `In Progress`)
-  - Story AI-US2.2.1 Offline-first transcription reliability (15%, `In Progress`)
-    - AI-T205 Select local quantized Whisper-family model for machine constraints (CPU/GPU/RAM) — `In Progress`
-    - AI-T206 Add local inference backend abstraction and provider toggle (local vs legacy cloud) — `Not Started`
-    - AI-T207 Implement local model loader with warmup and lazy fallback strategy — `Not Started`
-    - AI-T208 Replace runtime HF dependency in primary transcription path — `Not Started`
-    - AI-T209 Add deterministic offline mode flag with hard fail if internet path unavailable — `Not Started`
+- Sub-epic AI-SE2.2 Local quantized STT migration (100%, `Done`)
+  - Story AI-US2.2.1 Offline-first transcription reliability (100%, `Done`)
+    - AI-T205 Select local quantized Whisper-family model for machine constraints (CPU/GPU/RAM) — `Done`
+      - Evidence: `RescueLink AI/audio/whisper_handler.py`, `RescueLink AI/.env`
+    - AI-T206 Add local inference backend abstraction and provider toggle (local vs legacy cloud) — `Done`
+      - Evidence: `RescueLink AI/audio/whisper_handler.py`
+    - AI-T207 Implement local model loader with warmup and lazy fallback strategy — `Done`
+      - Evidence: `RescueLink AI/audio/whisper_handler.py`, `RescueLink AI/api/main.py`
+    - AI-T208 Replace runtime HF dependency in primary transcription path — `Done`
+      - Evidence: `RescueLink AI/audio/whisper_handler.py`, `RescueLink AI/.env`
+    - AI-T209 Add deterministic offline mode flag with hard fail if internet path unavailable — `Done`
+      - Evidence: `RescueLink AI/.env`, `RescueLink AI/audio/whisper_handler.py`
 - Sub-epic AI-SE2.3 Audio resiliency under local runtime (22%, `In Progress`)
   - Story AI-US2.3.1 Graceful degradation for local inference (22%, `In Progress`)
     - AI-T210 Timeout/retry behavior for local inference jobs — `In Progress`
@@ -57,19 +62,20 @@ Component path: `RescueLink AI/`
     - AI-T214 Large-audio chunking strategy for local execution — `Not Started`
 
 ## AI-E7 Local Model Performance and Deployment Readiness
-- Progress: 8% | Status: `In Progress`
+- Progress: 18% | Status: `In Progress`
 - Sub-epic AI-SE7.1 Quantized model benchmarking (10%, `In Progress`)
   - Story AI-US7.1.1 Model is fast enough on target machine (10%, `In Progress`)
     - AI-T701 Benchmark candidate quantized models (tiny/base/small/medium variants) on representative rescue audio — `In Progress`
     - AI-T702 Record latency, real-time factor, memory usage, and transcription quality per model — `Not Started`
     - AI-T703 Select default model profile and backup profile for low-resource mode — `Not Started`
     - AI-T704 Define acceptance threshold (target p95 latency and minimum accuracy) — `Not Started`
-- Sub-epic AI-SE7.2 Local runtime packaging (5%, `In Progress`)
-  - Story AI-US7.2.1 Team can run local STT consistently (5%, `In Progress`)
+- Sub-epic AI-SE7.2 Local runtime packaging (30%, `In Progress`)
+  - Story AI-US7.2.1 Team can run local STT consistently (30%, `In Progress`)
     - AI-T705 Pin local inference dependencies and version lockfile — `Not Started`
     - AI-T706 Document one-command local model setup and cache path strategy — `Not Started`
     - AI-T707 Add startup preflight checks for model files, device capability, and disk space — `Not Started`
-    - AI-T708 Add environment template for model path, compute type, thread count, and batch size — `Not Started`
+    - AI-T708 Add environment template for model path, compute type, thread count, and batch size — `Done`
+      - Evidence: `RescueLink AI/.env.example`
 - Sub-epic AI-SE7.3 Regression and fallback policy (8%, `In Progress`)
   - Story AI-US7.3.1 Migration does not regress API contracts (8%, `In Progress`)
     - AI-T709 Add regression tests comparing cloud-baseline vs local output schema consistency — `Not Started`
@@ -124,12 +130,13 @@ Component path: `RescueLink AI/`
     - AI-T506 Autoscaling/load profile policy — `Not Started`
 
 ## AI-E6 Testing, Benchmarking, and Release Maturity
-- Progress: 28% | Status: `In Progress`
-- Sub-epic AI-SE6.1 Automated testing (33%, `In Progress`)
-  - Story AI-US6.1.1 API/model pre-release validation (33%, `In Progress`)
+- Progress: 37% | Status: `In Progress`
+- Sub-epic AI-SE6.1 Automated testing (50%, `In Progress`)
+  - Story AI-US6.1.1 API/model pre-release validation (50%, `In Progress`)
     - AI-T601 Fallback rule unit tests — `Done`
       - Evidence: `RescueLink AI/test/test_fallback_rules.py`
-    - AI-T602 Endpoint contract tests — `Not Started`
+    - AI-T602 Endpoint contract tests — `Done`
+      - Evidence: `RescueLink AI/test/test_ai_endpoints.py`
     - AI-T603 Fixture-based regression suite — `Not Started`
 - Sub-epic AI-SE6.2 Benchmarking and release (25%, `In Progress`)
   - Story AI-US6.2.1 KPI reporting against latency/accuracy targets (25%, `In Progress`)
@@ -139,6 +146,6 @@ Component path: `RescueLink AI/`
 
 ## Audit Notes
 - Strongest area: API foundation and core audio pipeline.
-- Largest delivery gaps: local quantized STT migration completion, explicit false-report module, and confidence output.
+- Largest delivery gaps: explicit false-report module, confidence governance, and benchmark automation.
 - Operational gap: observability, production reliability tooling, and local-model benchmark automation remain early.
-- Priority shift: internet-dependent transcription path is now legacy baseline; offline-first local inference is primary delivery objective.
+- Priority shift: internet-dependent transcription path is now legacy baseline; local quantized inference is operational and should now move through benchmark + release hardening gates.
