@@ -28,16 +28,37 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   }
 
   Widget _buildLogo() {
-    return Column(
+    return Row(
+      mainAxisSize: MainAxisSize.min,
       mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Image.asset(
-          'assets/logo/logo.png',
-          width: 80,
-          height: 80,
+          'assets/logo/logo2.png',
+          width: 64,
+          height: 64,
           fit: BoxFit.contain,
         ),
-        // The SizedBox and Text widget have been removed from here
+        const SizedBox(width: 0),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            RichText(
+              text: const TextSpan(
+                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                children: [
+                  TextSpan(text: 'Rescue', style: TextStyle(color: Color(0xFF2563EB))),
+                  TextSpan(text: 'Link', style: TextStyle(color: Color(0xFFEF4444))),
+                ],
+              ),
+            ),
+            const Text(
+              'Emergency Response and Safety',
+              style: TextStyle(color: Color(0xFF6B7280), fontSize: 13),
+            ),
+          ],
+        ),
       ],
     );
   }
@@ -147,7 +168,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Column(
             children: [
-              _buildLogo(),
+              const SizedBox(height: 28),
+              Center(child: _buildLogo()),
               const SizedBox(height: 20),
               SizedBox(
                 height: 180,

@@ -68,11 +68,28 @@ class _VerifyNumberScreenState extends State<VerifyNumberScreen> {
   }
 
   Widget _buildLogo() {
-    return Column(
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Image.asset('assets/logo/logo.png', width: 80, height: 80, fit: BoxFit.contain),
-        const SizedBox(height: 12),
-        const Text('Emergency Response & Safety', style: TextStyle(color: Color(0xFF6B7280), fontSize: 12)),
+        Image.asset('assets/logo/logo2.png', width: 64, height: 64, fit: BoxFit.contain),
+        const SizedBox(width: 0),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            RichText(
+              text: const TextSpan(
+                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                children: [
+                  TextSpan(text: 'Rescue', style: TextStyle(color: Color(0xFF2563EB))),
+                  TextSpan(text: 'Link', style: TextStyle(color: Color(0xFFEF4444))),
+                ],
+              ),
+            ),
+            const Text('Emergency Response and Safety', style: TextStyle(color: Color(0xFF6B7280), fontSize: 13)),
+          ],
+        ),
       ],
     );
   }

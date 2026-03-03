@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'report_history_screen.dart';
 import 'notifications_screen.dart';
@@ -36,6 +37,9 @@ class HomePlaceholderScreen extends StatefulWidget {
 }
 
 class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
+  Timer? _sosTimer;
+  int _sosCountdown = 0;
+
   @override
   void initState() {
     super.initState();
@@ -47,25 +51,113 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
     }
   }
 
+  @override
+  void dispose() {
+    _sosTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startSosCountdown() {
+    _sosTimer?.cancel();
+    setState(() => _sosCountdown = 5);
+    _sosTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) {
+        t.cancel();
+        return;
+      }
+      setState(() {
+        _sosCountdown--;
+        if (_sosCountdown <= 0) {
+          t.cancel();
+          _sosTimer = null;
+          widget.onEmergencyNoAiPressed?.call();
+        }
+      });
+    });
+  }
+
+  void _cancelSosCountdown() {
+    _sosTimer?.cancel();
+    _sosTimer = null;
+    setState(() => _sosCountdown = 0);
+  }
+
   int _currentIndex = 0;
+
+  Widget _buildSosCountdownOverlay() {
+    return Material(
+      color: Colors.black54,
+      child: Center(
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 32),
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.2),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.warning_amber_rounded, color: const Color(0xFFEF4444), size: 56),
+              const SizedBox(height: 16),
+              Text(
+                'SOS in $_sosCountdown',
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF111827),
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Tap Cancel to abort',
+                style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: _cancelSosCountdown,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFFEF4444),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: const Text('Cancel'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   Widget _buildLogo() {
     return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Image.asset(
-          'assets/logo/logo.png',
-          width: 48,
-          height: 48,
+          'assets/logo/logo2.png',
+          width: 64,
+          height: 64,
           fit: BoxFit.contain,
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: 0),
         Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
           children: [
             RichText(
               text: const TextSpan(
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
                 children: [
                   TextSpan(text: 'Rescue', style: TextStyle(color: Color(0xFF2563EB))),
                   TextSpan(text: 'Link', style: TextStyle(color: Color(0xFFEF4444))),
@@ -73,8 +165,8 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
               ),
             ),
             const Text(
-              'Emergency Response & Safety',
-              style: TextStyle(color: Color(0xFF6B7280), fontSize: 11),
+              'Emergency Response and Safety',
+              style: TextStyle(color: Color(0xFF6B7280), fontSize: 13),
             ),
           ],
         ),
@@ -130,8 +222,8 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
               height: size,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: color.withOpacity(0.12),
-                border: Border.all(color: color.withOpacity(0.9), width: 2),
+                color: color.withOpacity(0.35),
+                border: Border.all(color: color, width: 2),
                 boxShadow: [
                   BoxShadow(
                     color: color.withOpacity(0.25),
@@ -267,13 +359,17 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
               _buildOutlinedRedCircleButton(
                 icon: Icons.report_problem,
                 label: 'SOS',
-                subtitle: 'Long press for emergency',
-                onLongPress: widget.onEmergencyNoAiPressed,
+                subtitle: _sosCountdown > 0 ? 'Cancelling in $_sosCountdown...' : 'Long press to report. 1 tap: 5 sec to cancel.',
+                onTap: _sosCountdown > 0 ? null : _startSosCountdown,
+                onLongPress: () {
+                  _cancelSosCountdown();
+                  widget.onEmergencyNoAiPressed?.call();
+                },
               ),
               _buildOutlinedRedCircleButton(
                 icon: Icons.bar_chart,
                 label: 'Incident Reports',
-                subtitle: 'press this for incident reports',
+                subtitle: 'Press to report incident',
                 onTap: widget.onSosPressed,
               ),
             ],
@@ -384,11 +480,16 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF9FAFB),
-      body: SafeArea(
-        child: IndexedStack(
-          index: _currentIndex,
-          children: pages,
-        ),
+      body: Stack(
+        children: [
+          SafeArea(
+            child: IndexedStack(
+              index: _currentIndex,
+              children: pages,
+            ),
+          ),
+          if (_sosCountdown > 0) _buildSosCountdownOverlay(),
+        ],
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
