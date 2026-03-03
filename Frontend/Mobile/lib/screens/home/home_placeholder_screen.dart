@@ -368,7 +368,7 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
               ),
               _buildOutlinedRedCircleButton(
                 icon: Icons.bar_chart,
-                label: 'Incident Reports',
+                label: 'Report Incident',
                 subtitle: 'Press to report incident',
                 onTap: widget.onSosPressed,
               ),
