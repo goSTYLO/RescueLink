@@ -107,7 +107,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const SizedBox(height: 16),
-          _buildLogo(),
+          Align(alignment: Alignment.centerLeft, child: _buildLogo()),
           const SizedBox(height: 20),
           if (_loadingProfile)
             const Padding(

@@ -130,7 +130,7 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const SizedBox(height: 16),
-          _buildLogo(),
+          Align(alignment: Alignment.centerLeft, child: _buildLogo()),
           const SizedBox(height: 20),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),

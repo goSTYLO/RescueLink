@@ -269,7 +269,7 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
           // Header: centered logo, notification upper-right
           Row(
             children: [
-              Expanded(child: Center(child: _buildLogo())),
+              _buildLogo(),
               IconButton(
                 icon: const Icon(Icons.notifications_none, color: Color(0xFF374151), size: 28),
                 onPressed: () => _openNotifications(context),

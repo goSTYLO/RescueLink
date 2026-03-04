@@ -48,7 +48,7 @@ class NotificationsScreen extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const SizedBox(height: 16),
-          _buildLogo(),
+          Align(alignment: Alignment.centerLeft, child: _buildLogo()),
           const SizedBox(height: 20),
           // Location bar
           Container(
