@@ -12,7 +12,7 @@ import {
   DialogDescription,
 } from '@/presentation/components/ui/Dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/presentation/components/ui/Select';
-import { departments as initialDepartments, units, incidents } from '@/data/mock/mockData';
+import { getDepartments, createDepartment, updateDepartment, deleteDepartment } from '@/data/api/departments.api';
 import { useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
@@ -45,19 +45,50 @@ export function DepartmentsPage() {
   const navigate = useNavigate();
   const { theme } = useTheme();
   const isLight = theme === 'light';
-  const [departments, setDepartments] = useState(
-    initialDepartments.map((d) => ({
-      ...d,
-      personnelCount: (units[d.id] || []).length,
-      activeTaskCount: (units[d.id] || []).filter((u) => u.activeTaskCount > 0).length,
-    }))
-  );
+  const [departments, setDepartments] = useState([]);
+  const [isLoadingDepartments, setIsLoadingDepartments] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingDept, setEditingDept] = useState(null);
   const [typeSelectOpen, setTypeSelectOpen] = useState(false);
   useEffect(() => {
     if (!dialogOpen) setTypeSelectOpen(false);
   }, [dialogOpen]);
+
+  const mapDepartment = (dept) => ({
+    id: dept.code || String(dept.department_id),
+    departmentId: dept.department_id,
+    name: dept.name,
+    type: dept.type,
+    color: dept.color || 'gray',
+    statusRaw: dept.status || 'active',
+    unitsCount: Number(dept.units_count ?? dept.total_units ?? 0),
+    availableUnits: Number(dept.available_units ?? 0),
+    personnelCount: Number(dept.personnel_count ?? 0),
+    activeTaskCount: Number(dept.active_task_count ?? 0),
+    activeIncidents: Number(dept.active_incidents ?? 0),
+  });
+
+  const loadDepartments = async () => {
+    setIsLoadingDepartments(true);
+    try {
+      const rows = await getDepartments();
+      setDepartments(Array.isArray(rows) ? rows.map(mapDepartment) : []);
+    } catch (error) {
+      setDepartments([]);
+      Swal.fire({
+        icon: 'error',
+        title: 'Could not load departments',
+        text: error.message || 'Please try again later.',
+        confirmButtonColor: '#134178',
+      });
+    } finally {
+      setIsLoadingDepartments(false);
+    }
+  };
+
+  useEffect(() => {
+    loadDepartments();
+  }, []);
   const [form, setForm] = useState({
     name: '',
     type: 'Fire',
@@ -87,10 +118,9 @@ export function DepartmentsPage() {
   };
 
   const getDepartmentStats = (dept) => {
-    const deptUnits = units[dept.id] || [];
-    const activeIncidents = incidents.filter((i) => i.status === 'In Progress').length;
-    const availableUnits = deptUnits.filter((u) => u.status === 'Available').length;
-    const totalUnits = deptUnits.length || (dept.unitsCount ?? 0);
+    const activeIncidents = dept.activeIncidents ?? 0;
+    const availableUnits = dept.availableUnits ?? 0;
+    const totalUnits = dept.unitsCount ?? 0;
     let status = 'Available';
     if (totalUnits === 0) status = 'Available';
     else if (availableUnits === 0) status = 'Critical Load';
@@ -98,7 +128,7 @@ export function DepartmentsPage() {
     return {
       activeIncidents,
       availableUnits: totalUnits > 0 ? availableUnits : 0,
-      totalUnits: totalUnits || 1,
+      totalUnits,
       status,
     };
   };
@@ -112,8 +142,8 @@ export function DepartmentsPage() {
     }
   };
 
-  const totalActiveIncidents = incidents.filter((i) => i.status === 'In Progress').length;
-  const totalAvailableUnits = Object.values(units).flat().filter((u) => u.status === 'Available').length;
+  const totalActiveIncidents = departments.reduce((sum, dept) => sum + (dept.activeIncidents || 0), 0);
+  const totalAvailableUnits = departments.reduce((sum, dept) => sum + (dept.availableUnits || 0), 0);
 
   const openAddDialog = () => {
     setEditingDept(null);
@@ -124,41 +154,47 @@ export function DepartmentsPage() {
   const openEditDialog = (dept, e) => {
     e?.stopPropagation();
     setEditingDept(dept);
-    const deptUnits = units[dept.id] || [];
     setForm({
       name: dept.name,
       type: dept.type,
       color: dept.color || 'red',
-      unitsCount: deptUnits.length,
-      personnelCount: dept.personnelCount ?? deptUnits.length,
-      activeTaskCount: dept.activeTaskCount ?? deptUnits.reduce((s, u) => s + (u.activeTaskCount || 0), 0),
+      unitsCount: dept.unitsCount ?? 0,
+      personnelCount: dept.personnelCount ?? 0,
+      activeTaskCount: dept.activeTaskCount ?? 0,
     });
     setDialogOpen(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.name.trim()) {
       Swal.fire({ icon: 'error', title: 'Validation failed', text: 'Please enter a department name.', confirmButtonColor: '#134178' });
       return;
     }
-    if (editingDept) {
-      setDepartments((prev) =>
-        prev.map((d) =>
-          d.id === editingDept.id
-            ? { ...d, name: form.name.trim(), type: form.type, color: form.color, unitsCount: form.unitsCount, personnelCount: form.personnelCount, activeTaskCount: form.activeTaskCount }
-            : d
-        )
-      );
-      Swal.fire({ icon: 'success', title: 'Department updated', text: 'Department details have been saved.', timer: 2000, showConfirmButton: false, timerProgressBar: true });
-    } else {
-      const id = form.name.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-      setDepartments((prev) => [
-        ...prev,
-        { id: id || `dept-${Date.now()}`, name: form.name.trim(), type: form.type, color: form.color, unitsCount: form.unitsCount, personnelCount: form.personnelCount, activeTaskCount: form.activeTaskCount },
-      ]);
-      Swal.fire({ icon: 'success', title: 'Department added', text: 'The new department has been added.', timer: 2000, showConfirmButton: false, timerProgressBar: true });
+    try {
+      const payload = {
+        name: form.name.trim(),
+        type: form.type,
+        color: form.color,
+        status: 'active',
+      };
+
+      if (editingDept) {
+        await updateDepartment(editingDept.departmentId, payload);
+        Swal.fire({ icon: 'success', title: 'Department updated', text: 'Department details have been saved.', timer: 2000, showConfirmButton: false, timerProgressBar: true });
+      } else {
+        await createDepartment(payload);
+        Swal.fire({ icon: 'success', title: 'Department added', text: 'The new department has been added.', timer: 2000, showConfirmButton: false, timerProgressBar: true });
+      }
+      await loadDepartments();
+      setDialogOpen(false);
+    } catch (error) {
+      Swal.fire({
+        icon: 'error',
+        title: editingDept ? 'Update failed' : 'Create failed',
+        text: error.message || 'Please try again later.',
+        confirmButtonColor: '#134178',
+      });
     }
-    setDialogOpen(false);
   };
 
   const handleDelete = (deptId, e) => {
@@ -175,8 +211,16 @@ export function DepartmentsPage() {
       customClass: { popup: 'rounded-2xl shadow-xl', title: 'text-foreground text-xl', htmlContainer: 'text-muted', confirmButton: 'rounded-xl px-5 py-2.5 font-medium', cancelButton: 'rounded-xl px-5 py-2.5 font-medium' },
     }).then((result) => {
       if (result.isConfirmed) {
-        setDepartments((prev) => prev.filter((d) => d.id !== deptId));
-        Swal.fire({ icon: 'success', title: 'Department deleted', text: 'The department has been removed.', timer: 2000, showConfirmButton: false, timerProgressBar: true });
+        const target = departments.find((d) => d.id === deptId);
+        if (!target?.departmentId) return;
+        deleteDepartment(target.departmentId)
+          .then(() => loadDepartments())
+          .then(() => {
+            Swal.fire({ icon: 'success', title: 'Department deleted', text: 'The department has been removed.', timer: 2000, showConfirmButton: false, timerProgressBar: true });
+          })
+          .catch((error) => {
+            Swal.fire({ icon: 'error', title: 'Delete failed', text: error.message || 'Please try again later.', confirmButtonColor: '#134178' });
+          });
       }
     });
   };
@@ -249,12 +293,15 @@ export function DepartmentsPage() {
         </div>
 
         {/* Department cards – glass + neumorphism */}
+        {isLoadingDepartments && <p className="text-sm text-muted mb-4">Loading departments...</p>}
+        {!isLoadingDepartments && departments.length === 0 && <p className="text-sm text-muted mb-4">No departments found.</p>}
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {departments.map((dept) => {
             const Icon = getDepartmentIcon(dept.type);
             const stats = getDepartmentStats(dept);
-            const totalUnitsDisplay = units[dept.id]?.length ?? dept.unitsCount ?? 0;
-            const availableFromUnits = units[dept.id] ? stats.availableUnits : totalUnitsDisplay - (dept.activeTaskCount || 0);
+            const totalUnitsDisplay = dept.unitsCount ?? 0;
+            const availableFromUnits = stats.availableUnits;
 
             return (
               <div
@@ -307,9 +354,7 @@ export function DepartmentsPage() {
                     </div>
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-muted">Units</span>
-                      <span className="font-semibold text-primary">
-                        {units[dept.id] ? `${stats.availableUnits}/${stats.totalUnits}` : `${dept.unitsCount ?? 0} total`}
-                      </span>
+                      <span className="font-semibold text-primary">{`${availableFromUnits}/${Math.max(totalUnitsDisplay, 1)}`}</span>
                     </div>
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-muted">Personnel</span>

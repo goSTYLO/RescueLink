@@ -586,6 +586,10 @@ const incidentController = {
         return res.status(400).json({ error: 'incident_type and severity_level are required' });
       }
 
+      if (!reason || String(reason).trim().length < 10) {
+        return res.status(400).json({ error: 'A manual override reason with at least 10 characters is required' });
+      }
+
       const incident = await Incident.findById(validatedId);
       if (!incident) {
         return res.status(404).json({ error: 'Incident not found' });

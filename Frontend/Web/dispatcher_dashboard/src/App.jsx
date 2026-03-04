@@ -25,10 +25,17 @@ import ForgotPassword from '@/presentation/pages/ForgotPassword';
 import EnterCode from '@/presentation/pages/EnterCode';
 import CreateNewPassword from '@/presentation/pages/CreateNewPassword';
 import ResetPasswordPage from '@/presentation/pages/ResetPasswordPage';
+import { AccessDeniedNotice } from '@/presentation/components/common/AccessDeniedNotice';
+import { clearAuthSession, hasRoleAccess } from '@/core/auth/session';
+
+const SUPER_ADMIN_ONLY = [ROLES.SUPER_ADMIN];
+const DEPARTMENT_AND_UP = [ROLES.SUPER_ADMIN, ROLES.DEPARTMENT_ADMIN];
+const ANY_AUTH_ROLE = [ROLES.SUPER_ADMIN, ROLES.DEPARTMENT_ADMIN, ROLES.PERSONNEL];
 
 // Protected Route Component
-function ProtectedRoute({ children }) {
+function ProtectedRoute({ children, allowedRoles = [] }) {
   const [user, setUser] = useState(null);
+  const [userRole, setUserRole] = useState(ROLES.PERSONNEL);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -46,6 +53,7 @@ function ProtectedRoute({ children }) {
         }));
       }
       setUser({ uid: 'dev-user' });
+      setUserRole(ROLES.SUPER_ADMIN);
       setLoading(false);
       return;
     }
@@ -54,9 +62,16 @@ function ProtectedRoute({ children }) {
     const token = localStorage.getItem('token');
     const storedUser = localStorage.getItem('user');
     if (token && storedUser) {
+      try {
+        const parsedUser = JSON.parse(storedUser);
+        setUserRole(normalizeRole(parsedUser?.role));
+      } catch (_) {
+        setUserRole(ROLES.PERSONNEL);
+      }
       setUser({ authenticated: true });
     } else {
       setUser(null);
+      setUserRole(ROLES.PERSONNEL);
     }
     setLoading(false);
   }, []);
@@ -73,6 +88,21 @@ function ProtectedRoute({ children }) {
   // Production mode - require authentication
   if (!user) {
     return <Navigate to="/login" replace />;
+  }
+
+  if (!hasRoleAccess(userRole, allowedRoles)) {
+    const redirectPath = userRole === ROLES.DEPARTMENT_ADMIN
+      ? '/department/dashboard'
+      : userRole === ROLES.PERSONNEL
+        ? '/department/tasks'
+        : '/dashboard';
+    return (
+      <AccessDeniedNotice
+        message="Your role does not allow access to this route."
+        redirectPath={redirectPath}
+        redirectLabel="Go to Allowed Page"
+      />
+    );
   }
 
   return children;
@@ -117,7 +147,7 @@ export default function App() {
     try {
       await signOut(auth);
       setUserData(null);
-      localStorage.removeItem('user');
+      clearAuthSession();
       setPage('login');
     } catch (err) {
       console.error('Logout error:', err);
@@ -155,77 +185,77 @@ export default function App() {
 
           {/* Protected Routes */}
           <Route path="/dashboard" element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={SUPER_ADMIN_ONLY}>
               <DashboardPage />
             </ProtectedRoute>
           } />
           <Route path="/map" element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={ANY_AUTH_ROLE}>
               <MapViewPage />
             </ProtectedRoute>
           } />
           <Route path="/departments" element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={SUPER_ADMIN_ONLY}>
               <DepartmentsPage />
             </ProtectedRoute>
           } />
           <Route path="/departments/:id" element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={SUPER_ADMIN_ONLY}>
               <DepartmentDetailsPage />
             </ProtectedRoute>
           } />
           <Route path="/audit" element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={SUPER_ADMIN_ONLY}>
               <AuditLogPage />
             </ProtectedRoute>
           } />
           <Route path="/adminactions" element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={SUPER_ADMIN_ONLY}>
               <AdminActionsPage />
             </ProtectedRoute>
           } />
           <Route path="/team" element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={SUPER_ADMIN_ONLY}>
               <TeamPage />
             </ProtectedRoute>
           } />
           <Route path="/department/dashboard" element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={DEPARTMENT_AND_UP}>
               <DepartmentDashboardPage />
             </ProtectedRoute>
           } />
           <Route path="/department/tasks" element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={ANY_AUTH_ROLE}>
               <DepartmentTasksPage />
             </ProtectedRoute>
           } />
           <Route path="/department/personnel" element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={DEPARTMENT_AND_UP}>
               <DepartmentPersonnelPage />
             </ProtectedRoute>
           } />
           <Route path="/department/vehicles" element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={DEPARTMENT_AND_UP}>
               <DepartmentVehiclesPage />
             </ProtectedRoute>
           } />
           <Route path="/profile" element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={ANY_AUTH_ROLE}>
               <ProfilePage />
             </ProtectedRoute>
           } />
           <Route path="/settings" element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={SUPER_ADMIN_ONLY}>
               <SettingsPage />
             </ProtectedRoute>
           } />
           <Route path="/help" element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={ANY_AUTH_ROLE}>
               <HelpSupportPage />
             </ProtectedRoute>
           } />
           <Route path="/incidents/:id" element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={ANY_AUTH_ROLE}>
               <IncidentDetailsPage />
             </ProtectedRoute>
           } />

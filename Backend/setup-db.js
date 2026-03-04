@@ -14,6 +14,8 @@ if (!DATABASE_URL) {
 
 const MIGRATIONS_DIR = path.join(__dirname, 'migrations');
 const MIGRATION_ORDER = [
+  'add_rbac_system.sql',
+  'add_department_management.sql',
   'add_dispatcher_audit_logs.sql',
   'add_token_blacklist.sql',
   'add_dispatcher_login_otp.sql',

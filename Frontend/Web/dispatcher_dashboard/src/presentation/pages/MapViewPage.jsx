@@ -3,24 +3,101 @@ import { Badge } from '@/presentation/components/ui/Badge';
 import { Button } from '@/presentation/components/ui/Button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/presentation/components/ui/Select';
 import { MapPin, SlidersHorizontal, Map, List, ChevronRight } from 'lucide-react';
-import { incidents, barangays } from '@/data/mock/mockData';
-import { useState, useEffect, useRef } from 'react';
+import { incidents as mockIncidents, barangays } from '@/data/mock/mockData';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
+import { getIncidents } from '@/data/api/incidents.api';
+import { getClosestUnits, getGeofenceAlerts, getHeatmapHotspots } from '@/data/api/location.api';
+import { DEV_MODE } from '@/core/config/app.config';
+
+function mapApiIncidentToMap(api) {
+  const typeMap = { fire: 'Fire', medical: 'Medical', police: 'Police', disaster: 'Disaster' };
+  const emergencyType = typeMap[api.incident_type?.toLowerCase()] || (api.incident_type ? String(api.incident_type).charAt(0).toUpperCase() + String(api.incident_type).slice(1) : 'Unknown');
+  const severityMap = { high: 'Critical', medium: 'Warning', low: 'Resolved' };
+  const severity = severityMap[api.severity_level?.toLowerCase()] || 'Warning';
+  let timeReported = '—';
+  if (api.created_at) {
+    const d = new Date(api.created_at);
+    timeReported = d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
+  }
+
+  return {
+    id: api.report_id,
+    emergencyType,
+    severity,
+    barangay: api.barangay || '—',
+    timeReported,
+    status: api.status || 'pending',
+    location: {
+      lat: Number(api.latitude),
+      lng: Number(api.longitude),
+    },
+  };
+}
+
+const FALLBACK_UNITS = [
+  { id: 'BFP-01', name: 'Fire Truck 01', department: 'Fire', availability: 'Available', latitude: 16.0455, longitude: 120.3412 },
+  { id: 'MED-01', name: 'Ambulance 01', department: 'Medical', availability: 'Available', latitude: 16.0441, longitude: 120.3386 },
+  { id: 'PNP-01', name: 'Patrol Car 01', department: 'Police', availability: 'Available', latitude: 16.043, longitude: 120.3367 },
+  { id: 'DRRMO-01', name: 'Rescue Unit 01', department: 'Disaster', availability: 'Available', latitude: 16.0463, longitude: 120.3394 },
+];
 
 export function MapViewPage() {
   const navigate = useNavigate();
   const { theme } = useTheme();
   const isLight = theme === 'light';
+  const [incidents, setIncidents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [lastUpdated, setLastUpdated] = useState(null);
   const [filterDepartment, setFilterDepartment] = useState('All');
   const [filterBarangay, setFilterBarangay] = useState('All');
-  const [selectedIncident, setSelectedIncident] = useState(incidents[0] || null);
+  const [selectedIncident, setSelectedIncident] = useState(null);
   const [showPopup, setShowPopup] = useState(false);
+  const [geoInsights, setGeoInsights] = useState({
+    loading: false,
+    error: null,
+    closestUnits: [],
+    geofenceAlerts: [],
+    hotspots: [],
+  });
   const popupTimerRef = useRef(null);
   const [selectStates, setSelectStates] = useState({
     department: false,
     barangay: false,
   });
+
+  const fetchIncidents = useCallback(async () => {
+    const token = localStorage.getItem('token');
+    if (DEV_MODE && !token) {
+      setIncidents(mockIncidents);
+      setError(null);
+      setLoading(false);
+      setLastUpdated(new Date());
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await getIncidents({ limit: 150, offset: 0 });
+      const mapped = Array.isArray(data) ? data.map(mapApiIncidentToMap) : [];
+      setIncidents(mapped);
+      setLastUpdated(new Date());
+    } catch (err) {
+      setError(err.message || 'Failed to load incidents');
+      setIncidents([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchIncidents();
+    const interval = setInterval(fetchIncidents, 30000);
+    return () => clearInterval(interval);
+  }, [fetchIncidents]);
 
   const handleMarkerClick = (incident) => {
     if (selectedIncident?.id === incident.id && showPopup) {
@@ -47,9 +124,85 @@ export function MapViewPage() {
   }, []);
 
   const filteredIncidents = incidents.filter(inc => {
+    if (filterDepartment !== 'All' && inc.emergencyType !== filterDepartment) return false;
     if (filterBarangay !== 'All' && inc.barangay !== filterBarangay) return false;
     return true;
   });
+
+  useEffect(() => {
+    if (!selectedIncident && filteredIncidents.length > 0) {
+      setSelectedIncident(filteredIncidents[0]);
+      return;
+    }
+    if (selectedIncident && !filteredIncidents.some((inc) => inc.id === selectedIncident.id)) {
+      setSelectedIncident(filteredIncidents[0] || null);
+      setShowPopup(false);
+    }
+  }, [filteredIncidents, selectedIncident]);
+
+  const fetchGeoInsights = useCallback(async () => {
+    const token = localStorage.getItem('token');
+    if ((!token && !DEV_MODE) || !selectedIncident) {
+      setGeoInsights((prev) => ({ ...prev, closestUnits: [], geofenceAlerts: [], hotspots: [] }));
+      return;
+    }
+
+    setGeoInsights((prev) => ({ ...prev, loading: true, error: null }));
+    try {
+      if (DEV_MODE && !token) {
+        const hotspots = filteredIncidents.slice(0, 3).map((incident) => ({
+          barangay: incident.barangay,
+          incidentCount: 1,
+          heatScore: incident.severity === 'Critical' ? 3 : incident.severity === 'Warning' ? 2 : 1,
+        }));
+        setGeoInsights({
+          loading: false,
+          error: null,
+          closestUnits: FALLBACK_UNITS.slice(0, 3).map((unit, idx) => ({ ...unit, etaMinutes: 4 + idx * 3 })),
+          geofenceAlerts: [],
+          hotspots,
+        });
+        return;
+      }
+
+      const [closest, geofence, heatmap] = await Promise.all([
+        getClosestUnits({
+          incident: {
+            latitude: selectedIncident?.location?.lat ?? 16.043,
+            longitude: selectedIncident?.location?.lng ?? 120.337,
+          },
+          units: FALLBACK_UNITS,
+          limit: 4,
+        }),
+        getGeofenceAlerts({
+          incidents: filteredIncidents.map((incident) => ({
+            id: incident.id,
+            latitude: incident?.location?.lat,
+            longitude: incident?.location?.lng,
+            barangay: incident.barangay,
+            severity_level: incident.severity,
+            status: incident.status,
+          })),
+          bufferMeters: 50,
+        }),
+        getHeatmapHotspots(150),
+      ]);
+
+      setGeoInsights({
+        loading: false,
+        error: null,
+        closestUnits: closest?.suggestions || [],
+        geofenceAlerts: geofence?.alerts || [],
+        hotspots: heatmap?.hotspots || [],
+      });
+    } catch (err) {
+      setGeoInsights((prev) => ({ ...prev, loading: false, error: err.message || 'Failed to load geospatial intelligence' }));
+    }
+  }, [filteredIncidents, selectedIncident]);
+
+  useEffect(() => {
+    fetchGeoInsights();
+  }, [fetchGeoInsights]);
 
   const getTypeEmoji = (type) => {
     switch (type) {
@@ -217,6 +370,53 @@ export function MapViewPage() {
                 </div>
               </div>
             </div>
+
+            <div className={`relative z-0 ${panelClass()}`}>
+              <div className={headerClass()}>
+                <h2 className="text-base font-semibold text-foreground">Geo Intelligence</h2>
+              </div>
+              <div className="p-4 space-y-4 text-sm">
+                {geoInsights.loading && <p className="text-muted">Updating geospatial insights…</p>}
+                {geoInsights.error && <p className="text-primary">{geoInsights.error}</p>}
+
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-muted font-semibold mb-2">Closest Units (ETA)</p>
+                  <div className="space-y-2">
+                    {geoInsights.closestUnits.slice(0, 3).map((unit) => (
+                      <div key={unit.id} className={`rounded-lg border px-3 py-2 ${isLight ? 'border-gray-200 bg-gray-50/70' : 'border-white/10 bg-white/5'}`}>
+                        <p className="text-foreground font-medium">{unit.name}</p>
+                        <p className="text-xs text-muted">{unit.department} • ETA ~{unit.etaMinutes} min</p>
+                      </div>
+                    ))}
+                    {!geoInsights.loading && geoInsights.closestUnits.length === 0 && (
+                      <p className="text-muted">No ETA suggestions available.</p>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-muted font-semibold mb-1">Geofence Alerts</p>
+                  <p className="text-foreground">
+                    {geoInsights.geofenceAlerts.length} incident(s) currently outside the Dagupan boundary buffer.
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-muted font-semibold mb-2">Hotspots</p>
+                  <div className="space-y-1.5">
+                    {geoInsights.hotspots.slice(0, 3).map((hotspot) => (
+                      <div key={hotspot.barangay} className="flex items-center justify-between text-foreground">
+                        <span>{hotspot.barangay}</span>
+                        <span className="text-xs text-muted">Score {hotspot.heatScore}</span>
+                      </div>
+                    ))}
+                    {!geoInsights.loading && geoInsights.hotspots.length === 0 && (
+                      <p className="text-muted">No hotspot data available.</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Center: Map – takes remaining height */}
@@ -227,9 +427,17 @@ export function MapViewPage() {
                   <Map className="w-4 h-4" strokeWidth={2} />
                 </div>
                 <h2 className="text-base font-semibold text-foreground">Dagupan City Map</h2>
+                <span className={`ml-auto text-xs ${isLight ? 'text-gray-600' : 'text-muted'}`}>
+                  {lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Live'}
+                </span>
               </div>
               <div className="flex-1 min-h-0 p-3">
                 <div className="relative w-full h-full min-h-[280px] bg-gradient-to-br from-blue-50/80 to-indigo-50/80 dark:from-secondary/20 dark:to-secondary/10 rounded-xl overflow-hidden border border-border/50">
+                  {error && (
+                    <div className="absolute top-3 left-3 z-40 rounded-lg border border-primary/40 bg-primary/15 px-3 py-2 text-xs text-primary">
+                      {error}
+                    </div>
+                  )}
                   <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                     <p className="text-base font-medium text-foreground">Dagupan City Map</p>
                     <p className="text-xs text-muted mt-1">Interactive incident markers</p>
@@ -285,6 +493,11 @@ export function MapViewPage() {
                         </div>
                       );
                     })}
+                    {!loading && filteredIncidents.length === 0 && (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <p className="text-sm text-muted">No incidents found for the selected filters.</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

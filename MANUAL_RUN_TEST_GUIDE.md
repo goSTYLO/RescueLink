@@ -156,6 +156,21 @@ flutter build apk
 Automated tests
 ---------------
 
+Master cross-stack integration runner (Windows PowerShell)
+```
+cd C:\Users\Aaron\GitHub Repos\RescueLink
+powershell -ExecutionPolicy Bypass -File .\run_master_integration_tests.ps1
+```
+
+Optional skip flags:
+- `-SkipBackend`
+- `-SkipWeb`
+- `-SkipMobile`
+- `-SkipAI`
+- `-SkipBlockchain`
+
+The runner executes available suites across backend, web, mobile, AI, and blockchain, and marks missing-service phases as `SKIPPED` instead of hard-failing.
+
 Blockchain Mocha test (end-to-end)
 - Location: `Blockchain/tests`
 ```

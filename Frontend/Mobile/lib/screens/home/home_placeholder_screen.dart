@@ -105,7 +105,7 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.warning_amber_rounded, color: const Color(0xFFEF4444), size: 56),
+              const Icon(Icons.warning_amber_rounded, color: Color(0xFFEF4444), size: 56),
               const SizedBox(height: 16),
               Text(
                 'SOS in $_sosCountdown',

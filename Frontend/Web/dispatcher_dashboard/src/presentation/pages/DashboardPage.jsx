@@ -10,7 +10,9 @@ import { incidents as mockIncidents, barangays, departments as departmentsList }
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
-import { getIncidents } from '@/data/api/incidents.api';
+import { getIncidents, verifyIncident } from '@/data/api/incidents.api';
+import { getResponders } from '@/data/api/responders.api';
+import { createDispatch } from '@/data/api/dispatches.api';
 import { DEV_MODE } from '@/core/config/app.config';
 import Swal from 'sweetalert2';
 
@@ -41,8 +43,10 @@ function mapApiIncidentToDashboard(api) {
   const status = statusMap[api.status?.toLowerCase()] || (api.status || 'Pending');
 
   let timeReported = '—';
+  let timeReportedTs = 0;
   if (api.created_at) {
     const d = new Date(api.created_at);
+    timeReportedTs = d.getTime();
     timeReported = d.toLocaleString('en-US', {
       year: 'numeric', month: '2-digit', day: '2-digit',
       hour: 'numeric', minute: '2-digit', hour12: true
@@ -58,6 +62,7 @@ function mapApiIncidentToDashboard(api) {
     severity,
     status,
     timeReported,
+    timeReportedTs,
     verified: api.verified ?? false,
   };
 }
@@ -106,7 +111,13 @@ export function DashboardPage() {
     setLoading(true);
     setError(null);
     try {
-      const apiStatus = filterStatus === 'Resolved' ? 'resolved' : (filterStatus === 'New' || filterStatus === 'Verified' || filterStatus === 'In Progress') ? 'pending' : undefined;
+      const apiStatus = filterStatus === 'Pending'
+        ? 'pending'
+        : filterStatus === 'Verified'
+          ? 'verified'
+          : filterStatus === 'Resolved'
+            ? 'resolved'
+            : undefined;
       const data = await getIncidents({ limit: 100, offset: 0, status: apiStatus });
       setIncidents(Array.isArray(data) ? data.map(mapApiIncidentToDashboard) : []);
     } catch (err) {
@@ -131,6 +142,9 @@ export function DashboardPage() {
   // Sorting logic
   const sortedIncidents = [...filteredIncidents].sort((a, b) => {
     if (!sortColumn) return 0;
+
+    const severityRank = { Critical: 3, Warning: 2, Low: 1, Resolved: 0 };
+    const statusRank = { Pending: 3, Verified: 2, 'In Progress': 1, Resolved: 0 };
     
     let aValue, bValue;
     switch (sortColumn) {
@@ -151,16 +165,16 @@ export function DashboardPage() {
         bValue = b.emergencyType;
         break;
       case 'severity':
-        aValue = a.severity;
-        bValue = b.severity;
+        aValue = severityRank[a.severity] ?? -1;
+        bValue = severityRank[b.severity] ?? -1;
         break;
       case 'status':
-        aValue = a.status;
-        bValue = b.status;
+        aValue = statusRank[a.status] ?? -1;
+        bValue = statusRank[b.status] ?? -1;
         break;
       case 'time':
-        aValue = a.timeReported;
-        bValue = b.timeReported;
+        aValue = a.timeReportedTs || 0;
+        bValue = b.timeReportedTs || 0;
         break;
       default:
         return 0;
@@ -251,11 +265,43 @@ export function DashboardPage() {
     setAssignSelectOpen(false);
   };
 
-  const submitVerifyAndAssign = () => {
+  const pickResponderForDepartment = (responders, departmentId) => {
+    if (!Array.isArray(responders) || responders.length === 0) return null;
+
+    const matcher = departmentId === 'bfp'
+      ? /(fire|bfp)/i
+      : departmentId === 'pnp'
+        ? /(police|pnp)/i
+        : departmentId === 'health'
+          ? /(health|medical|hospital)/i
+          : departmentId === 'drrmo'
+            ? /(drrmo|disaster)/i
+            : departmentId === 'barangay'
+              ? /barangay/i
+              : null;
+
+    const filtered = matcher
+      ? responders.filter((responder) => matcher.test(String(responder.organization || responder.name || '')))
+      : responders;
+
+    const availabilityRank = (value) => {
+      const normalized = String(value || '').toLowerCase();
+      if (normalized.includes('available')) return 3;
+      if (normalized.includes('standby')) return 2;
+      if (normalized.includes('dispatch') || normalized.includes('busy')) return 1;
+      return 0;
+    };
+
+    return filtered
+      .slice()
+      .sort((a, b) => availabilityRank(b.availability_status) - availabilityRank(a.availability_status))[0] || null;
+  };
+
+  const submitVerifyAndAssign = async () => {
     if (!verifyAssignIncident || !assignDepartmentId) return;
     const dept = departments.find((d) => d.id === assignDepartmentId);
     const assignedDepartment = dept ? dept.name : '';
-    Swal.fire({
+    const confirm = await Swal.fire({
       title: 'Confirm verification',
       html: `Assign incident <strong>${verifyAssignIncident.id}</strong> to <strong>${assignedDepartment}</strong>? The department will be able to give updates.`,
       icon: 'question',
@@ -265,33 +311,57 @@ export function DashboardPage() {
       confirmButtonText: 'Verify & Assign',
       cancelButtonText: 'Cancel',
       customClass: { popup: 'rounded-2xl shadow-xl', title: 'text-foreground text-xl', htmlContainer: 'text-muted' },
-    }).then((result) => {
-      if (result.isConfirmed) {
-        setIncidents((prev) =>
-          prev.map((inc) =>
-            inc.id === verifyAssignIncident.id
-              ? {
-                  ...inc,
-                  verified: true,
-                  status: 'Verified',
-                  assignedDepartmentId: assignDepartmentId,
-                  assignedDepartment,
-                }
-              : inc
-          )
-        );
-        closeVerifyAssignModal();
-        Swal.fire({
-          icon: 'success',
-          title: 'Incident verified',
-          text: `Assigned to ${assignedDepartment}. The department can now update this incident.`,
-          timer: 2500,
-          showConfirmButton: false,
-          timerProgressBar: true,
-          customClass: { popup: 'rounded-2xl shadow-xl' },
-        });
-      }
     });
+
+    if (!confirm.isConfirmed) return;
+
+    try {
+      const numericId = /^\d+$/.test(String(verifyAssignIncident.id));
+      const token = localStorage.getItem('token');
+      if (numericId && token) {
+        await verifyIncident(verifyAssignIncident.id);
+        const responders = await getResponders({ limit: 200, offset: 0 });
+        const responder = pickResponderForDepartment(responders, assignDepartmentId);
+        if (responder?.responder_id) {
+          await createDispatch({
+            report_id: Number(verifyAssignIncident.id),
+            responder_id: responder.responder_id,
+            response_status: 'assigned',
+          });
+        }
+      }
+
+      setIncidents((prev) =>
+        prev.map((inc) =>
+          inc.id === verifyAssignIncident.id
+            ? {
+                ...inc,
+                verified: true,
+                status: 'Verified',
+                assignedDepartmentId: assignDepartmentId,
+                assignedDepartment,
+              }
+            : inc
+        )
+      );
+      closeVerifyAssignModal();
+      Swal.fire({
+        icon: 'success',
+        title: 'Incident verified',
+        text: `Assigned to ${assignedDepartment}. The department can now update this incident.`,
+        timer: 2500,
+        showConfirmButton: false,
+        timerProgressBar: true,
+        customClass: { popup: 'rounded-2xl shadow-xl' },
+      });
+    } catch (err) {
+      await Swal.fire({
+        icon: 'error',
+        title: 'Verify & assign failed',
+        text: err.message || 'Unable to complete verification and assignment.',
+        confirmButtonColor: '#134178',
+      });
+    }
   };
 
   const openCallModal = (incident) => {
@@ -334,9 +404,8 @@ export function DashboardPage() {
 
   const statusOptions = [
     { value: 'All', label: 'All Status' },
-    { value: 'New', label: 'New' },
+    { value: 'Pending', label: 'Pending' },
     { value: 'Verified', label: 'Verified' },
-    { value: 'In Progress', label: 'In Progress' },
     { value: 'Resolved', label: 'Resolved' },
   ];
 
@@ -620,6 +689,13 @@ export function DashboardPage() {
                       </tr>
                     </thead>
                     <tbody>
+                      {paginatedIncidents.length === 0 && (
+                        <tr>
+                          <td colSpan={8} className="py-10 px-4 text-center text-sm text-muted">
+                            No incidents match the current filters.
+                          </td>
+                        </tr>
+                      )}
                       {paginatedIncidents.map((incident, idx) => (
                         <tr
                           key={incident.id}
