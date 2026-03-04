@@ -7,7 +7,7 @@ const FormData = require('form-data');
 const BASE_URL = 'http://localhost:3000/api';
 const TEST_USER = {
   phone: '09123456789',
-  password: 'test_password_123',
+  password: 'Test_password_123!',
   firstName: 'Test',
   lastName: 'User'
 };

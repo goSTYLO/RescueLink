@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Layout } from '@/presentation/components/layout/Layout';
 import { getMe, changePassword as changePasswordApi } from '@/data/api/auth.api';
+import { clearAuthSession } from '@/core/auth/session';
 import { Button } from '@/presentation/components/ui/Button';
 import { Label } from '@/presentation/components/ui/Label';
 import { Input } from '@/presentation/components/ui/Input';
@@ -108,8 +109,7 @@ export function ProfilePage() {
       },
     }).then((result) => {
       if (result.isConfirmed) {
-        localStorage.removeItem('user');
-        localStorage.removeItem('token');
+        clearAuthSession();
         navigate('/login');
       }
     });
@@ -143,8 +143,7 @@ export function ProfilePage() {
       await changePasswordApi(currentPassword, newPassword);
       closeChangePasswordModal();
       setChangePasswordOpen(false);
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
+      clearAuthSession();
       Swal.fire({
         icon: 'success',
         title: 'Password updated',

@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState } from 'react';
 import { Layout } from '@/presentation/components/layout/Layout';
+import { AccessDeniedNotice } from '@/presentation/components/common/AccessDeniedNotice';
 import { Button } from '@/presentation/components/ui/Button';
 import { Input } from '@/presentation/components/ui/Input';
 import { Label } from '@/presentation/components/ui/Label';
@@ -23,7 +23,6 @@ const ROLE_OPTIONS = [
 ];
 
 export function TeamPage() {
-  const navigate = useNavigate();
   const { theme } = useTheme();
   const isLight = theme === 'light';
   const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -35,12 +34,6 @@ export function TeamPage() {
   const tableRowClass = (idx) => `transition-colors ${isLight ? (idx % 2 === 0 ? 'bg-white hover:bg-gray-50/80' : 'bg-gray-50/50 hover:bg-gray-100/80') : (idx % 2 === 0 ? 'bg-transparent hover:bg-white/5' : 'bg-white/5 hover:bg-white/10')}`;
   const iconBoxClass = `w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isLight ? 'neumorphic-light-inset bg-gray-100 text-primary' : 'neumorphic-dark-inset bg-white/10 text-primary'}`;
   const btnActionClass = (primary) => `p-2 rounded-xl transition-all duration-200 ${primary ? (isLight ? 'hover:bg-primary/15 hover:shadow-sm text-primary' : 'hover:bg-primary/20 hover:shadow-sm text-primary') : (isLight ? 'hover:bg-red-50 text-red-500' : 'hover:bg-red-500/20 text-red-400')}`;
-
-  useEffect(() => {
-    if (role !== ROLES.SUPER_ADMIN) {
-      navigate(role === ROLES.DEPARTMENT_ADMIN ? '/department/dashboard' : '/department/tasks', { replace: true });
-    }
-  }, [role, navigate]);
 
   const [departments, setDepartments] = useState(initialDepartments);
   const [users, setUsers] = useState(initialUsers);
@@ -224,7 +217,14 @@ export function TeamPage() {
     });
   };
 
-  if (role !== ROLES.SUPER_ADMIN) return null;
+  if (role !== ROLES.SUPER_ADMIN) {
+    return (
+      <AccessDeniedNotice
+        message="Only super administrators can manage teams and departments."
+        redirectPath="/dashboard"
+      />
+    );
+  }
 
   return (
     <Layout>

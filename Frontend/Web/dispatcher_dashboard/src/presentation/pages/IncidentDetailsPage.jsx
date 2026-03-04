@@ -27,6 +27,8 @@ import {
 } from '@/data/mock/mockData';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { getIncidentById, getIncidentAudioUrl, getIncidentWithAi, reclassifyIncident, verifyIncident } from '@/data/api/incidents.api';
+import { getResponders } from '@/data/api/responders.api';
+import { createDispatch } from '@/data/api/dispatches.api';
 import { DEV_MODE } from '@/core/config/app.config';
 import { ROLES, normalizeRole } from '@/core/constants';
 import { Loader2 } from 'lucide-react';
@@ -187,7 +189,7 @@ export function IncidentDetailsPage() {
 
   const timeline = incidentTimelines[id || ''] || [];
   const escalations = escalationHistory[id || ''] || [];
-  const coordination = coordinationNotes[id || ''] || [];
+  const [coordination, setCoordination] = useState([]);
   const review = postIncidentReviews[id || ''];
   const possibleDuplicates = mockIncidents.filter(i => incident?.possibleDuplicates?.includes(i.id));
 
@@ -246,9 +248,45 @@ export function IncidentDetailsPage() {
   const [reclassType, setReclassType] = useState('');
   const [reclassSeverity, setReclassSeverity] = useState('');
   const [reclassReason, setReclassReason] = useState('');
+  const [responders, setResponders] = useState([]);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    let cancelled = false;
+    getResponders({ limit: 200, offset: 0 })
+      .then((data) => {
+        if (!cancelled) {
+          setResponders(Array.isArray(data) ? data : []);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setResponders([]);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    setCoordination(coordinationNotes[id || ''] || []);
+  }, [id]);
 
   // Get all units for workload display
   const getAllUnits = () => {
+    if (Array.isArray(responders) && responders.length > 0) {
+      return responders.map((responder) => ({
+        id: responder.responder_id,
+        name: responder.name || `Responder ${responder.responder_id}`,
+        type: responder.organization || 'Responder',
+        status: responder.availability_status || 'Unknown',
+        activeTaskCount: String(responder.availability_status || '').toLowerCase().includes('available') ? 0 : 1,
+      }));
+    }
     return Object.values(units).flat();
   };
 
@@ -337,6 +375,52 @@ export function IncidentDetailsPage() {
     return null;
   };
 
+  const getDepartmentMatcher = (departmentName) => {
+    const normalized = String(departmentName || '').toLowerCase();
+    if (normalized.includes('bfp') || normalized.includes('fire')) return /(fire|bfp)/i;
+    if (normalized.includes('pnp') || normalized.includes('police')) return /(police|pnp)/i;
+    if (normalized.includes('health') || normalized.includes('medical') || normalized.includes('hospital')) return /(health|medical|hospital)/i;
+    if (normalized.includes('drrmo') || normalized.includes('disaster')) return /(drrmo|disaster)/i;
+    if (normalized.includes('barangay')) return /barangay/i;
+    return null;
+  };
+
+  const pickBestResponderForDepartment = (departmentName) => {
+    if (!Array.isArray(responders) || responders.length === 0) return null;
+    const matcher = getDepartmentMatcher(departmentName);
+    const filtered = matcher
+      ? responders.filter((responder) => matcher.test(String(responder.organization || responder.name || '')))
+      : responders;
+
+    const availabilityRank = (value) => {
+      const normalized = String(value || '').toLowerCase();
+      if (normalized.includes('available')) return 3;
+      if (normalized.includes('standby')) return 2;
+      if (normalized.includes('dispatch') || normalized.includes('busy')) return 1;
+      return 0;
+    };
+
+    return filtered
+      .slice()
+      .sort((a, b) => availabilityRank(b.availability_status) - availabilityRank(a.availability_status))[0] || null;
+  };
+
+  const tryCreateDispatchAssignment = async (departmentName) => {
+    const numericId = /^\d+$/.test(String(id));
+    if (!numericId || !departmentName) return null;
+    const token = localStorage.getItem('token');
+    if (!token) return null;
+
+    const responder = pickBestResponderForDepartment(departmentName);
+    if (!responder?.responder_id) return null;
+
+    return createDispatch({
+      report_id: Number(id),
+      responder_id: responder.responder_id,
+      response_status: 'assigned',
+    });
+  };
+
   const openNotifyRespondersDialog = () => {
     const defaultDepartment =
       incident?.assignedDepartment
@@ -362,7 +446,8 @@ export function IncidentDetailsPage() {
       return;
     }
 
-    const responderPhone = getDepartmentContactPhone(selectedDepartment);
+    const matchedResponder = pickBestResponderForDepartment(selectedDepartment);
+    const responderPhone = matchedResponder?.contact_number || getDepartmentContactPhone(selectedDepartment);
 
     if (!responderPhone || responderPhone === '—') {
       await Swal.fire({
@@ -387,6 +472,17 @@ export function IncidentDetailsPage() {
     });
 
     setNotifyDialogOpen(false);
+
+    try {
+      await tryCreateDispatchAssignment(selectedDepartment);
+    } catch (dispatchError) {
+      await Swal.fire({
+        icon: 'warning',
+        title: 'Assignment partially saved',
+        text: dispatchError.message || 'Team was selected, but dispatch assignment could not be recorded.',
+        confirmButtonColor: '#134178',
+      });
+    }
 
     const cleanPhone = String(responderPhone).replace(/\s+/g, '');
 
@@ -426,9 +522,31 @@ export function IncidentDetailsPage() {
   };
 
   const handleAddDepartment = () => {
-    // Mock add department
-    alert(`Added ${additionalDepartment} to incident`);
+    if (!additionalDepartment) return;
+
+    setIncident((prev) => {
+      if (!prev) return prev;
+      const existingDepartments = Array.isArray(prev.assignedDepartments)
+        ? prev.assignedDepartments
+        : [];
+      return {
+        ...prev,
+        assignedDepartment: additionalDepartment,
+        assignedDepartments: [...new Set([...existingDepartments, additionalDepartment])],
+      };
+    });
+
     setAddDepartmentDialogOpen(false);
+    setAdditionalDepartment('');
+    tryCreateDispatchAssignment(additionalDepartment).catch(() => {});
+    Swal.fire({
+      icon: 'success',
+      title: 'Department added',
+      text: `${additionalDepartment} has been added to this incident.`,
+      timer: 1800,
+      showConfirmButton: false,
+      timerProgressBar: true,
+    });
   };
 
   const handleCloseIncident = () => {
@@ -480,6 +598,17 @@ export function IncidentDetailsPage() {
       return;
     }
 
+    const trimmedReason = reclassReason.trim();
+    if (trimmedReason.length < 10) {
+      await Swal.fire({
+        icon: 'warning',
+        title: 'Reason required',
+        text: 'Please provide at least 10 characters explaining the manual override reason.',
+        confirmButtonColor: '#134178',
+      });
+      return;
+    }
+
     const confidencePct = getConfidencePercent(incident.aiConfidenceScore);
     if (confidencePct != null && confidencePct >= 90) {
       const confirmation = await Swal.fire({
@@ -502,7 +631,7 @@ export function IncidentDetailsPage() {
       await reclassifyIncident(id, {
         incident_type: reclassType,
         severity_level: reclassSeverity,
-        reason: reclassReason?.trim() || undefined,
+        reason: trimmedReason,
       });
       setReclassDialogOpen(false);
       await fetchIncident();
@@ -515,10 +644,22 @@ export function IncidentDetailsPage() {
   };
 
   const handleAddCoordinationNote = () => {
-    if (coordinationNote.trim()) {
-      alert(`Coordination note added: ${coordinationNote}`);
-      setCoordinationNote('');
-    }
+    const trimmed = coordinationNote.trim();
+    if (!trimmed) return;
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const author = user?.name || user?.username || user?.email || 'Dispatcher';
+    const department = incident?.assignedDepartment || user?.department || 'Operations';
+    const now = new Date();
+    setCoordination((prev) => ([
+      {
+        department,
+        timestamp: now.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }),
+        note: trimmed,
+        author,
+      },
+      ...prev,
+    ]));
+    setCoordinationNote('');
   };
 
   const panelClass = `rounded-2xl border overflow-hidden transition-all duration-300 ${isLight ? 'glass neumorphic-light bg-white/80' : 'glass neumorphic-dark bg-card/60'}`;
@@ -1028,7 +1169,7 @@ export function IncidentDetailsPage() {
                 </div>
 
                 <div>
-                  <Label>Reason (optional)</Label>
+                  <Label>Reason (required, minimum 10 characters)</Label>
                   <Textarea
                     placeholder="Add context for this manual override..."
                     value={reclassReason}

@@ -27,6 +27,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
+import { AccessDeniedNotice } from '@/presentation/components/common/AccessDeniedNotice';
 
 export function AdminActionsPage() {
   const navigate = useNavigate();
@@ -117,19 +118,7 @@ export function AdminActionsPage() {
   };
 
   if (!isAdmin) {
-    return (
-      <Layout>
-        <div className="p-8">
-          <Alert className="rounded-xl border-primary/50 bg-primary/15">
-            <AlertOctagon className="h-4 w-4 text-primary" />
-            <AlertTitle className="text-primary">Access Denied</AlertTitle>
-            <AlertDescription className="text-foreground/90">
-              This page is only accessible to administrators.
-            </AlertDescription>
-          </Alert>
-        </div>
-      </Layout>
-    );
+    return <AccessDeniedNotice message="This page is only accessible to administrators." redirectPath="/dashboard" />;
   }
 
   const disasterTypeOptions = [

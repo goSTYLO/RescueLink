@@ -11,6 +11,7 @@ import { useTheme } from '@/presentation/context/ThemeContext.jsx';
 import { ThemeToggle } from '@/presentation/components/common/ThemeToggle';
 import { ROLES, normalizeRole } from '@/core/constants';
 import { DEV_MODE } from '@/core/config/app.config';
+import { clearAuthSession } from '@/core/auth/session';
 
 const SIDEBAR_STORAGE_KEY = 'rescuelink_sidebar_collapsed';
 
@@ -139,8 +140,7 @@ export function Layout({ children }) {
     } catch (err) {
       console.error('Firebase signOut error:', err);
     }
-    localStorage.removeItem('user');
-    localStorage.removeItem('token');
+    clearAuthSession();
     navigate('/login');
     Swal.fire({
       icon: 'success',

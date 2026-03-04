@@ -6,6 +6,7 @@ import { Users, Bell, AlertCircle, Sliders, Sparkles } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
 import { ROLES, normalizeRole } from '@/core/constants';
+import { AccessDeniedNotice } from '@/presentation/components/common/AccessDeniedNotice';
 
 const SETTINGS_KEY = 'rescuelink_settings';
 
@@ -63,23 +64,7 @@ export function SettingsPage() {
     `flex items-center justify-between p-4 rounded-xl border ${isLight ? 'border-gray-200/80 bg-gray-50/50' : 'border-white/10 bg-white/5'}`;
 
   if (!isAdmin) {
-    return (
-      <Layout>
-        <div className="p-8">
-          <div className={`rounded-2xl border overflow-hidden ${isLight ? 'glass neumorphic-light bg-white/80 border-primary/40' : 'glass neumorphic-dark bg-card/60 border-primary/40'}`}>
-            <div className="p-6 flex items-start gap-4">
-              <span className={iconBoxClass()}>
-                <AlertCircle className="w-5 h-5" strokeWidth={2} />
-              </span>
-              <div>
-                <h3 className="font-semibold text-primary">Access Denied</h3>
-                <p className="text-sm text-muted mt-1">Only administrators can access system settings.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </Layout>
-    );
+    return <AccessDeniedNotice message="Only administrators can access system settings." redirectPath="/dashboard" />;
   }
 
   const heroCardClass = `rounded-3xl border overflow-hidden transition-all duration-300 ${isLight ? 'glass neumorphic-light bg-white/80 border-gray-200/80 shadow-[8px_8px_24px_rgba(209,213,219,0.5),-8px_-8px_24px_rgba(255,255,255,0.9)]' : 'glass neumorphic-dark bg-card/60 border-white/10 shadow-[8px_8px_24px_rgba(0,0,0,0.35),-6px_-6px_20px_rgba(19,65,120,0.2)]'}`;

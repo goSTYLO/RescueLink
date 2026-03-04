@@ -10,32 +10,36 @@ Component path: `Frontend/Web/dispatcher_dashboard/`
 - NFR: usability, reliability, security, performance
 
 ## Component Roll-up
-- Progress: 55%
+- Progress: 64%
 - Status: `In Progress`
 
 ## WE-E1 Dispatcher Authentication and Access Control UX
-- Progress: 72% | Status: `In Progress`
-- Sub-epic WE-SE1.1 Login and session flow (83%, `In Progress`)
-  - Story WE-US1.1.1 Authenticated route access (83%, `In Progress`)
+- Progress: 88% | Status: `In Progress`
+- Sub-epic WE-SE1.1 Login and session flow (100%, `Done`)
+  - Story WE-US1.1.1 Authenticated route access (100%, `Done`)
     - WE-T101 Login page and auth submission — `Done`
       - Evidence: `src/presentation/pages/Login.jsx`
     - WE-T102 Protected route redirects/guards — `Done`
       - Evidence: `src/App.jsx`
-    - WE-T103 Session persistence and logout edge handling — `In Progress`
-- Sub-epic WE-SE1.2 Role-aware navigation (63%, `In Progress`)
-  - Story WE-US1.2.1 Role-scoped UX access (63%, `In Progress`)
-    - WE-T104 Route-level role gating completeness — `In Progress`
+    - WE-T103 Session persistence and logout edge handling — `Done`
+      - Evidence: `src/core/auth/session.js`, `src/presentation/components/layout/Layout.jsx`, `src/presentation/pages/ProfilePage.jsx`
+- Sub-epic WE-SE1.2 Role-aware navigation (83%, `In Progress`)
+  - Story WE-US1.2.1 Role-scoped UX access (83%, `In Progress`)
+    - WE-T104 Route-level role gating completeness — `Done`
+      - Evidence: `src/App.jsx`
     - WE-T105 Action-level permission checks — `In Progress`
-    - WE-T106 Unauthorized flow feedback polish — `In Progress`
+    - WE-T106 Unauthorized flow feedback polish — `Done`
+      - Evidence: `src/presentation/components/common/AccessDeniedNotice.jsx`
 
 ## WE-E2 Incident Dashboard and Queue Management
-- Progress: 69% | Status: `In Progress`
-- Sub-epic WE-SE2.1 Dashboard summary/filtering (83%, `In Progress`)
-  - Story WE-US2.1.1 Priority-based queue monitoring (83%, `In Progress`)
+- Progress: 81% | Status: `In Progress`
+- Sub-epic WE-SE2.1 Dashboard summary/filtering (92%, `In Progress`)
+  - Story WE-US2.1.1 Priority-based queue monitoring (92%, `In Progress`)
     - WE-T201 Dashboard summaries/cards — `Done`
       - Evidence: `src/presentation/pages/DashboardPage.jsx`
     - WE-T202 Incident filtering controls — `Done`
-    - WE-T203 Prioritization/sorting policy completion — `In Progress`
+    - WE-T203 Prioritization/sorting policy completion — `Done`
+      - Evidence: `src/presentation/pages/DashboardPage.jsx`
 - Sub-epic WE-SE2.2 Incident API integration (83%, `In Progress`)
   - Story WE-US2.2.1 Consistent list/detail API usage (83%, `In Progress`)
     - WE-T204 Incident list API client — `Done`
@@ -44,14 +48,15 @@ Component path: `Frontend/Web/dispatcher_dashboard/`
     - WE-T206 Error/retry/empty-state standardization — `In Progress`
 
 ## WE-E3 Incident Command and Response Operations
-- Progress: 66% | Status: `In Progress`
+- Progress: 76% | Status: `In Progress`
 - Sub-epic WE-SE3.1 Incident detail operations (88%, `In Progress`)
   - Story WE-US3.1.1 Inspect and act on incident detail (88%, `In Progress`)
     - WE-T301 Incident detail page timeline/context — `Done`
       - Evidence: `src/presentation/pages/IncidentDetailsPage.jsx`
     - WE-T302 Verify action integration — `Done`
     - WE-T303 Reclassify action integration — `Done`
-    - WE-T304 Manual override reason governance — `In Progress`
+    - WE-T304 Manual override reason governance — `Done`
+      - Evidence: `src/presentation/pages/IncidentDetailsPage.jsx`, `Backend/src/controllers/incident.js`
 - Sub-epic WE-SE3.2 Dispatch coordination (50%, `In Progress`)
   - Story WE-US3.2.1 Department coordination workflow depth (50%, `In Progress`)
     - WE-T305 Department assignment UX completion — `In Progress`
@@ -59,18 +64,22 @@ Component path: `Frontend/Web/dispatcher_dashboard/`
     - WE-T307 Cross-department communication log consistency — `In Progress`
 
 ## WE-E4 Map and Geospatial Operations
-- Progress: 58% | Status: `In Progress`
-- Sub-epic WE-SE4.1 Map views (83%, `In Progress`)
-  - Story WE-US4.1.1 Incident map with filtering (83%, `In Progress`)
+- Progress: 79% | Status: `In Progress`
+- Sub-epic WE-SE4.1 Map views (100%, `Done`)
+  - Story WE-US4.1.1 Incident map with filtering (100%, `Done`)
     - WE-T401 Map rendering page — `Done`
       - Evidence: `src/presentation/pages/MapViewPage.jsx`
     - WE-T402 Department/barangay filters — `Done`
-    - WE-T403 Live update cadence completion — `In Progress`
-- Sub-epic WE-SE4.2 Geospatial intelligence (0%, `Not Started`)
-  - Story WE-US4.2.1 Route/alert/heatmap optimization (0%, `Not Started`)
-    - WE-T404 Closest-unit/ETA suggestions — `Not Started`
-    - WE-T405 Geofence/area alerting — `Not Started`
-    - WE-T406 Heatmap/hotspot layers — `Not Started`
+    - WE-T403 Live update cadence completion — `Done`
+      - Evidence: `src/presentation/pages/MapViewPage.jsx`
+- Sub-epic WE-SE4.2 Geospatial intelligence (67%, `In Progress`)
+  - Story WE-US4.2.1 Route/alert/heatmap optimization (67%, `In Progress`)
+    - WE-T404 Closest-unit/ETA suggestions — `In Progress`
+      - Evidence: `src/data/api/location.api.js`, `src/presentation/pages/MapViewPage.jsx`
+    - WE-T405 Geofence/area alerting — `In Progress`
+      - Evidence: `src/data/api/location.api.js`, `src/presentation/pages/MapViewPage.jsx`
+    - WE-T406 Heatmap/hotspot layers — `In Progress`
+      - Evidence: `src/data/api/location.api.js`, `src/presentation/pages/MapViewPage.jsx`
 
 ## WE-E5 Department, Team, and Admin Management
 - Progress: 64% | Status: `In Progress`
@@ -103,11 +112,12 @@ Component path: `Frontend/Web/dispatcher_dashboard/`
     - WE-T606 Permission-hardening audit completion — `In Progress`
 
 ## WE-E7 Testing, Configuration, and Production Readiness
-- Progress: 21% | Status: `In Progress`
-- Sub-epic WE-SE7.1 Automated tests (0%, `Not Started`)
-  - Story WE-US7.1.1 Regression test baseline (0%, `Not Started`)
-    - WE-T701 API client unit tests — `Not Started`
-    - WE-T702 Component/page interaction tests — `Not Started`
+- Progress: 28% | Status: `In Progress`
+- Sub-epic WE-SE7.1 Automated tests (25%, `In Progress`)
+  - Story WE-US7.1.1 Regression test baseline (25%, `In Progress`)
+    - WE-T701 API client unit tests — `In Progress`
+      - Evidence: `jest.config.cjs`, `src/test/setupTests.js`, `src/core/auth/session.test.js`
+    - WE-T702 Component/page interaction tests — `In Progress`
     - WE-T703 E2E smoke tests for critical routes — `Not Started`
 - Sub-epic WE-SE7.2 Environment/deployment hardening (42%, `In Progress`)
   - Story WE-US7.2.1 Production configuration readiness (42%, `In Progress`)
@@ -143,5 +153,5 @@ Component path: `Frontend/Web/dispatcher_dashboard/`
 
 ## Audit Notes
 - Strongest area: rich dispatcher page and action surface.
-- Primary risk: missing automated tests and incomplete environment hardening.
+- Primary risk: broad cross-page test depth and contract tests remain incomplete.
 - New priority: WE-E8 to stabilize backend contract alignment and queue synchronization behavior.

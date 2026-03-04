@@ -1,6 +1,6 @@
 # Backend Backlog
 
-Last updated: 2026-02-27  
+Last updated: 2026-03-04  
 Component path: `Backend/`
 
 ## Manuscript Traceability
@@ -140,11 +140,16 @@ Component path: `Backend/`
     - BE-T704 AI service tests — `Done`
     - BE-T705 File scan service tests — `Done`
     - BE-T706 Incident security tests — `Done`
+      - Evidence: `run_master_integration_tests.ps1` backend phase
 - Sub-epic BE-SE7.2 Performance/scalability readiness (58%, `In Progress`)
   - Story BE-US7.2.1 Load resilience and deployment hardening (58%, `In Progress`)
     - BE-T707 Baseline latency instrumentation — `In Progress`
     - BE-T708 Throughput/load script CI integration — `In Progress`
     - BE-T709 Production hardening checklist closure — `In Progress`
+
+## Integration Test Readiness (Current)
+- Master orchestration is available via `run_master_integration_tests.ps1` (root) and currently executes backend security, RBAC, and location-intelligence integration suites.
+- Current backend automated status in master run: passing for security, RBAC, and location suites; live API script phase is dependency-gated and runs only when backend server is active on `http://localhost:3000`.
 
 ## Audit Notes
 - Strongest area: incident lifecycle + test coverage.

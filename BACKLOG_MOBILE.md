@@ -1,6 +1,6 @@
 # Mobile Backlog
 
-Last updated: 2026-02-27  
+Last updated: 2026-03-04  
 Component path: `Frontend/Mobile/`
 
 ## Manuscript Traceability
@@ -120,6 +120,11 @@ Component path: `Frontend/Mobile/`
     - MO-T705 Production app ID/signing setup — `Not Started`
     - MO-T706 Startup/performance optimization pass — `In Progress`
 
+  ## Integration Test Readiness (Current)
+  - Master orchestration is available via `run_master_integration_tests.ps1` (root).
+  - Current mobile phase in master run is dependency-gated and reports `SKIPPED` until a `Frontend/Mobile/test` baseline is added.
+  - Near-term readiness target: land MO-T701 and MO-T703 baseline tests so mobile runs as an executed phase in the master integration pipeline.
+
 ## MO-E8 Backend Contract and Incident Sync Integration
 - Progress: 33% | Status: `In Progress`
 - Depends on: BE-E2, BE-E3, BE-E6
@@ -150,4 +155,4 @@ Component path: `Frontend/Mobile/`
 ## Audit Notes
 - Strongest area: auth and incident submission wiring.
 - Major product gap: placeholder-heavy dashboard/history experience.
-- New highest priority: MO-E8 backend integration closure for history correctness and sync reliability.
+- New highest priority: MO-E8 backend integration closure for history correctness and sync reliability, plus MO-E7 test-baseline activation for master-run participation.
