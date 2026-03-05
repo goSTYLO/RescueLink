@@ -1,15 +1,8 @@
 import { API_URL } from '@/core/config/app.config';
-
-function getAuthHeaders() {
-  const token = localStorage.getItem('token');
-  if (!token) throw new Error('No authentication token found');
-  return {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${token}`,
-  };
-}
+import { createRequestId, getAuthHeaders, parseErrorMessage, parseJsonOrEmpty } from '@/data/api/http';
 
 export async function getResponders(params = {}) {
+  const requestId = createRequestId('web-responders-list');
   const searchParams = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== '') {
@@ -20,12 +13,12 @@ export async function getResponders(params = {}) {
   const query = searchParams.toString();
   const response = await fetch(`${API_URL}/api/responders${query ? `?${query}` : ''}`, {
     method: 'GET',
-    headers: getAuthHeaders(),
+    headers: getAuthHeaders({ requestId }),
   });
 
-  const data = await response.json();
+  const data = await parseJsonOrEmpty(response);
   if (!response.ok) {
-    throw new Error(data.message || data.error || 'Failed to fetch responders');
+    throw new Error(parseErrorMessage(data, 'Failed to fetch responders'));
   }
   return data;
 }

@@ -108,6 +108,34 @@ export function AuditLogPage() {
 
   const { theme } = useTheme();
   const isLight = theme === 'light';
+  const exportLogsAsCsv = () => {
+    if (!logs.length) return;
+    const header = ['timestamp', 'user', 'action', 'resource_type', 'resource_id', 'details'];
+    const rows = logs.map((log) => {
+      const details = log.details && typeof log.details === 'object'
+        ? JSON.stringify(log.details)
+        : (log.details != null ? String(log.details) : '');
+      const userValue = log.user_email || ([log.user_first_name, log.user_last_name].filter(Boolean).join(' ') || (log.user_id != null ? `User #${log.user_id}` : ''));
+      return [
+        formatTimestamp(log.created_at),
+        userValue,
+        formatActionLabel(log.action),
+        log.resource_type || '',
+        log.resource_id != null ? String(log.resource_id) : '',
+        details,
+      ].map((field) => `"${String(field).replace(/"/g, '""')}"`).join(',');
+    });
+    const csv = [header.join(','), ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `audit-log-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
   const heroCardClass = `rounded-3xl border overflow-hidden transition-all duration-300 ${isLight ? 'glass neumorphic-light bg-white/80 border-gray-200/80 shadow-[8px_8px_24px_rgba(209,213,219,0.5),-8px_-8px_24px_rgba(255,255,255,0.9)]' : 'glass neumorphic-dark bg-card/60 border-white/10 shadow-[8px_8px_24px_rgba(0,0,0,0.35),-6px_-6px_20px_rgba(19,65,120,0.2)]'}`;
   const heroIconClass = `w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isLight ? 'neumorphic-light-inset bg-gray-100 text-primary' : 'neumorphic-dark-inset bg-white/10 text-primary'}`;
   const panelClass = `rounded-2xl border overflow-hidden transition-all duration-300 ${isLight ? 'glass neumorphic-light bg-white/80' : 'glass neumorphic-dark bg-card/60'}`;
@@ -264,6 +292,10 @@ export function AuditLogPage() {
             <Button variant="outline" size="sm" onClick={() => fetchLogs()} className="rounded-xl gap-2">
               <RefreshCw className="w-4 h-4" strokeWidth={2} />
               Refresh
+            </Button>
+            <Button variant="outline" size="sm" onClick={exportLogsAsCsv} disabled={!logs.length} className="rounded-xl gap-2">
+              <Send className="w-4 h-4" strokeWidth={2} />
+              Export CSV
             </Button>
           </div>
         </div>

@@ -14,7 +14,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/presentation/components/ui/Select';
 import { getDepartments, createDepartment, updateDepartment, deleteDepartment } from '@/data/api/departments.api';
 import { useNavigate } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Swal from 'sweetalert2';
 import {
   Flame,
@@ -47,6 +47,7 @@ export function DepartmentsPage() {
   const isLight = theme === 'light';
   const [departments, setDepartments] = useState([]);
   const [isLoadingDepartments, setIsLoadingDepartments] = useState(true);
+  const [lastSyncAt, setLastSyncAt] = useState(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingDept, setEditingDept] = useState(null);
   const [typeSelectOpen, setTypeSelectOpen] = useState(false);
@@ -68,11 +69,12 @@ export function DepartmentsPage() {
     activeIncidents: Number(dept.active_incidents ?? 0),
   });
 
-  const loadDepartments = async () => {
+  const loadDepartments = useCallback(async () => {
     setIsLoadingDepartments(true);
     try {
       const rows = await getDepartments();
       setDepartments(Array.isArray(rows) ? rows.map(mapDepartment) : []);
+      setLastSyncAt(new Date());
     } catch (error) {
       setDepartments([]);
       Swal.fire({
@@ -84,11 +86,18 @@ export function DepartmentsPage() {
     } finally {
       setIsLoadingDepartments(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadDepartments();
-  }, []);
+    const intervalId = setInterval(loadDepartments, 30000);
+    const handleIncidentUpdated = () => loadDepartments();
+    window.addEventListener('incident:updated', handleIncidentUpdated);
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener('incident:updated', handleIncidentUpdated);
+    };
+  }, [loadDepartments]);
   const [form, setForm] = useState({
     name: '',
     type: 'Fire',
@@ -275,6 +284,9 @@ export function DepartmentsPage() {
                 <div>
                   <p className="text-xs font-medium text-muted uppercase tracking-wider">City-wide Alert Level</p>
                   <Badge className="mt-1.5 rounded-lg bg-severity-resolved/20 text-severity-resolved border-severity-resolved/40 font-medium">Normal</Badge>
+                  <p className="text-[11px] text-muted mt-2">
+                    Metrics sync: {lastSyncAt ? lastSyncAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Pending'}
+                  </p>
                 </div>
               </div>
             </div>

@@ -17,10 +17,16 @@ describe('auth session utilities', () => {
     expect(getStoredRole()).toBe(ROLES.SUPER_ADMIN);
   });
 
+  test('getStoredRole recognizes dispatcher role', () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'dispatcher' }));
+    expect(getStoredRole()).toBe(ROLES.DISPATCHER);
+  });
+
   test('hasRoleAccess enforces allowed role list', () => {
     expect(hasRoleAccess('super-admin', [ROLES.SUPER_ADMIN])).toBe(true);
     expect(hasRoleAccess('personnel', [ROLES.SUPER_ADMIN])).toBe(false);
     expect(hasRoleAccess('department-admin', [ROLES.DEPARTMENT_ADMIN, ROLES.SUPER_ADMIN])).toBe(true);
+    expect(hasRoleAccess('dispatcher', [ROLES.SUPER_ADMIN, ROLES.DISPATCHER])).toBe(true);
   });
 
   test('clearAuthSession removes local and session storage auth state', () => {

@@ -7,14 +7,17 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Label } from '@/presentation/components/ui/Label';
 import { AlertTriangle, Activity, AlertCircle, Clock, CheckCircle2, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, Loader2, SlidersHorizontal, LayoutList, PhoneCall, CircleCheck, ExternalLink } from 'lucide-react';
 import { incidents as mockIncidents, barangays, departments as departmentsList } from '@/data/mock/mockData';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
-import { getIncidents, verifyIncident } from '@/data/api/incidents.api';
+import { getIncidents, normalizeIncidentStatus, verifyIncident } from '@/data/api/incidents.api';
 import { getResponders } from '@/data/api/responders.api';
 import { createDispatch } from '@/data/api/dispatches.api';
 import { DEV_MODE } from '@/core/config/app.config';
+import { normalizeRole, ROLES } from '@/core/constants';
 import Swal from 'sweetalert2';
+
+const POLLING_INTERVAL_MS = 30000;
 
 // Icon Container Component (dark theme)
 function IconContainer({ children, className = '' }) {
@@ -40,7 +43,8 @@ function mapApiIncidentToDashboard(api) {
   const severity = severityMap[api.severity_level?.toLowerCase()] || (api.severity_level || '—');
 
   const statusMap = { pending: 'Pending', resolved: 'Resolved', verified: 'Verified' };
-  const status = statusMap[api.status?.toLowerCase()] || (api.status || 'Pending');
+  const canonicalStatus = normalizeIncidentStatus(api.status);
+  const status = statusMap[canonicalStatus];
 
   let timeReported = '—';
   let timeReportedTs = 0;
@@ -67,16 +71,38 @@ function mapApiIncidentToDashboard(api) {
   };
 }
 
+const DASHBOARD_FILTER_STATE_KEY = 'dashboard:filters:v1';
+
+function dedupeIncidentsById(items) {
+  const seen = new Set();
+  const result = [];
+  for (const item of items) {
+    const key = item?.id;
+    if (key == null || seen.has(key)) continue;
+    seen.add(key);
+    result.push(item);
+  }
+  return result;
+}
+
 export function DashboardPage() {
+  const rateLimitUntilRef = useRef(0);
   const navigate = useNavigate();
   const { theme } = useTheme();
   const isLight = theme === 'light';
   const [incidents, setIncidents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [filterType, setFilterType] = useState('All');
-  const [filterStatus, setFilterStatus] = useState('All');
-  const [filterBarangay, setFilterBarangay] = useState('All');
+  const persistedFilterState = (() => {
+    try {
+      return JSON.parse(sessionStorage.getItem(DASHBOARD_FILTER_STATE_KEY) || '{}');
+    } catch {
+      return {};
+    }
+  })();
+  const [filterType, setFilterType] = useState(persistedFilterState.filterType || 'All');
+  const [filterStatus, setFilterStatus] = useState(persistedFilterState.filterStatus || 'All');
+  const [filterBarangay, setFilterBarangay] = useState(persistedFilterState.filterBarangay || 'All');
   const [selectStates, setSelectStates] = useState({
     type: false,
     status: false,
@@ -84,7 +110,7 @@ export function DashboardPage() {
   });
   const [sortColumn, setSortColumn] = useState(null);
   const [sortDirection, setSortDirection] = useState('asc');
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPage] = useState(Number(persistedFilterState.currentPage) || 1);
   const itemsPerPage = 5;
 
   // Verify & Assign modal (new incidents must be verified and assigned to a department first)
@@ -101,6 +127,9 @@ export function DashboardPage() {
   const [callDeptSelectOpen, setCallDeptSelectOpen] = useState(false);
 
   const fetchIncidents = useCallback(async () => {
+    if (Date.now() < rateLimitUntilRef.current) {
+      return;
+    }
     const token = localStorage.getItem('token');
     if (DEV_MODE && !token) {
       setIncidents(mockIncidents);
@@ -119,9 +148,14 @@ export function DashboardPage() {
             ? 'resolved'
             : undefined;
       const data = await getIncidents({ limit: 100, offset: 0, status: apiStatus });
-      setIncidents(Array.isArray(data) ? data.map(mapApiIncidentToDashboard) : []);
+      const mapped = Array.isArray(data) ? data.map(mapApiIncidentToDashboard) : [];
+      setIncidents(dedupeIncidentsById(mapped));
     } catch (err) {
-      setError(err.message || 'Failed to fetch incidents');
+      const message = err.message || 'Failed to fetch incidents';
+      if (message.toLowerCase().includes('rate limited')) {
+        rateLimitUntilRef.current = Date.now() + 30000;
+      }
+      setError(message);
       setIncidents([]);
     } finally {
       setLoading(false);
@@ -130,7 +164,23 @@ export function DashboardPage() {
 
   useEffect(() => {
     fetchIncidents();
+    const intervalId = setInterval(fetchIncidents, POLLING_INTERVAL_MS);
+    const handleIncidentUpdated = () => fetchIncidents();
+    window.addEventListener('incident:updated', handleIncidentUpdated);
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener('incident:updated', handleIncidentUpdated);
+    };
   }, [fetchIncidents]);
+
+  useEffect(() => {
+    sessionStorage.setItem(DASHBOARD_FILTER_STATE_KEY, JSON.stringify({
+      filterType,
+      filterStatus,
+      filterBarangay,
+      currentPage,
+    }));
+  }, [filterType, filterStatus, filterBarangay, currentPage]);
 
   const filteredIncidents = incidents.filter(inc => {
     if (filterType !== 'All' && inc.emergencyType !== filterType) return false;
@@ -251,6 +301,13 @@ export function DashboardPage() {
   };
 
   const departments = departmentsList || [];
+  const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+  const normalizedRole = normalizeRole(currentUser.role);
+  const canVerifyAndAssign = (
+    normalizedRole === ROLES.SUPER_ADMIN
+    || normalizedRole === ROLES.DISPATCHER
+    || normalizedRole === ROLES.DEPARTMENT_ADMIN
+  );
 
   const openVerifyAssignModal = (incident) => {
     setVerifyAssignIncident(incident);
@@ -315,7 +372,22 @@ export function DashboardPage() {
 
     if (!confirm.isConfirmed) return;
 
+    let rollbackSnapshot = null;
     try {
+      rollbackSnapshot = incidents;
+      setIncidents((prev) =>
+        prev.map((inc) =>
+          inc.id === verifyAssignIncident.id
+            ? {
+                ...inc,
+                verified: true,
+                status: 'Verified',
+                assignedDepartmentId: assignDepartmentId,
+                assignedDepartment,
+              }
+            : inc
+        )
+      );
       const numericId = /^\d+$/.test(String(verifyAssignIncident.id));
       const token = localStorage.getItem('token');
       if (numericId && token) {
@@ -331,20 +403,8 @@ export function DashboardPage() {
         }
       }
 
-      setIncidents((prev) =>
-        prev.map((inc) =>
-          inc.id === verifyAssignIncident.id
-            ? {
-                ...inc,
-                verified: true,
-                status: 'Verified',
-                assignedDepartmentId: assignDepartmentId,
-                assignedDepartment,
-              }
-            : inc
-        )
-      );
       closeVerifyAssignModal();
+      window.dispatchEvent(new CustomEvent('incident:updated', { detail: { incidentId: verifyAssignIncident.id } }));
       Swal.fire({
         icon: 'success',
         title: 'Incident verified',
@@ -355,6 +415,9 @@ export function DashboardPage() {
         customClass: { popup: 'rounded-2xl shadow-xl' },
       });
     } catch (err) {
+      if (rollbackSnapshot) {
+        setIncidents(rollbackSnapshot);
+      }
       await Swal.fire({
         icon: 'error',
         title: 'Verify & assign failed',
@@ -428,6 +491,7 @@ export function DashboardPage() {
             <div>
               <h1 className="text-3xl font-bold text-foreground">Incident Overview</h1>
               <p className="text-muted mt-1">Monitor and manage emergency incidents across Dagupan City</p>
+              <p className="text-xs text-muted mt-2">Live channel unavailable - using polling every 30 seconds.</p>
             </div>
           </div>
         </div>
@@ -732,7 +796,7 @@ export function DashboardPage() {
                               >
                                 <ExternalLink className="w-4 h-4" strokeWidth={2} />
                               </Button>
-                              {!incident.verified && (
+                              {canVerifyAndAssign && !incident.verified && (
                                 <Button
                                   size="sm"
                                   variant="ghost"

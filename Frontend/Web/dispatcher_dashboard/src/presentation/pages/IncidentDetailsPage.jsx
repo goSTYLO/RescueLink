@@ -124,6 +124,8 @@ export function IncidentDetailsPage() {
   const [audioLoading, setAudioLoading] = useState(false);
   const [audioError, setAudioError] = useState(null);
   const audioUrlRef = useRef(null);
+  const [latestVerificationMeta, setLatestVerificationMeta] = useState(null);
+  const coordinationStorageKey = `incident:${id}:coordination-notes:v1`;
 
   const fetchIncident = useCallback(async () => {
     const numericId = /^\d+$/.test(String(id));
@@ -200,6 +202,16 @@ export function IncidentDetailsPage() {
 
   const roleLower = String(currentUser.role || '').toLowerCase();
   const normalizedRole = normalizeRole(currentUser.role);
+  const canVerifyIncident = (
+    normalizedRole === ROLES.SUPER_ADMIN
+    || normalizedRole === ROLES.DISPATCHER
+    || normalizedRole === ROLES.DEPARTMENT_ADMIN
+  );
+  const canNotifyResponders = (
+    normalizedRole === ROLES.SUPER_ADMIN
+    || normalizedRole === ROLES.DISPATCHER
+    || normalizedRole === ROLES.DEPARTMENT_ADMIN
+  );
   const canManualReclassify = (
     normalizedRole === ROLES.SUPER_ADMIN
     || ['dispatcher', 'supervisor', 'admin', 'super-admin', 'superadmin'].includes(roleLower)
@@ -273,8 +285,22 @@ export function IncidentDetailsPage() {
   }, []);
 
   useEffect(() => {
-    setCoordination(coordinationNotes[id || ''] || []);
-  }, [id]);
+    const fallbackNotes = coordinationNotes[id || ''] || [];
+    try {
+      const stored = JSON.parse(sessionStorage.getItem(coordinationStorageKey) || '[]');
+      if (Array.isArray(stored) && stored.length > 0) {
+        setCoordination(stored);
+        return;
+      }
+    } catch {
+      // Ignore malformed session entries and fallback to defaults.
+    }
+    setCoordination(fallbackNotes);
+  }, [coordinationStorageKey, id]);
+
+  useEffect(() => {
+    sessionStorage.setItem(coordinationStorageKey, JSON.stringify(coordination));
+  }, [coordination, coordinationStorageKey]);
 
   // Get all units for workload display
   const getAllUnits = () => {
@@ -572,9 +598,11 @@ export function IncidentDetailsPage() {
     if (!numericId || !incident) return;
     setVerifyLoading(true);
     try {
-      await verifyIncident(id);
+      const verificationResult = await verifyIncident(id);
+      setLatestVerificationMeta(verificationResult?.blockchain || null);
       setVerifyDialogOpen(false);
       await fetchIncident();
+      window.dispatchEvent(new CustomEvent('incident:updated', { detail: { incidentId: id } }));
     } catch (err) {
       alert(err.message || 'Failed to verify incident');
     } finally {
@@ -635,6 +663,7 @@ export function IncidentDetailsPage() {
       });
       setReclassDialogOpen(false);
       await fetchIncident();
+      window.dispatchEvent(new CustomEvent('incident:updated', { detail: { incidentId: id } }));
       alert('Incident reclassified successfully.');
     } catch (err) {
       alert(err.message || 'Failed to reclassify incident');
@@ -656,6 +685,7 @@ export function IncidentDetailsPage() {
         timestamp: now.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }),
         note: trimmed,
         author,
+        source: 'Dispatcher UI',
       },
       ...prev,
     ]));
@@ -717,6 +747,15 @@ export function IncidentDetailsPage() {
                 )}
               </div>
             </div>
+
+            {latestVerificationMeta?.tx_hash && (
+              <div className={`p-3 rounded-xl border ${isLight ? 'bg-emerald-50/80 border-emerald-200/80' : 'bg-emerald-500/10 border-emerald-500/30'}`}>
+                <p className="text-xs uppercase tracking-wide text-muted font-semibold mb-1">Latest Blockchain Verification</p>
+                <p className="text-sm text-foreground">
+                  Tx Hash: <span className="font-mono break-all">{latestVerificationMeta.tx_hash}</span>
+                </p>
+              </div>
+            )}
 
             <div className={`grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2.5 p-3 rounded-xl border ${isLight ? 'bg-gray-50/70 border-gray-200/80' : 'bg-white/5 border-white/10'}`}>
               <div>
@@ -785,7 +824,7 @@ export function IncidentDetailsPage() {
             )}
 
             <div className="flex flex-wrap gap-2">
-              {!incident.verified && (
+              {!incident.verified && canVerifyIncident && (
                 <Button
                   className="gap-2 bg-[#134178] hover:bg-[#0f3256]"
                   onClick={() => setVerifyDialogOpen(true)}
@@ -794,10 +833,12 @@ export function IncidentDetailsPage() {
                   Verify Incident
                 </Button>
               )}
+              {canNotifyResponders && (
               <Button variant="outline" className="gap-2 rounded-xl" onClick={openNotifyRespondersDialog}>
                 <Bell className="w-4 h-4" />
                 Notify Responders
               </Button>
+              )}
               {possibleDuplicates.length > 0 && (
                 <Button
                   variant="outline"
@@ -1338,7 +1379,7 @@ export function IncidentDetailsPage() {
                         <span className="text-xs text-muted">{note.timestamp}</span>
                       </div>
                       <p className="text-sm text-foreground mb-1">{note.note}</p>
-                      <p className="text-xs text-muted">— {note.author}</p>
+                      <p className="text-xs text-muted">— {note.author}{note.source ? ` (${note.source})` : ''}</p>
                     </div>
                   ))}
                   {coordination.length === 0 && (

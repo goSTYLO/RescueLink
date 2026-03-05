@@ -1,0 +1,111 @@
+import {
+  getIncidentById,
+  getIncidents,
+  getIncidentWithAi,
+  normalizeIncidentStatus,
+  reclassifyIncident,
+  verifyIncident,
+} from '@/data/api/incidents.api';
+
+jest.mock('@/core/config/app.config', () => ({
+  API_URL: 'http://localhost:3000',
+  DEV_MODE: false,
+  MAPBOX_ACCESS_TOKEN: '',
+}));
+
+describe('incidents.api contract', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    localStorage.setItem('token', 'test-token');
+    global.fetch = jest.fn();
+  });
+
+  test('normalizeIncidentStatus uses canonical lifecycle values', () => {
+    expect(normalizeIncidentStatus('pending')).toBe('pending');
+    expect(normalizeIncidentStatus('verified')).toBe('verified');
+    expect(normalizeIncidentStatus('resolved')).toBe('resolved');
+    expect(normalizeIncidentStatus('unknown')).toBe('pending');
+  });
+
+  test('getIncidents sends canonical status query and auth headers', async () => {
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify([]),
+    });
+
+    await getIncidents({ status: 'VERIFIED', limit: 25, offset: 10 });
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+    const [url, options] = fetch.mock.calls[0];
+    expect(url).toContain('/api/incidents?');
+    expect(url).toContain('status=verified');
+    expect(url).toContain('limit=25');
+    expect(url).toContain('offset=10');
+    expect(options.method).toBe('GET');
+    expect(options.headers.Authorization).toBe('Bearer test-token');
+    expect(options.headers['x-request-id']).toContain('web-incidents-');
+  });
+
+  test('verifyIncident uses POST and standardized error message fallback', async () => {
+    fetch.mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+      text: async () => JSON.stringify({ error: 'Blockchain service unavailable' }),
+    });
+
+    await expect(verifyIncident(101)).rejects.toThrow('Blockchain service unavailable');
+    const [url, options] = fetch.mock.calls[0];
+    expect(url).toContain('/api/incidents/101/verify');
+    expect(options.method).toBe('POST');
+  });
+
+  test('getIncidentById returns parsed data', async () => {
+    const incident = { report_id: 77, status: 'pending' };
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify(incident),
+    });
+
+    const data = await getIncidentById(77);
+    expect(data).toEqual(incident);
+  });
+
+  test('getIncidentWithAi hits dedicated endpoint', async () => {
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ incident: { report_id: 77 }, ai_classification: null }),
+    });
+
+    const data = await getIncidentWithAi(77);
+    expect(data.incident.report_id).toBe(77);
+    const [url] = fetch.mock.calls[0];
+    expect(url).toContain('/api/incidents/77/with-ai');
+  });
+
+  test('reclassifyIncident sends payload with x-request-id header', async () => {
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ success: true }),
+    });
+
+    await reclassifyIncident(88, {
+      incident_type: 'medical',
+      severity_level: 'high',
+      reason: 'Manual override after dispatcher review',
+    });
+
+    const [url, options] = fetch.mock.calls[0];
+    expect(url).toContain('/api/incidents/88/reclassify');
+    expect(options.method).toBe('POST');
+    expect(options.headers['x-request-id']).toContain('web-reclassify-');
+    expect(JSON.parse(options.body)).toEqual({
+      incident_type: 'medical',
+      severity_level: 'high',
+      reason: 'Manual override after dispatcher review',
+    });
+  });
+});

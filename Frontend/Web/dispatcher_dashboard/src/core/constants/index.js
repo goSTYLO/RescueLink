@@ -1,6 +1,7 @@
 // User roles - used for nav and access control
 export const ROLES = {
   SUPER_ADMIN: 'super-admin',
+  DISPATCHER: 'dispatcher',
   DEPARTMENT_ADMIN: 'department-admin',
   PERSONNEL: 'personnel',
 };
@@ -10,6 +11,7 @@ export function normalizeRole(role) {
   if (!role) return ROLES.PERSONNEL;
   const r = String(role).toLowerCase();
   if (r === 'admin' || r === 'super-admin' || r === 'superadmin') return ROLES.SUPER_ADMIN;
+  if (r === 'dispatcher') return ROLES.DISPATCHER;
   if (r === 'department-admin' || r === 'dept admin' || r === 'department admin') return ROLES.DEPARTMENT_ADMIN;
   if (r === 'personnel' || r === 'operator' || r === 'supervisor') return r === 'personnel' ? ROLES.PERSONNEL : ROLES.SUPER_ADMIN;
   return ROLES.PERSONNEL;

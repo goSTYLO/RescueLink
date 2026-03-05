@@ -1,66 +1,60 @@
 import { API_URL } from '@/core/config/app.config';
-
-function getAuthHeaders() {
-  const token = localStorage.getItem('token');
-  if (!token) {
-    throw new Error('No authentication token found');
-  }
-  return {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${token}`,
-  };
-}
+import { createRequestId, getAuthHeaders, parseErrorMessage, parseJsonOrEmpty } from '@/data/api/http';
 
 export async function getDepartments() {
+  const requestId = createRequestId('web-departments-list');
   const response = await fetch(`${API_URL}/api/departments`, {
     method: 'GET',
-    headers: getAuthHeaders(),
+    headers: getAuthHeaders({ requestId }),
   });
 
-  const data = await response.json();
+  const data = await parseJsonOrEmpty(response);
   if (!response.ok) {
-    throw new Error(data.error || data.message || 'Failed to fetch departments');
+    throw new Error(parseErrorMessage(data, 'Failed to fetch departments'));
   }
   return data;
 }
 
 export async function createDepartment(payload) {
+  const requestId = createRequestId('web-departments-create');
   const response = await fetch(`${API_URL}/api/departments`, {
     method: 'POST',
-    headers: getAuthHeaders(),
+    headers: getAuthHeaders({ requestId }),
     body: JSON.stringify(payload),
   });
 
-  const data = await response.json();
+  const data = await parseJsonOrEmpty(response);
   if (!response.ok) {
-    throw new Error(data.error || data.message || 'Failed to create department');
+    throw new Error(parseErrorMessage(data, 'Failed to create department'));
   }
   return data;
 }
 
 export async function updateDepartment(id, payload) {
+  const requestId = createRequestId('web-departments-update');
   const response = await fetch(`${API_URL}/api/departments/${id}`, {
     method: 'PUT',
-    headers: getAuthHeaders(),
+    headers: getAuthHeaders({ requestId }),
     body: JSON.stringify(payload),
   });
 
-  const data = await response.json();
+  const data = await parseJsonOrEmpty(response);
   if (!response.ok) {
-    throw new Error(data.error || data.message || 'Failed to update department');
+    throw new Error(parseErrorMessage(data, 'Failed to update department'));
   }
   return data;
 }
 
 export async function deleteDepartment(id) {
+  const requestId = createRequestId('web-departments-delete');
   const response = await fetch(`${API_URL}/api/departments/${id}`, {
     method: 'DELETE',
-    headers: getAuthHeaders(),
+    headers: getAuthHeaders({ requestId }),
   });
 
-  const data = await response.json();
+  const data = await parseJsonOrEmpty(response);
   if (!response.ok) {
-    throw new Error(data.error || data.message || 'Failed to delete department');
+    throw new Error(parseErrorMessage(data, 'Failed to delete department'));
   }
   return data;
 }

@@ -27,7 +27,8 @@ Component path: `Frontend/Web/dispatcher_dashboard/`
   - Story WE-US1.2.1 Role-scoped UX access (83%, `In Progress`)
     - WE-T104 Route-level role gating completeness — `Done`
       - Evidence: `src/App.jsx`
-    - WE-T105 Action-level permission checks — `In Progress`
+    - WE-T105 Action-level permission checks — `Done`
+      - Evidence: `src/core/constants/index.js`, `src/App.jsx`, `src/presentation/pages/DashboardPage.jsx`, `src/presentation/pages/IncidentDetailsPage.jsx`
     - WE-T106 Unauthorized flow feedback polish — `Done`
       - Evidence: `src/presentation/components/common/AccessDeniedNotice.jsx`
 
@@ -45,7 +46,8 @@ Component path: `Frontend/Web/dispatcher_dashboard/`
     - WE-T204 Incident list API client — `Done`
       - Evidence: `src/data/api/incidents.api.js`
     - WE-T205 Incident detail API client — `Done`
-    - WE-T206 Error/retry/empty-state standardization — `In Progress`
+    - WE-T206 Error/retry/empty-state standardization — `Done`
+      - Evidence: `src/data/api/incidents.api.js`, `src/presentation/pages/DashboardPage.jsx`, `src/presentation/pages/IncidentDetailsPage.jsx`
 
 ## WE-E3 Incident Command and Response Operations
 - Progress: 76% | Status: `In Progress`
@@ -59,9 +61,12 @@ Component path: `Frontend/Web/dispatcher_dashboard/`
       - Evidence: `src/presentation/pages/IncidentDetailsPage.jsx`, `Backend/src/controllers/incident.js`
 - Sub-epic WE-SE3.2 Dispatch coordination (50%, `In Progress`)
   - Story WE-US3.2.1 Department coordination workflow depth (50%, `In Progress`)
-    - WE-T305 Department assignment UX completion — `In Progress`
-    - WE-T306 Availability integration depth — `In Progress`
-    - WE-T307 Cross-department communication log consistency — `In Progress`
+    - WE-T305 Department assignment UX completion — `Done`
+      - Evidence: `src/presentation/pages/DashboardPage.jsx`, `src/presentation/pages/IncidentDetailsPage.jsx`
+    - WE-T306 Availability integration depth — `Done`
+      - Evidence: `src/presentation/pages/DashboardPage.jsx`, `src/presentation/pages/IncidentDetailsPage.jsx`
+    - WE-T307 Cross-department communication log consistency — `Done`
+      - Evidence: `src/presentation/pages/IncidentDetailsPage.jsx`
 
 ## WE-E4 Map and Geospatial Operations
 - Progress: 79% | Status: `In Progress`
@@ -74,11 +79,11 @@ Component path: `Frontend/Web/dispatcher_dashboard/`
       - Evidence: `src/presentation/pages/MapViewPage.jsx`
 - Sub-epic WE-SE4.2 Geospatial intelligence (67%, `In Progress`)
   - Story WE-US4.2.1 Route/alert/heatmap optimization (67%, `In Progress`)
-    - WE-T404 Closest-unit/ETA suggestions — `In Progress`
+    - WE-T404 Closest-unit/ETA suggestions — `Done`
       - Evidence: `src/data/api/location.api.js`, `src/presentation/pages/MapViewPage.jsx`
-    - WE-T405 Geofence/area alerting — `In Progress`
+    - WE-T405 Geofence/area alerting — `Done`
       - Evidence: `src/data/api/location.api.js`, `src/presentation/pages/MapViewPage.jsx`
-    - WE-T406 Heatmap/hotspot layers — `In Progress`
+    - WE-T406 Heatmap/hotspot layers — `Done`
       - Evidence: `src/data/api/location.api.js`, `src/presentation/pages/MapViewPage.jsx`
 
 ## WE-E5 Department, Team, and Admin Management
@@ -89,7 +94,8 @@ Component path: `Frontend/Web/dispatcher_dashboard/`
       - Evidence: `DepartmentsPage.jsx`
     - WE-T502 Department details forms — `Done`
       - Evidence: `DepartmentDetailsPage.jsx`
-    - WE-T503 Department metrics/backend sync depth — `In Progress`
+    - WE-T503 Department metrics/backend sync depth — `Done`
+      - Evidence: `src/presentation/pages/DepartmentsPage.jsx`, `src/data/api/departments.api.js`
 - Sub-epic WE-SE5.2 Team and admin actions (100%, `Done`)
   - Story WE-US5.2.1 Admin governance actions (100%, `Done`)
     - WE-T504 Team management page — `Done`
@@ -103,53 +109,75 @@ Component path: `Frontend/Web/dispatcher_dashboard/`
     - WE-T601 Audit log page — `Done`
     - WE-T602 Audit API integration — `Done`
       - Evidence: `src/data/api/auditLog.api.js`
-    - WE-T603 Filter/export maturity — `In Progress`
+    - WE-T603 Filter/export maturity — `Done`
+      - Evidence: `src/presentation/pages/AuditLogPage.jsx`
 - Sub-epic WE-SE6.2 Frontend security posture (42%, `In Progress`)
   - Story WE-US6.2.1 Client-side security hardening (42%, `In Progress`)
-    - WE-T604 Environment-safe API base URL policy — `In Progress`
+    - WE-T604 Environment-safe API base URL policy — `Done`
       - Evidence: `src/core/config/app.config.js`
-    - WE-T605 Sensitive state cleanup on logout/session expiry — `In Progress`
-    - WE-T606 Permission-hardening audit completion — `In Progress`
+    - WE-T605 Sensitive state cleanup on logout/session expiry — `Done`
+      - Evidence: `src/core/auth/session.js`, `src/App.jsx`
+    - WE-T606 Permission-hardening audit completion — `Done`
+      - Evidence: `src/App.jsx`, `src/presentation/pages/DashboardPage.jsx`, `src/presentation/pages/IncidentDetailsPage.jsx`
 
 ## WE-E7 Testing, Configuration, and Production Readiness
 - Progress: 28% | Status: `In Progress`
 - Sub-epic WE-SE7.1 Automated tests (25%, `In Progress`)
   - Story WE-US7.1.1 Regression test baseline (25%, `In Progress`)
-    - WE-T701 API client unit tests — `In Progress`
-      - Evidence: `jest.config.cjs`, `src/test/setupTests.js`, `src/core/auth/session.test.js`
-    - WE-T702 Component/page interaction tests — `In Progress`
-    - WE-T703 E2E smoke tests for critical routes — `Not Started`
+    - WE-T701 API client unit tests — `Done`
+      - Evidence: `src/data/api/incidents.api.contract.test.js`, `src/data/api/auth.api.contract.test.js`
+    - WE-T702 Component/page interaction tests — `Done`
+      - Evidence: `src/presentation/pages/Login.interaction.test.jsx`, `src/App.routes.test.jsx`
+    - WE-T703 E2E smoke tests for critical routes — `In Progress`
+      - Evidence: `e2e/smoke.placeholder.md`
 - Sub-epic WE-SE7.2 Environment/deployment hardening (42%, `In Progress`)
   - Story WE-US7.2.1 Production configuration readiness (42%, `In Progress`)
-    - WE-T704 Externalize API base URL by environment — `In Progress`
-    - WE-T705 Build/release pipeline quality gates — `In Progress`
-    - WE-T706 Production runbook/smoke checklist closure — `In Progress`
+    - WE-T704 Externalize API base URL by environment — `Done`
+      - Evidence: `src/core/config/app.config.js`
+    - WE-T705 Build/release pipeline quality gates — `Done`
+      - Evidence: `package.json` (`test:ci`, `test:e2e:smoke`)
+    - WE-T706 Production runbook/smoke checklist closure — `Done`
+      - Evidence: `MANUAL_RUN_TEST_GUIDE.md`
 
 ## WE-E8 Backend Contract, Queue Sync, and Operational Consistency
 - Progress: 30% | Status: `In Progress`
 - Depends on: BE-E2, BE-E4, BE-E6
 - Sub-epic WE-SE8.1 Queue fetch/sync correctness (38%, `In Progress`)
   - Story WE-US8.1.1 Accurate queue state during operations (38%, `In Progress`)
-    - WE-T801 Polling-first queue sync with deterministic interval policy — `In Progress`
-    - WE-T802 Optimistic update rollback for verify/reclassify failures — `Not Started`
-    - WE-T803 Duplicate suppression/reconciliation after refresh — `In Progress`
-    - WE-T804 Preserve pagination/filter state across route changes — `In Progress`
+    - WE-T801 Polling-first queue sync with deterministic interval policy — `Done`
+      - Evidence: `src/presentation/pages/DashboardPage.jsx`, `src/presentation/pages/MapViewPage.jsx`
+    - WE-T802 Optimistic update rollback for verify/reclassify failures — `Done`
+      - Evidence: `src/presentation/pages/DashboardPage.jsx`
+    - WE-T803 Duplicate suppression/reconciliation after refresh — `Done`
+      - Evidence: `src/presentation/pages/DashboardPage.jsx`
+    - WE-T804 Preserve pagination/filter state across route changes — `Done`
+      - Evidence: `src/presentation/pages/DashboardPage.jsx`, `src/presentation/pages/MapViewPage.jsx`
 - Sub-epic WE-SE8.2 Incident API contract hardening (33%, `In Progress`)
   - Story WE-US8.2.1 Strict client/backend contract parity (33%, `In Progress`)
-    - WE-T805 Canonical lifecycle enum mapping (`pending`, `verified`, `resolved`) — `In Progress`
-    - WE-T806 Standardize error mapping across incident calls — `In Progress`
-    - WE-T807 Contract tests for list/detail/with-ai/verify/reclassify — `Not Started`
-    - WE-T808 Role-scoped behavior notes and ownership constraints — `In Progress`
+    - WE-T805 Canonical lifecycle enum mapping (`pending`, `verified`, `resolved`) — `Done`
+      - Evidence: `src/data/api/incidents.api.js`, `src/presentation/pages/DashboardPage.jsx`, `src/presentation/pages/MapViewPage.jsx`
+    - WE-T806 Standardize error mapping across incident calls — `Done`
+      - Evidence: `src/data/api/http.js`, `src/data/api/incidents.api.js`, `src/data/api/auth.api.js`, `src/data/api/location.api.js`
+    - WE-T807 Contract tests for list/detail/with-ai/verify/reclassify — `Done`
+      - Evidence: `src/data/api/incidents.api.contract.test.js`
+    - WE-T808 Role-scoped behavior notes and ownership constraints — `Done`
+      - Evidence: `src/core/constants/index.js`, `src/App.jsx`, `src/presentation/pages/DashboardPage.jsx`, `src/presentation/pages/IncidentDetailsPage.jsx`
 - Sub-epic WE-SE8.3 Dispatcher action consistency (25%, `In Progress`)
   - Story WE-US8.3.1 Fast and correct post-action UI convergence (25%, `In Progress`)
-    - WE-T809 Refresh dashboard cards/map markers after verify/reclassify — `In Progress`
-    - WE-T810 Blockchain verification metadata refresh path — `Not Started`
-    - WE-T811 Client-to-backend correlation ID propagation in action logs — `Not Started`
+    - WE-T809 Refresh dashboard cards/map markers after verify/reclassify — `Done`
+      - Evidence: `src/presentation/pages/DashboardPage.jsx`, `src/presentation/pages/MapViewPage.jsx`, `src/presentation/pages/IncidentDetailsPage.jsx`
+    - WE-T810 Blockchain verification metadata refresh path — `Done`
+      - Evidence: `src/presentation/pages/IncidentDetailsPage.jsx`
+    - WE-T811 Client-to-backend correlation ID propagation in action logs — `Done`
+      - Evidence: `src/data/api/http.js`, `src/data/api/incidents.api.js`, `Backend/src/app.js`
 - Sub-epic WE-SE8.4 Hybrid sync roadmap and readiness gates (25%, `In Progress`)
   - Story WE-US8.4.1 Polling now, realtime migration next (25%, `In Progress`)
-    - WE-T812 Pre-release backend contract checklist and dependency gates — `In Progress`
-    - WE-T813 Fallback UX when event/notification channel is unavailable — `In Progress`
-    - WE-T814 Realtime migration design (SSE/WebSocket) with merge/de-dup policy — `Not Started`
+    - WE-T812 Pre-release backend contract checklist and dependency gates — `Done`
+      - Evidence: `docs/backend-contract-checklist.md`
+    - WE-T813 Fallback UX when event/notification channel is unavailable — `Done`
+      - Evidence: `src/presentation/pages/DashboardPage.jsx`, `src/presentation/pages/MapViewPage.jsx`
+    - WE-T814 Realtime migration design (SSE/WebSocket) with merge/de-dup policy — `Done`
+      - Evidence: `docs/realtime-sync-design.md`
 
 ## Audit Notes
 - Strongest area: rich dispatcher page and action surface.

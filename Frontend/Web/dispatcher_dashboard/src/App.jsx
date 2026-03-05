@@ -27,10 +27,12 @@ import CreateNewPassword from '@/presentation/pages/CreateNewPassword';
 import ResetPasswordPage from '@/presentation/pages/ResetPasswordPage';
 import { AccessDeniedNotice } from '@/presentation/components/common/AccessDeniedNotice';
 import { clearAuthSession, hasRoleAccess } from '@/core/auth/session';
+import { logout as logoutDispatcher } from '@/data/api/auth.api';
 
 const SUPER_ADMIN_ONLY = [ROLES.SUPER_ADMIN];
+const DASHBOARD_OPERATIONS_ROLES = [ROLES.SUPER_ADMIN, ROLES.DISPATCHER];
 const DEPARTMENT_AND_UP = [ROLES.SUPER_ADMIN, ROLES.DEPARTMENT_ADMIN];
-const ANY_AUTH_ROLE = [ROLES.SUPER_ADMIN, ROLES.DEPARTMENT_ADMIN, ROLES.PERSONNEL];
+const ANY_AUTH_ROLE = [ROLES.SUPER_ADMIN, ROLES.DISPATCHER, ROLES.DEPARTMENT_ADMIN, ROLES.PERSONNEL];
 
 // Protected Route Component
 function ProtectedRoute({ children, allowedRoles = [] }) {
@@ -145,6 +147,7 @@ export default function App() {
 
   const handleLogout = async () => {
     try {
+      await logoutDispatcher();
       await signOut(auth);
       setUserData(null);
       clearAuthSession();
@@ -185,7 +188,7 @@ export default function App() {
 
           {/* Protected Routes */}
           <Route path="/dashboard" element={
-            <ProtectedRoute allowedRoles={SUPER_ADMIN_ONLY}>
+            <ProtectedRoute allowedRoles={DASHBOARD_OPERATIONS_ROLES}>
               <DashboardPage />
             </ProtectedRoute>
           } />

@@ -140,7 +140,7 @@ Web dispatcher (Terminal 6)
 ```
 cd Frontend/Web/dispatcher_dashboard
 npm install
-npm start
+npm run dev
 ```
 
 Mobile (Terminal 7)
@@ -170,6 +170,18 @@ Optional skip flags:
 - `-SkipBlockchain`
 
 The runner executes available suites across backend, web, mobile, AI, and blockchain, and marks missing-service phases as `SKIPPED` instead of hard-failing.
+
+Web test commands (`Frontend/Web/dispatcher_dashboard`)
+```
+# Full web test run
+npm test
+
+# CI-style web test run with coverage
+npm run test:ci
+
+# Placeholder smoke checklist command (until Playwright/Cypress is wired)
+npm run test:e2e:smoke
+```
 
 Blockchain Mocha test (end-to-end)
 - Location: `Blockchain/tests`
@@ -201,6 +213,12 @@ Troubleshooting & common blockers
 - Missing AI model files: `RescueLink AI/models/emergency_model.pt` and `RescueLink AI/models/label_meta.json` are required for classification. If absent, the AI service will fallback or fail on model load.
 - `CONTRACT_ADDRESS`: If you want to reuse a deployed `IncidentRegistry` contract, set `CONTRACT_ADDRESS` in `Blockchain/.env`; otherwise the service will deploy on first call (requires `PRIVATE_KEY`).
 - npm `web3` version: If installing tests, `Blockchain/tests/package.json` pins a compatible `web3` (use the provided package.json in that folder).
+
+Web API base URL configuration
+------------------------------
+- The dispatcher web app now uses environment/runtime configuration instead of a hardcoded API URL.
+- Preferred env var for local/dev: `VITE_API_URL=http://localhost:3000`
+- Optional runtime override: `window.__RESCUELINK_CONFIG__ = { API_URL: 'http://localhost:3000' }`
 
 Quick troubleshooting commands
 ```

@@ -20,6 +20,9 @@ export function hasRoleAccess(currentRole, allowedRoles = []) {
 }
 
 export function clearAuthSession() {
+  localStorage.removeItem('dispatcherMfaSessionToken');
+  localStorage.removeItem('dashboard:filters:v1');
+  localStorage.removeItem('map:filters:v1');
   localStorage.removeItem('user');
   localStorage.removeItem('token');
   sessionStorage.clear();

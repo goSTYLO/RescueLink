@@ -222,7 +222,7 @@ class WhisperHandler:
         self.enable_api_fallback = (
             enable_api_fallback
             if enable_api_fallback is not None
-            else _to_bool(os.getenv("STT_ENABLE_API_FALLBACK"), default=True)
+            else _to_bool(os.getenv("STT_ENABLE_API_FALLBACK"), default=False)
         )
 
         self.local_provider: Optional[_WhisperLocalProvider] = None
@@ -524,7 +524,7 @@ def get_whisper_handler() -> WhisperHandler:
             max_file_size_mb=int(os.getenv("MAX_AUDIO_FILE_SIZE_MB", 25)),
             confidence_threshold=float(os.getenv("WHISPER_CONFIDENCE_THRESHOLD", 0.7)),
             stt_provider=os.getenv("STT_PROVIDER", "local"),
-            enable_api_fallback=_to_bool(os.getenv("STT_ENABLE_API_FALLBACK"), default=True),
+            enable_api_fallback=_to_bool(os.getenv("STT_ENABLE_API_FALLBACK"), default=False),
         )
 
     return _whisper_handler

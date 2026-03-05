@@ -1,4 +1,5 @@
 import { API_URL } from '@/core/config/app.config';
+import { createRequestId, getAuthHeaders, parseErrorMessage, parseJsonOrEmpty } from '@/data/api/http';
 
 /**
  * Login as dispatcher (email + password).
@@ -8,16 +9,17 @@ import { API_URL } from '@/core/config/app.config';
  * @returns {Promise<{user?: object, token?: string, sessionToken?: string, message?: string}>}
  */
 export async function loginDispatcher(email, password) {
+  const requestId = createRequestId('web-auth-login');
   const response = await fetch(`${API_URL}/api/auth/dispatcher/login`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'x-request-id': requestId },
     body: JSON.stringify({ email, password }),
   });
 
-  const data = await response.json();
+  const data = await parseJsonOrEmpty(response);
 
   if (!response.ok) {
-    throw new Error(data.message || 'Login failed');
+    throw new Error(parseErrorMessage(data, 'Login failed'));
   }
 
   return data;
@@ -30,16 +32,17 @@ export async function loginDispatcher(email, password) {
  * @returns {Promise<{user: object, token: string}>}
  */
 export async function verifyDispatcherOtp(sessionToken, otp) {
+  const requestId = createRequestId('web-auth-otp');
   const response = await fetch(`${API_URL}/api/auth/dispatcher/verify-otp`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'x-request-id': requestId },
     body: JSON.stringify({ sessionToken, otp }),
   });
 
-  const data = await response.json();
+  const data = await parseJsonOrEmpty(response);
 
   if (!response.ok) {
-    throw new Error(data.message || 'Verification failed');
+    throw new Error(parseErrorMessage(data, 'Verification failed'));
   }
 
   return data;
@@ -50,20 +53,17 @@ export async function verifyDispatcherOtp(sessionToken, otp) {
  * @returns {Promise<{user_id, phone, email, firstName, lastName, role, created_at, ...}>}
  */
 export async function getMe() {
-  const token = localStorage.getItem('token');
-  if (!token) {
-    throw new Error('Not authenticated');
-  }
+  const requestId = createRequestId('web-auth-me');
 
   const response = await fetch(`${API_URL}/api/auth/me`, {
     method: 'GET',
-    headers: { Authorization: `Bearer ${token}` },
+    headers: getAuthHeaders({ requestId, includeContentType: false }),
   });
 
-  const data = await response.json();
+  const data = await parseJsonOrEmpty(response);
 
   if (!response.ok) {
-    throw new Error(data.message || 'Failed to fetch profile');
+    throw new Error(parseErrorMessage(data, 'Failed to fetch profile'));
   }
 
   return data.user;
@@ -76,24 +76,18 @@ export async function getMe() {
  * @returns {Promise<{message: string}>}
  */
 export async function changePassword(currentPassword, newPassword) {
-  const token = localStorage.getItem('token');
-  if (!token) {
-    throw new Error('Not authenticated');
-  }
+  const requestId = createRequestId('web-auth-password');
 
   const response = await fetch(`${API_URL}/api/auth/change-password`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
+    headers: getAuthHeaders({ requestId }),
     body: JSON.stringify({ currentPassword, newPassword }),
   });
 
-  const data = await response.json();
+  const data = await parseJsonOrEmpty(response);
 
   if (!response.ok) {
-    throw new Error(data.message || 'Failed to change password');
+    throw new Error(parseErrorMessage(data, 'Failed to change password'));
   }
 
   return data;
@@ -105,15 +99,12 @@ export async function changePassword(currentPassword, newPassword) {
  * @returns {Promise<void>}
  */
 export async function logout() {
-  const token = localStorage.getItem('token');
-  if (!token) return;
+  if (!localStorage.getItem('token')) return;
   try {
+    const requestId = createRequestId('web-auth-logout');
     const response = await fetch(`${API_URL}/api/auth/logout`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
+      headers: getAuthHeaders({ requestId }),
     });
     if (!response.ok) {
       console.warn('Logout API returned', response.status);

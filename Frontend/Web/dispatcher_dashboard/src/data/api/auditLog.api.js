@@ -1,15 +1,5 @@
 import { API_URL } from '@/core/config/app.config';
-
-function getAuthHeaders() {
-  const token = localStorage.getItem('token');
-  if (!token) {
-    throw new Error('No authentication token found');
-  }
-  return {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${token}`,
-  };
-}
+import { createRequestId, getAuthHeaders, parseErrorMessage, parseJsonOrEmpty } from '@/data/api/http';
 
 /**
  * Fetch dispatcher audit logs with optional filters.
@@ -23,6 +13,7 @@ function getAuthHeaders() {
  * @returns {Promise<Array>} Audit log entries
  */
 export async function getAuditLogs({ limit = 50, offset = 0, action, resource_type, from, to } = {}) {
+  const requestId = createRequestId('web-audit-list');
   const params = new URLSearchParams();
   params.set('limit', String(limit));
   params.set('offset', String(offset));
@@ -33,12 +24,12 @@ export async function getAuditLogs({ limit = 50, offset = 0, action, resource_ty
 
   const response = await fetch(`${API_URL}/api/audit-logs?${params}`, {
     method: 'GET',
-    headers: getAuthHeaders(),
+    headers: getAuthHeaders({ requestId }),
   });
 
-  const data = await response.json();
+  const data = await parseJsonOrEmpty(response);
   if (!response.ok) {
-    throw new Error(data.error || data.message || 'Failed to fetch audit logs');
+    throw new Error(parseErrorMessage(data, 'Failed to fetch audit logs'));
   }
   return data;
 }

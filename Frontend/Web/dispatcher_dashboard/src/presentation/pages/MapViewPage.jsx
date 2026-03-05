@@ -2,20 +2,22 @@ import { Layout } from '@/presentation/components/layout/Layout';
 import { Badge } from '@/presentation/components/ui/Badge';
 import { Button } from '@/presentation/components/ui/Button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/presentation/components/ui/Select';
-import { MapPin, SlidersHorizontal, Map, List, ChevronRight } from 'lucide-react';
+import { MapPin, SlidersHorizontal, Map, ChevronRight } from 'lucide-react';
 import { incidents as mockIncidents, barangays } from '@/data/mock/mockData';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
-import { getIncidents } from '@/data/api/incidents.api';
-import { getClosestUnits, getGeofenceAlerts, getHeatmapHotspots } from '@/data/api/location.api';
+import { getIncidents, normalizeIncidentStatus } from '@/data/api/incidents.api';
 import { DEV_MODE } from '@/core/config/app.config';
+
+const POLLING_INTERVAL_MS = 30000;
 
 function mapApiIncidentToMap(api) {
   const typeMap = { fire: 'Fire', medical: 'Medical', police: 'Police', disaster: 'Disaster' };
   const emergencyType = typeMap[api.incident_type?.toLowerCase()] || (api.incident_type ? String(api.incident_type).charAt(0).toUpperCase() + String(api.incident_type).slice(1) : 'Unknown');
-  const severityMap = { high: 'Critical', medium: 'Warning', low: 'Resolved' };
+  const severityMap = { high: 'Critical', medium: 'Warning', low: 'Low' };
   const severity = severityMap[api.severity_level?.toLowerCase()] || 'Warning';
+  const canonicalStatus = normalizeIncidentStatus(api.status);
   let timeReported = '—';
   if (api.created_at) {
     const d = new Date(api.created_at);
@@ -28,7 +30,7 @@ function mapApiIncidentToMap(api) {
     severity,
     barangay: api.barangay || '—',
     timeReported,
-    status: api.status || 'pending',
+    status: canonicalStatus,
     location: {
       lat: Number(api.latitude),
       lng: Number(api.longitude),
@@ -36,12 +38,7 @@ function mapApiIncidentToMap(api) {
   };
 }
 
-const FALLBACK_UNITS = [
-  { id: 'BFP-01', name: 'Fire Truck 01', department: 'Fire', availability: 'Available', latitude: 16.0455, longitude: 120.3412 },
-  { id: 'MED-01', name: 'Ambulance 01', department: 'Medical', availability: 'Available', latitude: 16.0441, longitude: 120.3386 },
-  { id: 'PNP-01', name: 'Patrol Car 01', department: 'Police', availability: 'Available', latitude: 16.043, longitude: 120.3367 },
-  { id: 'DRRMO-01', name: 'Rescue Unit 01', department: 'Disaster', availability: 'Available', latitude: 16.0463, longitude: 120.3394 },
-];
+const MAP_FILTER_STATE_KEY = 'map:filters:v1';
 
 export function MapViewPage() {
   const navigate = useNavigate();
@@ -51,24 +48,28 @@ export function MapViewPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
-  const [filterDepartment, setFilterDepartment] = useState('All');
-  const [filterBarangay, setFilterBarangay] = useState('All');
+  const persistedMapState = (() => {
+    try {
+      return JSON.parse(sessionStorage.getItem(MAP_FILTER_STATE_KEY) || '{}');
+    } catch {
+      return {};
+    }
+  })();
+  const [filterDepartment, setFilterDepartment] = useState(persistedMapState.filterDepartment || 'All');
+  const [filterBarangay, setFilterBarangay] = useState(persistedMapState.filterBarangay || 'All');
   const [selectedIncident, setSelectedIncident] = useState(null);
   const [showPopup, setShowPopup] = useState(false);
-  const [geoInsights, setGeoInsights] = useState({
-    loading: false,
-    error: null,
-    closestUnits: [],
-    geofenceAlerts: [],
-    hotspots: [],
-  });
   const popupTimerRef = useRef(null);
   const [selectStates, setSelectStates] = useState({
     department: false,
     barangay: false,
   });
+  const rateLimitUntilRef = useRef(0);
 
   const fetchIncidents = useCallback(async () => {
+    if (Date.now() < rateLimitUntilRef.current) {
+      return;
+    }
     const token = localStorage.getItem('token');
     if (DEV_MODE && !token) {
       setIncidents(mockIncidents);
@@ -86,7 +87,11 @@ export function MapViewPage() {
       setIncidents(mapped);
       setLastUpdated(new Date());
     } catch (err) {
-      setError(err.message || 'Failed to load incidents');
+      const message = err.message || 'Failed to load incidents';
+      if (message.toLowerCase().includes('rate limited')) {
+        rateLimitUntilRef.current = Date.now() + 30000;
+      }
+      setError(message);
       setIncidents([]);
     } finally {
       setLoading(false);
@@ -95,9 +100,21 @@ export function MapViewPage() {
 
   useEffect(() => {
     fetchIncidents();
-    const interval = setInterval(fetchIncidents, 30000);
-    return () => clearInterval(interval);
+    const interval = setInterval(fetchIncidents, POLLING_INTERVAL_MS);
+    const handleIncidentUpdated = () => fetchIncidents();
+    window.addEventListener('incident:updated', handleIncidentUpdated);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('incident:updated', handleIncidentUpdated);
+    };
   }, [fetchIncidents]);
+
+  useEffect(() => {
+    sessionStorage.setItem(MAP_FILTER_STATE_KEY, JSON.stringify({
+      filterDepartment,
+      filterBarangay,
+    }));
+  }, [filterDepartment, filterBarangay]);
 
   const handleMarkerClick = (incident) => {
     if (selectedIncident?.id === incident.id && showPopup) {
@@ -123,11 +140,13 @@ export function MapViewPage() {
     };
   }, []);
 
-  const filteredIncidents = incidents.filter(inc => {
-    if (filterDepartment !== 'All' && inc.emergencyType !== filterDepartment) return false;
-    if (filterBarangay !== 'All' && inc.barangay !== filterBarangay) return false;
-    return true;
-  });
+  const filteredIncidents = useMemo(() => {
+    return incidents.filter((inc) => {
+      if (filterDepartment !== 'All' && inc.emergencyType !== filterDepartment) return false;
+      if (filterBarangay !== 'All' && inc.barangay !== filterBarangay) return false;
+      return true;
+    });
+  }, [incidents, filterDepartment, filterBarangay]);
 
   useEffect(() => {
     if (!selectedIncident && filteredIncidents.length > 0) {
@@ -139,80 +158,6 @@ export function MapViewPage() {
       setShowPopup(false);
     }
   }, [filteredIncidents, selectedIncident]);
-
-  const fetchGeoInsights = useCallback(async () => {
-    const token = localStorage.getItem('token');
-    if ((!token && !DEV_MODE) || !selectedIncident) {
-      setGeoInsights((prev) => ({ ...prev, closestUnits: [], geofenceAlerts: [], hotspots: [] }));
-      return;
-    }
-
-    setGeoInsights((prev) => ({ ...prev, loading: true, error: null }));
-    try {
-      if (DEV_MODE && !token) {
-        const hotspots = filteredIncidents.slice(0, 3).map((incident) => ({
-          barangay: incident.barangay,
-          incidentCount: 1,
-          heatScore: incident.severity === 'Critical' ? 3 : incident.severity === 'Warning' ? 2 : 1,
-        }));
-        setGeoInsights({
-          loading: false,
-          error: null,
-          closestUnits: FALLBACK_UNITS.slice(0, 3).map((unit, idx) => ({ ...unit, etaMinutes: 4 + idx * 3 })),
-          geofenceAlerts: [],
-          hotspots,
-        });
-        return;
-      }
-
-      const [closest, geofence, heatmap] = await Promise.all([
-        getClosestUnits({
-          incident: {
-            latitude: selectedIncident?.location?.lat ?? 16.043,
-            longitude: selectedIncident?.location?.lng ?? 120.337,
-          },
-          units: FALLBACK_UNITS,
-          limit: 4,
-        }),
-        getGeofenceAlerts({
-          incidents: filteredIncidents.map((incident) => ({
-            id: incident.id,
-            latitude: incident?.location?.lat,
-            longitude: incident?.location?.lng,
-            barangay: incident.barangay,
-            severity_level: incident.severity,
-            status: incident.status,
-          })),
-          bufferMeters: 50,
-        }),
-        getHeatmapHotspots(150),
-      ]);
-
-      setGeoInsights({
-        loading: false,
-        error: null,
-        closestUnits: closest?.suggestions || [],
-        geofenceAlerts: geofence?.alerts || [],
-        hotspots: heatmap?.hotspots || [],
-      });
-    } catch (err) {
-      setGeoInsights((prev) => ({ ...prev, loading: false, error: err.message || 'Failed to load geospatial intelligence' }));
-    }
-  }, [filteredIncidents, selectedIncident]);
-
-  useEffect(() => {
-    fetchGeoInsights();
-  }, [fetchGeoInsights]);
-
-  const getTypeEmoji = (type) => {
-    switch (type) {
-      case 'Fire': return '🔥';
-      case 'Medical': return '🏥';
-      case 'Police': return '👮';
-      case 'Disaster': return '⚠️';
-      default: return '';
-    }
-  };
 
   const getSeverityColor = (severity) => {
     switch (severity) {
@@ -245,9 +190,7 @@ export function MapViewPage() {
     ...barangays.map(b => ({ value: b, label: b })),
   ];
 
-  const heroCardClass = `rounded-3xl border overflow-hidden transition-all duration-300 ${isLight ? 'glass neumorphic-light bg-white/80 border-gray-200/80 shadow-[8px_8px_24px_rgba(209,213,219,0.5),-8px_-8px_24px_rgba(255,255,255,0.9)]' : 'glass neumorphic-dark bg-card/60 border-white/10 shadow-[8px_8px_24px_rgba(0,0,0,0.35),-6px_-6px_20px_rgba(19,65,120,0.2)]'}`;
-  const heroIconClass = `w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isLight ? 'neumorphic-light-inset bg-gray-100 text-primary' : 'neumorphic-dark-inset bg-white/10 text-primary'}`;
-  const panelClass = (inset = false) =>
+  const panelClass = () =>
     `rounded-2xl border overflow-hidden transition-all duration-300 ${
       isLight ? 'glass neumorphic-light bg-white/80' : 'glass neumorphic-dark bg-card/60'
     }`;
@@ -261,342 +204,178 @@ export function MapViewPage() {
   return (
     <Layout>
       <div className="flex flex-col h-[calc(100vh-6rem)] p-4 md:p-6 gap-4 min-h-0">
-        {/* Hero card – same style as Team, Dashboard, etc. */}
-        <div className="flex-shrink-0 max-w-7xl w-full mx-auto">
-          <div className={heroCardClass}>
-            <div className="p-8 flex flex-wrap items-center gap-6">
-              <div className={heroIconClass}>
+        <div className="w-full max-w-7xl mx-auto flex-1 min-h-0 flex flex-col gap-4">
+          <div className={panelClass()}>
+            <div className="p-4 md:p-5 flex flex-wrap items-center gap-3">
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${iconBoxClass()}`}>
                 <Map className="w-5 h-5" strokeWidth={2} />
               </div>
+              <div className="min-w-[180px]">
+                <h1 className="text-xl md:text-2xl font-bold text-foreground">Emergency Map</h1>
+                <p className="text-sm text-muted">Live incidents across Dagupan City</p>
+              </div>
+              <span className="ml-auto text-xs text-muted">
+                {lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Loading latest data...'}
+              </span>
+            </div>
+          </div>
+          <div className={`relative overflow-visible rounded-2xl border transition-all duration-300 ${selectStates.department || selectStates.barangay ? 'z-20' : ''} ${isLight ? 'glass neumorphic-light bg-white/80' : 'glass neumorphic-dark bg-card/60'}`}>
+            <div className={headerClass()}>
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${iconBoxClass()}`}>
+                <SlidersHorizontal className="w-4 h-4" strokeWidth={2} />
+              </div>
+              <h2 className="text-base font-semibold text-foreground">Filters</h2>
+              <span className="ml-auto text-xs text-muted">{filteredIncidents.length} visible</span>
+            </div>
+            <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
-                <h1 className="text-3xl font-bold text-foreground">Live Emergency Map</h1>
-                <p className="text-muted mt-1">Real-time incident locations across Dagupan City</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Hierarchical grid: [Filters] [Map] [Incidents] – one row, fits viewport */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1 min-h-0">
-          {/* Left: Filters + Legend */}
-          <div className="lg:col-span-3 flex flex-col gap-4 min-h-0 overflow-visible">
-            <div className={`relative overflow-visible rounded-2xl border transition-all duration-300 ${selectStates.department || selectStates.barangay ? 'z-20' : ''} ${isLight ? 'glass neumorphic-light bg-white/80' : 'glass neumorphic-dark bg-card/60'}`}>
-              <div className={headerClass()}>
-                <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${iconBoxClass()}`}>
-                  <SlidersHorizontal className="w-4 h-4" strokeWidth={2} />
-                </div>
-                <h2 className="text-base font-semibold text-foreground">Filters</h2>
-              </div>
-              <div className="p-4 space-y-3">
-                <div>
-                  <label className="text-xs font-medium text-muted mb-1.5 block">Department</label>
-                  <Select value={filterDepartment} onValueChange={setFilterDepartment}>
-                    {({ isOpen, setIsOpen, value, onValueChange }) => (
-                      <>
-                        <SelectTrigger
-                          isOpen={selectStates.department}
-                          onClick={() => setSelectStates(s => ({ department: !s.department, barangay: false }))}
-                          className={isLight ? 'bg-gray-50/80 border-gray-200' : 'bg-white/5 border-white/10'}
-                        >
-                          <SelectValue placeholder="All Departments" value={value} options={departmentOptions} />
-                        </SelectTrigger>
-                        <SelectContent isOpen={selectStates.department}>
-                          {departmentOptions.map(opt => (
-                            <SelectItem
-                              key={opt.value}
-                              value={opt.value}
-                              onSelect={(val) => {
-                                setFilterDepartment(val);
-                                setSelectStates(s => ({ ...s, department: false }));
-                              }}
-                            >
-                              {opt.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </>
-                    )}
-                  </Select>
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-muted mb-1.5 block">Barangay</label>
-                  <Select value={filterBarangay} onValueChange={setFilterBarangay}>
-                    {({ isOpen, setIsOpen, value, onValueChange }) => (
-                      <>
-                        <SelectTrigger
-                          isOpen={selectStates.barangay}
-                          onClick={() => setSelectStates(s => ({ department: false, barangay: !s.barangay }))}
-                          className={isLight ? 'bg-gray-50/80 border-gray-200' : 'bg-white/5 border-white/10'}
-                        >
-                          <SelectValue placeholder="All Barangays" value={value} options={barangayOptions} />
-                        </SelectTrigger>
-                        <SelectContent isOpen={selectStates.barangay} className="max-h-[240px]">
-                          {barangayOptions.map(opt => (
-                            <SelectItem
-                              key={opt.value}
-                              value={opt.value}
-                              onSelect={(val) => {
-                                setFilterBarangay(val);
-                                setSelectStates(s => ({ ...s, barangay: false }));
-                              }}
-                            >
-                              {opt.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </>
-                    )}
-                  </Select>
-                </div>
-              </div>
-            </div>
-
-            <div className={`relative z-0 ${panelClass()}`}>
-              <div className={headerClass()}>
-                <h2 className="text-base font-semibold text-foreground">Severity Legend</h2>
-              </div>
-              <div className="p-4 space-y-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-3.5 h-3.5 rounded-full bg-primary flex-shrink-0" />
-                  <span className="text-sm text-foreground">Critical</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3.5 h-3.5 rounded-full bg-amber-500 flex-shrink-0" />
-                  <span className="text-sm text-foreground">Warning</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3.5 h-3.5 rounded-full bg-severity-resolved flex-shrink-0" />
-                  <span className="text-sm text-foreground">Resolved</span>
-                </div>
-              </div>
-            </div>
-
-            <div className={`relative z-0 ${panelClass()}`}>
-              <div className={headerClass()}>
-                <h2 className="text-base font-semibold text-foreground">Geo Intelligence</h2>
-              </div>
-              <div className="p-4 space-y-4 text-sm">
-                {geoInsights.loading && <p className="text-muted">Updating geospatial insights…</p>}
-                {geoInsights.error && <p className="text-primary">{geoInsights.error}</p>}
-
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-muted font-semibold mb-2">Closest Units (ETA)</p>
-                  <div className="space-y-2">
-                    {geoInsights.closestUnits.slice(0, 3).map((unit) => (
-                      <div key={unit.id} className={`rounded-lg border px-3 py-2 ${isLight ? 'border-gray-200 bg-gray-50/70' : 'border-white/10 bg-white/5'}`}>
-                        <p className="text-foreground font-medium">{unit.name}</p>
-                        <p className="text-xs text-muted">{unit.department} • ETA ~{unit.etaMinutes} min</p>
-                      </div>
-                    ))}
-                    {!geoInsights.loading && geoInsights.closestUnits.length === 0 && (
-                      <p className="text-muted">No ETA suggestions available.</p>
-                    )}
-                  </div>
-                </div>
-
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-muted font-semibold mb-1">Geofence Alerts</p>
-                  <p className="text-foreground">
-                    {geoInsights.geofenceAlerts.length} incident(s) currently outside the Dagupan boundary buffer.
-                  </p>
-                </div>
-
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-muted font-semibold mb-2">Hotspots</p>
-                  <div className="space-y-1.5">
-                    {geoInsights.hotspots.slice(0, 3).map((hotspot) => (
-                      <div key={hotspot.barangay} className="flex items-center justify-between text-foreground">
-                        <span>{hotspot.barangay}</span>
-                        <span className="text-xs text-muted">Score {hotspot.heatScore}</span>
-                      </div>
-                    ))}
-                    {!geoInsights.loading && geoInsights.hotspots.length === 0 && (
-                      <p className="text-muted">No hotspot data available.</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Center: Map – takes remaining height */}
-          <div className="lg:col-span-6 flex flex-col min-h-0 relative z-0">
-            <div className={`${panelClass()} flex flex-col flex-1 min-h-0`}>
-              <div className={headerClass()}>
-                <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${iconBoxClass()}`}>
-                  <Map className="w-4 h-4" strokeWidth={2} />
-                </div>
-                <h2 className="text-base font-semibold text-foreground">Dagupan City Map</h2>
-                <span className={`ml-auto text-xs ${isLight ? 'text-gray-600' : 'text-muted'}`}>
-                  {lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Live'}
-                </span>
-              </div>
-              <div className="flex-1 min-h-0 p-3">
-                <div className="relative w-full h-full min-h-[280px] bg-gradient-to-br from-blue-50/80 to-indigo-50/80 dark:from-secondary/20 dark:to-secondary/10 rounded-xl overflow-hidden border border-border/50">
-                  {error && (
-                    <div className="absolute top-3 left-3 z-40 rounded-lg border border-primary/40 bg-primary/15 px-3 py-2 text-xs text-primary">
-                      {error}
-                    </div>
-                  )}
-                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                    <p className="text-base font-medium text-foreground">Dagupan City Map</p>
-                    <p className="text-xs text-muted mt-1">Interactive incident markers</p>
-                  </div>
-                  <div className="absolute inset-0">
-                    {filteredIncidents.map((incident, index) => {
-                      const isSelected = selectedIncident?.id === incident.id;
-                      const markerLeft = 15 + (index % 4) * 25;
-                      const markerTop = 20 + Math.floor(index / 4) * 30;
-                      return (
-                        <div
-                          key={incident.id}
-                          className="absolute cursor-pointer"
-                          style={{
-                            left: `${markerLeft}%`,
-                            top: `${markerTop}%`,
-                            transform: 'translate(-50%, -50%)',
-                          }}
-                          onClick={() => handleMarkerClick(incident)}
-                        >
-                          <div
-                            className={`relative w-6 h-6 rounded-full ${getSeverityColor(incident.severity)} shadow-lg flex items-center justify-center transition-transform hover:scale-110 ${
-                              isSelected && showPopup ? 'ring-2 ring-offset-2 ring-primary z-20' : 'z-10'
-                            }`}
+                <label className="text-xs font-medium text-muted mb-1.5 block">Department</label>
+                <Select value={filterDepartment} onValueChange={setFilterDepartment}>
+                  {({ value }) => (
+                    <>
+                      <SelectTrigger
+                        isOpen={selectStates.department}
+                        onClick={() => setSelectStates((s) => ({ department: !s.department, barangay: false }))}
+                        className={isLight ? 'bg-gray-50/80 border-gray-200' : 'bg-white/5 border-white/10'}
+                      >
+                        <SelectValue placeholder="All Departments" value={value} options={departmentOptions} />
+                      </SelectTrigger>
+                      <SelectContent isOpen={selectStates.department}>
+                        {departmentOptions.map((opt) => (
+                          <SelectItem
+                            key={opt.value}
+                            value={opt.value}
+                            onSelect={(val) => {
+                              setFilterDepartment(val);
+                              setSelectStates((s) => ({ ...s, department: false }));
+                            }}
                           >
-                            <MapPin className="w-4 h-4 text-white" />
-                          </div>
-                          {isSelected && showPopup && (
-                            <div
-                              className="absolute z-30 animate-fade-in"
-                              style={{
-                                left: '50%',
-                                top: 'calc(100% + 10px)',
-                                transform: 'translateX(-50%)',
-                                width: '220px',
-                              }}
-                            >
-                              <div className={`rounded-xl border shadow-lg overflow-hidden ${
-                                isLight ? 'glass bg-white/95' : 'glass bg-card'
-                              }`}>
-                                <div className="p-3">
-                                  <p className="font-semibold text-foreground text-sm mb-1">{incident.id}</p>
-                                  <p className="text-sm text-foreground mb-1">{incident.emergencyType}</p>
-                                  <p className="text-xs text-muted mb-1">Barangay: {incident.barangay}</p>
-                                  <p className="text-xs text-muted mb-2">Time: {incident.timeReported}</p>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </>
+                  )}
+                </Select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted mb-1.5 block">Barangay</label>
+                <Select value={filterBarangay} onValueChange={setFilterBarangay}>
+                  {({ value }) => (
+                    <>
+                      <SelectTrigger
+                        isOpen={selectStates.barangay}
+                        onClick={() => setSelectStates((s) => ({ department: false, barangay: !s.barangay }))}
+                        className={isLight ? 'bg-gray-50/80 border-gray-200' : 'bg-white/5 border-white/10'}
+                      >
+                        <SelectValue placeholder="All Barangays" value={value} options={barangayOptions} />
+                      </SelectTrigger>
+                      <SelectContent isOpen={selectStates.barangay} className="max-h-[240px]">
+                        {barangayOptions.map((opt) => (
+                          <SelectItem
+                            key={opt.value}
+                            value={opt.value}
+                            onSelect={(val) => {
+                              setFilterBarangay(val);
+                              setSelectStates((s) => ({ ...s, barangay: false }));
+                            }}
+                          >
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </>
+                  )}
+                </Select>
+              </div>
+            </div>
+          </div>
+
+          <div className={`${panelClass()} flex-1 min-h-0`}>
+            <div className={headerClass()}>
+              <h2 className="text-base font-semibold text-foreground">Dagupan City Map</h2>
+              <p className="ml-auto text-xs text-muted">Live channel unavailable - refreshes every 30 seconds.</p>
+            </div>
+            <div className="p-3 h-full">
+              <div className="relative w-full h-full min-h-[360px] bg-gradient-to-br from-blue-50/80 to-indigo-50/80 dark:from-secondary/20 dark:to-secondary/10 rounded-xl overflow-hidden border border-border/50">
+                {error && (
+                  <div className="absolute top-3 left-3 z-40 rounded-lg border border-primary/40 bg-primary/15 px-3 py-2 text-xs text-primary">
+                    {error}
+                  </div>
+                )}
+                {loading && (
+                  <div className="absolute top-3 right-3 z-40 rounded-lg border border-border/60 bg-card/70 px-3 py-1.5 text-xs text-muted">
+                    Loading incidents...
+                  </div>
+                )}
+                <div className="absolute inset-0">
+                  {filteredIncidents.map((incident, index) => {
+                    const isSelected = selectedIncident?.id === incident.id;
+                    const markerLeft = 15 + (index % 4) * 25;
+                    const markerTop = 20 + Math.floor(index / 4) * 30;
+                    return (
+                      <div
+                        key={incident.id}
+                        className="absolute cursor-pointer"
+                        style={{
+                          left: `${markerLeft}%`,
+                          top: `${markerTop}%`,
+                          transform: 'translate(-50%, -50%)',
+                        }}
+                        onClick={() => handleMarkerClick(incident)}
+                      >
+                        <div
+                          className={`relative w-7 h-7 rounded-full ${getSeverityColor(incident.severity)} shadow-lg flex items-center justify-center transition-transform hover:scale-110 ${
+                            isSelected && showPopup ? 'ring-2 ring-offset-2 ring-primary z-20' : 'z-10'
+                          }`}
+                        >
+                          <MapPin className="w-4 h-4 text-white" />
+                        </div>
+                        {isSelected && showPopup && (
+                          <div
+                            className="absolute z-30 animate-fade-in"
+                            style={{
+                              left: '50%',
+                              top: 'calc(100% + 10px)',
+                              transform: 'translateX(-50%)',
+                              width: '240px',
+                            }}
+                          >
+                            <div className={`rounded-xl border shadow-lg overflow-hidden ${isLight ? 'glass bg-white/95' : 'glass bg-card'}`}>
+                              <div className="p-3">
+                                <p className="font-semibold text-foreground text-sm mb-1">{incident.id}</p>
+                                <p className="text-sm text-foreground mb-1">{incident.emergencyType}</p>
+                                <p className="text-xs text-muted mb-1">Barangay: {incident.barangay}</p>
+                                <p className="text-xs text-muted mb-2">Time: {incident.timeReported}</p>
+                                <div className="flex items-center justify-between gap-2">
                                   <Badge className={`${getSeverityBadgeColor(incident.severity)} border rounded-lg px-2 py-0.5 text-xs font-semibold`}>
                                     {incident.severity.toUpperCase()}
                                   </Badge>
+                                  <Button
+                                    size="sm"
+                                    className="rounded-lg bg-primary hover:bg-primary-hover text-white gap-1"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      navigate(`/incidents/${incident.id}`);
+                                    }}
+                                  >
+                                    Details
+                                    <ChevronRight className="w-3.5 h-3.5" />
+                                  </Button>
                                 </div>
                               </div>
                             </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                    {!loading && filteredIncidents.length === 0 && (
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <p className="text-sm text-muted">No incidents found for the selected filters.</p>
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Right: Active Incidents + Details – scrollable */}
-          <div className="lg:col-span-3 flex flex-col gap-4 min-h-0">
-            <div className={`${panelClass()} flex flex-col flex-1 min-h-0 overflow-hidden`}>
-              <div className={headerClass()}>
-                <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${iconBoxClass()}`}>
-                  <List className="w-4 h-4" strokeWidth={2} />
-                </div>
-                <h2 className="text-base font-semibold text-foreground">Active Incidents</h2>
-                <span className={`ml-1 rounded-full px-2 py-0.5 text-xs font-medium ${isLight ? 'bg-primary/15 text-primary' : 'bg-primary/20 text-primary'}`}>
-                  {filteredIncidents.length}
-                </span>
-              </div>
-              <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2">
-                {filteredIncidents.slice(0, 8).map((incident) => (
-                  <div
-                    key={incident.id}
-                    className={`p-3 rounded-xl border cursor-pointer transition-all ${
-                      selectedIncident?.id === incident.id
-                        ? 'border-primary/50 bg-primary/10'
-                        : isLight
-                          ? 'border-gray-200/80 hover:bg-gray-50/80'
-                          : 'border-white/10 hover:bg-white/5'
-                    }`}
-                    onClick={() => {
-                      setSelectedIncident(incident);
-                      setShowPopup(true);
-                      if (popupTimerRef.current) clearTimeout(popupTimerRef.current);
-                      popupTimerRef.current = setTimeout(() => {
-                        setShowPopup(false);
-                        popupTimerRef.current = null;
-                      }, 5000);
-                    }}
-                  >
-                    <p className="text-sm font-semibold text-foreground mb-0.5">{incident.id}</p>
-                    <p className="text-xs text-muted">
-                      {getTypeEmoji(incident.emergencyType)} {incident.emergencyType} • {incident.barangay}
-                    </p>
-                    <div className="flex items-center justify-end mt-1">
-                      <div className={`w-2 h-2 rounded-full ${getSeverityColor(incident.severity)}`} />
+                    );
+                  })}
+                  {!loading && filteredIncidents.length === 0 && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <p className="text-sm text-muted">No incidents found for the selected filters.</p>
                     </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className={`${panelClass()} flex-shrink-0 overflow-hidden`}>
-              <div className={headerClass()}>
-                <h2 className="text-base font-semibold text-foreground">Incident Details</h2>
-              </div>
-              <div className="p-4 overflow-y-auto max-h-[220px]">
-                {selectedIncident ? (
-                  <>
-                    <div className="space-y-3">
-                      <div>
-                        <p className="text-xs text-muted mb-0.5">Incident ID</p>
-                        <p className="text-sm font-semibold text-foreground">{selectedIncident.id}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted mb-0.5">Type</p>
-                        <p className="text-sm text-foreground">{selectedIncident.emergencyType}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted mb-0.5">Severity</p>
-                        <Badge className={`${getSeverityBadgeColor(selectedIncident.severity)} border rounded-lg px-2 py-0.5 text-xs font-semibold inline-block`}>
-                          {selectedIncident.severity.toUpperCase()}
-                        </Badge>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted mb-0.5">Barangay</p>
-                        <p className="text-sm text-foreground">{selectedIncident.barangay}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted mb-0.5">Time Reported</p>
-                        <p className="text-sm text-foreground">{selectedIncident.timeReported}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted mb-0.5">Location</p>
-                        <p className="text-sm text-foreground">Corner AB Fernandez Ave and Perez Blvd</p>
-                      </div>
-                    </div>
-                    <Button
-                      className="w-full mt-4 rounded-xl bg-primary hover:bg-primary-hover text-white gap-2"
-                      onClick={() => navigate(`/incidents/${selectedIncident.id}`)}
-                    >
-                      View Full Details
-                      <ChevronRight className="w-4 h-4" />
-                    </Button>
-                  </>
-                ) : (
-                  <div className="flex items-center justify-center min-h-[140px]">
-                    <p className="text-sm text-muted">Select an incident to view details</p>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             </div>
           </div>

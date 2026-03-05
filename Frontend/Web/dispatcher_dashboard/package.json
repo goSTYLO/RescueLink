@@ -8,7 +8,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "jest --runInBand",
-    "test:watch": "jest --watch"
+    "test:watch": "jest --watch",
+    "test:ci": "jest --runInBand --coverage",
+    "test:e2e:smoke": "node -e \"console.log('E2E smoke placeholder. See e2e/smoke.placeholder.md for steps.');\""
   },
   "dependencies": {
     "firebase": "^10.7.1",

@@ -13,6 +13,16 @@ Implemented updates during this session:
 
 These changes were validated in the latest local performance reruns.
 
+## Session Updates (Web + Backend Integration Alignment)
+
+Recent cross-stack updates completed for dispatcher web integration:
+
+- **Request correlation parity**: web clients now consistently send `x-request-id`; backend already echoes/uses this for logs.
+- **Incident contract hardening**: web incident client contract tests now cover list/detail/with-ai/verify/reclassify.
+- **Lifecycle consistency**: web side now enforces canonical lifecycle values (`pending`, `verified`, `resolved`) to match backend expectations.
+- **Post-action convergence**: verify/reclassify flows trigger cross-page refresh events in web (dashboard/map/details).
+- **Live API test script resilience**: `tests/integration.test.js` setup now handles "already registered" account messages more safely.
+
 ## Quick start
 
 1. **Copy environment file and configure:**
@@ -162,6 +172,29 @@ Operational scanner outage and quarantine procedures are documented in [SECURITY
 
 - Backend-only suite: `npm run test:security`
 - Full security suite (Backend + AI fallback tests): run [run_security_integration_tests.ps1](../run_security_integration_tests.ps1) from the repository root.
+
+## Integration test commands
+
+From `Backend/`:
+
+```bash
+npm run test:rbac
+npm run test:security
+npx jest tests/location.integration.test.js --detectOpenHandles --forceExit
+npx jest tests/department.integration.test.js --detectOpenHandles --forceExit
+```
+
+Live API integration (requires backend running on `http://localhost:3000`):
+
+```bash
+node tests/integration.test.js
+```
+
+From repo root, cross-stack runner (web + backend focused):
+
+```bash
+powershell -ExecutionPolicy Bypass -File .\run_master_integration_tests.ps1 -SkipMobile -SkipAI -SkipBlockchain
+```
 
 ## Security Trigger Logs
 
