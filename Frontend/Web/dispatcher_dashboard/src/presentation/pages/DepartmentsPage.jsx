@@ -13,6 +13,15 @@ import {
 } from '@/presentation/components/ui/Dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/presentation/components/ui/Select';
 import { getDepartments, createDepartment, updateDepartment, deleteDepartment } from '@/data/api/departments.api';
+import {
+  getResponders,
+  getResponderTeams,
+  createResponder,
+  createResponderTeam,
+  addTeamMember,
+  updateResponderStatus,
+  updateResponderTeamStatus,
+} from '@/data/api/responders.api';
 import { useNavigate } from 'react-router-dom';
 import { useState, useEffect, useCallback } from 'react';
 import Swal from 'sweetalert2';
@@ -40,6 +49,8 @@ const DEPARTMENT_TYPES = [
   { value: 'Disaster', label: 'Disaster' },
   { value: 'Community', label: 'Community' },
 ];
+const TASK_TYPES = ['fire', 'medical', 'police', 'disaster'];
+const AVAILABILITY_OPTIONS = ['available', 'standby', 'busy', 'off-duty'];
 
 export function DepartmentsPage() {
   const navigate = useNavigate();
@@ -88,8 +99,23 @@ export function DepartmentsPage() {
     }
   }, []);
 
+  const loadResponderResources = useCallback(async () => {
+    try {
+      const [responderRows, teamRows] = await Promise.all([
+        getResponders({ limit: 300, offset: 0 }),
+        getResponderTeams({ limit: 300, offset: 0 }),
+      ]);
+      setResponders(Array.isArray(responderRows) ? responderRows : []);
+      setTeams(Array.isArray(teamRows) ? teamRows : []);
+    } catch {
+      setResponders([]);
+      setTeams([]);
+    }
+  }, []);
+
   useEffect(() => {
     loadDepartments();
+    loadResponderResources();
     const intervalId = setInterval(loadDepartments, 30000);
     const handleIncidentUpdated = () => loadDepartments();
     window.addEventListener('incident:updated', handleIncidentUpdated);
@@ -97,7 +123,7 @@ export function DepartmentsPage() {
       clearInterval(intervalId);
       window.removeEventListener('incident:updated', handleIncidentUpdated);
     };
-  }, [loadDepartments]);
+  }, [loadDepartments, loadResponderResources]);
   const [form, setForm] = useState({
     name: '',
     type: 'Fire',
@@ -106,6 +132,11 @@ export function DepartmentsPage() {
     personnelCount: 0,
     activeTaskCount: 0,
   });
+  const [responders, setResponders] = useState([]);
+  const [teams, setTeams] = useState([]);
+  const [teamForm, setTeamForm] = useState({ department_code: 'drrmo', team_name: '', team_status: 'available', supported_incident_types: [] });
+  const [responderForm, setResponderForm] = useState({ name: '', organization: '', contact_number: '', availability_status: 'available', team_name: '', supported_incident_types: [] });
+  const [memberForm, setMemberForm] = useState({ team_id: '', responder_id: '' });
 
   const heroCardClass = `rounded-3xl border overflow-hidden transition-all duration-300 ${isLight ? 'glass neumorphic-light bg-white/80 border-gray-200/80 shadow-[8px_8px_24px_rgba(209,213,219,0.5),-8px_-8px_24px_rgba(255,255,255,0.9)]' : 'glass neumorphic-dark bg-card/60 border-white/10 shadow-[8px_8px_24px_rgba(0,0,0,0.35),-6px_-6px_20px_rgba(19,65,120,0.2)]'}`;
   const heroIconClass = `w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isLight ? 'neumorphic-light-inset bg-gray-100 text-primary' : 'neumorphic-dark-inset bg-white/10 text-primary'}`;
@@ -232,6 +263,57 @@ export function DepartmentsPage() {
           });
       }
     });
+  };
+
+  const handleCreateTeam = async () => {
+    if (!teamForm.team_name.trim()) return;
+    try {
+      await createResponderTeam({
+        department_code: teamForm.department_code,
+        team_name: teamForm.team_name.trim(),
+        team_status: teamForm.team_status,
+        supported_incident_types: teamForm.supported_incident_types,
+      });
+      setTeamForm((prev) => ({ ...prev, team_name: '', supported_incident_types: [] }));
+      await loadResponderResources();
+      Swal.fire({ icon: 'success', title: 'Team saved', timer: 1500, showConfirmButton: false });
+    } catch (error) {
+      Swal.fire({ icon: 'error', title: 'Team save failed', text: error.message || 'Please try again.' });
+    }
+  };
+
+  const handleCreateResponder = async () => {
+    if (!responderForm.name.trim()) return;
+    try {
+      await createResponder({
+        ...responderForm,
+        name: responderForm.name.trim(),
+        organization: responderForm.organization.trim() || null,
+        contact_number: responderForm.contact_number.trim() || null,
+        team_name: responderForm.team_name || null,
+      });
+      setResponderForm((prev) => ({ ...prev, name: '', contact_number: '' }));
+      await loadResponderResources();
+      Swal.fire({ icon: 'success', title: 'Responder added', timer: 1500, showConfirmButton: false });
+    } catch (error) {
+      Swal.fire({ icon: 'error', title: 'Responder create failed', text: error.message || 'Please try again.' });
+    }
+  };
+
+  const handleMapMember = async () => {
+    if (!memberForm.team_id || !memberForm.responder_id) return;
+    try {
+      await addTeamMember(Number(memberForm.team_id), Number(memberForm.responder_id));
+      setMemberForm({ team_id: '', responder_id: '' });
+      Swal.fire({ icon: 'success', title: 'Responder mapped', timer: 1500, showConfirmButton: false });
+    } catch (error) {
+      Swal.fire({ icon: 'error', title: 'Map failed', text: error.message || 'Please try again.' });
+    }
+  };
+
+  const toggleTaskType = (values, taskType) => {
+    if (values.includes(taskType)) return values.filter((entry) => entry !== taskType);
+    return [...values, taskType];
   };
 
   return (
@@ -388,6 +470,162 @@ export function DepartmentsPage() {
               </div>
             );
           })}
+        </div>
+
+        <div className="mt-8 grid grid-cols-1 xl:grid-cols-3 gap-4">
+          <div className={panelClass}>
+            <div className={headerClass}>
+              <div className={iconBoxClass('primary')}><Users className="w-5 h-5" /></div>
+              <h3 className="text-base font-semibold text-foreground">Create Team</h3>
+            </div>
+            <div className="p-4 space-y-3">
+              <div>
+                <Label className="text-xs">Sector</Label>
+                <select
+                  className="w-full mt-1 px-3 py-2 border border-border rounded-lg bg-card text-foreground text-sm"
+                  value={teamForm.department_code}
+                  onChange={(e) => setTeamForm((prev) => ({ ...prev, department_code: e.target.value }))}
+                >
+                  <option value="pnp">pnp</option>
+                  <option value="drrmo">drrmo</option>
+                </select>
+              </div>
+              <div>
+                <Label className="text-xs">Team Name</Label>
+                <Input value={teamForm.team_name} onChange={(e) => setTeamForm((prev) => ({ ...prev, team_name: e.target.value }))} />
+              </div>
+              <div>
+                <Label className="text-xs">Supported Task Types</Label>
+                <div className="mt-1 flex flex-wrap gap-2">
+                  {TASK_TYPES.map((taskType) => (
+                    <Button
+                      key={taskType}
+                      type="button"
+                      variant={teamForm.supported_incident_types.includes(taskType) ? 'default' : 'outline'}
+                      className="h-8 text-xs"
+                      onClick={() => setTeamForm((prev) => ({ ...prev, supported_incident_types: toggleTaskType(prev.supported_incident_types, taskType) }))}
+                    >
+                      {taskType}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              <Button className="w-full" onClick={handleCreateTeam}>Save Team</Button>
+            </div>
+          </div>
+
+          <div className={panelClass}>
+            <div className={headerClass}>
+              <div className={iconBoxClass('secondary')}><PlusCircle className="w-5 h-5" /></div>
+              <h3 className="text-base font-semibold text-foreground">Create Responder</h3>
+            </div>
+            <div className="p-4 space-y-3">
+              <div>
+                <Label className="text-xs">Name</Label>
+                <Input value={responderForm.name} onChange={(e) => setResponderForm((prev) => ({ ...prev, name: e.target.value }))} />
+              </div>
+              <div>
+                <Label className="text-xs">Contact Number</Label>
+                <Input value={responderForm.contact_number} onChange={(e) => setResponderForm((prev) => ({ ...prev, contact_number: e.target.value }))} />
+              </div>
+              <div>
+                <Label className="text-xs">Team</Label>
+                <select
+                  className="w-full mt-1 px-3 py-2 border border-border rounded-lg bg-card text-foreground text-sm"
+                  value={responderForm.team_name}
+                  onChange={(e) => setResponderForm((prev) => ({ ...prev, team_name: e.target.value }))}
+                >
+                  <option value="">Unassigned</option>
+                  {teams.map((team) => (
+                    <option key={team.team_id} value={team.team_name}>{team.department_code}:{team.team_name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <Label className="text-xs">Supported Task Types</Label>
+                <div className="mt-1 flex flex-wrap gap-2">
+                  {TASK_TYPES.map((taskType) => (
+                    <Button
+                      key={taskType}
+                      type="button"
+                      variant={responderForm.supported_incident_types.includes(taskType) ? 'default' : 'outline'}
+                      className="h-8 text-xs"
+                      onClick={() => setResponderForm((prev) => ({ ...prev, supported_incident_types: toggleTaskType(prev.supported_incident_types, taskType) }))}
+                    >
+                      {taskType}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              <Button className="w-full" onClick={handleCreateResponder}>Save Responder</Button>
+            </div>
+          </div>
+
+          <div className={panelClass}>
+            <div className={headerClass}>
+              <div className={iconBoxClass('primary')}><Network className="w-5 h-5" /></div>
+              <h3 className="text-base font-semibold text-foreground">Team Mapping and Status</h3>
+            </div>
+            <div className="p-4 space-y-3">
+              <div className="grid grid-cols-2 gap-2">
+                <select
+                  className="px-2 py-2 border border-border rounded bg-card text-foreground text-xs"
+                  value={memberForm.team_id}
+                  onChange={(e) => setMemberForm((prev) => ({ ...prev, team_id: e.target.value }))}
+                >
+                  <option value="">Select Team</option>
+                  {teams.map((team) => (
+                    <option key={team.team_id} value={team.team_id}>{team.department_code}:{team.team_name}</option>
+                  ))}
+                </select>
+                <select
+                  className="px-2 py-2 border border-border rounded bg-card text-foreground text-xs"
+                  value={memberForm.responder_id}
+                  onChange={(e) => setMemberForm((prev) => ({ ...prev, responder_id: e.target.value }))}
+                >
+                  <option value="">Select Responder</option>
+                  {responders.map((responder) => (
+                    <option key={responder.responder_id} value={responder.responder_id}>{responder.name}</option>
+                  ))}
+                </select>
+              </div>
+              <Button variant="outline" className="w-full" onClick={handleMapMember}>Map Responder to Team</Button>
+              <div className="space-y-2 max-h-56 overflow-auto">
+                {teams.slice(0, 8).map((team) => (
+                  <div key={team.team_id} className="border border-border/60 rounded-lg p-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs font-semibold text-foreground">{team.department_code}:{team.team_name}</p>
+                      <select
+                        className="px-2 py-1 border border-border rounded bg-card text-foreground text-xs"
+                        value={String(team.team_status || 'available').toLowerCase()}
+                        onChange={async (e) => {
+                          await updateResponderTeamStatus(team.team_id, e.target.value);
+                          await loadResponderResources();
+                        }}
+                      >
+                        {AVAILABILITY_OPTIONS.map((status) => <option key={status} value={status}>{status}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                ))}
+                {responders.slice(0, 8).map((responder) => (
+                  <div key={responder.responder_id} className="border border-border/60 rounded-lg p-2 flex items-center justify-between gap-2">
+                    <p className="text-xs text-foreground">{responder.name}</p>
+                    <select
+                      className="px-2 py-1 border border-border rounded bg-card text-foreground text-xs"
+                      value={String(responder.availability_status || 'available').toLowerCase()}
+                      onChange={async (e) => {
+                        await updateResponderStatus(responder.responder_id, e.target.value);
+                        await loadResponderResources();
+                      }}
+                    >
+                      {AVAILABILITY_OPTIONS.map((status) => <option key={status} value={status}>{status}</option>)}
+                    </select>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 

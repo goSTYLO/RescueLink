@@ -47,6 +47,28 @@ describe('incidents.api contract', () => {
     expect(options.headers['x-request-id']).toContain('web-incidents-');
   });
 
+  test('getIncidents returns pagination metadata when requested', async () => {
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      headers: { get: (name) => (name === 'x-total-count' ? '57' : null) },
+      text: async () => JSON.stringify([{ report_id: 1 }]),
+    });
+
+    const result = await getIncidents({ limit: 8, offset: 16, withMeta: true });
+
+    expect(result).toEqual({
+      items: [{ report_id: 1 }],
+      totalCount: 57,
+      limit: 8,
+      offset: 16,
+    });
+    const [url] = fetch.mock.calls[0];
+    expect(url).toContain('meta=1');
+    expect(url).toContain('limit=8');
+    expect(url).toContain('offset=16');
+  });
+
   test('verifyIncident uses POST and standardized error message fallback', async () => {
     fetch.mockResolvedValueOnce({
       ok: false,

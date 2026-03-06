@@ -1,0 +1,115 @@
+Here’s the full content of your **Module 11 Laboratory Activity worksheet** in clean plain text format, without extra markup:
+
+---
+
+# Laboratory Activity: The Security Trade-Off Designer  
+
+**Course:** Information Assurance and Security 2  
+**Module:** 11 - Security Trade-offs and Risk Mitigation  
+**Name:**  
+**Section:**  
+**Date:**  
+
+---
+
+## Learning Objectives  
+By the end of this 30-minute activity, you will be able to:  
+- Analyze a real-world system by identifying its security and usability pain points.  
+- Propose a design change that involves a trade-off.  
+- Apply a mitigation strategy to balance security, usability, and ethics.  
+
+---
+
+## Materials Needed  
+- This worksheet  
+- Pen/Pencil  
+
+---
+
+## Activity Flow  
+- Part 1: Your System  
+- Part 2: The Good, The Bad, & The Risky  
+- Part 3: Redesign & Mitigation  
+- Part 4: Conclusion & Share-out  
+
+---
+
+# Part 1: Your System  
+**Title:**  
+**Features:**  
+1.  
+2.  
+3.  
+4.  
+
+---
+
+# Part 2: The Good, The Bad, & The Risky  
+
+Think about your experience with the system you chose. Answer the following prompts based on your memory (or a quick look at the app/site).  
+
+### A. Usability "Win" (The Good)  
+Describe one feature of this system that makes it easy to use.  
+*(Example: "I can check out with one click without re-entering my address.")*  
+
+### B. Security "Win" (The Good)  
+Describe one feature of this system that makes it feel secure.  
+*(Example: "It asks for an OTP (One-Time Password) when I log in from a new device.")*  
+
+### C. The Friction Point (The Bad)  
+Describe one security feature that you find annoying or inconvenient.  
+*(Example: "The password must be super complex, and I always forget it." OR "It logs me out after 1 minute, even when I'm in the middle of reading something.")*  
+
+### D. The Security Risk (The Risky)  
+Describe one usability feature that might be a security risk.  
+*(Example: "It keeps me logged in forever on a public computer." OR "It doesn't ask for a password to make small purchases.")*  
+
+---
+
+# Part 3: Redesign & Mitigation  
+
+Choose either the "Friction Point" or the "Security Risk" you identified in Part 2. Your job is to redesign that feature to find a better balance.  
+
+1. Which issue are you fixing? (Choose one)  
+- The Friction Point (Too secure, bad usability)  
+- The Security Risk (Easy to use, not secure enough)  
+
+2. Describe the Original Feature:  
+
+### 3. Your Redesign Proposal  
+Propose a specific change to the feature that balances security and usability better than the original.  
+*Hint: Think about the "Better Approach" column from the hospital and banking examples in your lecture (e.g., adding an override, encrypting data, providing a recovery option).*  
+
+**My New Design:**  
+
+---
+
+### 4. The Trade-off Matrix  
+
+Explain your redesign by filling out this matrix.  
+
+| Design Decision | Security Impact | Usability Impact | Risk if Misconfigured | Mitigation Strategy |  
+|-----------------|-----------------|------------------|-----------------------|---------------------|  
+| (What you are changing) | (Does it increase or decrease security?) | (Does it make it easier or harder to use?) | (What could go wrong with your new design?) | (How would you fix that risk?) |  
+| Example: Add biometric login | Increases security | Easier for fingerprint users | Fingerprint sensor fails | Keep password as backup |  
+
+**Fill in your own:**  
+
+| Design Decision | Security Impact | Usability Impact | Risk if Misconfigured | Mitigation Strategy |  
+|-----------------|-----------------|------------------|-----------------------|---------------------|  
+
+---
+
+# Part 4: Conclusion & Share-out  
+
+### A. Reflection  
+Answer the following question in 2-3 sentences.  
+**How does your redesign reflect the idea that "Security should serve people, not punish them"?**  
+
+### B. Think Back and Think About  
+- **Think Back:** How did user needs influence your security choices?  
+- **Think About:** How can you apply the "ethical security" mindset in future projects or work?  
+
+---
+
+Would you like me to also **fill in a sample completed version** of this worksheet (with a chosen system like online banking or e-commerce) so you can see how answers might look in practice?

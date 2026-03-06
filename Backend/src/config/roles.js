@@ -40,7 +40,7 @@ const PERMISSIONS = {
   [ROLES.DISPATCHER]: {
     incidents: ['create', 'read', 'update', 'delete', 'list', 'listAll', 'manage'],
     dispatches: ['create', 'read', 'update', 'delete', 'list', 'listAll', 'manage'],
-    responders: ['create', 'read', 'update', 'delete', 'list', 'listAll', 'manage'],
+    responders: ['read', 'update', 'list', 'listAll'],
     notifications: ['create', 'read', 'update', 'delete', 'list', 'manage'],
     auditLogs: ['readOwn'],  // Read only own dispatcher actions
     users: [],

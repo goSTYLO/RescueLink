@@ -25,7 +25,11 @@ app.use(helmet());
 
 // CORS: restrict to FRONTEND_URL in production; allow all in dev when unset
 const corsOrigin = process.env.FRONTEND_URL || true;
-app.use(cors({ origin: corsOrigin, credentials: true }));
+app.use(cors({
+  origin: corsOrigin,
+  credentials: true,
+  exposedHeaders: ['x-request-id', 'x-total-count', 'x-limit', 'x-offset'],
+}));
 
 // Derive a stable account key from auth request body (for per-account rate limit).
 // Used so different accounts on the same IP get separate limits (e.g. user vs dispatcher).

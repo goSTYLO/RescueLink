@@ -161,6 +161,72 @@ const Dispatch = {
     return createdDispatches;
   },
 
+  async createAutoAssignmentGroup({
+    report_id,
+    department_code,
+    department_name = null,
+    team_name,
+    incident_type = null,
+    default_department_code = null,
+    was_default_department = null,
+    response_status = 'assigned',
+    assignment_group_id,
+    assigned_by_user_id = null,
+  }) {
+    const eligibleResponders = await Responder.findEligibleByTeam({
+      department_code,
+      team_name,
+      incident_type,
+      limit: 100,
+    });
+
+    if (!Array.isArray(eligibleResponders) || eligibleResponders.length === 0) {
+      return {
+        dispatches: [],
+        assignment_summary: {
+          requested_department_code: department_code || null,
+          requested_team_name: team_name || null,
+          requested_incident_type: incident_type || null,
+          attempted_count: 0,
+          assigned_count: 0,
+          unassigned_reason: 'no_available_team_members',
+        },
+      };
+    }
+
+    const responders = eligibleResponders.map((responder) => ({
+      source: responder.source_type || 'account',
+      responder_id: responder.responder_id,
+      responder_name: responder.name || null,
+      team_name: responder.team_name || team_name || null,
+    }));
+
+    const dispatches = await this.createAssignmentGroup({
+      report_id,
+      department_code,
+      department_name,
+      team_name,
+      default_department_code,
+      was_default_department,
+      responders,
+      response_status,
+      assignment_group_id,
+      assigned_by_user_id,
+    });
+
+    return {
+      dispatches,
+      assignment_summary: {
+        requested_department_code: department_code || null,
+        requested_team_name: team_name || null,
+        requested_incident_type: incident_type || null,
+        attempted_count: responders.length,
+        assigned_count: dispatches.length,
+        unassigned_reason: null,
+      },
+    };
+  },
+
   async update(dispatch_id, { report_id, responder_id, response_status }) {
     const res = await pool.query(
       'UPDATE dispatches SET report_id = $1, responder_id = $2, response_status = $3 WHERE dispatch_id = $4 RETURNING *',
@@ -184,6 +250,14 @@ const Dispatch = {
       [report_id]
     );
     return res.rows.length > 0;
+  },
+
+  async getIncidentType(report_id) {
+    const res = await pool.query(
+      'SELECT incident_type FROM incident_reports WHERE report_id = $1 LIMIT 1',
+      [report_id]
+    );
+    return res.rows?.[0]?.incident_type ? String(res.rows[0].incident_type).toLowerCase() : null;
   },
 
   // Helper to check if responder exists

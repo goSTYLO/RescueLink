@@ -30,12 +30,33 @@ Recent backend updates for dispatcher workflow simplification:
 - **Dispatch assignment v2 contract (backward compatible)**:
   - `POST /api/dispatches` now supports grouped assignment payloads with `department_code`, `team_name`, and `responders[]`.
   - Legacy single-responder payload (`report_id` + `responder_id`) is still supported.
+- **Backend-driven team auto-assignment**:
+  - `POST /api/dispatches` also accepts `report_id + department_code + team_name` without `responders[]`.
+  - server resolves eligible team members and assigns only responders marked `available` or `standby`.
+  - API returns `assignment_summary` with `assigned_count` and `unassigned_reason` (e.g. `no_available_team_members`).
 - **Hybrid responder model support**:
   - responders can be tagged with `source_type` (`account` or `directory`).
   - dispatch records persist responder source and assignment metadata.
 - **Top-2 AI classification persistence**:
   - incident records now support explicit primary/secondary classification fields and confidence values.
   - AI classification record supports secondary predicted type/confidence when available.
+
+## Session Updates (Responder Flow + RBAC Status Split)
+
+Recent backend updates for responder/team operations:
+
+- **Responder/team specialization schema**:
+  - responders now support `supported_incident_types`.
+  - responder teams now support `team_status` and `supported_incident_types`.
+- **RBAC split for responder management**:
+  - admin-only: create/update/delete responders and teams, plus team-member mapping.
+  - dispatcher + admin: status update endpoints for responder and team availability.
+- **Task-aware auto-assignment eligibility**:
+  - auto-assignment now checks:
+    - team status (`available`/`standby`)
+    - responder status (`available`/`standby`)
+    - incident-type compatibility when team/responder specialization is configured.
+  - assignment summary now includes requested incident type metadata.
 
 ## Quick start
 
@@ -62,6 +83,8 @@ Recent backend updates for dispatcher workflow simplification:
    psql $DATABASE_URL -f migrations/add_token_blacklist.sql
    psql $DATABASE_URL -f migrations/add_dispatcher_login_otp.sql
    psql $DATABASE_URL -f migrations/add_dispatch_assignment_v2_and_secondary_ai.sql
+   psql $DATABASE_URL -f migrations/add_team_member_assignment_schema.sql
+   psql $DATABASE_URL -f migrations/add_responder_task_and_team_status.sql
    ```
    Run other migrations in `migrations/` as needed for your schema version.
 
@@ -173,6 +196,8 @@ Dispatcher actions (login, logout, signup, password change, dispatch, etc.) are 
 | `add_incident_verified.sql` | Incident verification status |
 | `add_incident_barangay.sql` | Barangay field for incidents |
 | `add_dispatch_assignment_v2_and_secondary_ai.sql` | Assignment v2 metadata, hybrid responder fields, and top-2 AI fields |
+| `add_team_member_assignment_schema.sql` | Team and team-member mapping tables for auto-assignment |
+| `add_responder_task_and_team_status.sql` | Responder/team specialization fields and team status availability |
 
 Run migrations in order for existing databases. New setups via `setup-db` use `schema.sql` which includes core tables.
 

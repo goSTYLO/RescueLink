@@ -130,8 +130,37 @@ CREATE TABLE IF NOT EXISTS responders (
   contact_number VARCHAR(20),
   availability_status VARCHAR(50),
   source_type VARCHAR(20) NOT NULL DEFAULT 'account',
-  team_name VARCHAR(150)
+  team_name VARCHAR(150),
+  supported_incident_types TEXT[] NOT NULL DEFAULT '{}'
 );
+
+CREATE TABLE IF NOT EXISTS responder_teams (
+  team_id SERIAL PRIMARY KEY,
+  department_code VARCHAR(40) NOT NULL,
+  team_name VARCHAR(150) NOT NULL,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  team_status VARCHAR(50) NOT NULL DEFAULT 'available',
+  supported_incident_types TEXT[] NOT NULL DEFAULT '{}',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(department_code, team_name)
+);
+
+CREATE TABLE IF NOT EXISTS responder_team_members (
+  id SERIAL PRIMARY KEY,
+  team_id INTEGER NOT NULL REFERENCES responder_teams(team_id) ON DELETE CASCADE,
+  responder_id INTEGER NOT NULL REFERENCES responders(responder_id) ON DELETE CASCADE,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(team_id, responder_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_responder_teams_department_code ON responder_teams(department_code);
+CREATE INDEX IF NOT EXISTS idx_responder_teams_team_name ON responder_teams(team_name);
+CREATE INDEX IF NOT EXISTS idx_responder_teams_team_status ON responder_teams(team_status);
+CREATE INDEX IF NOT EXISTS idx_responder_team_members_team_id ON responder_team_members(team_id);
+CREATE INDEX IF NOT EXISTS idx_responder_team_members_responder_id ON responder_team_members(responder_id);
+CREATE INDEX IF NOT EXISTS idx_responders_supported_incident_types ON responders USING GIN (supported_incident_types);
+CREATE INDEX IF NOT EXISTS idx_responder_teams_supported_incident_types ON responder_teams USING GIN (supported_incident_types);
 
 -- Create AI classifications table
 CREATE TABLE IF NOT EXISTS ai_classifications (

@@ -10,7 +10,7 @@ import { Label } from '@/presentation/components/ui/Label';
 import { Separator } from '@/presentation/components/ui/Separator';
 import { Alert, AlertDescription, AlertTitle } from '@/presentation/components/ui/Alert';
 import { 
-  ArrowLeft, MapPin, Phone, User, CheckCircle, XCircle, Bell, 
+  ArrowLeft, MapPin, CheckCircle, XCircle, Bell, 
   Clock, AlertTriangle, TrendingUp, Users, Shield, FileText,
   MessageSquare, Wrench, Award, Star, AlertCircle, Copy, Merge,
   X, ThumbsUp
@@ -27,7 +27,7 @@ import {
 } from '@/data/mock/mockData';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { getIncidentById, getIncidentAudioUrl, getIncidentWithAi, reclassifyIncident, verifyIncident } from '@/data/api/incidents.api';
-import { getResponders } from '@/data/api/responders.api';
+import { getResponders, getResponderTeams, updateResponderStatus, updateResponderTeamStatus, getTeamMembers } from '@/data/api/responders.api';
 import { createDispatch } from '@/data/api/dispatches.api';
 import { DEV_MODE } from '@/core/config/app.config';
 import { ROLES, normalizeRole } from '@/core/constants';
@@ -120,18 +120,6 @@ function getDefaultSectorByIncidentType(typeValue) {
 }
 
 const ACTIVE_SECTOR_IDS = new Set(['pnp', 'drrmo']);
-const TEAM_OPTIONS_BY_SECTOR = {
-  pnp: [
-    { value: 'pnp-patrol-alpha', label: 'Patrol Alpha' },
-    { value: 'pnp-patrol-bravo', label: 'Patrol Bravo' },
-    { value: 'pnp-traffic-unit', label: 'Traffic Unit' },
-  ],
-  drrmo: [
-    { value: 'drrmo-rescue-alpha', label: 'Rescue Alpha' },
-    { value: 'drrmo-medical-alpha', label: 'Medical Alpha' },
-    { value: 'drrmo-fire-support', label: 'Fire Support' },
-  ],
-};
 
 export function IncidentDetailsPage() {
   const { id } = useParams();
@@ -233,6 +221,10 @@ export function IncidentDetailsPage() {
     || normalizedRole === ROLES.DISPATCHER
     || normalizedRole === ROLES.DEPARTMENT_ADMIN
   );
+  const canUpdateResponderStatuses = (
+    normalizedRole === ROLES.SUPER_ADMIN
+    || normalizedRole === ROLES.DISPATCHER
+  );
   const canManualReclassify = (
     normalizedRole === ROLES.SUPER_ADMIN
     || ['dispatcher', 'supervisor', 'admin', 'super-admin', 'superadmin'].includes(roleLower)
@@ -276,7 +268,6 @@ export function IncidentDetailsPage() {
   const [additionalDepartment, setAdditionalDepartment] = useState('');
   const [notifyDepartment, setNotifyDepartment] = useState('');
   const [notifyTeamName, setNotifyTeamName] = useState('');
-  const [notifySelectedResponderKeys, setNotifySelectedResponderKeys] = useState([]);
   const [notifyTeamSelectOpen, setNotifyTeamSelectOpen] = useState(false);
   const [closureOutcome, setClosureOutcome] = useState('');
   const [closureClassification, setClosureClassification] = useState('');
@@ -285,22 +276,29 @@ export function IncidentDetailsPage() {
   const [reclassSeverity, setReclassSeverity] = useState('');
   const [reclassReason, setReclassReason] = useState('');
   const [responders, setResponders] = useState([]);
+  const [responderTeams, setResponderTeams] = useState([]);
+  const [teamMembersByTeamId, setTeamMembersByTeamId] = useState({});
+  const [statusDialogOpen, setStatusDialogOpen] = useState(false);
+  const [statusBusy, setStatusBusy] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) return;
 
     let cancelled = false;
-    getResponders({ limit: 200, offset: 0 })
-      .then((data) => {
-        if (!cancelled) {
-          setResponders(Array.isArray(data) ? data : []);
-        }
+    Promise.all([
+      getResponders({ limit: 200, offset: 0 }),
+      getResponderTeams({ limit: 200, offset: 0 }),
+    ])
+      .then(([responderRows, teamRows]) => {
+        if (cancelled) return;
+        setResponders(Array.isArray(responderRows) ? responderRows : []);
+        setResponderTeams(Array.isArray(teamRows) ? teamRows : []);
       })
       .catch(() => {
-        if (!cancelled) {
-          setResponders([]);
-        }
+        if (cancelled) return;
+        setResponders([]);
+        setResponderTeams([]);
       });
 
     return () => {
@@ -327,12 +325,26 @@ export function IncidentDetailsPage() {
   }, [coordination, coordinationStorageKey]);
 
   useEffect(() => {
-    const teams = TEAM_OPTIONS_BY_SECTOR[notifyDepartment] || [];
+    const teams = responderTeams
+      .filter((team) => String(team.department_code || '').toLowerCase() === String(notifyDepartment || '').toLowerCase())
+      .map((team) => ({ value: team.team_name, label: team.team_name }));
     if (!teams.some((team) => team.value === notifyTeamName)) {
       setNotifyTeamName(teams[0]?.value || '');
     }
-    setNotifySelectedResponderKeys([]);
-  }, [notifyDepartment]);
+  }, [notifyDepartment, notifyTeamName, responderTeams]);
+
+  useEffect(() => {
+    if (!statusDialogOpen) return;
+    if (!selectedTeamMeta?.team_id) return;
+    if (teamMembersByTeamId[selectedTeamMeta.team_id]) return;
+    getTeamMembers(selectedTeamMeta.team_id)
+      .then((members) => {
+        setTeamMembersByTeamId((prev) => ({ ...prev, [selectedTeamMeta.team_id]: Array.isArray(members) ? members : [] }));
+      })
+      .catch(() => {
+        setTeamMembersByTeamId((prev) => ({ ...prev, [selectedTeamMeta.team_id]: [] }));
+      });
+  }, [statusDialogOpen, selectedTeamMeta, teamMembersByTeamId]);
 
   // Get all units for workload display
   const getAllUnits = () => {
@@ -421,89 +433,24 @@ export function IncidentDetailsPage() {
   };
 
   const activeSectors = departments.filter((dept) => ACTIVE_SECTOR_IDS.has(dept.id));
-  const selectedNotifyTeamOptions = TEAM_OPTIONS_BY_SECTOR[notifyDepartment] || [];
-
-  const getRespondersForSector = (sectorId) => {
-    if (!Array.isArray(responders)) return [];
-    const matcher = sectorId === 'pnp'
-      ? /(police|pnp|crime)/i
-      : /(drrmo|disaster|fire|medical|rescue|accident)/i;
-    return responders.filter((responder) => {
-      const text = `${responder.organization || ''} ${responder.name || ''}`;
-      return matcher.test(text);
+  const selectedNotifyTeamOptions = responderTeams
+    .filter((team) => String(team.department_code || '').toLowerCase() === String(notifyDepartment || '').toLowerCase())
+    .map((team) => {
+      const supported = Array.isArray(team.supported_incident_types) ? team.supported_incident_types : [];
+      const supportText = supported.length ? ` (${supported.join(', ')})` : '';
+      return {
+        value: team.team_name,
+        label: `${team.team_name}${supportText}`,
+      };
     });
-  };
 
-  const notifyCandidateResponders = getRespondersForSector(notifyDepartment);
-  const notifySelectedResponders = notifyCandidateResponders.filter((responder) => {
-    const source = responder.source_type || 'account';
-    return notifySelectedResponderKeys.includes(`${source}:${responder.responder_id}`);
-  });
-
-  const getDepartmentContactPhone = (sectorId) => {
-    if (!sectorId) return null;
-    if (sectorId === 'pnp') return '+63 75 522 5678';
-    if (sectorId === 'drrmo') return '+63 75 524 3456';
-    return null;
-  };
-
-  const getDepartmentMatcher = (sectorId) => {
-    if (sectorId === 'pnp') return /(police|pnp|crime)/i;
-    if (sectorId === 'drrmo') return /(drrmo|disaster|fire|medical|rescue|accident)/i;
-    return null;
-  };
-
-  const pickBestResponderForDepartment = (sectorId) => {
-    if (!Array.isArray(responders) || responders.length === 0) return null;
-    const matcher = getDepartmentMatcher(sectorId);
-    const filtered = matcher
-      ? responders.filter((responder) => matcher.test(String(responder.organization || responder.name || '')))
-      : responders;
-
-    const availabilityRank = (value) => {
-      const normalized = String(value || '').toLowerCase();
-      if (normalized.includes('available')) return 3;
-      if (normalized.includes('standby')) return 2;
-      if (normalized.includes('dispatch') || normalized.includes('busy')) return 1;
-      return 0;
-    };
-
-    return filtered
-      .slice()
-      .sort((a, b) => availabilityRank(b.availability_status) - availabilityRank(a.availability_status))[0] || null;
-  };
-
-  const tryCreateDispatchAssignment = async (sectorId, teamName, responderItems = []) => {
+  const tryCreateDispatchAssignment = async (sectorId, teamName) => {
     const numericId = /^\d+$/.test(String(id));
     if (!numericId || !sectorId) return null;
     const token = localStorage.getItem('token');
     if (!token) return null;
 
     const departmentMeta = activeSectors.find((d) => d.id === sectorId);
-    const selectedPayload = responderItems.length > 0
-      ? responderItems.map((responder) => ({
-        source: responder.source_type || 'account',
-        responder_id: responder.responder_id,
-        responder_name: responder.name || null,
-        organization: responder.organization || departmentMeta?.name || null,
-        contact_number: responder.contact_number || null,
-        team_name: teamName || null,
-      }))
-      : (() => {
-        const fallback = pickBestResponderForDepartment(sectorId);
-        if (!fallback?.responder_id) return [];
-        return [{
-          source: fallback.source_type || 'account',
-          responder_id: fallback.responder_id,
-          responder_name: fallback.name || null,
-          organization: fallback.organization || departmentMeta?.name || null,
-          contact_number: fallback.contact_number || null,
-          team_name: teamName || null,
-        }];
-      })();
-
-    if (selectedPayload.length === 0) return null;
-
     return createDispatch({
       report_id: Number(id),
       department_code: sectorId,
@@ -512,15 +459,14 @@ export function IncidentDetailsPage() {
       default_department_code: getDefaultSectorByIncidentType(incident?.emergencyType),
       was_default_department: getDefaultSectorByIncidentType(incident?.emergencyType) === sectorId,
       response_status: 'assigned',
-      responders: selectedPayload,
     });
   };
 
   const openNotifyRespondersDialog = () => {
     const defaultSectorId = getDefaultSectorByIncidentType(incident?.emergencyType);
     setNotifyDepartment(defaultSectorId);
-    setNotifyTeamName((TEAM_OPTIONS_BY_SECTOR[defaultSectorId] || [])[0]?.value || '');
-    setNotifySelectedResponderKeys([]);
+    const nextTeam = responderTeams.find((team) => String(team.department_code || '').toLowerCase() === defaultSectorId);
+    setNotifyTeamName(nextTeam?.team_name || '');
     setNotifyDialogOpen(true);
   };
 
@@ -534,19 +480,6 @@ export function IncidentDetailsPage() {
         icon: 'warning',
         title: 'Select response team',
         text: 'Please choose a sector and team before notifying responders.',
-        confirmButtonColor: '#134178',
-      });
-      return;
-    }
-
-    const matchedResponder = notifySelectedResponders[0] || pickBestResponderForDepartment(selectedSectorId);
-    const responderPhone = matchedResponder?.contact_number || getDepartmentContactPhone(selectedSectorId);
-
-    if (!responderPhone || responderPhone === '—') {
-      await Swal.fire({
-        icon: 'warning',
-        title: 'No contact available',
-        text: `Responder contact number is not available for ${selectedDepartment}.`,
         confirmButtonColor: '#134178',
       });
       return;
@@ -569,7 +502,18 @@ export function IncidentDetailsPage() {
     setNotifyDialogOpen(false);
 
     try {
-      await tryCreateDispatchAssignment(selectedSectorId, notifyTeamName, notifySelectedResponders);
+      const assignmentResult = await tryCreateDispatchAssignment(selectedSectorId, notifyTeamName);
+      const assignedCount = Number(assignmentResult?.assignment_summary?.assigned_count || 0);
+      if (assignedCount === 0) {
+        const reason = assignmentResult?.assignment_summary?.unassigned_reason || 'no_eligible_members';
+        await Swal.fire({
+          icon: 'warning',
+          title: 'No team members available',
+          text: `No eligible responders were found for this team (${reason}).`,
+          confirmButtonColor: '#134178',
+        });
+        return;
+      }
     } catch (dispatchError) {
       await Swal.fire({
         icon: 'warning',
@@ -577,37 +521,82 @@ export function IncidentDetailsPage() {
         text: dispatchError.message || 'Team was selected, but dispatch assignment could not be recorded.',
         confirmButtonColor: '#134178',
       });
-    }
-
-    const cleanPhone = String(responderPhone).replace(/\s+/g, '');
-
-    try {
-      if (navigator?.clipboard?.writeText) {
-        await navigator.clipboard.writeText(responderPhone);
-      }
-    } catch (_) {
-      // clipboard can fail in non-secure contexts; continue with dial intent
-    }
-
-    const dialWindow = window.open(`tel:${cleanPhone}`, '_blank', 'noopener,noreferrer');
-    if (!dialWindow) {
-      await Swal.fire({
-        icon: 'info',
-        title: 'Manual call required',
-        text: `Your browser blocked the dial intent. Please call ${responderPhone} manually.`,
-        confirmButtonColor: '#134178',
-      });
       return;
     }
 
     await Swal.fire({
       icon: 'success',
-      title: 'Response team notified',
-      text: `${selectedDepartment} (${notifyTeamName}) has been assigned and notified.`,
+      title: 'Response team assigned',
+      text: `${selectedDepartment} (${notifyTeamName}) has been assigned via backend auto-team selection.`,
       timer: 2200,
       showConfirmButton: false,
       timerProgressBar: true,
     });
+  };
+
+  const selectedTeamMeta = responderTeams.find(
+    (team) =>
+      String(team.department_code || '').toLowerCase() === String(notifyDepartment || '').toLowerCase()
+      && String(team.team_name || '') === String(notifyTeamName || '')
+  );
+
+  const selectedIncidentTaskType = String(incident?.incidentTypeRaw || incident?.emergencyType || '').toLowerCase();
+  const selectedTeamSupportsTask = (() => {
+    if (!selectedTeamMeta) return null;
+    const supported = Array.isArray(selectedTeamMeta.supported_incident_types)
+      ? selectedTeamMeta.supported_incident_types.map((entry) => String(entry).toLowerCase())
+      : [];
+    if (supported.length === 0) return true;
+    return supported.includes(selectedIncidentTaskType);
+  })();
+
+  const openStatusDialog = async () => {
+    if (!notifyDepartment) {
+      const defaultSectorId = getDefaultSectorByIncidentType(incident?.emergencyType);
+      setNotifyDepartment(defaultSectorId);
+      const defaultTeam = responderTeams.find((team) => String(team.department_code || '').toLowerCase() === defaultSectorId);
+      setNotifyTeamName(defaultTeam?.team_name || '');
+    }
+    setStatusDialogOpen(true);
+    if (!selectedTeamMeta?.team_id) return;
+    if (teamMembersByTeamId[selectedTeamMeta.team_id]) return;
+    try {
+      const members = await getTeamMembers(selectedTeamMeta.team_id);
+      setTeamMembersByTeamId((prev) => ({ ...prev, [selectedTeamMeta.team_id]: Array.isArray(members) ? members : [] }));
+    } catch {
+      setTeamMembersByTeamId((prev) => ({ ...prev, [selectedTeamMeta.team_id]: [] }));
+    }
+  };
+
+  const handleUpdateTeamStatus = async (nextStatus) => {
+    if (!selectedTeamMeta?.team_id) return;
+    setStatusBusy(true);
+    try {
+      const updated = await updateResponderTeamStatus(selectedTeamMeta.team_id, nextStatus);
+      setResponderTeams((prev) => prev.map((team) => (team.team_id === selectedTeamMeta.team_id ? updated : team)));
+    } finally {
+      setStatusBusy(false);
+    }
+  };
+
+  const handleUpdateResponderStatus = async (responderId, nextStatus) => {
+    setStatusBusy(true);
+    try {
+      const updated = await updateResponderStatus(responderId, nextStatus);
+      setResponders((prev) => prev.map((responder) => (responder.responder_id === responderId ? updated : responder)));
+      if (selectedTeamMeta?.team_id) {
+        setTeamMembersByTeamId((prev) => ({
+          ...prev,
+          [selectedTeamMeta.team_id]: (prev[selectedTeamMeta.team_id] || []).map((member) =>
+            member.responder_id === responderId
+              ? { ...member, availability_status: updated.availability_status }
+              : member
+          ),
+        }));
+      }
+    } finally {
+      setStatusBusy(false);
+    }
   };
 
   const handleEscalate = () => {
@@ -620,7 +609,7 @@ export function IncidentDetailsPage() {
     if (!additionalDepartment) return;
     const selectedSector = activeSectors.find((dept) => dept.id === additionalDepartment);
     const selectedDepartmentName = selectedSector?.name || additionalDepartment;
-    const teamName = (TEAM_OPTIONS_BY_SECTOR[additionalDepartment] || [])[0]?.value || null;
+    const teamName = responderTeams.find((team) => String(team.department_code || '').toLowerCase() === additionalDepartment)?.team_name || null;
 
     setIncident((prev) => {
       if (!prev) return prev;
@@ -930,6 +919,12 @@ export function IncidentDetailsPage() {
                 <Bell className="w-4 h-4" />
                 Notify Responders
               </Button>
+              )}
+              {canUpdateResponderStatuses && (
+                <Button variant="outline" className="gap-2 rounded-xl" onClick={openStatusDialog}>
+                  <Users className="w-4 h-4" />
+                  Update Team/Responder Status
+                </Button>
               )}
               {possibleDuplicates.length > 0 && (
                 <Button
@@ -1413,36 +1408,18 @@ export function IncidentDetailsPage() {
                     )}
                   </Select>
                 </div>
-                <div>
-                  <Label>Responders (Accounts + Directory)</Label>
-                  <div className="rounded-xl border border-border/50 max-h-44 overflow-y-auto p-2 space-y-1.5 mt-2">
-                    {notifyCandidateResponders.length === 0 && (
-                      <p className="text-xs text-muted px-1 py-2">No responders found for this sector.</p>
-                    )}
-                    {notifyCandidateResponders.map((responder) => {
-                      const source = responder.source_type || 'account';
-                      const key = `${source}:${responder.responder_id}`;
-                      const checked = notifySelectedResponderKeys.includes(key);
-                      return (
-                        <label key={key} className="flex items-start gap-2 rounded-lg px-2 py-1.5 hover:bg-muted/20 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={(e) => {
-                              setNotifySelectedResponderKeys((prev) => {
-                                if (e.target.checked) return [...prev, key];
-                                return prev.filter((item) => item !== key);
-                              });
-                            }}
-                          />
-                          <span className="text-xs">
-                            <span className="font-medium text-foreground">{responder.name || `Responder ${responder.responder_id}`}</span>
-                            <span className="text-muted"> • {source === 'directory' ? 'Directory' : 'Account'}</span>
-                          </span>
-                        </label>
-                      );
-                    })}
-                  </div>
+                <p className="text-xs text-muted">
+                  Manual responder selection has been removed. Available/standby team members are auto-assigned by backend.
+                </p>
+                <div className={`rounded-lg border px-3 py-2 text-xs ${
+                  selectedTeamSupportsTask === false
+                    ? 'border-amber-500/40 bg-amber-500/10 text-amber-500'
+                    : 'border-border bg-muted/20 text-muted'
+                }`}>
+                  Incident task type: <strong>{selectedIncidentTaskType || 'n/a'}</strong>.{' '}
+                  {selectedTeamSupportsTask === false
+                    ? 'Selected team does not explicitly list this task type; assignment may return no eligible members.'
+                    : 'Selected team is task-aligned or has open specialization.'}
                 </div>
               </div>
               <DialogFooter>
@@ -1456,6 +1433,71 @@ export function IncidentDetailsPage() {
                 >
                   Assign & Notify
                 </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={statusDialogOpen} onOpenChange={setStatusDialogOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Team and Responder Status</DialogTitle>
+                <DialogDescription>
+                  Dispatchers can update availability statuses. Team and member status affect assignment eligibility.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-2">
+                <div>
+                  <Label>Team</Label>
+                  <p className="text-sm text-muted mt-1">
+                    {selectedTeamMeta?.team_name || 'No team selected'} ({notifyDepartment || 'n/a'})
+                  </p>
+                </div>
+                <div>
+                  <Label>Team Status</Label>
+                  <select
+                    className="w-full mt-2 px-3 py-2 border border-border rounded-lg bg-card text-foreground text-sm"
+                    value={String(selectedTeamMeta?.team_status || 'available').toLowerCase()}
+                    onChange={(event) => handleUpdateTeamStatus(event.target.value)}
+                    disabled={!selectedTeamMeta?.team_id || statusBusy}
+                  >
+                    <option value="available">available</option>
+                    <option value="standby">standby</option>
+                    <option value="busy">busy</option>
+                    <option value="off-duty">off-duty</option>
+                  </select>
+                </div>
+                <div className="space-y-2 max-h-52 overflow-auto">
+                  <Label>Team Members</Label>
+                  {(teamMembersByTeamId[selectedTeamMeta?.team_id] || []).map((member) => (
+                    <div key={member.responder_id} className="grid grid-cols-[1fr_auto] items-center gap-2 p-2 rounded-lg border border-border/60">
+                      <div>
+                        <p className="text-sm font-medium text-foreground">{member.name || `Responder ${member.responder_id}`}</p>
+                        <p className="text-xs text-muted">
+                          Supported: {Array.isArray(member.supported_incident_types) && member.supported_incident_types.length
+                            ? member.supported_incident_types.join(', ')
+                            : 'all'}
+                        </p>
+                      </div>
+                      <select
+                        className="px-2 py-1 border border-border rounded bg-card text-foreground text-xs"
+                        value={String(member.availability_status || 'available').toLowerCase()}
+                        onChange={(event) => handleUpdateResponderStatus(member.responder_id, event.target.value)}
+                        disabled={statusBusy}
+                      >
+                        <option value="available">available</option>
+                        <option value="standby">standby</option>
+                        <option value="busy">busy</option>
+                        <option value="off-duty">off-duty</option>
+                      </select>
+                    </div>
+                  ))}
+                  {(teamMembersByTeamId[selectedTeamMeta?.team_id] || []).length === 0 && (
+                    <p className="text-xs text-muted">No team members found for this team.</p>
+                  )}
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setStatusDialogOpen(false)}>Close</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>

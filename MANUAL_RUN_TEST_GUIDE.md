@@ -66,6 +66,9 @@ Database (Terminal 1)
 cd Backend
 npm install
 npm run setup-db
+psql $DATABASE_URL -f migrations/add_dispatch_assignment_v2_and_secondary_ai.sql
+psql $DATABASE_URL -f migrations/add_team_member_assignment_schema.sql
+psql $DATABASE_URL -f migrations/add_responder_task_and_team_status.sql
 # Populate with test data (users, responders, incidents)
 npm run seed-db
 ```

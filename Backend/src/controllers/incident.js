@@ -119,29 +119,52 @@ const incidentController = {
         return res.status(401).json({ error: 'Authentication required' });
       }
 
-      const { limit, offset, severity_level, status } = req.query;
+      const { limit, offset, severity_level, status, incident_type, barangay } = req.query;
       const { limit: validatedLimit, offset: validatedOffset } = validatePagination(limit, offset);
       const validatedSeverityLevel = validateAllowedValue(severity_level, ['low', 'medium', 'high'], 'severity_level');
-      const validatedStatus = validateAllowedValue(status, ['pending', 'verified'], 'status');
+      const validatedStatus = validateAllowedValue(status, ['pending', 'verified', 'resolved'], 'status');
+      const validatedIncidentType = validateAllowedValue(incident_type, ['fire', 'medical', 'police', 'disaster'], 'incident_type');
+      const validatedBarangay = validateOptionalString(barangay, 'barangay', 150);
 
       // Regular users only see their own incidents; dispatcher/admin see all
       let incidents;
+      let totalCount;
       if (user.role === ROLES.USER) {
         incidents = await Incident.findByUserId(user.user_id, {
           limit: validatedLimit,
           offset: validatedOffset,
           severity_level: validatedSeverityLevel,
-          status: validatedStatus
+          status: validatedStatus,
+          incident_type: validatedIncidentType,
+          barangay: validatedBarangay,
+        });
+        totalCount = await Incident.countAll({
+          user_id: user.user_id,
+          severity_level: validatedSeverityLevel,
+          status: validatedStatus,
+          incident_type: validatedIncidentType,
+          barangay: validatedBarangay,
         });
       } else {
         incidents = await Incident.findAll({
           limit: validatedLimit,
           offset: validatedOffset,
           severity_level: validatedSeverityLevel,
-          status: validatedStatus
+          status: validatedStatus,
+          incident_type: validatedIncidentType,
+          barangay: validatedBarangay,
+        });
+        totalCount = await Incident.countAll({
+          severity_level: validatedSeverityLevel,
+          status: validatedStatus,
+          incident_type: validatedIncidentType,
+          barangay: validatedBarangay,
         });
       }
 
+      res.setHeader('x-total-count', String(totalCount));
+      res.setHeader('x-limit', String(validatedLimit));
+      res.setHeader('x-offset', String(validatedOffset));
       res.json(incidents);
     } catch (error) {
       console.error('Error fetching incidents:', error);

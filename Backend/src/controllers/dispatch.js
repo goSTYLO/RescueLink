@@ -33,6 +33,7 @@ const dispatchController = {
       if (!reportExists) {
         return res.status(404).json({ error: 'Incident report not found' });
       }
+      const incidentType = await Dispatch.getIncidentType(validatedReportId);
 
       const hasResponderArray = Array.isArray(responders) && responders.length > 0;
       if (hasResponderArray) {
@@ -92,6 +93,56 @@ const dispatchController = {
           assignment_group_id: assignmentGroupId,
           report_id: validatedReportId,
           dispatches,
+          assignment_summary: {
+            requested_department_code: validatedDepartmentCode,
+            requested_team_name: validatedTeamName,
+            attempted_count: normalizedResponders.length,
+            assigned_count: dispatches.length,
+            unassigned_reason: null,
+          },
+        });
+      }
+
+      // Auto-assignment path: frontend submits sector + team only
+      if (!responder_id && validatedDepartmentCode && validatedTeamName) {
+        const assignmentGroupId = `asg-${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
+        const autoAssignment = await Dispatch.createAutoAssignmentGroup({
+          report_id: validatedReportId,
+          department_code: validatedDepartmentCode,
+          department_name: validatedDepartmentName,
+          team_name: validatedTeamName,
+          incident_type: incidentType,
+          default_department_code: validatedDefaultDepartmentCode,
+          was_default_department: validatedWasDefaultDepartment,
+          response_status: validatedResponseStatus || 'assigned',
+          assignment_group_id: assignmentGroupId,
+          assigned_by_user_id: assignedByUserId,
+        });
+
+        await logDispatcherAction(req, 'dispatch_create_auto_team', 'dispatch', autoAssignment.dispatches[0]?.dispatch_id || null, {
+          report_id: validatedReportId,
+          assignment_group_id: assignmentGroupId,
+          responder_count: autoAssignment.dispatches.length,
+          department_code: validatedDepartmentCode,
+          team_name: validatedTeamName,
+          unassigned_reason: autoAssignment.assignment_summary?.unassigned_reason || null,
+        });
+
+        if (autoAssignment.dispatches.length === 0) {
+          return res.status(409).json({
+            assignment_group_id: assignmentGroupId,
+            report_id: validatedReportId,
+            dispatches: [],
+            assignment_summary: autoAssignment.assignment_summary,
+            error: 'No available or standby responders found for selected team',
+          });
+        }
+
+        return res.status(201).json({
+          assignment_group_id: assignmentGroupId,
+          report_id: validatedReportId,
+          dispatches: autoAssignment.dispatches,
+          assignment_summary: autoAssignment.assignment_summary,
         });
       }
 

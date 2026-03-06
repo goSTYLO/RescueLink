@@ -28,10 +28,21 @@ export function normalizeIncidentStatus(value) {
  * @param {number} [params.limit=100] - Number of records to return
  * @param {number} [params.offset=0] - Number of records to skip
  * @param {string} [params.severity_level] - Filter by severity (high, medium, low)
- * @param {string} [params.status] - Filter by status (pending, resolved)
+ * @param {string} [params.status] - Filter by status (pending, verified, resolved)
+ * @param {string} [params.incident_type] - Filter by incident type (fire, medical, police, disaster)
+ * @param {string} [params.barangay] - Filter by barangay
+ * @param {boolean} [params.withMeta=false] - Include backend pagination metadata
  * @returns {Promise<Array>} Array of incident objects
  */
-export async function getIncidents({ limit = 100, offset = 0, severity_level, status } = {}) {
+export async function getIncidents({
+  limit = 100,
+  offset = 0,
+  severity_level,
+  status,
+  incident_type,
+  barangay,
+  withMeta = false,
+} = {}) {
   const requestId = createRequestId('web-incidents');
   const start = performance.now();
   const params = new URLSearchParams();
@@ -39,9 +50,20 @@ export async function getIncidents({ limit = 100, offset = 0, severity_level, st
   params.set('offset', String(offset));
   if (severity_level) params.set('severity_level', severity_level);
   if (status) params.set('status', normalizeIncidentStatus(status));
+  if (incident_type) params.set('incident_type', String(incident_type).toLowerCase());
+  if (barangay) params.set('barangay', barangay);
+  params.set('meta', withMeta ? '1' : '0');
   const queryKey = params.toString();
   const cached = incidentsCache.get(queryKey);
   if (cached && (Date.now() - cached.timestamp) < INCIDENT_LIST_CACHE_MS) {
+    if (withMeta) {
+      return {
+        items: cached.data,
+        totalCount: Number(cached.totalCount || cached.data.length || 0),
+        limit,
+        offset,
+      };
+    }
     return cached.data;
   }
   const inFlight = inflightRequests.get(queryKey);
@@ -66,13 +88,27 @@ export async function getIncidents({ limit = 100, offset = 0, severity_level, st
       throw new Error(parseErrorMessage(data, 'Failed to fetch incidents'));
     }
 
+    const normalizedItems = Array.isArray(data) ? data : [];
+    const totalHeaderValue = response.headers?.get?.('x-total-count');
+    const totalCountFromHeader = totalHeaderValue == null ? Number.NaN : Number(totalHeaderValue);
+    const totalCount = Number.isFinite(totalCountFromHeader) ? totalCountFromHeader : normalizedItems.length;
+
     logInfo(`[web][incidents][getIncidents] request_id=${requestId} status=${response.status} latency_ms=${Math.round(performance.now() - start)}`);
-    incidentsCache.set(queryKey, { data, timestamp: Date.now() });
-    return data;
+    incidentsCache.set(queryKey, { data: normalizedItems, timestamp: Date.now(), totalCount });
+    if (withMeta) {
+      return {
+        items: normalizedItems,
+        totalCount,
+        limit,
+        offset,
+      };
+    }
+    return normalizedItems;
   })();
   inflightRequests.set(queryKey, requestPromise);
   try {
-    return await requestPromise;
+    const result = await requestPromise;
+    return result;
   } finally {
     inflightRequests.delete(queryKey);
   }

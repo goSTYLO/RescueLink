@@ -107,8 +107,8 @@ describe('RBAC Integration Tests', () => {
     });
   });
 
-  describe('Responder Endpoints - Dispatcher/Admin Only', () => {
-    it('should allow dispatcher to create responder', async () => {
+  describe('Responder Endpoints - Admin Create, Dispatcher Status', () => {
+    it('should deny dispatcher from creating responder', async () => {
       const res = await request(app)
         .post('/api/responders')
         .set('Authorization', `Bearer ${dispatcherToken}`)
@@ -118,7 +118,7 @@ describe('RBAC Integration Tests', () => {
           location: 'Station 1'
         });
       
-      expect([201, 400]).toContain(res.status);
+      expect(res.status).toBe(403);
     });
 
     it('should deny user from creating responder', async () => {

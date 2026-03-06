@@ -1,17 +1,15 @@
 import { Layout } from '@/presentation/components/layout/Layout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/presentation/components/ui/Card';
 import { Badge } from '@/presentation/components/ui/Badge';
 import { Button } from '@/presentation/components/ui/Button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/presentation/components/ui/Select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/presentation/components/ui/Dialog';
 import { Label } from '@/presentation/components/ui/Label';
-import { AlertTriangle, Activity, AlertCircle, Clock, CheckCircle2, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, Loader2, SlidersHorizontal, LayoutList, PhoneCall, CircleCheck, ExternalLink } from 'lucide-react';
+import { Activity, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, Loader2, SlidersHorizontal, LayoutList, CircleCheck, ExternalLink } from 'lucide-react';
 import { incidents as mockIncidents, barangays, departments as departmentsList } from '@/data/mock/mockData';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
 import { getIncidents, normalizeIncidentStatus, verifyIncident } from '@/data/api/incidents.api';
-import { getResponders } from '@/data/api/responders.api';
 import { createDispatch } from '@/data/api/dispatches.api';
 import { DEV_MODE } from '@/core/config/app.config';
 import { normalizeRole, ROLES } from '@/core/constants';
@@ -37,13 +35,26 @@ function getDefaultSectorId(emergencyType) {
   return String(emergencyType || '').toLowerCase() === 'police' ? 'pnp' : 'drrmo';
 }
 
-// Icon Container Component (dark theme)
-function IconContainer({ children, className = '' }) {
-  return (
-    <div className={`w-12 h-12 rounded-xl bg-secondary/30 flex items-center justify-center transition-all duration-300 hover:scale-110 hover:bg-secondary/50 border border-[rgba(19,65,120,0.35)] ${className}`}>
-      {children}
-    </div>
-  );
+function mapStatusFilterToApi(value) {
+  if (value === 'Pending') return 'pending';
+  if (value === 'Verified') return 'verified';
+  if (value === 'Resolved') return 'resolved';
+  return undefined;
+}
+
+function mapSeverityFilterToApi(value) {
+  if (value === 'Critical') return 'high';
+  if (value === 'Warning') return 'medium';
+  if (value === 'Low') return 'low';
+  return undefined;
+}
+
+function mapTypeFilterToApi(value) {
+  if (value === 'Fire') return 'fire';
+  if (value === 'Medical') return 'medical';
+  if (value === 'Police') return 'police';
+  if (value === 'Disaster') return 'disaster';
+  return undefined;
 }
 
 // Map API incident to dashboard shape
@@ -109,6 +120,7 @@ export function DashboardPage() {
   const { theme } = useTheme();
   const isLight = theme === 'light';
   const [incidents, setIncidents] = useState([]);
+  const [totalIncidentsCount, setTotalIncidentsCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const persistedFilterState = (() => {
@@ -120,33 +132,27 @@ export function DashboardPage() {
   })();
   const [filterType, setFilterType] = useState(persistedFilterState.filterType || 'All');
   const [filterStatus, setFilterStatus] = useState(persistedFilterState.filterStatus || 'All');
+  const [filterSeverity, setFilterSeverity] = useState(persistedFilterState.filterSeverity || 'All');
   const [filterBarangay, setFilterBarangay] = useState(persistedFilterState.filterBarangay || 'All');
   const [selectStates, setSelectStates] = useState({
     type: false,
     status: false,
+    severity: false,
     barangay: false,
   });
   const [sortColumn, setSortColumn] = useState(null);
   const [sortDirection, setSortDirection] = useState('asc');
   const [currentPage, setCurrentPage] = useState(Number(persistedFilterState.currentPage) || 1);
-  const itemsPerPage = 8;
+  const [itemsPerPage, setItemsPerPage] = useState(Number(persistedFilterState.itemsPerPage) || 8);
+  const [pageSizeSelectOpen, setPageSizeSelectOpen] = useState(false);
 
   // Verify & Assign modal (new incidents must be verified and assigned to a department first)
   const [verifyAssignModalOpen, setVerifyAssignModalOpen] = useState(false);
   const [verifyAssignIncident, setVerifyAssignIncident] = useState(null);
   const [assignDepartmentId, setAssignDepartmentId] = useState('');
   const [assignTeamName, setAssignTeamName] = useState('');
-  const [assignSelectedResponderKeys, setAssignSelectedResponderKeys] = useState([]);
   const [assignSelectOpen, setAssignSelectOpen] = useState(false);
   const [assignTeamSelectOpen, setAssignTeamSelectOpen] = useState(false);
-  const [availableResponders, setAvailableResponders] = useState([]);
-
-  // Call modal (call reporter or department)
-  const [callModalOpen, setCallModalOpen] = useState(false);
-  const [callIncident, setCallIncident] = useState(null);
-  const [callTarget, setCallTarget] = useState('reporter'); // 'reporter' | 'department'
-  const [callDepartmentId, setCallDepartmentId] = useState('');
-  const [callDeptSelectOpen, setCallDeptSelectOpen] = useState(false);
 
   const fetchIncidents = useCallback(async () => {
     if (Date.now() < rateLimitUntilRef.current) {
@@ -154,7 +160,17 @@ export function DashboardPage() {
     }
     const token = localStorage.getItem('token');
     if (DEV_MODE && !token) {
-      setIncidents(mockIncidents);
+      const filteredMock = mockIncidents.filter((inc) => {
+        if (filterType !== 'All' && inc.emergencyType !== filterType) return false;
+        if (filterStatus !== 'All' && inc.status !== filterStatus) return false;
+        if (filterSeverity !== 'All' && inc.severity !== filterSeverity) return false;
+        if (filterBarangay !== 'All' && inc.barangay !== filterBarangay) return false;
+        return true;
+      });
+      const startIndex = (currentPage - 1) * itemsPerPage;
+      const pageItems = filteredMock.slice(startIndex, startIndex + itemsPerPage);
+      setIncidents(dedupeIncidentsById(pageItems));
+      setTotalIncidentsCount(filteredMock.length);
       setLoading(false);
       setError(null);
       return;
@@ -162,16 +178,23 @@ export function DashboardPage() {
     setLoading(true);
     setError(null);
     try {
-      const apiStatus = filterStatus === 'Pending'
-        ? 'pending'
-        : filterStatus === 'Verified'
-          ? 'verified'
-          : filterStatus === 'Resolved'
-            ? 'resolved'
-            : undefined;
-      const data = await getIncidents({ limit: 100, offset: 0, status: apiStatus });
-      const mapped = Array.isArray(data) ? data.map(mapApiIncidentToDashboard) : [];
+      const apiStatus = mapStatusFilterToApi(filterStatus);
+      const apiSeverity = mapSeverityFilterToApi(filterSeverity);
+      const apiType = mapTypeFilterToApi(filterType);
+      const apiBarangay = filterBarangay !== 'All' ? filterBarangay : undefined;
+      const offset = (currentPage - 1) * itemsPerPage;
+      const result = await getIncidents({
+        limit: itemsPerPage,
+        offset,
+        status: apiStatus,
+        severity_level: apiSeverity,
+        incident_type: apiType,
+        barangay: apiBarangay,
+        withMeta: true,
+      });
+      const mapped = Array.isArray(result?.items) ? result.items.map(mapApiIncidentToDashboard) : [];
       setIncidents(dedupeIncidentsById(mapped));
+      setTotalIncidentsCount(Number(result?.totalCount || 0));
     } catch (err) {
       const message = err.message || 'Failed to fetch incidents';
       if (message.toLowerCase().includes('rate limited')) {
@@ -179,10 +202,11 @@ export function DashboardPage() {
       }
       setError(message);
       setIncidents([]);
+      setTotalIncidentsCount(0);
     } finally {
       setLoading(false);
     }
-  }, [filterStatus]);
+  }, [currentPage, filterBarangay, filterSeverity, filterStatus, filterType, itemsPerPage]);
 
   useEffect(() => {
     fetchIncidents();
@@ -196,40 +220,17 @@ export function DashboardPage() {
   }, [fetchIncidents]);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) return;
-    let cancelled = false;
-    getResponders({ limit: 300, offset: 0 })
-      .then((rows) => {
-        if (!cancelled) {
-          setAvailableResponders(Array.isArray(rows) ? rows : []);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setAvailableResponders([]);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
     sessionStorage.setItem(DASHBOARD_FILTER_STATE_KEY, JSON.stringify({
       filterType,
       filterStatus,
+      filterSeverity,
       filterBarangay,
       currentPage,
+      itemsPerPage,
     }));
-  }, [filterType, filterStatus, filterBarangay, currentPage]);
+  }, [filterType, filterStatus, filterSeverity, filterBarangay, currentPage, itemsPerPage]);
 
-  const filteredIncidents = incidents.filter(inc => {
-    if (filterType !== 'All' && inc.emergencyType !== filterType) return false;
-    if (filterStatus !== 'All' && inc.status !== filterStatus) return false;
-    if (filterBarangay !== 'All' && inc.barangay !== filterBarangay) return false;
-    return true;
-  });
+  const filteredIncidents = incidents;
 
   // Sorting logic
   const sortedIncidents = [...filteredIncidents].sort((a, b) => {
@@ -278,10 +279,10 @@ export function DashboardPage() {
   });
 
   // Pagination logic
-  const totalPages = Math.ceil(sortedIncidents.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const paginatedIncidents = sortedIncidents.slice(startIndex, endIndex);
+  const totalPages = Math.max(1, Math.ceil(totalIncidentsCount / itemsPerPage));
+  const paginatedIncidents = sortedIncidents;
+  const pageStart = totalIncidentsCount === 0 ? 0 : ((currentPage - 1) * itemsPerPage) + 1;
+  const pageEnd = Math.min(currentPage * itemsPerPage, totalIncidentsCount);
 
   const handleSort = (column) => {
     if (sortColumn === column) {
@@ -305,14 +306,13 @@ export function DashboardPage() {
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [filterType, filterStatus, filterBarangay]);
+  }, [filterType, filterStatus, filterSeverity, filterBarangay]);
 
   useEffect(() => {
     const teams = TEAM_OPTIONS_BY_SECTOR[assignDepartmentId] || [];
     if (!teams.some((team) => team.value === assignTeamName)) {
       setAssignTeamName(teams[0]?.value || '');
     }
-    setAssignSelectedResponderKeys([]);
   }, [assignDepartmentId]);
 
   // Severity: Critical #FF4F52, Warning amber, Resolved/Low muted green (dark theme)
@@ -365,7 +365,6 @@ export function DashboardPage() {
     setVerifyAssignIncident(incident);
     setAssignDepartmentId(defaultDepartmentId);
     setAssignTeamName((TEAM_OPTIONS_BY_SECTOR[defaultDepartmentId] || [])[0]?.value || '');
-    setAssignSelectedResponderKeys([]);
     setVerifyAssignModalOpen(true);
   };
 
@@ -374,33 +373,9 @@ export function DashboardPage() {
     setVerifyAssignIncident(null);
     setAssignDepartmentId('');
     setAssignTeamName('');
-    setAssignSelectedResponderKeys([]);
     setAssignSelectOpen(false);
     setAssignTeamSelectOpen(false);
   };
-
-  const getDepartmentMatcher = (departmentId) => {
-    if (departmentId === 'pnp') return /(police|pnp|crime)/i;
-    if (departmentId === 'drrmo') return /(drrmo|disaster|fire|medical|rescue|accident)/i;
-    return null;
-  };
-
-  const getRespondersForAssignment = (departmentId) => {
-    if (!Array.isArray(availableResponders)) return [];
-    const matcher = getDepartmentMatcher(departmentId);
-    return availableResponders.filter((responder) => {
-      if (!matcher) return true;
-      const text = `${responder.organization || ''} ${responder.name || ''}`;
-      return matcher.test(text);
-    });
-  };
-
-  const assignCandidateResponders = getRespondersForAssignment(assignDepartmentId);
-  const selectedResponderItems = assignCandidateResponders.filter((responder) => {
-    const sourceType = responder.source_type || 'account';
-    const key = `${sourceType}:${responder.responder_id}`;
-    return assignSelectedResponderKeys.includes(key);
-  });
 
   const submitVerifyAndAssign = async () => {
     if (!verifyAssignIncident || !assignDepartmentId || !assignTeamName) return;
@@ -443,35 +418,18 @@ export function DashboardPage() {
       const token = localStorage.getItem('token');
       if (numericId && token) {
         await verifyIncident(verifyAssignIncident.id);
-        const responderPayload = selectedResponderItems.length > 0
-          ? selectedResponderItems.map((responder) => ({
-            source: responder.source_type || 'account',
-            responder_id: responder.responder_id,
-            responder_name: responder.name || null,
-            organization: responder.organization || assignedDepartment,
-            contact_number: responder.contact_number || null,
-            team_name: assignTeamName,
-          }))
-          : assignCandidateResponders.slice(0, 1).map((responder) => ({
-            source: responder.source_type || 'account',
-            responder_id: responder.responder_id,
-            responder_name: responder.name || null,
-            organization: responder.organization || assignedDepartment,
-            contact_number: responder.contact_number || null,
-            team_name: assignTeamName,
-          }));
-
-        if (responderPayload.length > 0) {
-          await createDispatch({
-            report_id: Number(verifyAssignIncident.id),
-            department_code: assignDepartmentId,
-            department_name: assignedDepartment,
-            team_name: assignTeamName,
-            default_department_code: defaultDepartmentId,
-            was_default_department: wasDefaultDepartment,
-            response_status: 'assigned',
-            responders: responderPayload,
-          });
+        const assignmentResult = await createDispatch({
+          report_id: Number(verifyAssignIncident.id),
+          department_code: assignDepartmentId,
+          department_name: assignedDepartment,
+          team_name: assignTeamName,
+          default_department_code: defaultDepartmentId,
+          was_default_department: wasDefaultDepartment,
+          response_status: 'assigned',
+        });
+        const assignedCount = Number(assignmentResult?.assignment_summary?.assigned_count || 0);
+        if (assignedCount === 0) {
+          throw new Error('No available or standby responders found for the selected team.');
         }
       }
 
@@ -480,7 +438,7 @@ export function DashboardPage() {
       Swal.fire({
         icon: 'success',
         title: 'Incident verified',
-        text: `Assigned to ${assignedDepartment} (${assignTeamName}).`,
+        text: `Assigned to ${assignedDepartment} (${assignTeamName}) using auto-team assignment.`,
         timer: 2500,
         showConfirmButton: false,
         timerProgressBar: true,
@@ -499,35 +457,7 @@ export function DashboardPage() {
     }
   };
 
-  const openCallModal = (incident) => {
-    setCallIncident(incident);
-    setCallTarget(incident.assignedDepartmentId ? 'department' : 'reporter');
-    setCallDepartmentId(incident.assignedDepartmentId || (departments[0]?.id || ''));
-    setCallModalOpen(true);
-  };
-
-  const closeCallModal = () => {
-    setCallModalOpen(false);
-    setCallIncident(null);
-    setCallTarget('reporter');
-    setCallDepartmentId('');
-    setCallDeptSelectOpen(false);
-  };
-
-  const getDepartmentContactPhone = (departmentId) => {
-    const dept = departments.find((d) => d.id === departmentId);
-    if (!dept) return null;
-    const contactMap = {
-      bfp: '+63 75 523 1234',
-      pnp: '+63 75 522 5678',
-      health: '+63 75 523 9012',
-      drrmo: '+63 75 524 3456',
-      barangay: '+63 75 522 7890',
-    };
-    return contactMap[departmentId] || null;
-  };
-
-  const criticalIncidents = incidents.filter(i => i.severity === 'Critical');
+  const criticalIncidents = incidents.filter((i) => i.severity === 'Critical');
 
   const typeOptions = [
     { value: 'All', label: 'All Types' },
@@ -548,22 +478,31 @@ export function DashboardPage() {
     { value: 'All', label: 'All Barangays' },
     ...barangays.map(b => ({ value: b, label: b })),
   ];
+  const severityOptions = [
+    { value: 'All', label: 'All Severity' },
+    { value: 'Critical', label: 'Critical' },
+    { value: 'Warning', label: 'Warning' },
+    { value: 'Low', label: 'Low' },
+    { value: 'Resolved', label: 'Resolved' },
+  ];
 
   const heroCardClass = `rounded-3xl border overflow-hidden transition-all duration-300 ${isLight ? 'glass neumorphic-light bg-white/80 border-gray-200/80 shadow-[8px_8px_24px_rgba(209,213,219,0.5),-8px_-8px_24px_rgba(255,255,255,0.9)]' : 'glass neumorphic-dark bg-card/60 border-white/10 shadow-[8px_8px_24px_rgba(0,0,0,0.35),-6px_-6px_20px_rgba(19,65,120,0.2)]'}`;
   const heroIconClass = `w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isLight ? 'neumorphic-light-inset bg-gray-100 text-primary' : 'neumorphic-dark-inset bg-white/10 text-primary'}`;
 
   return (
     <Layout>
-      <div className="p-4 md:p-5 max-w-7xl mx-auto">
-        <div className={`${heroCardClass} mb-4`}>
-          <div className="p-5 md:p-6 flex flex-wrap items-center gap-4">
+      <div className="p-2 sm:p-3 md:p-4 max-w-7xl mx-auto min-h-[calc(100dvh-96px)] flex flex-col gap-2 md:gap-3">
+        <div className={heroCardClass}>
+          <div className="px-3 sm:px-4 py-2.5 sm:py-3 flex flex-wrap items-center justify-between gap-2">
             <div className={heroIconClass}>
               <Activity className="w-5 h-5" strokeWidth={2} />
             </div>
-            <div>
-              <h1 className="text-2xl font-bold text-foreground">Incident Overview</h1>
-              <p className="text-sm text-muted mt-1">Monitor and manage emergency incidents across Dagupan City</p>
-              <p className="text-xs text-muted mt-2">Live channel unavailable - using polling every 30 seconds.</p>
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-xs sm:text-sm">
+              <h1 className="text-base sm:text-lg font-semibold text-foreground mr-1 sm:mr-2">Incident Overview</h1>
+              <Badge variant="outline" className="rounded-lg">Total: {totalIncidentsCount}</Badge>
+              <Badge variant="outline" className="rounded-lg">Critical: {criticalIncidents.length}</Badge>
+              <Badge variant="outline" className="rounded-lg">Filtered: {totalIncidentsCount}</Badge>
+              <span className="text-xs text-muted">Polling every 30s</span>
             </div>
           </div>
         </div>
@@ -576,184 +515,11 @@ export function DashboardPage() {
           </div>
         )}
 
-        {/* Alert Banner – extra top margin so it sits clearly below the hero */}
-        {criticalIncidents.length > 0 && (
-          <div className="mt-3 mb-4 p-3 bg-primary/15 border-2 border-primary/50 rounded-xl flex items-start gap-3 shadow-card hover:shadow-card-hover transition-all duration-300 animate-pulse-glow">
-            <IconContainer className={isLight ? 'bg-white border-border' : 'bg-primary/20 border-primary/50'}>
-              <AlertTriangle className="w-6 h-6 text-primary" />
-            </IconContainer>
-            <div className="flex-1">
-              <h3 className="font-semibold text-primary">Critical Incidents Detected</h3>
-              <p className="text-sm text-foreground/90 mt-1">
-                {criticalIncidents.length} critical incident(s) requiring immediate attention
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Stats – reference card layout: icon + pill tag, value, label */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-          {/* Total Incidents */}
-          <Card className={`rounded-2xl border shadow-sm transition-all duration-300 hover:shadow-md overflow-hidden ${
-            isLight ? 'bg-white border-gray-100' : 'bg-card border-border'
-          }`}>
-            <div className="p-3">
-              <div className="flex items-center justify-between mb-2.5">
-                <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                  isLight ? 'bg-secondary/20' : 'bg-secondary/30'
-                }`}>
-                  <Activity className={`w-4 h-4 ${isLight ? 'text-secondary' : 'text-secondary-light'}`} />
-                </div>
-                <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                  isLight ? 'bg-gray-100 text-gray-600' : 'bg-white/10 text-muted'
-                }`}>
-                  Overview
-                </span>
-              </div>
-              <p className="text-2xl font-bold text-foreground tracking-tight">{incidents.length}</p>
-              <p className="text-xs font-medium text-muted mt-0.5">Total Incidents</p>
-            </div>
-          </Card>
-
-          {/* Critical */}
-          <Card className={`rounded-2xl border shadow-sm transition-all duration-300 hover:shadow-md overflow-hidden ${
-            isLight ? 'bg-white border-gray-100' : 'bg-card border-border'
-          }`}>
-            <div className="p-3">
-              <div className="flex items-center justify-between mb-2.5">
-                <div className="w-9 h-9 rounded-xl bg-primary/20 flex items-center justify-center flex-shrink-0">
-                  <AlertCircle className="w-4 h-4 text-primary" />
-                </div>
-                <span className="rounded-full px-2.5 py-1 text-xs font-medium bg-primary/15 text-primary border border-primary/40">
-                  Action Required
-                </span>
-              </div>
-              <p className="text-2xl font-bold text-foreground tracking-tight">{incidents.filter(i => i.severity === 'Critical').length}</p>
-              <p className="text-xs font-medium text-muted mt-0.5">Critical</p>
-            </div>
-          </Card>
-
-          {/* In Progress */}
-          <Card className={`rounded-2xl border shadow-sm transition-all duration-300 hover:shadow-md overflow-hidden ${
-            isLight ? 'bg-white border-gray-100' : 'bg-card border-border'
-          }`}>
-            <div className="p-3">
-              <div className="flex items-center justify-between mb-2.5">
-                <div className="w-9 h-9 rounded-xl bg-amber-500/20 flex items-center justify-center flex-shrink-0">
-                  <Clock className="w-4 h-4 text-amber-600" />
-                </div>
-                <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                  isLight ? 'bg-amber-50 text-amber-700' : 'bg-amber-500/20 text-amber-400'
-                }`}>
-                  Active
-                </span>
-              </div>
-              <p className="text-2xl font-bold text-foreground tracking-tight">{incidents.filter(i => i.status === 'In Progress').length}</p>
-              <p className="text-xs font-medium text-muted mt-0.5">In Progress</p>
-            </div>
-          </Card>
-
-          {/* Resolved */}
-          <Card className={`rounded-2xl border shadow-sm transition-all duration-300 hover:shadow-md overflow-hidden ${
-            isLight ? 'bg-white border-gray-100' : 'bg-card border-border'
-          }`}>
-            <div className="p-3">
-              <div className="flex items-center justify-between mb-2.5">
-                <div className="w-9 h-9 rounded-xl bg-severity-resolved/20 flex items-center justify-center flex-shrink-0">
-                  <CheckCircle2 className="w-4 h-4 text-severity-resolved" />
-                </div>
-                <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                  isLight ? 'bg-emerald-50 text-emerald-700' : 'bg-severity-resolved/20 text-severity-resolved'
-                }`}>
-                  Completed
-                </span>
-              </div>
-              <p className="text-2xl font-bold text-foreground tracking-tight">{incidents.filter(i => i.severity === 'Resolved').length}</p>
-              <p className="text-xs font-medium text-muted mt-0.5">Resolved</p>
-            </div>
-          </Card>
-        </div>
-
-        {/* Filters – glassmorphism + neumorphism (overflow-visible so dropdowns show; z-10 when dropdown open so list doesn't cover) */}
-        <div className={`relative mb-4 rounded-2xl overflow-visible border transition-all duration-300 ${
-          selectStates.type || selectStates.status || selectStates.barangay ? 'z-10' : ''
-        } ${isLight ? 'glass neumorphic-light bg-white/80' : 'glass neumorphic-dark bg-card/60'}`}>
-          <div className={`flex items-center gap-3 px-6 py-4 border-b ${
-            isLight ? 'border-gray-200/80 bg-gray-50/50' : 'border-white/10 bg-white/5'
-          }`}>
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-              isLight ? 'neumorphic-light-inset bg-gray-100 text-primary' : 'neumorphic-dark-inset bg-white/10 text-primary'
-            }`}>
-              <SlidersHorizontal className="w-5 h-5" strokeWidth={2} />
-            </div>
-            <h3 className="text-lg font-semibold text-foreground">Filters</h3>
-          </div>
-          <div className="p-4 flex flex-wrap gap-3">
-            <div className="flex-1 min-w-[200px]">
-              <label className="text-sm font-medium text-muted mb-2 block">Emergency Type</label>
-              <Select value={filterType} onValueChange={setFilterType}>
-                {({ isOpen, setIsOpen, value, onValueChange }) => (
-                  <>
-                    <SelectTrigger isOpen={selectStates.type} onClick={() => setSelectStates({ ...selectStates, type: !selectStates.type })} className={isLight ? 'bg-gray-50/80 border-gray-200' : 'bg-white/5 border-white/10'}>
-                      <SelectValue placeholder="All Types" value={value} options={typeOptions} />
-                    </SelectTrigger>
-                    <SelectContent isOpen={selectStates.type}>
-                      {typeOptions.map(option => (
-                        <SelectItem key={option.value} value={option.value} onSelect={(val) => { setFilterType(val); setSelectStates({ ...selectStates, type: false }); }}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </>
-                )}
-              </Select>
-            </div>
-            <div className="flex-1 min-w-[200px]">
-              <label className="text-sm font-medium text-muted mb-2 block">Status</label>
-              <Select value={filterStatus} onValueChange={setFilterStatus}>
-                {({ isOpen, setIsOpen, value, onValueChange }) => (
-                  <>
-                    <SelectTrigger isOpen={selectStates.status} onClick={() => setSelectStates({ ...selectStates, status: !selectStates.status })} className={isLight ? 'bg-gray-50/80 border-gray-200' : 'bg-white/5 border-white/10'}>
-                      <SelectValue placeholder="All Status" value={value} options={statusOptions} />
-                    </SelectTrigger>
-                    <SelectContent isOpen={selectStates.status}>
-                      {statusOptions.map(option => (
-                        <SelectItem key={option.value} value={option.value} onSelect={(val) => { setFilterStatus(val); setSelectStates({ ...selectStates, status: false }); }}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </>
-                )}
-              </Select>
-            </div>
-            <div className="flex-1 min-w-[200px]">
-              <label className="text-sm font-medium text-muted mb-2 block">Barangay</label>
-              <Select value={filterBarangay} onValueChange={setFilterBarangay}>
-                {({ isOpen, setIsOpen, value, onValueChange }) => (
-                  <>
-                    <SelectTrigger isOpen={selectStates.barangay} onClick={() => setSelectStates({ ...selectStates, barangay: !selectStates.barangay })} className={isLight ? 'bg-gray-50/80 border-gray-200' : 'bg-white/5 border-white/10'}>
-                      <SelectValue placeholder="All Barangays" value={value} options={barangayOptions} />
-                    </SelectTrigger>
-                    <SelectContent isOpen={selectStates.barangay} className="max-h-[300px]">
-                      {barangayOptions.map(option => (
-                        <SelectItem key={option.value} value={option.value} onSelect={(val) => { setFilterBarangay(val); setSelectStates({ ...selectStates, barangay: false }); }}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </>
-                )}
-              </Select>
-            </div>
-          </div>
-        </div>
-
         {/* Incidents Table – glassmorphism + neumorphism (z-0 so Filters dropdown can sit above) */}
-        <div className={`relative z-0 rounded-2xl overflow-visible border transition-all duration-300 ${
+        <div className={`relative z-0 rounded-2xl overflow-hidden border transition-all duration-300 flex-1 min-h-0 ${
           isLight ? 'glass neumorphic-light bg-white/80' : 'glass neumorphic-dark bg-card/60'
         }`}>
-          <div className={`flex items-center gap-3 px-6 py-4 border-b ${
+          <div className={`flex items-center gap-3 px-4 py-2.5 border-b ${
             isLight ? 'border-gray-200/80 bg-gray-50/50' : 'border-white/10 bg-white/5'
           }`}>
             <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
@@ -765,17 +531,180 @@ export function DashboardPage() {
             <span className={`ml-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${
               isLight ? 'bg-primary/15 text-primary' : 'bg-primary/20 text-primary'
             }`}>
-              {filteredIncidents.length}
+              {totalIncidentsCount}
             </span>
           </div>
-          <div className="p-4">
+          <div className={`px-2 sm:px-3 py-2 border-b ${
+            isLight ? 'border-gray-200/80 bg-gray-50/20' : 'border-white/10 bg-white/[0.02]'
+          }`}>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs text-muted">Rows</span>
+                <Select value={String(itemsPerPage)} onValueChange={(value) => { setItemsPerPage(Number(value)); setCurrentPage(1); }} open={pageSizeSelectOpen} onOpenChange={setPageSizeSelectOpen}>
+                  {({ value }) => (
+                    <>
+                      <SelectTrigger
+                        isOpen={pageSizeSelectOpen}
+                        onClick={() => setPageSizeSelectOpen((o) => !o)}
+                        className="h-8 w-[84px]"
+                      >
+                        <SelectValue value={value} options={[
+                          { value: '5', label: '5' },
+                          { value: '8', label: '8' },
+                          { value: '10', label: '10' },
+                          { value: '15', label: '15' },
+                          { value: '20', label: '20' },
+                        ]} />
+                      </SelectTrigger>
+                      <SelectContent isOpen={pageSizeSelectOpen}>
+                        {['5', '8', '10', '15', '20'].map((size) => (
+                          <SelectItem key={size} value={size} onSelect={(v) => { setItemsPerPage(Number(v)); setCurrentPage(1); setPageSizeSelectOpen(false); }}>
+                            {size}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </>
+                  )}
+                </Select>
+                <span className="text-xs text-muted sm:ml-1">Showing {pageStart}-{pageEnd} of {totalIncidentsCount}</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                  className="h-9 w-9 p-0 rounded-lg"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    let pageNum;
+                    if (totalPages <= 5) pageNum = i + 1;
+                    else if (currentPage <= 3) pageNum = i + 1;
+                    else if (currentPage >= totalPages - 2) pageNum = totalPages - 4 + i;
+                    else pageNum = currentPage - 2 + i;
+                    return (
+                      <Button
+                        key={pageNum}
+                        variant={currentPage === pageNum ? 'default' : 'ghost'}
+                        size="sm"
+                        onClick={() => setCurrentPage(pageNum)}
+                        className={`h-9 w-9 p-0 rounded-lg min-w-[36px] ${currentPage === pageNum ? 'bg-primary text-white hover:bg-primary-hover' : ''}`}
+                      >
+                        {pageNum}
+                      </Button>
+                    );
+                  })}
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage === totalPages}
+                  className="h-9 w-9 p-0 rounded-lg"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+                <span className="text-sm text-muted ml-2">Page {currentPage} of {totalPages}</span>
+              </div>
+            </div>
+          </div>
+          <div className={`px-2 sm:px-3 py-2 border-b ${
+            isLight ? 'border-gray-200/80 bg-gray-50/30' : 'border-white/10 bg-white/[0.03]'
+          }`}>
+            <div className="flex items-center gap-2 mb-2">
+              <SlidersHorizontal className="w-4 h-4 text-primary" />
+              <h4 className="text-xs font-semibold text-foreground">Filters</h4>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2">
+              <div className="min-w-0">
+                <label className="text-xs font-medium text-muted mb-1 block">Emergency Type</label>
+                <Select value={filterType} onValueChange={setFilterType}>
+                  {({ value }) => (
+                    <>
+                      <SelectTrigger isOpen={selectStates.type} onClick={() => setSelectStates({ ...selectStates, type: !selectStates.type })} className={`h-8 ${isLight ? 'bg-gray-50/80 border-gray-200' : 'bg-white/5 border-white/10'}`}>
+                        <SelectValue placeholder="All Types" value={value} options={typeOptions} />
+                      </SelectTrigger>
+                      <SelectContent isOpen={selectStates.type}>
+                        {typeOptions.map(option => (
+                          <SelectItem key={option.value} value={option.value} onSelect={(val) => { setFilterType(val); setSelectStates({ ...selectStates, type: false }); }}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </>
+                  )}
+                </Select>
+              </div>
+              <div className="min-w-0">
+                <label className="text-xs font-medium text-muted mb-1 block">Status</label>
+                <Select value={filterStatus} onValueChange={setFilterStatus}>
+                  {({ value }) => (
+                    <>
+                      <SelectTrigger isOpen={selectStates.status} onClick={() => setSelectStates({ ...selectStates, status: !selectStates.status })} className={`h-8 ${isLight ? 'bg-gray-50/80 border-gray-200' : 'bg-white/5 border-white/10'}`}>
+                        <SelectValue placeholder="All Status" value={value} options={statusOptions} />
+                      </SelectTrigger>
+                      <SelectContent isOpen={selectStates.status}>
+                        {statusOptions.map(option => (
+                          <SelectItem key={option.value} value={option.value} onSelect={(val) => { setFilterStatus(val); setSelectStates({ ...selectStates, status: false }); }}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </>
+                  )}
+                </Select>
+              </div>
+              <div className="min-w-0">
+                <label className="text-xs font-medium text-muted mb-1 block">Barangay</label>
+                <Select value={filterBarangay} onValueChange={setFilterBarangay}>
+                  {({ value }) => (
+                    <>
+                      <SelectTrigger isOpen={selectStates.barangay} onClick={() => setSelectStates({ ...selectStates, barangay: !selectStates.barangay })} className={`h-8 ${isLight ? 'bg-gray-50/80 border-gray-200' : 'bg-white/5 border-white/10'}`}>
+                        <SelectValue placeholder="All Barangays" value={value} options={barangayOptions} />
+                      </SelectTrigger>
+                      <SelectContent isOpen={selectStates.barangay} className="max-h-[300px]">
+                        {barangayOptions.map(option => (
+                          <SelectItem key={option.value} value={option.value} onSelect={(val) => { setFilterBarangay(val); setSelectStates({ ...selectStates, barangay: false }); }}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </>
+                  )}
+                </Select>
+              </div>
+              <div className="min-w-0">
+                <label className="text-xs font-medium text-muted mb-1 block">Severity</label>
+                <Select value={filterSeverity} onValueChange={setFilterSeverity}>
+                  {({ value }) => (
+                    <>
+                      <SelectTrigger isOpen={selectStates.severity} onClick={() => setSelectStates({ ...selectStates, severity: !selectStates.severity })} className={`h-8 ${isLight ? 'bg-gray-50/80 border-gray-200' : 'bg-white/5 border-white/10'}`}>
+                        <SelectValue placeholder="All Severity" value={value} options={severityOptions} />
+                      </SelectTrigger>
+                      <SelectContent isOpen={selectStates.severity}>
+                        {severityOptions.map(option => (
+                          <SelectItem key={option.value} value={option.value} onSelect={(val) => { setFilterSeverity(val); setSelectStates({ ...selectStates, severity: false }); }}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </>
+                  )}
+                </Select>
+              </div>
+            </div>
+          </div>
+          <div className="p-2 sm:p-3 flex-1 min-h-0 overflow-hidden">
             {loading ? (
-              <div className="flex items-center justify-center py-16">
+              <div className="flex items-center justify-center h-full">
                 <Loader2 className="w-10 h-10 animate-spin text-primary" />
               </div>
             ) : (
-              <>
-                <div className="overflow-x-auto rounded-xl border border-border/50 overflow-hidden">
+              <div className="h-full flex flex-col min-h-0">
+                <div className="overflow-auto rounded-xl border border-border/50 flex-1 min-h-0 max-h-[55dvh] md:max-h-none">
                   <table className="w-full">
                     <thead>
                       <tr className={isLight ? 'bg-gray-50/80' : 'bg-white/5'}>
@@ -879,15 +808,6 @@ export function DashboardPage() {
                                   <CircleCheck className="w-4 h-4" strokeWidth={2} />
                                 </Button>
                               )}
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-8 w-8 p-0 rounded-lg text-foreground/80 hover:bg-secondary/20 hover:text-foreground transition-all"
-                                onClick={(e) => { e.stopPropagation(); openCallModal(incident); }}
-                                title="Call Reporter or Department"
-                              >
-                                <PhoneCall className="w-4 h-4" strokeWidth={2} />
-                              </Button>
                             </div>
                           </td>
                         </tr>
@@ -896,53 +816,7 @@ export function DashboardPage() {
                   </table>
                 </div>
 
-                {/* Pagination */}
-                {totalPages > 1 && (
-                  <div className={`flex items-center justify-end gap-2 mt-4 pt-4 border-t ${
-                    isLight ? 'border-gray-200' : 'border-white/10'
-                  }`}>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                      disabled={currentPage === 1}
-                      className="h-9 w-9 p-0 rounded-lg"
-                    >
-                      <ChevronLeft className="w-4 h-4" />
-                    </Button>
-                    <div className="flex items-center gap-1">
-                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                        let pageNum;
-                        if (totalPages <= 5) pageNum = i + 1;
-                        else if (currentPage <= 3) pageNum = i + 1;
-                        else if (currentPage >= totalPages - 2) pageNum = totalPages - 4 + i;
-                        else pageNum = currentPage - 2 + i;
-                        return (
-                          <Button
-                            key={pageNum}
-                            variant={currentPage === pageNum ? 'default' : 'ghost'}
-                            size="sm"
-                            onClick={() => setCurrentPage(pageNum)}
-                            className={`h-9 w-9 p-0 rounded-lg min-w-[36px] ${currentPage === pageNum ? 'bg-primary text-white hover:bg-primary-hover' : ''}`}
-                          >
-                            {pageNum}
-                          </Button>
-                        );
-                      })}
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                      disabled={currentPage === totalPages}
-                      className="h-9 w-9 p-0 rounded-lg"
-                    >
-                      <ChevronRight className="w-4 h-4" />
-                    </Button>
-                    <span className="text-sm text-muted ml-2">Page {currentPage} of {totalPages}</span>
-                  </div>
-                )}
-              </>
+              </div>
             )}
           </div>
         </div>
@@ -1022,133 +896,14 @@ export function DashboardPage() {
                     )}
                   </Select>
                 </div>
-                <div>
-                  <Label className="text-foreground">Responders (Accounts + Directory)</Label>
-                  <div className="mt-1.5 rounded-xl border border-border/50 max-h-48 overflow-y-auto p-2 space-y-1.5">
-                    {assignCandidateResponders.length === 0 && (
-                      <p className="text-xs text-muted px-1 py-2">No responders found for the selected sector.</p>
-                    )}
-                    {assignCandidateResponders.map((responder) => {
-                      const source = responder.source_type || 'account';
-                      const key = `${source}:${responder.responder_id}`;
-                      const checked = assignSelectedResponderKeys.includes(key);
-                      return (
-                        <label key={key} className="flex items-start gap-2 rounded-lg px-2 py-1.5 hover:bg-muted/20 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={(e) => {
-                              setAssignSelectedResponderKeys((prev) => {
-                                if (e.target.checked) return [...prev, key];
-                                return prev.filter((item) => item !== key);
-                              });
-                            }}
-                          />
-                          <span className="text-xs">
-                            <span className="font-medium text-foreground">{responder.name || `Responder ${responder.responder_id}`}</span>
-                            <span className="text-muted"> • {source === 'directory' ? 'Directory' : 'Account'}</span>
-                            <span className="text-muted"> • {responder.organization || 'Unassigned org'}</span>
-                          </span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                  <p className="text-xs text-muted mt-1">
-                    If none are selected, the system assigns the top available responder automatically.
-                  </p>
-                </div>
+                <p className="text-xs text-muted">
+                  Responders are now auto-assigned by backend based on available/standby members in the selected team.
+                </p>
                 <DialogFooter>
                   <Button onClick={submitVerifyAndAssign} disabled={!assignDepartmentId || !assignTeamName} className="bg-primary text-white hover:bg-primary-hover">
                     Verify & Assign
                   </Button>
                   <Button variant="outline" onClick={closeVerifyAssignModal}>Cancel</Button>
-                </DialogFooter>
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
-
-        {/* Call Modal — call reporter or department */}
-        <Dialog open={callModalOpen} onOpenChange={(open) => !open && closeCallModal()} className="max-w-md">
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>Call</DialogTitle>
-              <DialogDescription>
-                Call the reporter or the assigned department for this incident.
-              </DialogDescription>
-            </DialogHeader>
-            {callIncident && (
-              <div className="space-y-4 mt-4">
-                <div className="rounded-xl border border-border/50 p-3 bg-muted/20">
-                  <p className="text-sm font-medium text-foreground">{callIncident.id}</p>
-                  <p className="text-sm text-muted">{callIncident.reporterName} · {callIncident.emergencyType}</p>
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    variant={callTarget === 'reporter' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setCallTarget('reporter')}
-                    className={callTarget === 'reporter' ? 'bg-primary text-white' : ''}
-                  >
-                    Call Reporter
-                  </Button>
-                  <Button
-                    variant={callTarget === 'department' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setCallTarget('department')}
-                    className={callTarget === 'department' ? 'bg-primary text-white' : ''}
-                  >
-                    Call Department
-                  </Button>
-                </div>
-                {callTarget === 'reporter' && (
-                  <div>
-                    <Label className="text-muted text-xs">Reporter phone</Label>
-                    <p className="text-foreground font-medium mt-1">{callIncident.reporterPhone || '—'}</p>
-                    {callIncident.reporterPhone && (
-                      <a href={`tel:${callIncident.reporterPhone.replace(/\s/g, '')}`} className="inline-flex items-center gap-2 mt-2 text-primary hover:underline">
-                        <PhoneCall className="w-4 h-4" />
-                        Dial number
-                      </a>
-                    )}
-                  </div>
-                )}
-                {callTarget === 'department' && (
-                  <div>
-                    <Label className="text-foreground">Department</Label>
-                    <Select value={callDepartmentId} onValueChange={setCallDepartmentId} open={callDeptSelectOpen} onOpenChange={setCallDeptSelectOpen}>
-                      {({ value, onValueChange, dropdownRect }) => (
-                        <>
-                          <SelectTrigger isOpen={callDeptSelectOpen} onClick={() => setCallDeptSelectOpen((o) => !o)} className="mt-1.5">
-                            <SelectValue value={value} options={departments.map((d) => ({ value: d.id, label: d.name }))} />
-                          </SelectTrigger>
-                          <SelectContent isOpen={callDeptSelectOpen} dropdownRect={dropdownRect}>
-                            {departments.map((d) => (
-                              <SelectItem key={d.id} value={d.id} onSelect={(v) => { setCallDepartmentId(v); setCallDeptSelectOpen(false); }}>{d.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </>
-                      )}
-                    </Select>
-                    {(() => {
-                      const phone = getDepartmentContactPhone(callDepartmentId);
-                      return (
-                        <div className="mt-3">
-                          <Label className="text-muted text-xs">Department contact</Label>
-                          <p className="text-foreground font-medium mt-1">{phone || '—'}</p>
-                          {phone && (
-                            <a href={`tel:${phone.replace(/\s/g, '')}`} className="inline-flex items-center gap-2 mt-2 text-primary hover:underline">
-                              <PhoneCall className="w-4 h-4" />
-                              Dial number
-                            </a>
-                          )}
-                        </div>
-                      );
-                    })()}
-                  </div>
-                )}
-                <DialogFooter className="justify-end">
-                  <Button variant="outline" onClick={closeCallModal}>Close</Button>
                 </DialogFooter>
               </div>
             )}

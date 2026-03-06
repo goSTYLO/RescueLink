@@ -58,12 +58,22 @@ Config source is centralized in:
   - session-state cleanup on logout/session expiry
 - Assignment flow v2 (dispatcher/admin):
   - sector defaulting policy: Crime -> Police, non-crime -> CDRRMO (editable)
-  - assignment now captures sector + team + responders
-  - hybrid responder source support (`account` + `directory`)
+  - assignment now captures sector + team and relies on backend auto-assignment
+  - backend selects only `available` / `standby` members in the selected team
+  - manual responder checkbox selection removed from dashboard/details assignment dialogs
+- Calling behavior removed from assignment workflows:
+  - no `tel:` launch/dial actions during assign/notify actions
+  - assignment feedback is now status-based only (success/warning from API result)
+- Responder Flow + RBAC update:
+  - Incident Details now includes task-alignment hinting for selected team vs incident type.
+  - Incident Details includes status controls for team/responders (dispatcher + admin).
+  - Departments page includes admin-only management forms for team creation, responder creation, team-member mapping, and task-type specialization.
+  - responder/team status values (`available`, `standby`, `busy`, `off-duty`) are now wired to backend status endpoints.
 - Incident Details now surfaces secondary AI classification when provided by backend:
   - `2nd AI classification` label with confidence percentage when available
 - Dashboard density refresh:
-  - compact summary cards and denser incident table rows for lower-scroll operations
+  - single compact summary strip (hero/cards/banners reduced)
+  - incident table area uses `flex-1 min-h-0` + internal scroll for one-screen operation
 - Map view simplification:
   - map-first emergency layout with focused filters and marker-to-details interaction
   - removed geo-intelligence side panels for faster operational scanning

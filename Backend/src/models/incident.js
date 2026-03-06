@@ -119,7 +119,15 @@ const Incident = {
     return decodeReporterFields(res.rows[0]);
   },
 
-  async findAll({ limit = 20, offset = 0, user_id = null, severity_level = null, status = null } = {}) {
+  async findAll({
+    limit = 20,
+    offset = 0,
+    user_id = null,
+    severity_level = null,
+    status = null,
+    incident_type = null,
+    barangay = null,
+  } = {}) {
     // Cap limit at 100
     const cappedLimit = Math.min(limit, 100);
 
@@ -148,6 +156,18 @@ const Incident = {
       params.push(status);
     }
 
+    if (incident_type) {
+      paramCount++;
+      query += ` AND ir.incident_type = $${paramCount}`;
+      params.push(incident_type);
+    }
+
+    if (barangay) {
+      paramCount++;
+      query += ` AND ir.barangay = $${paramCount}`;
+      params.push(barangay);
+    }
+
     query += ` ORDER BY ir.created_at DESC LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}`;
     params.push(cappedLimit, offset);
 
@@ -155,13 +175,82 @@ const Incident = {
     return res.rows.map(decodeReporterFields);
   },
 
-  async findByUserId(user_id, { limit = 20, offset = 0 } = {}) {
+  async findByUserId(
+    user_id,
+    { limit = 20, offset = 0, severity_level = null, status = null, incident_type = null, barangay = null } = {}
+  ) {
     const cappedLimit = Math.min(limit, 100);
-    const res = await pool.query(
-      'SELECT * FROM incident_reports WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3',
-      [user_id, cappedLimit, offset]
-    );
-    return res.rows;
+    let query = 'SELECT * FROM incident_reports WHERE user_id = $1';
+    const params = [user_id];
+    let paramCount = 1;
+
+    if (severity_level) {
+      paramCount++;
+      query += ` AND severity_level = $${paramCount}`;
+      params.push(severity_level);
+    }
+
+    if (status) {
+      paramCount++;
+      query += ` AND status = $${paramCount}`;
+      params.push(status);
+    }
+
+    if (incident_type) {
+      paramCount++;
+      query += ` AND incident_type = $${paramCount}`;
+      params.push(incident_type);
+    }
+
+    if (barangay) {
+      paramCount++;
+      query += ` AND barangay = $${paramCount}`;
+      params.push(barangay);
+    }
+
+    query += ` ORDER BY created_at DESC LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}`;
+    params.push(cappedLimit, offset);
+    const res = await pool.query(query, params);
+    return res.rows.map(decodeReporterFields);
+  },
+
+  async countAll({ user_id = null, severity_level = null, status = null, incident_type = null, barangay = null } = {}) {
+    let query = 'SELECT COUNT(*)::int AS total FROM incident_reports WHERE 1=1';
+    const params = [];
+    let paramCount = 0;
+
+    if (user_id) {
+      paramCount++;
+      query += ` AND user_id = $${paramCount}`;
+      params.push(user_id);
+    }
+
+    if (severity_level) {
+      paramCount++;
+      query += ` AND severity_level = $${paramCount}`;
+      params.push(severity_level);
+    }
+
+    if (status) {
+      paramCount++;
+      query += ` AND status = $${paramCount}`;
+      params.push(status);
+    }
+
+    if (incident_type) {
+      paramCount++;
+      query += ` AND incident_type = $${paramCount}`;
+      params.push(incident_type);
+    }
+
+    if (barangay) {
+      paramCount++;
+      query += ` AND barangay = $${paramCount}`;
+      params.push(barangay);
+    }
+
+    const res = await pool.query(query, params);
+    return Number(res.rows?.[0]?.total || 0);
   },
 
   async update(report_id, { incident_type, severity_level, description, latitude, longitude, barangay, media_url, status }) {
