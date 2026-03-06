@@ -173,15 +173,30 @@ const Incident = {
   },
 
   async updateClassification(report_id, { incident_type, severity_level }) {
-    const res = await pool.query(
-      `UPDATE incident_reports
-       SET incident_type = $1,
-           severity_level = $2
-       WHERE report_id = $3
-       RETURNING *`,
-      [incident_type, severity_level, report_id]
-    );
-    return res.rows[0];
+    try {
+      const res = await pool.query(
+        `UPDATE incident_reports
+         SET incident_type = $1,
+             severity_level = $2,
+             primary_classification = $1
+         WHERE report_id = $3
+         RETURNING *`,
+        [incident_type, severity_level, report_id]
+      );
+      return res.rows[0];
+    } catch (error) {
+      if (error.code === '42703' || /primary_classification/i.test(error.message)) {
+        const fallback = await pool.query(
+          `UPDATE incident_reports
+           SET incident_type = $1, severity_level = $2
+           WHERE report_id = $3
+           RETURNING *`,
+          [incident_type, severity_level, report_id]
+        );
+        return fallback.rows[0];
+      }
+      throw error;
+    }
   },
 
   async delete(report_id) {
@@ -200,19 +215,47 @@ const Incident = {
     predicted_type,
     predicted_severity,
     confidence_score,
+    secondary_predicted_type = null,
+    secondary_confidence_score = null,
     low_confidence_flag = false,
     is_duplicate = false,
     is_override = false,
     retry_count = 0
   }) {
-    const res = await pool.query(
-      `INSERT INTO ai_classifications(
-        report_id, predicted_type, predicted_severity, confidence_score,
-        low_confidence_flag, is_duplicate, is_override, retry_count
-      ) VALUES($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-      [report_id, predicted_type, predicted_severity, confidence_score, low_confidence_flag, is_duplicate, is_override, retry_count]
-    );
-    return res.rows[0];
+    try {
+      const res = await pool.query(
+        `INSERT INTO ai_classifications(
+          report_id, predicted_type, predicted_severity, confidence_score,
+          secondary_predicted_type, secondary_confidence_score,
+          low_confidence_flag, is_duplicate, is_override, retry_count
+        ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+        [
+          report_id,
+          predicted_type,
+          predicted_severity,
+          confidence_score,
+          secondary_predicted_type,
+          secondary_confidence_score,
+          low_confidence_flag,
+          is_duplicate,
+          is_override,
+          retry_count,
+        ]
+      );
+      return res.rows[0];
+    } catch (error) {
+      if (error.code === '42703' || /secondary_predicted_type|secondary_confidence_score/i.test(error.message)) {
+        const fallback = await pool.query(
+          `INSERT INTO ai_classifications(
+            report_id, predicted_type, predicted_severity, confidence_score,
+            low_confidence_flag, is_duplicate, is_override, retry_count
+          ) VALUES($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+          [report_id, predicted_type, predicted_severity, confidence_score, low_confidence_flag, is_duplicate, is_override, retry_count]
+        );
+        return fallback.rows[0];
+      }
+      throw error;
+    }
   },
 
   /**
@@ -232,18 +275,48 @@ const Incident = {
   async updateWithAiResults(report_id, {
     incident_type,
     severity_level,
+    primary_classification = null,
+    primary_confidence = null,
+    secondary_classification = null,
+    secondary_confidence = null,
     transcription = null,
     ai_pending = false,
     ai_attempted = true
   }) {
-    const res = await pool.query(
-      `UPDATE incident_reports 
-       SET incident_type = $1, severity_level = $2, transcription = $3, 
-           ai_pending = $4, ai_attempted = $5
-       WHERE report_id = $6 RETURNING *`,
-      [incident_type, severity_level, transcription, ai_pending, ai_attempted, report_id]
-    );
-    return res.rows[0];
+    try {
+      const res = await pool.query(
+        `UPDATE incident_reports 
+         SET incident_type = $1, severity_level = $2, primary_classification = $3, primary_confidence = $4,
+             secondary_classification = $5, secondary_confidence = $6, transcription = $7,
+             ai_pending = $8, ai_attempted = $9
+         WHERE report_id = $10 RETURNING *`,
+        [
+          incident_type,
+          severity_level,
+          primary_classification,
+          primary_confidence,
+          secondary_classification,
+          secondary_confidence,
+          transcription,
+          ai_pending,
+          ai_attempted,
+          report_id,
+        ]
+      );
+      return res.rows[0];
+    } catch (error) {
+      if (error.code === '42703' || /primary_classification|secondary_classification/i.test(error.message)) {
+        const fallback = await pool.query(
+          `UPDATE incident_reports
+           SET incident_type = $1, severity_level = $2, transcription = $3,
+               ai_pending = $4, ai_attempted = $5
+           WHERE report_id = $6 RETURNING *`,
+          [incident_type, severity_level, transcription, ai_pending, ai_attempted, report_id]
+        );
+        return fallback.rows[0];
+      }
+      throw error;
+    }
   },
 
   /**

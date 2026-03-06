@@ -1,12 +1,53 @@
 const pool = require('../config/db');
+const Responder = require('./responder');
 
 const Dispatch = {
-  async create({ report_id, responder_id, response_status = null }) {
-    const res = await pool.query(
-      'INSERT INTO dispatches(report_id, responder_id, response_status) VALUES($1, $2, $3) RETURNING *',
-      [report_id, responder_id, response_status]
-    );
-    return res.rows[0];
+  async create({
+    report_id,
+    responder_id,
+    response_status = null,
+    assignment_group_id = null,
+    department_code = null,
+    department_name = null,
+    team_name = null,
+    default_department_code = null,
+    was_default_department = null,
+    responder_source = 'account',
+    responder_name = null,
+    assigned_by_user_id = null,
+  }) {
+    try {
+      const res = await pool.query(
+        `INSERT INTO dispatches(
+           report_id, responder_id, response_status, assignment_group_id, department_code, department_name,
+           team_name, default_department_code, was_default_department, responder_source, responder_name, assigned_by_user_id
+         ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
+        [
+          report_id,
+          responder_id,
+          response_status,
+          assignment_group_id,
+          department_code,
+          department_name,
+          team_name,
+          default_department_code,
+          was_default_department,
+          responder_source,
+          responder_name,
+          assigned_by_user_id,
+        ]
+      );
+      return res.rows[0];
+    } catch (error) {
+      if (error.code === '42703' || /assignment_group_id|department_code|responder_source|assigned_by_user_id/i.test(error.message)) {
+        const fallback = await pool.query(
+          'INSERT INTO dispatches(report_id, responder_id, response_status) VALUES($1, $2, $3) RETURNING *',
+          [report_id, responder_id, response_status]
+        );
+        return fallback.rows[0];
+      }
+      throw error;
+    }
   },
 
   async findById(dispatch_id) {
@@ -17,7 +58,15 @@ const Dispatch = {
     return res.rows[0];
   },
 
-  async findAll({ limit = 20, offset = 0, report_id = null, responder_id = null, response_status = null } = {}) {
+  async findAll({
+    limit = 20,
+    offset = 0,
+    report_id = null,
+    responder_id = null,
+    response_status = null,
+    assignment_group_id = null,
+    department_code = null,
+  } = {}) {
     // Cap limit at 100
     const cappedLimit = Math.min(limit, 100);
     
@@ -43,11 +92,73 @@ const Dispatch = {
       params.push(response_status);
     }
 
+    if (assignment_group_id) {
+      paramCount++;
+      query += ` AND assignment_group_id = $${paramCount}`;
+      params.push(assignment_group_id);
+    }
+
+    if (department_code) {
+      paramCount++;
+      query += ` AND department_code = $${paramCount}`;
+      params.push(department_code);
+    }
+
     query += ` ORDER BY dispatched_at DESC LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}`;
     params.push(cappedLimit, offset);
 
     const res = await pool.query(query, params);
     return res.rows;
+  },
+
+  async createAssignmentGroup({
+    report_id,
+    department_code = null,
+    department_name = null,
+    team_name = null,
+    default_department_code = null,
+    was_default_department = null,
+    responders = [],
+    response_status = 'assigned',
+    assignment_group_id,
+    assigned_by_user_id = null,
+  }) {
+    const createdDispatches = [];
+    for (const responderInput of responders) {
+      const sourceType = String(responderInput?.source || 'account').toLowerCase() === 'directory' ? 'directory' : 'account';
+      let responderId = responderInput?.responder_id ?? null;
+      let responderName = null;
+
+      if (sourceType === 'directory') {
+        const directoryResponder = await Responder.findOrCreateDirectory({
+          name: String(responderInput?.responder_name || responderInput?.name || '').trim(),
+          organization: responderInput?.organization || department_name || null,
+          contact_number: responderInput?.contact_number || null,
+          team_name: responderInput?.team_name || team_name || null,
+        });
+        responderId = directoryResponder?.responder_id;
+        responderName = directoryResponder?.name || null;
+      } else {
+        responderName = responderInput?.responder_name || null;
+      }
+
+      const dispatch = await this.create({
+        report_id,
+        responder_id: responderId,
+        response_status,
+        assignment_group_id,
+        department_code,
+        department_name,
+        team_name,
+        default_department_code,
+        was_default_department,
+        responder_source: sourceType,
+        responder_name: responderName,
+        assigned_by_user_id,
+      });
+      createdDispatches.push(dispatch);
+    }
+    return createdDispatches;
   },
 
   async update(dispatch_id, { report_id, responder_id, response_status }) {

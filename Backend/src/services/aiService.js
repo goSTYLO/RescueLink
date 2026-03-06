@@ -168,11 +168,22 @@ const classifyAudio = async (audioBuffer, filename, requestId = null) => {
     // Determine if confidence is low (requires human review)
     const lowConfidenceFlag = maxConfidence < AI_LOW_CONFIDENCE_THRESHOLD;
     
-    // Get primary incident type (highest confidence)
+    // Get top incident types (ordered by AI response)
     let primaryType = null;
+    let secondaryType = null;
     if (result.incident_types && result.incident_types.length > 0) {
       primaryType = result.incident_types[0];
+      secondaryType = result.incident_types[1] || null;
     }
+
+    const normalizeConfidence = (value) => {
+      if (value == null || Number.isNaN(Number(value))) return null;
+      const numeric = Number(value);
+      return numeric <= 1 ? numeric : numeric / 100;
+    };
+    const secondaryConfidence = secondaryType
+      ? normalizeConfidence(confidenceScores[secondaryType] ?? null)
+      : null;
     
     const resultPayload = {
       transcription: result.transcription || null,
@@ -183,6 +194,8 @@ const classifyAudio = async (audioBuffer, filename, requestId = null) => {
       maxConfidence: maxConfidence,
       lowConfidenceFlag: lowConfidenceFlag,
       primaryType: primaryType,
+      secondaryType: secondaryType,
+      secondaryConfidence: secondaryConfidence,
       duration: result.duration,
       language: result.language,
       latency: result.latency
@@ -224,9 +237,20 @@ const classifyText = async (text) => {
     const lowConfidenceFlag = maxConfidence < AI_LOW_CONFIDENCE_THRESHOLD;
     
     let primaryType = null;
+    let secondaryType = null;
     if (result.incident_types && result.incident_types.length > 0) {
       primaryType = result.incident_types[0];
+      secondaryType = result.incident_types[1] || null;
     }
+
+    const normalizeConfidence = (value) => {
+      if (value == null || Number.isNaN(Number(value))) return null;
+      const numeric = Number(value);
+      return numeric <= 1 ? numeric : numeric / 100;
+    };
+    const secondaryConfidence = secondaryType
+      ? normalizeConfidence(confidenceScores[secondaryType] ?? null)
+      : null;
     
     return {
       incidentTypes: result.incident_types || [],
@@ -235,7 +259,9 @@ const classifyText = async (text) => {
       confidenceScores: confidenceScores,
       maxConfidence: maxConfidence,
       lowConfidenceFlag: lowConfidenceFlag,
-      primaryType: primaryType
+      primaryType: primaryType,
+      secondaryType: secondaryType,
+      secondaryConfidence: secondaryConfidence,
     };
   } catch (error) {
     console.error('❌ Text classification failed:', error.message);

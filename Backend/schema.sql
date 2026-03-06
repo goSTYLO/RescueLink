@@ -68,6 +68,10 @@ CREATE TABLE IF NOT EXISTS incident_reports (
   user_id INTEGER NOT NULL REFERENCES users(user_id),
   incident_type VARCHAR(100),
   severity_level VARCHAR(50),
+  primary_classification VARCHAR(100),
+  primary_confidence DOUBLE PRECISION,
+  secondary_classification VARCHAR(100),
+  secondary_confidence DOUBLE PRECISION,
   description TEXT,
   latitude DOUBLE PRECISION NOT NULL,
   longitude DOUBLE PRECISION NOT NULL,
@@ -104,6 +108,10 @@ ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS audio_path VARCHAR(500);
 ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS media_paths JSONB;
 ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS ai_pending BOOLEAN DEFAULT FALSE;
 ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS ai_attempted BOOLEAN DEFAULT FALSE;
+ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS primary_classification VARCHAR(100);
+ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS primary_confidence DOUBLE PRECISION;
+ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS secondary_classification VARCHAR(100);
+ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS secondary_confidence DOUBLE PRECISION;
 ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS barangay VARCHAR(150);
 ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS verified BOOLEAN DEFAULT FALSE;
 ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS scan_status VARCHAR(30) DEFAULT 'pending';
@@ -120,7 +128,9 @@ CREATE TABLE IF NOT EXISTS responders (
   name VARCHAR(150) NOT NULL,
   organization VARCHAR(150),
   contact_number VARCHAR(20),
-  availability_status VARCHAR(50)
+  availability_status VARCHAR(50),
+  source_type VARCHAR(20) NOT NULL DEFAULT 'account',
+  team_name VARCHAR(150)
 );
 
 -- Create AI classifications table
@@ -130,6 +140,8 @@ CREATE TABLE IF NOT EXISTS ai_classifications (
   predicted_type VARCHAR(100),
   predicted_severity VARCHAR(50),
   confidence_score DOUBLE PRECISION,
+  secondary_predicted_type VARCHAR(100),
+  secondary_confidence_score DOUBLE PRECISION,
   low_confidence_flag BOOLEAN DEFAULT FALSE,
   is_duplicate BOOLEAN DEFAULT FALSE,
   is_override BOOLEAN DEFAULT FALSE,
@@ -142,6 +154,8 @@ CREATE TABLE IF NOT EXISTS ai_classifications (
 ALTER TABLE ai_classifications ADD COLUMN IF NOT EXISTS low_confidence_flag BOOLEAN DEFAULT FALSE;
 ALTER TABLE ai_classifications ADD COLUMN IF NOT EXISTS is_override BOOLEAN DEFAULT FALSE;
 ALTER TABLE ai_classifications ADD COLUMN IF NOT EXISTS retry_count INTEGER DEFAULT 0;
+ALTER TABLE ai_classifications ADD COLUMN IF NOT EXISTS secondary_predicted_type VARCHAR(100);
+ALTER TABLE ai_classifications ADD COLUMN IF NOT EXISTS secondary_confidence_score DOUBLE PRECISION;
 
 -- Index for quick lookups by report
 CREATE INDEX IF NOT EXISTS idx_ai_classifications_report_id ON ai_classifications(report_id);
@@ -163,12 +177,23 @@ CREATE TABLE IF NOT EXISTS dispatches (
   dispatch_id SERIAL PRIMARY KEY,
   report_id INTEGER NOT NULL REFERENCES incident_reports(report_id),
   responder_id INTEGER NOT NULL REFERENCES responders(responder_id),
+  assignment_group_id VARCHAR(64),
+  department_code VARCHAR(40),
+  department_name VARCHAR(150),
+  team_name VARCHAR(150),
+  default_department_code VARCHAR(40),
+  was_default_department BOOLEAN,
+  responder_source VARCHAR(20) NOT NULL DEFAULT 'account',
+  responder_name VARCHAR(150),
+  assigned_by_user_id INTEGER REFERENCES users(user_id),
   dispatched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   response_status VARCHAR(50)
 );
 
 -- Index for quick lookups by report
 CREATE INDEX IF NOT EXISTS idx_dispatches_report_id ON dispatches(report_id);
+CREATE INDEX IF NOT EXISTS idx_dispatches_assignment_group_id ON dispatches(assignment_group_id);
+CREATE INDEX IF NOT EXISTS idx_dispatches_department_code ON dispatches(department_code);
 
 -- Create notifications table
 CREATE TABLE IF NOT EXISTS notifications (

@@ -56,6 +56,17 @@ Config source is centralized in:
 - Security hardening updates:
   - role-scoped action visibility
   - session-state cleanup on logout/session expiry
+- Assignment flow v2 (dispatcher/admin):
+  - sector defaulting policy: Crime -> Police, non-crime -> CDRRMO (editable)
+  - assignment now captures sector + team + responders
+  - hybrid responder source support (`account` + `directory`)
+- Incident Details now surfaces secondary AI classification when provided by backend:
+  - `2nd AI classification` label with confidence percentage when available
+- Dashboard density refresh:
+  - compact summary cards and denser incident table rows for lower-scroll operations
+- Map view simplification:
+  - map-first emergency layout with focused filters and marker-to-details interaction
+  - removed geo-intelligence side panels for faster operational scanning
 
 ## Backend contract and sync docs
 

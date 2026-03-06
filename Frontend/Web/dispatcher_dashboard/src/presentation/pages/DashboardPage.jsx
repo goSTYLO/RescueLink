@@ -18,6 +18,24 @@ import { normalizeRole, ROLES } from '@/core/constants';
 import Swal from 'sweetalert2';
 
 const POLLING_INTERVAL_MS = 30000;
+const ACTIVE_SECTOR_IDS = new Set(['pnp', 'drrmo']);
+
+const TEAM_OPTIONS_BY_SECTOR = {
+  pnp: [
+    { value: 'pnp-patrol-alpha', label: 'Patrol Alpha' },
+    { value: 'pnp-patrol-bravo', label: 'Patrol Bravo' },
+    { value: 'pnp-traffic-unit', label: 'Traffic Unit' },
+  ],
+  drrmo: [
+    { value: 'drrmo-rescue-alpha', label: 'Rescue Alpha' },
+    { value: 'drrmo-medical-alpha', label: 'Medical Alpha' },
+    { value: 'drrmo-fire-support', label: 'Fire Support' },
+  ],
+};
+
+function getDefaultSectorId(emergencyType) {
+  return String(emergencyType || '').toLowerCase() === 'police' ? 'pnp' : 'drrmo';
+}
 
 // Icon Container Component (dark theme)
 function IconContainer({ children, className = '' }) {
@@ -111,13 +129,17 @@ export function DashboardPage() {
   const [sortColumn, setSortColumn] = useState(null);
   const [sortDirection, setSortDirection] = useState('asc');
   const [currentPage, setCurrentPage] = useState(Number(persistedFilterState.currentPage) || 1);
-  const itemsPerPage = 5;
+  const itemsPerPage = 8;
 
   // Verify & Assign modal (new incidents must be verified and assigned to a department first)
   const [verifyAssignModalOpen, setVerifyAssignModalOpen] = useState(false);
   const [verifyAssignIncident, setVerifyAssignIncident] = useState(null);
   const [assignDepartmentId, setAssignDepartmentId] = useState('');
+  const [assignTeamName, setAssignTeamName] = useState('');
+  const [assignSelectedResponderKeys, setAssignSelectedResponderKeys] = useState([]);
   const [assignSelectOpen, setAssignSelectOpen] = useState(false);
+  const [assignTeamSelectOpen, setAssignTeamSelectOpen] = useState(false);
+  const [availableResponders, setAvailableResponders] = useState([]);
 
   // Call modal (call reporter or department)
   const [callModalOpen, setCallModalOpen] = useState(false);
@@ -172,6 +194,26 @@ export function DashboardPage() {
       window.removeEventListener('incident:updated', handleIncidentUpdated);
     };
   }, [fetchIncidents]);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    let cancelled = false;
+    getResponders({ limit: 300, offset: 0 })
+      .then((rows) => {
+        if (!cancelled) {
+          setAvailableResponders(Array.isArray(rows) ? rows : []);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setAvailableResponders([]);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     sessionStorage.setItem(DASHBOARD_FILTER_STATE_KEY, JSON.stringify({
@@ -265,6 +307,14 @@ export function DashboardPage() {
     setCurrentPage(1);
   }, [filterType, filterStatus, filterBarangay]);
 
+  useEffect(() => {
+    const teams = TEAM_OPTIONS_BY_SECTOR[assignDepartmentId] || [];
+    if (!teams.some((team) => team.value === assignTeamName)) {
+      setAssignTeamName(teams[0]?.value || '');
+    }
+    setAssignSelectedResponderKeys([]);
+  }, [assignDepartmentId]);
+
   // Severity: Critical #FF4F52, Warning amber, Resolved/Low muted green (dark theme)
   const getSeverityColor = (severity) => {
     switch (severity) {
@@ -300,7 +350,8 @@ export function DashboardPage() {
     }
   };
 
-  const departments = departmentsList || [];
+  const departments = (departmentsList || []).filter((d) => ACTIVE_SECTOR_IDS.has(d.id));
+  const selectedTeamOptions = TEAM_OPTIONS_BY_SECTOR[assignDepartmentId] || [];
   const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
   const normalizedRole = normalizeRole(currentUser.role);
   const canVerifyAndAssign = (
@@ -310,8 +361,11 @@ export function DashboardPage() {
   );
 
   const openVerifyAssignModal = (incident) => {
+    const defaultDepartmentId = incident.assignedDepartmentId || getDefaultSectorId(incident.emergencyType);
     setVerifyAssignIncident(incident);
-    setAssignDepartmentId(incident.assignedDepartmentId || '');
+    setAssignDepartmentId(defaultDepartmentId);
+    setAssignTeamName((TEAM_OPTIONS_BY_SECTOR[defaultDepartmentId] || [])[0]?.value || '');
+    setAssignSelectedResponderKeys([]);
     setVerifyAssignModalOpen(true);
   };
 
@@ -319,48 +373,44 @@ export function DashboardPage() {
     setVerifyAssignModalOpen(false);
     setVerifyAssignIncident(null);
     setAssignDepartmentId('');
+    setAssignTeamName('');
+    setAssignSelectedResponderKeys([]);
     setAssignSelectOpen(false);
+    setAssignTeamSelectOpen(false);
   };
 
-  const pickResponderForDepartment = (responders, departmentId) => {
-    if (!Array.isArray(responders) || responders.length === 0) return null;
-
-    const matcher = departmentId === 'bfp'
-      ? /(fire|bfp)/i
-      : departmentId === 'pnp'
-        ? /(police|pnp)/i
-        : departmentId === 'health'
-          ? /(health|medical|hospital)/i
-          : departmentId === 'drrmo'
-            ? /(drrmo|disaster)/i
-            : departmentId === 'barangay'
-              ? /barangay/i
-              : null;
-
-    const filtered = matcher
-      ? responders.filter((responder) => matcher.test(String(responder.organization || responder.name || '')))
-      : responders;
-
-    const availabilityRank = (value) => {
-      const normalized = String(value || '').toLowerCase();
-      if (normalized.includes('available')) return 3;
-      if (normalized.includes('standby')) return 2;
-      if (normalized.includes('dispatch') || normalized.includes('busy')) return 1;
-      return 0;
-    };
-
-    return filtered
-      .slice()
-      .sort((a, b) => availabilityRank(b.availability_status) - availabilityRank(a.availability_status))[0] || null;
+  const getDepartmentMatcher = (departmentId) => {
+    if (departmentId === 'pnp') return /(police|pnp|crime)/i;
+    if (departmentId === 'drrmo') return /(drrmo|disaster|fire|medical|rescue|accident)/i;
+    return null;
   };
+
+  const getRespondersForAssignment = (departmentId) => {
+    if (!Array.isArray(availableResponders)) return [];
+    const matcher = getDepartmentMatcher(departmentId);
+    return availableResponders.filter((responder) => {
+      if (!matcher) return true;
+      const text = `${responder.organization || ''} ${responder.name || ''}`;
+      return matcher.test(text);
+    });
+  };
+
+  const assignCandidateResponders = getRespondersForAssignment(assignDepartmentId);
+  const selectedResponderItems = assignCandidateResponders.filter((responder) => {
+    const sourceType = responder.source_type || 'account';
+    const key = `${sourceType}:${responder.responder_id}`;
+    return assignSelectedResponderKeys.includes(key);
+  });
 
   const submitVerifyAndAssign = async () => {
-    if (!verifyAssignIncident || !assignDepartmentId) return;
+    if (!verifyAssignIncident || !assignDepartmentId || !assignTeamName) return;
     const dept = departments.find((d) => d.id === assignDepartmentId);
     const assignedDepartment = dept ? dept.name : '';
+    const defaultDepartmentId = getDefaultSectorId(verifyAssignIncident.emergencyType);
+    const wasDefaultDepartment = defaultDepartmentId === assignDepartmentId;
     const confirm = await Swal.fire({
       title: 'Confirm verification',
-      html: `Assign incident <strong>${verifyAssignIncident.id}</strong> to <strong>${assignedDepartment}</strong>? The department will be able to give updates.`,
+      html: `Assign incident <strong>${verifyAssignIncident.id}</strong> to <strong>${assignedDepartment}</strong> (${assignTeamName})?`,
       icon: 'question',
       showCancelButton: true,
       confirmButtonColor: '#134178',
@@ -384,6 +434,7 @@ export function DashboardPage() {
                 status: 'Verified',
                 assignedDepartmentId: assignDepartmentId,
                 assignedDepartment,
+                assignedTeamName: assignTeamName,
               }
             : inc
         )
@@ -392,13 +443,34 @@ export function DashboardPage() {
       const token = localStorage.getItem('token');
       if (numericId && token) {
         await verifyIncident(verifyAssignIncident.id);
-        const responders = await getResponders({ limit: 200, offset: 0 });
-        const responder = pickResponderForDepartment(responders, assignDepartmentId);
-        if (responder?.responder_id) {
+        const responderPayload = selectedResponderItems.length > 0
+          ? selectedResponderItems.map((responder) => ({
+            source: responder.source_type || 'account',
+            responder_id: responder.responder_id,
+            responder_name: responder.name || null,
+            organization: responder.organization || assignedDepartment,
+            contact_number: responder.contact_number || null,
+            team_name: assignTeamName,
+          }))
+          : assignCandidateResponders.slice(0, 1).map((responder) => ({
+            source: responder.source_type || 'account',
+            responder_id: responder.responder_id,
+            responder_name: responder.name || null,
+            organization: responder.organization || assignedDepartment,
+            contact_number: responder.contact_number || null,
+            team_name: assignTeamName,
+          }));
+
+        if (responderPayload.length > 0) {
           await createDispatch({
             report_id: Number(verifyAssignIncident.id),
-            responder_id: responder.responder_id,
+            department_code: assignDepartmentId,
+            department_name: assignedDepartment,
+            team_name: assignTeamName,
+            default_department_code: defaultDepartmentId,
+            was_default_department: wasDefaultDepartment,
             response_status: 'assigned',
+            responders: responderPayload,
           });
         }
       }
@@ -408,7 +480,7 @@ export function DashboardPage() {
       Swal.fire({
         icon: 'success',
         title: 'Incident verified',
-        text: `Assigned to ${assignedDepartment}. The department can now update this incident.`,
+        text: `Assigned to ${assignedDepartment} (${assignTeamName}).`,
         timer: 2500,
         showConfirmButton: false,
         timerProgressBar: true,
@@ -482,15 +554,15 @@ export function DashboardPage() {
 
   return (
     <Layout>
-      <div className="p-8 max-w-7xl mx-auto">
-        <div className={`${heroCardClass} mb-6`}>
-          <div className="p-8 flex flex-wrap items-center gap-6">
+      <div className="p-4 md:p-5 max-w-7xl mx-auto">
+        <div className={`${heroCardClass} mb-4`}>
+          <div className="p-5 md:p-6 flex flex-wrap items-center gap-4">
             <div className={heroIconClass}>
               <Activity className="w-5 h-5" strokeWidth={2} />
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-foreground">Incident Overview</h1>
-              <p className="text-muted mt-1">Monitor and manage emergency incidents across Dagupan City</p>
+              <h1 className="text-2xl font-bold text-foreground">Incident Overview</h1>
+              <p className="text-sm text-muted mt-1">Monitor and manage emergency incidents across Dagupan City</p>
               <p className="text-xs text-muted mt-2">Live channel unavailable - using polling every 30 seconds.</p>
             </div>
           </div>
@@ -498,7 +570,7 @@ export function DashboardPage() {
 
         {/* Error Banner */}
         {error && (
-          <div className="mb-6 p-4 bg-primary/15 border-2 border-primary/50 rounded-xl flex items-center justify-between">
+          <div className="mb-4 p-3 bg-primary/15 border-2 border-primary/50 rounded-xl flex items-center justify-between">
             <p className="text-primary font-medium">{error}</p>
             <Button variant="outline" size="sm" onClick={fetchIncidents}>Retry</Button>
           </div>
@@ -506,7 +578,7 @@ export function DashboardPage() {
 
         {/* Alert Banner – extra top margin so it sits clearly below the hero */}
         {criticalIncidents.length > 0 && (
-          <div className="mt-4 mb-6 p-4 bg-primary/15 border-2 border-primary/50 rounded-xl flex items-start gap-3 shadow-card hover:shadow-card-hover transition-all duration-300 animate-pulse-glow">
+          <div className="mt-3 mb-4 p-3 bg-primary/15 border-2 border-primary/50 rounded-xl flex items-start gap-3 shadow-card hover:shadow-card-hover transition-all duration-300 animate-pulse-glow">
             <IconContainer className={isLight ? 'bg-white border-border' : 'bg-primary/20 border-primary/50'}>
               <AlertTriangle className="w-6 h-6 text-primary" />
             </IconContainer>
@@ -520,17 +592,17 @@ export function DashboardPage() {
         )}
 
         {/* Stats – reference card layout: icon + pill tag, value, label */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
           {/* Total Incidents */}
           <Card className={`rounded-2xl border shadow-sm transition-all duration-300 hover:shadow-md overflow-hidden ${
             isLight ? 'bg-white border-gray-100' : 'bg-card border-border'
           }`}>
-            <div className="p-5">
-              <div className="flex items-center justify-between mb-4">
-                <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${
+            <div className="p-3">
+              <div className="flex items-center justify-between mb-2.5">
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${
                   isLight ? 'bg-secondary/20' : 'bg-secondary/30'
                 }`}>
-                  <Activity className={`w-6 h-6 ${isLight ? 'text-secondary' : 'text-secondary-light'}`} />
+                  <Activity className={`w-4 h-4 ${isLight ? 'text-secondary' : 'text-secondary-light'}`} />
                 </div>
                 <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${
                   isLight ? 'bg-gray-100 text-gray-600' : 'bg-white/10 text-muted'
@@ -538,8 +610,8 @@ export function DashboardPage() {
                   Overview
                 </span>
               </div>
-              <p className="text-4xl font-bold text-foreground tracking-tight">{incidents.length}</p>
-              <p className="text-sm font-medium text-muted mt-1">Total Incidents</p>
+              <p className="text-2xl font-bold text-foreground tracking-tight">{incidents.length}</p>
+              <p className="text-xs font-medium text-muted mt-0.5">Total Incidents</p>
             </div>
           </Card>
 
@@ -547,17 +619,17 @@ export function DashboardPage() {
           <Card className={`rounded-2xl border shadow-sm transition-all duration-300 hover:shadow-md overflow-hidden ${
             isLight ? 'bg-white border-gray-100' : 'bg-card border-border'
           }`}>
-            <div className="p-5">
-              <div className="flex items-center justify-between mb-4">
-                <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center flex-shrink-0">
-                  <AlertCircle className="w-6 h-6 text-primary" />
+            <div className="p-3">
+              <div className="flex items-center justify-between mb-2.5">
+                <div className="w-9 h-9 rounded-xl bg-primary/20 flex items-center justify-center flex-shrink-0">
+                  <AlertCircle className="w-4 h-4 text-primary" />
                 </div>
                 <span className="rounded-full px-2.5 py-1 text-xs font-medium bg-primary/15 text-primary border border-primary/40">
                   Action Required
                 </span>
               </div>
-              <p className="text-4xl font-bold text-foreground tracking-tight">{incidents.filter(i => i.severity === 'Critical').length}</p>
-              <p className="text-sm font-medium text-muted mt-1">Critical</p>
+              <p className="text-2xl font-bold text-foreground tracking-tight">{incidents.filter(i => i.severity === 'Critical').length}</p>
+              <p className="text-xs font-medium text-muted mt-0.5">Critical</p>
             </div>
           </Card>
 
@@ -565,10 +637,10 @@ export function DashboardPage() {
           <Card className={`rounded-2xl border shadow-sm transition-all duration-300 hover:shadow-md overflow-hidden ${
             isLight ? 'bg-white border-gray-100' : 'bg-card border-border'
           }`}>
-            <div className="p-5">
-              <div className="flex items-center justify-between mb-4">
-                <div className="w-12 h-12 rounded-xl bg-amber-500/20 flex items-center justify-center flex-shrink-0">
-                  <Clock className="w-6 h-6 text-amber-600" />
+            <div className="p-3">
+              <div className="flex items-center justify-between mb-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-500/20 flex items-center justify-center flex-shrink-0">
+                  <Clock className="w-4 h-4 text-amber-600" />
                 </div>
                 <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${
                   isLight ? 'bg-amber-50 text-amber-700' : 'bg-amber-500/20 text-amber-400'
@@ -576,8 +648,8 @@ export function DashboardPage() {
                   Active
                 </span>
               </div>
-              <p className="text-4xl font-bold text-foreground tracking-tight">{incidents.filter(i => i.status === 'In Progress').length}</p>
-              <p className="text-sm font-medium text-muted mt-1">In Progress</p>
+              <p className="text-2xl font-bold text-foreground tracking-tight">{incidents.filter(i => i.status === 'In Progress').length}</p>
+              <p className="text-xs font-medium text-muted mt-0.5">In Progress</p>
             </div>
           </Card>
 
@@ -585,10 +657,10 @@ export function DashboardPage() {
           <Card className={`rounded-2xl border shadow-sm transition-all duration-300 hover:shadow-md overflow-hidden ${
             isLight ? 'bg-white border-gray-100' : 'bg-card border-border'
           }`}>
-            <div className="p-5">
-              <div className="flex items-center justify-between mb-4">
-                <div className="w-12 h-12 rounded-xl bg-severity-resolved/20 flex items-center justify-center flex-shrink-0">
-                  <CheckCircle2 className="w-6 h-6 text-severity-resolved" />
+            <div className="p-3">
+              <div className="flex items-center justify-between mb-2.5">
+                <div className="w-9 h-9 rounded-xl bg-severity-resolved/20 flex items-center justify-center flex-shrink-0">
+                  <CheckCircle2 className="w-4 h-4 text-severity-resolved" />
                 </div>
                 <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${
                   isLight ? 'bg-emerald-50 text-emerald-700' : 'bg-severity-resolved/20 text-severity-resolved'
@@ -596,14 +668,14 @@ export function DashboardPage() {
                   Completed
                 </span>
               </div>
-              <p className="text-4xl font-bold text-foreground tracking-tight">{incidents.filter(i => i.severity === 'Resolved').length}</p>
-              <p className="text-sm font-medium text-muted mt-1">Resolved</p>
+              <p className="text-2xl font-bold text-foreground tracking-tight">{incidents.filter(i => i.severity === 'Resolved').length}</p>
+              <p className="text-xs font-medium text-muted mt-0.5">Resolved</p>
             </div>
           </Card>
         </div>
 
         {/* Filters – glassmorphism + neumorphism (overflow-visible so dropdowns show; z-10 when dropdown open so list doesn't cover) */}
-        <div className={`relative mb-6 rounded-2xl overflow-visible border transition-all duration-300 ${
+        <div className={`relative mb-4 rounded-2xl overflow-visible border transition-all duration-300 ${
           selectStates.type || selectStates.status || selectStates.barangay ? 'z-10' : ''
         } ${isLight ? 'glass neumorphic-light bg-white/80' : 'glass neumorphic-dark bg-card/60'}`}>
           <div className={`flex items-center gap-3 px-6 py-4 border-b ${
@@ -616,7 +688,7 @@ export function DashboardPage() {
             </div>
             <h3 className="text-lg font-semibold text-foreground">Filters</h3>
           </div>
-          <div className="p-6 flex flex-wrap gap-6">
+          <div className="p-4 flex flex-wrap gap-3">
             <div className="flex-1 min-w-[200px]">
               <label className="text-sm font-medium text-muted mb-2 block">Emergency Type</label>
               <Select value={filterType} onValueChange={setFilterType}>
@@ -689,14 +761,14 @@ export function DashboardPage() {
             }`}>
               <LayoutList className="w-5 h-5" strokeWidth={2} />
             </div>
-            <h3 className="text-lg font-semibold text-foreground">Incident List</h3>
+            <h3 className="text-base font-semibold text-foreground">Incident List</h3>
             <span className={`ml-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${
               isLight ? 'bg-primary/15 text-primary' : 'bg-primary/20 text-primary'
             }`}>
               {filteredIncidents.length}
             </span>
           </div>
-          <div className="p-6">
+          <div className="p-4">
             {loading ? (
               <div className="flex items-center justify-center py-16">
                 <Loader2 className="w-10 h-10 animate-spin text-primary" />
@@ -708,48 +780,48 @@ export function DashboardPage() {
                     <thead>
                       <tr className={isLight ? 'bg-gray-50/80' : 'bg-white/5'}>
                         <th
-                          className="text-left py-3.5 px-4 text-xs font-semibold uppercase tracking-wider text-muted cursor-pointer hover:opacity-80 transition-opacity"
+                          className="text-left py-2.5 px-3 text-[11px] font-semibold uppercase tracking-wider text-muted cursor-pointer hover:opacity-80 transition-opacity"
                           onClick={() => handleSort('id')}
                         >
                           <div className="flex items-center gap-1">Incident ID{getSortIcon('id')}</div>
                         </th>
                         <th
-                          className="text-left py-3.5 px-4 text-xs font-semibold uppercase tracking-wider text-muted cursor-pointer hover:opacity-80 transition-opacity"
+                          className="text-left py-2.5 px-3 text-[11px] font-semibold uppercase tracking-wider text-muted cursor-pointer hover:opacity-80 transition-opacity"
                           onClick={() => handleSort('reporter')}
                         >
                           <div className="flex items-center gap-1">Reporter{getSortIcon('reporter')}</div>
                         </th>
                         <th
-                          className="text-left py-3.5 px-4 text-xs font-semibold uppercase tracking-wider text-muted cursor-pointer hover:opacity-80 transition-opacity"
+                          className="text-left py-2.5 px-3 text-[11px] font-semibold uppercase tracking-wider text-muted cursor-pointer hover:opacity-80 transition-opacity"
                           onClick={() => handleSort('barangay')}
                         >
                           <div className="flex items-center gap-1">Barangay{getSortIcon('barangay')}</div>
                         </th>
                         <th
-                          className="text-left py-3.5 px-4 text-xs font-semibold uppercase tracking-wider text-muted cursor-pointer hover:opacity-80 transition-opacity"
+                          className="text-left py-2.5 px-3 text-[11px] font-semibold uppercase tracking-wider text-muted cursor-pointer hover:opacity-80 transition-opacity"
                           onClick={() => handleSort('type')}
                         >
                           <div className="flex items-center gap-1">Type{getSortIcon('type')}</div>
                         </th>
                         <th
-                          className="text-left py-3.5 px-4 text-xs font-semibold uppercase tracking-wider text-muted cursor-pointer hover:opacity-80 transition-opacity"
+                          className="text-left py-2.5 px-3 text-[11px] font-semibold uppercase tracking-wider text-muted cursor-pointer hover:opacity-80 transition-opacity"
                           onClick={() => handleSort('severity')}
                         >
                           <div className="flex items-center gap-1">Severity{getSortIcon('severity')}</div>
                         </th>
                         <th
-                          className="text-left py-3.5 px-4 text-xs font-semibold uppercase tracking-wider text-muted cursor-pointer hover:opacity-80 transition-opacity"
+                          className="text-left py-2.5 px-3 text-[11px] font-semibold uppercase tracking-wider text-muted cursor-pointer hover:opacity-80 transition-opacity"
                           onClick={() => handleSort('status')}
                         >
                           <div className="flex items-center gap-1">Status{getSortIcon('status')}</div>
                         </th>
                         <th
-                          className="text-left py-3.5 px-4 text-xs font-semibold uppercase tracking-wider text-muted cursor-pointer hover:opacity-80 transition-opacity"
+                          className="text-left py-2.5 px-3 text-[11px] font-semibold uppercase tracking-wider text-muted cursor-pointer hover:opacity-80 transition-opacity"
                           onClick={() => handleSort('time')}
                         >
                           <div className="flex items-center gap-1">Time Reported{getSortIcon('time')}</div>
                         </th>
-                        <th className="text-left py-3.5 px-4 text-xs font-semibold uppercase tracking-wider text-muted">Actions</th>
+                        <th className="text-left py-2.5 px-3 text-[11px] font-semibold uppercase tracking-wider text-muted">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -767,30 +839,30 @@ export function DashboardPage() {
                             isLight ? (idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50') : (idx % 2 === 0 ? 'bg-transparent' : 'bg-white/5')
                           } hover:bg-primary/5`}
                         >
-                          <td className="py-3.5 px-4 text-sm font-mono text-foreground">{incident.id}</td>
-                          <td className="py-3.5 px-4 text-sm font-medium text-foreground">{incident.reporterName}</td>
-                          <td className="py-3.5 px-4 text-sm text-muted">{incident.barangay}</td>
-                          <td className="py-3.5 px-4 text-sm text-foreground">
+                          <td className="py-2.5 px-3 text-sm font-mono text-foreground">{incident.id}</td>
+                          <td className="py-2.5 px-3 text-sm font-medium text-foreground">{incident.reporterName}</td>
+                          <td className="py-2.5 px-3 text-sm text-muted">{incident.barangay}</td>
+                          <td className="py-2.5 px-3 text-sm text-foreground">
                             <span className="mr-1">{getTypeEmoji(incident.emergencyType)}</span>
                             {incident.emergencyType}
                           </td>
-                          <td className="py-3.5 px-4">
-                            <Badge className={`${getSeverityColor(incident.severity)} border rounded-lg px-2.5 py-1 text-xs font-semibold`}>
+                          <td className="py-2.5 px-3">
+                            <Badge className={`${getSeverityColor(incident.severity)} border rounded-lg px-2 py-0.5 text-[11px] font-semibold`}>
                               {(incident.severity || '—').toString().toUpperCase()}
                             </Badge>
                           </td>
-                          <td className="py-3.5 px-4">
-                            <Badge className={`${getStatusColor(incident.status)} border rounded-lg px-2.5 py-1 text-xs font-semibold`}>
+                          <td className="py-2.5 px-3">
+                            <Badge className={`${getStatusColor(incident.status)} border rounded-lg px-2 py-0.5 text-[11px] font-semibold`}>
                               {(incident.status || '—').toString().toUpperCase()}
                             </Badge>
                           </td>
-                          <td className="py-3.5 px-4 text-sm text-muted">{incident.timeReported}</td>
-                          <td className="py-3.5 px-4">
+                          <td className="py-2.5 px-3 text-sm text-muted">{incident.timeReported}</td>
+                          <td className="py-2.5 px-3">
                             <div className="flex items-center gap-1.5">
                               <Button
                                 size="sm"
                                 variant="ghost"
-                                className="h-9 w-9 p-0 rounded-lg text-foreground/80 hover:bg-primary/15 hover:text-primary transition-all"
+                                className="h-8 w-8 p-0 rounded-lg text-foreground/80 hover:bg-primary/15 hover:text-primary transition-all"
                                 onClick={(e) => { e.stopPropagation(); navigate(`/incidents/${incident.id}`); }}
                                 title="View Details"
                               >
@@ -800,7 +872,7 @@ export function DashboardPage() {
                                 <Button
                                   size="sm"
                                   variant="ghost"
-                                  className="h-9 w-9 p-0 rounded-lg text-severity-resolved hover:bg-severity-resolved/20 transition-all"
+                                className="h-8 w-8 p-0 rounded-lg text-severity-resolved hover:bg-severity-resolved/20 transition-all"
                                   onClick={(e) => { e.stopPropagation(); openVerifyAssignModal(incident); }}
                                   title="Verify & Assign to Department"
                                 >
@@ -810,7 +882,7 @@ export function DashboardPage() {
                               <Button
                                 size="sm"
                                 variant="ghost"
-                                className="h-9 w-9 p-0 rounded-lg text-foreground/80 hover:bg-secondary/20 hover:text-foreground transition-all"
+                                className="h-8 w-8 p-0 rounded-lg text-foreground/80 hover:bg-secondary/20 hover:text-foreground transition-all"
                                 onClick={(e) => { e.stopPropagation(); openCallModal(incident); }}
                                 title="Call Reporter or Department"
                               >
@@ -892,7 +964,7 @@ export function DashboardPage() {
                   {verifyAssignIncident.barangay && <p className="text-xs text-muted mt-1">{verifyAssignIncident.barangay}</p>}
                 </div>
                 <div>
-                  <Label className="text-foreground">Assign to department *</Label>
+                  <Label className="text-foreground">Sector *</Label>
                   <Select value={assignDepartmentId} onValueChange={setAssignDepartmentId} open={assignSelectOpen} onOpenChange={setAssignSelectOpen}>
                     {({ value, onValueChange, dropdownRect }) => (
                       <>
@@ -903,12 +975,12 @@ export function DashboardPage() {
                         >
                           <SelectValue
                             value={value}
-                            options={[{ value: '', label: 'Select department' }, ...departments.map((d) => ({ value: d.id, label: d.name }))]}
-                            placeholder="Select department"
+                            options={[{ value: '', label: 'Select sector' }, ...departments.map((d) => ({ value: d.id, label: d.name }))]}
+                            placeholder="Select sector"
                           />
                         </SelectTrigger>
                         <SelectContent isOpen={assignSelectOpen} dropdownRect={dropdownRect}>
-                          <SelectItem value="" onSelect={() => { setAssignDepartmentId(''); setAssignSelectOpen(false); }}>Select department</SelectItem>
+                          <SelectItem value="" onSelect={() => { setAssignDepartmentId(''); setAssignSelectOpen(false); }}>Select sector</SelectItem>
                           {departments.map((d) => (
                             <SelectItem key={d.id} value={d.id} onSelect={(v) => { setAssignDepartmentId(v); setAssignSelectOpen(false); }}>{d.name}</SelectItem>
                           ))}
@@ -916,9 +988,77 @@ export function DashboardPage() {
                       </>
                     )}
                   </Select>
+                  {verifyAssignIncident && (
+                    <p className="text-xs text-muted mt-1">
+                      Default by classification: {getDefaultSectorId(verifyAssignIncident.emergencyType) === 'pnp' ? 'Police' : 'CDRRMO'} (editable)
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <Label className="text-foreground">Team *</Label>
+                  <Select value={assignTeamName} onValueChange={setAssignTeamName} open={assignTeamSelectOpen} onOpenChange={setAssignTeamSelectOpen}>
+                    {({ value }) => (
+                      <>
+                        <SelectTrigger
+                          isOpen={assignTeamSelectOpen}
+                          onClick={() => setAssignTeamSelectOpen((o) => !o)}
+                          className="mt-1.5"
+                        >
+                          <SelectValue
+                            value={value}
+                            options={[{ value: '', label: 'Select team' }, ...selectedTeamOptions]}
+                            placeholder="Select team"
+                          />
+                        </SelectTrigger>
+                        <SelectContent isOpen={assignTeamSelectOpen}>
+                          <SelectItem value="" onSelect={() => { setAssignTeamName(''); setAssignTeamSelectOpen(false); }}>Select team</SelectItem>
+                          {selectedTeamOptions.map((t) => (
+                            <SelectItem key={t.value} value={t.value} onSelect={(v) => { setAssignTeamName(v); setAssignTeamSelectOpen(false); }}>
+                              {t.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </>
+                    )}
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-foreground">Responders (Accounts + Directory)</Label>
+                  <div className="mt-1.5 rounded-xl border border-border/50 max-h-48 overflow-y-auto p-2 space-y-1.5">
+                    {assignCandidateResponders.length === 0 && (
+                      <p className="text-xs text-muted px-1 py-2">No responders found for the selected sector.</p>
+                    )}
+                    {assignCandidateResponders.map((responder) => {
+                      const source = responder.source_type || 'account';
+                      const key = `${source}:${responder.responder_id}`;
+                      const checked = assignSelectedResponderKeys.includes(key);
+                      return (
+                        <label key={key} className="flex items-start gap-2 rounded-lg px-2 py-1.5 hover:bg-muted/20 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) => {
+                              setAssignSelectedResponderKeys((prev) => {
+                                if (e.target.checked) return [...prev, key];
+                                return prev.filter((item) => item !== key);
+                              });
+                            }}
+                          />
+                          <span className="text-xs">
+                            <span className="font-medium text-foreground">{responder.name || `Responder ${responder.responder_id}`}</span>
+                            <span className="text-muted"> • {source === 'directory' ? 'Directory' : 'Account'}</span>
+                            <span className="text-muted"> • {responder.organization || 'Unassigned org'}</span>
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <p className="text-xs text-muted mt-1">
+                    If none are selected, the system assigns the top available responder automatically.
+                  </p>
                 </div>
                 <DialogFooter>
-                  <Button onClick={submitVerifyAndAssign} disabled={!assignDepartmentId} className="bg-primary text-white hover:bg-primary-hover">
+                  <Button onClick={submitVerifyAndAssign} disabled={!assignDepartmentId || !assignTeamName} className="bg-primary text-white hover:bg-primary-hover">
                     Verify & Assign
                   </Button>
                   <Button variant="outline" onClick={closeVerifyAssignModal}>Cancel</Button>

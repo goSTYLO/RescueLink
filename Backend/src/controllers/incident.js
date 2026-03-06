@@ -296,6 +296,10 @@ const incidentController = {
         const updatedIncident = await Incident.updateWithAiResults(reportId, {
           incident_type: aiResult.primaryType,
           severity_level: aiResult.severity,
+          primary_classification: aiResult.primaryType,
+          primary_confidence: aiResult.maxConfidence,
+          secondary_classification: aiResult.secondaryType,
+          secondary_confidence: aiResult.secondaryConfidence,
           transcription: aiResult.transcription,
           ai_pending: false,
           ai_attempted: true
@@ -307,6 +311,8 @@ const incidentController = {
           predicted_type: aiResult.primaryType,
           predicted_severity: aiResult.severity,
           confidence_score: aiResult.maxConfidence,
+          secondary_predicted_type: aiResult.secondaryType,
+          secondary_confidence_score: aiResult.secondaryConfidence,
           low_confidence_flag: aiResult.lowConfidenceFlag,
           is_duplicate: false,
           is_override: false,
@@ -334,8 +340,10 @@ const incidentController = {
           ai_classification: {
             incident_types: aiResult.incidentTypes,
             primary_type: aiResult.primaryType,
+            secondary_type: aiResult.secondaryType || null,
             severity: aiResult.severity,
             confidence: aiResult.maxConfidence,
+            secondary_confidence: aiResult.secondaryConfidence ?? null,
             low_confidence_flag: aiResult.lowConfidenceFlag,
             transcription: aiResult.transcription
           },
@@ -607,6 +615,8 @@ const incidentController = {
         predicted_type: validatedType,
         predicted_severity: validatedSeverity,
         confidence_score: previousClassification?.confidence_score ?? null,
+        secondary_predicted_type: previousClassification?.secondary_predicted_type ?? null,
+        secondary_confidence_score: previousClassification?.secondary_confidence_score ?? null,
         low_confidence_flag: false,
         is_duplicate: false,
         is_override: true,

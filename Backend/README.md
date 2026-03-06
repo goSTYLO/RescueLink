@@ -23,6 +23,20 @@ Recent cross-stack updates completed for dispatcher web integration:
 - **Post-action convergence**: verify/reclassify flows trigger cross-page refresh events in web (dashboard/map/details).
 - **Live API test script resilience**: `tests/integration.test.js` setup now handles "already registered" account messages more safely.
 
+## Session Updates (Assignment v2 + AI Top-2 Classification)
+
+Recent backend updates for dispatcher workflow simplification:
+
+- **Dispatch assignment v2 contract (backward compatible)**:
+  - `POST /api/dispatches` now supports grouped assignment payloads with `department_code`, `team_name`, and `responders[]`.
+  - Legacy single-responder payload (`report_id` + `responder_id`) is still supported.
+- **Hybrid responder model support**:
+  - responders can be tagged with `source_type` (`account` or `directory`).
+  - dispatch records persist responder source and assignment metadata.
+- **Top-2 AI classification persistence**:
+  - incident records now support explicit primary/secondary classification fields and confidence values.
+  - AI classification record supports secondary predicted type/confidence when available.
+
 ## Quick start
 
 1. **Copy environment file and configure:**
@@ -47,6 +61,7 @@ Recent cross-stack updates completed for dispatcher web integration:
    psql $DATABASE_URL -f migrations/add_dispatcher_audit_logs.sql
    psql $DATABASE_URL -f migrations/add_token_blacklist.sql
    psql $DATABASE_URL -f migrations/add_dispatcher_login_otp.sql
+   psql $DATABASE_URL -f migrations/add_dispatch_assignment_v2_and_secondary_ai.sql
    ```
    Run other migrations in `migrations/` as needed for your schema version.
 
@@ -157,6 +172,7 @@ Dispatcher actions (login, logout, signup, password change, dispatch, etc.) are 
 | `add_ai_fields.sql` | AI classification fields |
 | `add_incident_verified.sql` | Incident verification status |
 | `add_incident_barangay.sql` | Barangay field for incidents |
+| `add_dispatch_assignment_v2_and_secondary_ai.sql` | Assignment v2 metadata, hybrid responder fields, and top-2 AI fields |
 
 Run migrations in order for existing databases. New setups via `setup-db` use `schema.sql` which includes core tables.
 

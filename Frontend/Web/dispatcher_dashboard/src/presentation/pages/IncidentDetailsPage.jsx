@@ -97,7 +97,9 @@ function mapApiToIncidentDetails(api, aiClassification = null) {
     aiConfidenceScore: aiClassification?.confidence_score ?? null,
     aiLowConfidenceFlag: Boolean(aiClassification?.low_confidence_flag),
     aiPredictedType: aiClassification?.predicted_type || null,
+    aiSecondaryPredictedType: api.secondary_classification || aiClassification?.secondary_predicted_type || null,
     aiPredictedSeverity: aiClassification?.predicted_severity || null,
+    aiSecondaryConfidenceScore: api.secondary_confidence ?? aiClassification?.secondary_confidence_score ?? null,
     aiIsOverride: Boolean(aiClassification?.is_override),
     incidentTypeRaw: api.incident_type || null,
     severityRaw: normalizedSeverity || null,
@@ -111,6 +113,25 @@ function mapApiToIncidentDetails(api, aiClassification = null) {
     timeReported,
   };
 }
+
+function getDefaultSectorByIncidentType(typeValue) {
+  const normalized = String(typeValue || '').toLowerCase();
+  return normalized === 'police' ? 'pnp' : 'drrmo';
+}
+
+const ACTIVE_SECTOR_IDS = new Set(['pnp', 'drrmo']);
+const TEAM_OPTIONS_BY_SECTOR = {
+  pnp: [
+    { value: 'pnp-patrol-alpha', label: 'Patrol Alpha' },
+    { value: 'pnp-patrol-bravo', label: 'Patrol Bravo' },
+    { value: 'pnp-traffic-unit', label: 'Traffic Unit' },
+  ],
+  drrmo: [
+    { value: 'drrmo-rescue-alpha', label: 'Rescue Alpha' },
+    { value: 'drrmo-medical-alpha', label: 'Medical Alpha' },
+    { value: 'drrmo-fire-support', label: 'Fire Support' },
+  ],
+};
 
 export function IncidentDetailsPage() {
   const { id } = useParams();
@@ -254,6 +275,9 @@ export function IncidentDetailsPage() {
   const [escalationReason, setEscalationReason] = useState('');
   const [additionalDepartment, setAdditionalDepartment] = useState('');
   const [notifyDepartment, setNotifyDepartment] = useState('');
+  const [notifyTeamName, setNotifyTeamName] = useState('');
+  const [notifySelectedResponderKeys, setNotifySelectedResponderKeys] = useState([]);
+  const [notifyTeamSelectOpen, setNotifyTeamSelectOpen] = useState(false);
   const [closureOutcome, setClosureOutcome] = useState('');
   const [closureClassification, setClosureClassification] = useState('');
   const [coordinationNote, setCoordinationNote] = useState('');
@@ -301,6 +325,14 @@ export function IncidentDetailsPage() {
   useEffect(() => {
     sessionStorage.setItem(coordinationStorageKey, JSON.stringify(coordination));
   }, [coordination, coordinationStorageKey]);
+
+  useEffect(() => {
+    const teams = TEAM_OPTIONS_BY_SECTOR[notifyDepartment] || [];
+    if (!teams.some((team) => team.value === notifyTeamName)) {
+      setNotifyTeamName(teams[0]?.value || '');
+    }
+    setNotifySelectedResponderKeys([]);
+  }, [notifyDepartment]);
 
   // Get all units for workload display
   const getAllUnits = () => {
@@ -388,32 +420,42 @@ export function IncidentDetailsPage() {
     return <Badge variant="outline" className="bg-primary/20 text-primary border-primary/50">Overloaded ({count})</Badge>;
   };
 
-  const getDepartmentContactPhone = (departmentName) => {
-    const normalized = String(departmentName || '').toLowerCase();
-    if (!normalized) return null;
+  const activeSectors = departments.filter((dept) => ACTIVE_SECTOR_IDS.has(dept.id));
+  const selectedNotifyTeamOptions = TEAM_OPTIONS_BY_SECTOR[notifyDepartment] || [];
 
-    if (normalized.includes('bfp') || normalized.includes('fire')) return '+63 75 523 1234';
-    if (normalized.includes('pnp') || normalized.includes('police')) return '+63 75 522 5678';
-    if (normalized.includes('health') || normalized.includes('hospital') || normalized.includes('medical')) return '+63 75 523 9012';
-    if (normalized.includes('drrmo') || normalized.includes('disaster')) return '+63 75 524 3456';
-    if (normalized.includes('barangay')) return '+63 75 522 7890';
+  const getRespondersForSector = (sectorId) => {
+    if (!Array.isArray(responders)) return [];
+    const matcher = sectorId === 'pnp'
+      ? /(police|pnp|crime)/i
+      : /(drrmo|disaster|fire|medical|rescue|accident)/i;
+    return responders.filter((responder) => {
+      const text = `${responder.organization || ''} ${responder.name || ''}`;
+      return matcher.test(text);
+    });
+  };
 
+  const notifyCandidateResponders = getRespondersForSector(notifyDepartment);
+  const notifySelectedResponders = notifyCandidateResponders.filter((responder) => {
+    const source = responder.source_type || 'account';
+    return notifySelectedResponderKeys.includes(`${source}:${responder.responder_id}`);
+  });
+
+  const getDepartmentContactPhone = (sectorId) => {
+    if (!sectorId) return null;
+    if (sectorId === 'pnp') return '+63 75 522 5678';
+    if (sectorId === 'drrmo') return '+63 75 524 3456';
     return null;
   };
 
-  const getDepartmentMatcher = (departmentName) => {
-    const normalized = String(departmentName || '').toLowerCase();
-    if (normalized.includes('bfp') || normalized.includes('fire')) return /(fire|bfp)/i;
-    if (normalized.includes('pnp') || normalized.includes('police')) return /(police|pnp)/i;
-    if (normalized.includes('health') || normalized.includes('medical') || normalized.includes('hospital')) return /(health|medical|hospital)/i;
-    if (normalized.includes('drrmo') || normalized.includes('disaster')) return /(drrmo|disaster)/i;
-    if (normalized.includes('barangay')) return /barangay/i;
+  const getDepartmentMatcher = (sectorId) => {
+    if (sectorId === 'pnp') return /(police|pnp|crime)/i;
+    if (sectorId === 'drrmo') return /(drrmo|disaster|fire|medical|rescue|accident)/i;
     return null;
   };
 
-  const pickBestResponderForDepartment = (departmentName) => {
+  const pickBestResponderForDepartment = (sectorId) => {
     if (!Array.isArray(responders) || responders.length === 0) return null;
-    const matcher = getDepartmentMatcher(departmentName);
+    const matcher = getDepartmentMatcher(sectorId);
     const filtered = matcher
       ? responders.filter((responder) => matcher.test(String(responder.organization || responder.name || '')))
       : responders;
@@ -431,49 +473,74 @@ export function IncidentDetailsPage() {
       .sort((a, b) => availabilityRank(b.availability_status) - availabilityRank(a.availability_status))[0] || null;
   };
 
-  const tryCreateDispatchAssignment = async (departmentName) => {
+  const tryCreateDispatchAssignment = async (sectorId, teamName, responderItems = []) => {
     const numericId = /^\d+$/.test(String(id));
-    if (!numericId || !departmentName) return null;
+    if (!numericId || !sectorId) return null;
     const token = localStorage.getItem('token');
     if (!token) return null;
 
-    const responder = pickBestResponderForDepartment(departmentName);
-    if (!responder?.responder_id) return null;
+    const departmentMeta = activeSectors.find((d) => d.id === sectorId);
+    const selectedPayload = responderItems.length > 0
+      ? responderItems.map((responder) => ({
+        source: responder.source_type || 'account',
+        responder_id: responder.responder_id,
+        responder_name: responder.name || null,
+        organization: responder.organization || departmentMeta?.name || null,
+        contact_number: responder.contact_number || null,
+        team_name: teamName || null,
+      }))
+      : (() => {
+        const fallback = pickBestResponderForDepartment(sectorId);
+        if (!fallback?.responder_id) return [];
+        return [{
+          source: fallback.source_type || 'account',
+          responder_id: fallback.responder_id,
+          responder_name: fallback.name || null,
+          organization: fallback.organization || departmentMeta?.name || null,
+          contact_number: fallback.contact_number || null,
+          team_name: teamName || null,
+        }];
+      })();
+
+    if (selectedPayload.length === 0) return null;
 
     return createDispatch({
       report_id: Number(id),
-      responder_id: responder.responder_id,
+      department_code: sectorId,
+      department_name: departmentMeta?.name || null,
+      team_name: teamName || null,
+      default_department_code: getDefaultSectorByIncidentType(incident?.emergencyType),
+      was_default_department: getDefaultSectorByIncidentType(incident?.emergencyType) === sectorId,
       response_status: 'assigned',
+      responders: selectedPayload,
     });
   };
 
   const openNotifyRespondersDialog = () => {
-    const defaultDepartment =
-      incident?.assignedDepartment
-      || (Array.isArray(incident?.assignedDepartments) ? incident.assignedDepartments[0] : null)
-      || departments?.[0]?.name
-      || '';
-
-    setNotifyDepartment(defaultDepartment);
+    const defaultSectorId = getDefaultSectorByIncidentType(incident?.emergencyType);
+    setNotifyDepartment(defaultSectorId);
+    setNotifyTeamName((TEAM_OPTIONS_BY_SECTOR[defaultSectorId] || [])[0]?.value || '');
+    setNotifySelectedResponderKeys([]);
     setNotifyDialogOpen(true);
   };
 
   const handleNotifyResponders = async () => {
-    const selectedDepartment = notifyDepartment;
-    const departmentExists = departments.some((dept) => dept.name === selectedDepartment);
+    const selectedSectorId = notifyDepartment;
+    const selectedSector = activeSectors.find((dept) => dept.id === selectedSectorId);
+    const selectedDepartment = selectedSector?.name || null;
 
-    if (!selectedDepartment || !departmentExists) {
+    if (!selectedSectorId || !selectedDepartment || !notifyTeamName) {
       await Swal.fire({
         icon: 'warning',
         title: 'Select response team',
-        text: 'Please choose a department before notifying responders.',
+        text: 'Please choose a sector and team before notifying responders.',
         confirmButtonColor: '#134178',
       });
       return;
     }
 
-    const matchedResponder = pickBestResponderForDepartment(selectedDepartment);
-    const responderPhone = matchedResponder?.contact_number || getDepartmentContactPhone(selectedDepartment);
+    const matchedResponder = notifySelectedResponders[0] || pickBestResponderForDepartment(selectedSectorId);
+    const responderPhone = matchedResponder?.contact_number || getDepartmentContactPhone(selectedSectorId);
 
     if (!responderPhone || responderPhone === '—') {
       await Swal.fire({
@@ -493,6 +560,8 @@ export function IncidentDetailsPage() {
       return {
         ...prev,
         assignedDepartment: selectedDepartment,
+        assignedDepartmentId: selectedSectorId,
+        assignedTeamName: notifyTeamName,
         assignedDepartments: [...new Set([...existingDepartments, selectedDepartment])],
       };
     });
@@ -500,7 +569,7 @@ export function IncidentDetailsPage() {
     setNotifyDialogOpen(false);
 
     try {
-      await tryCreateDispatchAssignment(selectedDepartment);
+      await tryCreateDispatchAssignment(selectedSectorId, notifyTeamName, notifySelectedResponders);
     } catch (dispatchError) {
       await Swal.fire({
         icon: 'warning',
@@ -534,7 +603,7 @@ export function IncidentDetailsPage() {
     await Swal.fire({
       icon: 'success',
       title: 'Response team notified',
-      text: `${selectedDepartment} has been assigned and notified.`,
+      text: `${selectedDepartment} (${notifyTeamName}) has been assigned and notified.`,
       timer: 2200,
       showConfirmButton: false,
       timerProgressBar: true,
@@ -549,6 +618,9 @@ export function IncidentDetailsPage() {
 
   const handleAddDepartment = () => {
     if (!additionalDepartment) return;
+    const selectedSector = activeSectors.find((dept) => dept.id === additionalDepartment);
+    const selectedDepartmentName = selectedSector?.name || additionalDepartment;
+    const teamName = (TEAM_OPTIONS_BY_SECTOR[additionalDepartment] || [])[0]?.value || null;
 
     setIncident((prev) => {
       if (!prev) return prev;
@@ -557,18 +629,20 @@ export function IncidentDetailsPage() {
         : [];
       return {
         ...prev,
-        assignedDepartment: additionalDepartment,
-        assignedDepartments: [...new Set([...existingDepartments, additionalDepartment])],
+        assignedDepartment: selectedDepartmentName,
+        assignedDepartmentId: additionalDepartment,
+        assignedTeamName: teamName || prev?.assignedTeamName || null,
+        assignedDepartments: [...new Set([...existingDepartments, selectedDepartmentName])],
       };
     });
 
     setAddDepartmentDialogOpen(false);
     setAdditionalDepartment('');
-    tryCreateDispatchAssignment(additionalDepartment).catch(() => {});
+    tryCreateDispatchAssignment(additionalDepartment, teamName).catch(() => {});
     Swal.fire({
       icon: 'success',
       title: 'Department added',
-      text: `${additionalDepartment} has been added to this incident.`,
+      text: `${selectedDepartmentName} has been added to this incident.`,
       timer: 1800,
       showConfirmButton: false,
       timerProgressBar: true,
@@ -745,6 +819,14 @@ export function IncidentDetailsPage() {
                     AI {getConfidencePercent(incident.aiConfidenceScore)}% ({getConfidenceLabel(incident.aiConfidenceScore)})
                   </Badge>
                 )}
+                {incident.aiSecondaryPredictedType && (
+                  <Badge variant="outline" className="rounded-lg border-border">
+                    2nd AI: {incident.aiSecondaryPredictedType}
+                    {getConfidencePercent(incident.aiSecondaryConfidenceScore) != null
+                      ? ` (${getConfidencePercent(incident.aiSecondaryConfidenceScore)}%)`
+                      : ''}
+                  </Badge>
+                )}
               </div>
             </div>
 
@@ -794,6 +876,16 @@ export function IncidentDetailsPage() {
               {incident.aiSuggestion && (
                 <div className={`mt-3 p-2.5 rounded-lg border ${isLight ? 'bg-primary/10 border-primary/20' : 'bg-primary/20 border-primary/30'}`}>
                   <p className="text-xs text-foreground"><strong>AI Suggestion:</strong> {incident.aiSuggestion}</p>
+                </div>
+              )}
+              {incident.aiSecondaryPredictedType && (
+                <div className={`mt-3 p-2.5 rounded-lg border ${isLight ? 'bg-indigo-50/80 border-indigo-200/80' : 'bg-indigo-500/10 border-indigo-500/30'}`}>
+                  <p className="text-xs text-foreground">
+                    <strong>2nd AI classification:</strong> {incident.aiSecondaryPredictedType}
+                    {getConfidencePercent(incident.aiSecondaryConfidenceScore) != null
+                      ? ` (${getConfidencePercent(incident.aiSecondaryConfidenceScore)}%)`
+                      : ''}
+                  </p>
                 </div>
               )}
             </div>
@@ -1095,11 +1187,11 @@ export function IncidentDetailsPage() {
                                 {({ value, onValueChange, dropdownRect }) => (
                                   <>
                                     <SelectTrigger isOpen={additionalDeptSelectOpen} onClick={() => setAdditionalDeptSelectOpen(o => !o)}>
-                                      <SelectValue value={value} options={departments.map(d => ({ value: d.name, label: d.name }))} placeholder="Choose department" />
+                                      <SelectValue value={value} options={activeSectors.map((d) => ({ value: d.id, label: d.name }))} placeholder="Choose sector" />
                                     </SelectTrigger>
                                     <SelectContent isOpen={additionalDeptSelectOpen} dropdownRect={dropdownRect}>
-                                      {departments.map(dept => (
-                                        <SelectItem key={dept.id} value={dept.name} onSelect={(v) => { onValueChange(v); setAdditionalDeptSelectOpen(false); }}>
+                                      {activeSectors.map((dept) => (
+                                        <SelectItem key={dept.id} value={dept.id} onSelect={(v) => { onValueChange(v); setAdditionalDeptSelectOpen(false); }}>
                                           {dept.name}
                                         </SelectItem>
                                       ))}
@@ -1283,16 +1375,16 @@ export function IncidentDetailsPage() {
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div>
-                  <Label>Select Department / Team</Label>
+                  <Label>Sector</Label>
                   <Select value={notifyDepartment} onValueChange={setNotifyDepartment} open={notifyDeptSelectOpen} onOpenChange={setNotifyDeptSelectOpen}>
                     {({ value, onValueChange, dropdownRect }) => (
                       <>
                         <SelectTrigger isOpen={notifyDeptSelectOpen} onClick={() => setNotifyDeptSelectOpen(o => !o)}>
-                          <SelectValue value={value} options={departments.map(d => ({ value: d.name, label: d.name }))} placeholder="Choose department" />
+                          <SelectValue value={value} options={activeSectors.map((d) => ({ value: d.id, label: d.name }))} placeholder="Choose sector" />
                         </SelectTrigger>
                         <SelectContent isOpen={notifyDeptSelectOpen} dropdownRect={dropdownRect}>
-                          {departments.map((dept) => (
-                            <SelectItem key={dept.id} value={dept.name} onSelect={(v) => { onValueChange(v); setNotifyDeptSelectOpen(false); }}>
+                          {activeSectors.map((dept) => (
+                            <SelectItem key={dept.id} value={dept.id} onSelect={(v) => { onValueChange(v); setNotifyDeptSelectOpen(false); }}>
                               {dept.name}
                             </SelectItem>
                           ))}
@@ -1300,6 +1392,57 @@ export function IncidentDetailsPage() {
                       </>
                     )}
                   </Select>
+                </div>
+                <div>
+                  <Label>Team</Label>
+                  <Select value={notifyTeamName} onValueChange={setNotifyTeamName} open={notifyTeamSelectOpen} onOpenChange={setNotifyTeamSelectOpen}>
+                    {({ value }) => (
+                      <>
+                        <SelectTrigger isOpen={notifyTeamSelectOpen} onClick={() => setNotifyTeamSelectOpen((o) => !o)}>
+                          <SelectValue value={value} options={[{ value: '', label: 'Choose team' }, ...selectedNotifyTeamOptions]} placeholder="Choose team" />
+                        </SelectTrigger>
+                        <SelectContent isOpen={notifyTeamSelectOpen}>
+                          <SelectItem value="" onSelect={() => { setNotifyTeamName(''); setNotifyTeamSelectOpen(false); }}>Choose team</SelectItem>
+                          {selectedNotifyTeamOptions.map((team) => (
+                            <SelectItem key={team.value} value={team.value} onSelect={(v) => { setNotifyTeamName(v); setNotifyTeamSelectOpen(false); }}>
+                              {team.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </>
+                    )}
+                  </Select>
+                </div>
+                <div>
+                  <Label>Responders (Accounts + Directory)</Label>
+                  <div className="rounded-xl border border-border/50 max-h-44 overflow-y-auto p-2 space-y-1.5 mt-2">
+                    {notifyCandidateResponders.length === 0 && (
+                      <p className="text-xs text-muted px-1 py-2">No responders found for this sector.</p>
+                    )}
+                    {notifyCandidateResponders.map((responder) => {
+                      const source = responder.source_type || 'account';
+                      const key = `${source}:${responder.responder_id}`;
+                      const checked = notifySelectedResponderKeys.includes(key);
+                      return (
+                        <label key={key} className="flex items-start gap-2 rounded-lg px-2 py-1.5 hover:bg-muted/20 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) => {
+                              setNotifySelectedResponderKeys((prev) => {
+                                if (e.target.checked) return [...prev, key];
+                                return prev.filter((item) => item !== key);
+                              });
+                            }}
+                          />
+                          <span className="text-xs">
+                            <span className="font-medium text-foreground">{responder.name || `Responder ${responder.responder_id}`}</span>
+                            <span className="text-muted"> • {source === 'directory' ? 'Directory' : 'Account'}</span>
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
               <DialogFooter>
@@ -1309,7 +1452,7 @@ export function IncidentDetailsPage() {
                 <Button
                   className="bg-[#134178] hover:bg-[#0f3256]"
                   onClick={handleNotifyResponders}
-                  disabled={!notifyDepartment}
+                  disabled={!notifyDepartment || !notifyTeamName}
                 >
                   Assign & Notify
                 </Button>

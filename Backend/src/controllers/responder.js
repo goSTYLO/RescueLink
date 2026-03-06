@@ -1,12 +1,12 @@
 const Responder = require('../models/responder');
-const { validateInteger, validateString, validateOptionalString, validatePagination } = require('../utils/validation');
+const { validateInteger, validateString, validateOptionalString, validatePagination, validateAllowedValue } = require('../utils/validation');
 const { logDispatcherAction } = require('../utils/auditLog');
 
 const responderController = {
   // Create new responder
   async create(req, res) {
     try {
-      const { name, organization, contact_number, availability_status } = req.body;
+      const { name, organization, contact_number, availability_status, source_type, team_name } = req.body;
 
       // Validate required fields
       if (!name) {
@@ -18,12 +18,16 @@ const responderController = {
       const validatedOrganization = validateOptionalString(organization, 'organization', 150);
       const validatedContactNumber = validateOptionalString(contact_number, 'contact_number', 20);
       const validatedAvailabilityStatus = validateOptionalString(availability_status, 'availability_status', 50);
+      const validatedSourceType = validateAllowedValue(source_type, ['account', 'directory'], 'source_type') || 'account';
+      const validatedTeamName = validateOptionalString(team_name, 'team_name', 150);
 
       const responder = await Responder.create({
         name: validatedName,
         organization: validatedOrganization,
         contact_number: validatedContactNumber,
-        availability_status: validatedAvailabilityStatus
+        availability_status: validatedAvailabilityStatus,
+        source_type: validatedSourceType,
+        team_name: validatedTeamName,
       });
 
       await logDispatcherAction(req, 'responder_create', 'responder', responder.responder_id, { name: validatedName });
@@ -67,7 +71,9 @@ const responderController = {
         limit,
         offset,
         organization,
-        availability_status
+        availability_status,
+        source_type,
+        team_name,
       } = req.query;
 
       // Validate pagination
@@ -76,12 +82,16 @@ const responderController = {
       // Validate optional filters
       const validatedOrganization = organization ? validateString(organization, 'organization', 1, 150) : null;
       const validatedAvailabilityStatus = availability_status ? validateString(availability_status, 'availability_status', 1, 50) : null;
+      const validatedSourceType = source_type ? validateAllowedValue(source_type, ['account', 'directory'], 'source_type') : null;
+      const validatedTeamName = team_name ? validateString(team_name, 'team_name', 1, 150) : null;
 
       const responders = await Responder.findAll({
         limit: validatedLimit,
         offset: validatedOffset,
         organization: validatedOrganization,
-        availability_status: validatedAvailabilityStatus
+        availability_status: validatedAvailabilityStatus,
+        source_type: validatedSourceType,
+        team_name: validatedTeamName,
       });
 
       res.json(responders);
@@ -98,7 +108,7 @@ const responderController = {
   async update(req, res) {
     try {
       const { id } = req.params;
-      const { name, organization, contact_number, availability_status } = req.body;
+      const { name, organization, contact_number, availability_status, source_type, team_name } = req.body;
 
       // Validate ID
       const validatedId = validateInteger(id, 'responder ID');
@@ -115,6 +125,8 @@ const responderController = {
       const validatedOrganization = validateOptionalString(organization, 'organization', 150);
       const validatedContactNumber = validateOptionalString(contact_number, 'contact_number', 20);
       const validatedAvailabilityStatus = validateOptionalString(availability_status, 'availability_status', 50);
+      const validatedSourceType = validateAllowedValue(source_type, ['account', 'directory'], 'source_type') || 'account';
+      const validatedTeamName = validateOptionalString(team_name, 'team_name', 150);
 
       // Check if responder exists
       const existing = await Responder.findById(validatedId);
@@ -126,7 +138,9 @@ const responderController = {
         name: validatedName,
         organization: validatedOrganization,
         contact_number: validatedContactNumber,
-        availability_status: validatedAvailabilityStatus
+        availability_status: validatedAvailabilityStatus,
+        source_type: validatedSourceType,
+        team_name: validatedTeamName,
       });
 
       await logDispatcherAction(req, 'responder_update', 'responder', validatedId, { name: validatedName });
