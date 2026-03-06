@@ -192,6 +192,42 @@ describe('RBAC Integration Tests', () => {
       // 404 is acceptable (incident might not exist)
       expect([200, 400, 404]).toContain(res.status);
     });
+
+    it('should deny user from patching incident status', async () => {
+      const res = await request(app)
+        .patch('/api/incidents/1/status')
+        .set('Authorization', `Bearer ${userToken}`)
+        .send({ status: 'resolved' });
+
+      expect(res.status).toBe(403);
+    });
+
+    it('should allow dispatcher to patch incident status', async () => {
+      const res = await request(app)
+        .patch('/api/incidents/1/status')
+        .set('Authorization', `Bearer ${dispatcherToken}`)
+        .send({ status: 'resolved' });
+
+      expect([200, 400, 404, 409]).toContain(res.status);
+    });
+
+    it('should allow user to call confirm-resolution endpoint', async () => {
+      const res = await request(app)
+        .post('/api/incidents/1/confirm-resolution')
+        .set('Authorization', `Bearer ${userToken}`)
+        .send({});
+
+      expect([200, 400, 403, 404, 409]).toContain(res.status);
+    });
+
+    it('should deny dispatcher from confirm-resolution endpoint', async () => {
+      const res = await request(app)
+        .post('/api/incidents/1/confirm-resolution')
+        .set('Authorization', `Bearer ${dispatcherToken}`)
+        .send({});
+
+      expect(res.status).toBe(403);
+    });
   });
 
   describe('Ownership Checks - Users See Only Own Resources', () => {

@@ -47,7 +47,8 @@ class IncidentService {
     final stopwatch = Stopwatch()..start();
     final location = await _authService.getCurrentLocation();
     if (location['success'] != true) {
-      _logError('[mobile][incident][reportEmergency] request_id=$requestId status=location_failed');
+      _logError(
+          '[mobile][incident][reportEmergency] request_id=$requestId status=location_failed');
       throw IncidentServiceException(
         location['error'] as String? ?? 'Failed to get location.',
       );
@@ -55,7 +56,8 @@ class IncidentService {
     final lat = location['latitude'] as num?;
     final lng = location['longitude'] as num?;
     if (lat == null || lng == null) {
-      _logError('[mobile][incident][reportEmergency] request_id=$requestId status=invalid_location');
+      _logError(
+          '[mobile][incident][reportEmergency] request_id=$requestId status=invalid_location');
       throw IncidentServiceException('Invalid location data.');
     }
 
@@ -73,11 +75,13 @@ class IncidentService {
         },
       );
       stopwatch.stop();
-      _logInfo('[mobile][incident][reportEmergency] request_id=$requestId status=success latency_ms=${stopwatch.elapsedMilliseconds}');
+      _logInfo(
+          '[mobile][incident][reportEmergency] request_id=$requestId status=success latency_ms=${stopwatch.elapsedMilliseconds}');
       return response;
     } catch (error) {
       stopwatch.stop();
-      _logError('[mobile][incident][reportEmergency] request_id=$requestId status=error latency_ms=${stopwatch.elapsedMilliseconds} error=$error');
+      _logError(
+          '[mobile][incident][reportEmergency] request_id=$requestId status=error latency_ms=${stopwatch.elapsedMilliseconds} error=$error');
       rethrow;
     }
   }
@@ -124,34 +128,41 @@ class IncidentService {
       }
     }
 
-    _logInfo('[mobile][incident][reportWithAudio] request_id=$requestId status=start url=$uri audio_bytes=${audioBytes.length} media_count=${mediaFiles?.length ?? 0} timeout_s=${AppConfig.apiTimeout.inSeconds}');
+    _logInfo(
+        '[mobile][incident][reportWithAudio] request_id=$requestId status=start url=$uri audio_bytes=${audioBytes.length} media_count=${mediaFiles?.length ?? 0} timeout_s=${AppConfig.apiTimeout.inSeconds}');
 
     http.StreamedResponse streamedResponse;
     http.Response response;
     try {
       streamedResponse = await request.send().timeout(AppConfig.apiTimeout);
-      response = await http.Response.fromStream(streamedResponse).timeout(AppConfig.apiTimeout);
+      response = await http.Response.fromStream(streamedResponse)
+          .timeout(AppConfig.apiTimeout);
       stopwatch.stop();
     } on TimeoutException {
       stopwatch.stop();
-      _logError('[mobile][incident][reportWithAudio] request_id=$requestId status=timeout latency_ms=${stopwatch.elapsedMilliseconds} url=$uri');
+      _logError(
+          '[mobile][incident][reportWithAudio] request_id=$requestId status=timeout latency_ms=${stopwatch.elapsedMilliseconds} url=$uri');
       throw IncidentServiceException(
         'Connection timed out while uploading audio. Check API_BASE_URL (${AppConfig.apiBaseUrl}) and network connectivity.',
       );
     } on SocketException catch (error) {
       stopwatch.stop();
-      _logError('[mobile][incident][reportWithAudio] request_id=$requestId status=socket_error latency_ms=${stopwatch.elapsedMilliseconds} url=$uri error=$error');
+      _logError(
+          '[mobile][incident][reportWithAudio] request_id=$requestId status=socket_error latency_ms=${stopwatch.elapsedMilliseconds} url=$uri error=$error');
       throw IncidentServiceException(
         'Unable to connect to server at ${AppConfig.apiBaseUrl}. If using a real device, set API_BASE_URL to your PC LAN IP.',
       );
     } on http.ClientException catch (error) {
       stopwatch.stop();
-      _logError('[mobile][incident][reportWithAudio] request_id=$requestId status=client_error latency_ms=${stopwatch.elapsedMilliseconds} url=$uri error=$error');
-      throw IncidentServiceException('Network request failed: ${error.message}');
+      _logError(
+          '[mobile][incident][reportWithAudio] request_id=$requestId status=client_error latency_ms=${stopwatch.elapsedMilliseconds} url=$uri error=$error');
+      throw IncidentServiceException(
+          'Network request failed: ${error.message}');
     }
 
     if (response.statusCode >= 200 && response.statusCode < 300) {
-      _logInfo('[mobile][incident][reportWithAudio] request_id=$requestId status=${response.statusCode} latency_ms=${stopwatch.elapsedMilliseconds}');
+      _logInfo(
+          '[mobile][incident][reportWithAudio] request_id=$requestId status=${response.statusCode} latency_ms=${stopwatch.elapsedMilliseconds}');
       if (response.body.isEmpty) return {};
       return jsonDecode(response.body) as Map<String, dynamic>;
     }
@@ -167,8 +178,10 @@ class IncidentService {
     } catch (_) {
       if (response.body.isNotEmpty) errorMessage = response.body;
     }
-    _logError('[mobile][incident][reportWithAudio] request_id=$requestId status=${response.statusCode} latency_ms=${stopwatch.elapsedMilliseconds} error=$errorMessage');
-    throw IncidentServiceException(errorMessage, statusCode: response.statusCode);
+    _logError(
+        '[mobile][incident][reportWithAudio] request_id=$requestId status=${response.statusCode} latency_ms=${stopwatch.elapsedMilliseconds} error=$errorMessage');
+    throw IncidentServiceException(errorMessage,
+        statusCode: response.statusCode);
   }
 
   /// Get current user's incidents. Optional [limit] and [offset] for pagination.
@@ -195,13 +208,18 @@ class IncidentService {
 
     final decoded = jsonDecode(response.body);
     if (decoded is List) return decoded;
-    if (decoded is Map && decoded['data'] is List) return decoded['data'] as List;
-    if (decoded is Map && decoded['incidents'] is List) return decoded['incidents'] as List;
+    if (decoded is Map && decoded['data'] is List) {
+      return decoded['data'] as List;
+    }
+    if (decoded is Map && decoded['incidents'] is List) {
+      return decoded['incidents'] as List;
+    }
     return [];
   }
 
   /// Get incident by ID. Set [withAi] true for AI classification details.
-  Future<Map<String, dynamic>> getIncidentById(int reportId, {bool withAi = false}) async {
+  Future<Map<String, dynamic>> getIncidentById(int reportId,
+      {bool withAi = false}) async {
     final requestId = _newRequestId();
     final stopwatch = Stopwatch()..start();
     final endpoint = withAi
@@ -213,11 +231,59 @@ class IncidentService {
         'x-request-id': requestId,
       });
       stopwatch.stop();
-      _logInfo('[mobile][incident][getIncidentById] request_id=$requestId report_id=$reportId status=success latency_ms=${stopwatch.elapsedMilliseconds}');
+      _logInfo(
+          '[mobile][incident][getIncidentById] request_id=$requestId report_id=$reportId status=success latency_ms=${stopwatch.elapsedMilliseconds}');
       return response;
     } catch (error) {
       stopwatch.stop();
-      _logError('[mobile][incident][getIncidentById] request_id=$requestId report_id=$reportId status=error latency_ms=${stopwatch.elapsedMilliseconds} error=$error');
+      _logError(
+          '[mobile][incident][getIncidentById] request_id=$requestId report_id=$reportId status=error latency_ms=${stopwatch.elapsedMilliseconds} error=$error');
+      rethrow;
+    }
+  }
+
+  /// Get incident details with graceful fallback:
+  /// try `/with-ai`, then plain `/api/incidents/:id` if unavailable.
+  Future<Map<String, dynamic>> getIncidentWithAiFallback(int reportId) async {
+    try {
+      final withAiData = await getIncidentById(reportId, withAi: true);
+      if (withAiData.containsKey('incident')) {
+        return withAiData;
+      }
+      return {
+        'incident': withAiData,
+        'ai_classification': null,
+      };
+    } catch (_) {
+      final incident = await getIncidentById(reportId, withAi: false);
+      return {
+        'incident': incident,
+        'ai_classification': null,
+      };
+    }
+  }
+
+  Future<Map<String, dynamic>> confirmIncidentResolution(int reportId) async {
+    final requestId = _newRequestId();
+    final stopwatch = Stopwatch()..start();
+    try {
+      final response = await _apiService.post(
+        '/api/incidents/$reportId/confirm-resolution',
+        headers: {
+          ..._authHeaders(),
+          'Content-Type': 'application/json',
+          'x-request-id': requestId,
+        },
+        body: const {},
+      );
+      stopwatch.stop();
+      _logInfo(
+          '[mobile][incident][confirmIncidentResolution] request_id=$requestId report_id=$reportId status=success latency_ms=${stopwatch.elapsedMilliseconds}');
+      return response;
+    } catch (error) {
+      stopwatch.stop();
+      _logError(
+          '[mobile][incident][confirmIncidentResolution] request_id=$requestId report_id=$reportId status=error latency_ms=${stopwatch.elapsedMilliseconds} error=$error');
       rethrow;
     }
   }

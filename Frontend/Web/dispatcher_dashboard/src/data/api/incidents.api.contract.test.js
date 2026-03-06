@@ -4,6 +4,7 @@ import {
   getIncidentWithAi,
   normalizeIncidentStatus,
   reclassifyIncident,
+  updateIncidentStatus,
   verifyIncident,
 } from '@/data/api/incidents.api';
 
@@ -23,6 +24,7 @@ describe('incidents.api contract', () => {
   test('normalizeIncidentStatus uses canonical lifecycle values', () => {
     expect(normalizeIncidentStatus('pending')).toBe('pending');
     expect(normalizeIncidentStatus('verified')).toBe('verified');
+    expect(normalizeIncidentStatus('in_progress')).toBe('in_progress');
     expect(normalizeIncidentStatus('resolved')).toBe('resolved');
     expect(normalizeIncidentStatus('unknown')).toBe('pending');
   });
@@ -129,5 +131,19 @@ describe('incidents.api contract', () => {
       severity_level: 'high',
       reason: 'Manual override after dispatcher review',
     });
+  });
+
+  test('updateIncidentStatus sends PATCH payload', async () => {
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ success: true, incident: { report_id: 1, status: 'resolved' } }),
+    });
+
+    await updateIncidentStatus(1, 'resolved');
+    const [url, options] = fetch.mock.calls[0];
+    expect(url).toContain('/api/incidents/1/status');
+    expect(options.method).toBe('PATCH');
+    expect(JSON.parse(options.body)).toEqual({ status: 'resolved' });
   });
 });

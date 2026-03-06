@@ -9,7 +9,7 @@ import {
   parseJsonOrEmpty,
 } from '@/data/api/http';
 
-const CANONICAL_INCIDENT_STATUSES = new Set(['pending', 'verified', 'resolved']);
+const CANONICAL_INCIDENT_STATUSES = new Set(['pending', 'verified', 'in_progress', 'resolved']);
 const INCIDENT_LIST_CACHE_MS = 8000;
 const incidentsCache = new Map();
 const inflightRequests = new Map();
@@ -185,6 +185,32 @@ export async function verifyIncident(id) {
 
   logInfo(`[web][incidents][verifyIncident] request_id=${requestId} report_id=${id} status=${response.status} latency_ms=${Math.round(performance.now() - start)}`);
 
+  return data;
+}
+
+/**
+ * Update incident lifecycle status
+ * @param {number|string} id - Incident report ID
+ * @param {string} status - verified|in_progress|resolved
+ * @returns {Promise<Object>} { success, incident }
+ */
+export async function updateIncidentStatus(id, status) {
+  const requestId = createRequestId('web-incident-status');
+  const start = performance.now();
+  const response = await fetch(`${API_URL}/api/incidents/${id}/status`, {
+    method: 'PATCH',
+    headers: getAuthHeaders({ requestId }),
+    body: JSON.stringify({ status: normalizeIncidentStatus(status) }),
+  });
+
+  const data = await parseJsonOrEmpty(response);
+
+  if (!response.ok) {
+    logError(`[web][incidents][updateIncidentStatus] request_id=${requestId} report_id=${id} status=${response.status}`);
+    throw new Error(parseErrorMessage(data, 'Failed to update incident status'));
+  }
+
+  logInfo(`[web][incidents][updateIncidentStatus] request_id=${requestId} report_id=${id} status=${response.status} latency_ms=${Math.round(performance.now() - start)}`);
   return data;
 }
 

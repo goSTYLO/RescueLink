@@ -1,5 +1,6 @@
 const pool = require('../config/db');
 const { decrypt } = require('../utils/encryption');
+const { ROLES } = require('../config/roles');
 
 function looksEncryptedValue(value) {
   return typeof value === 'string'
@@ -40,10 +41,40 @@ function decodeReporterFields(row) {
     reporter_last_name: tryDecryptValue(row.reporter_last_name),
     reporter_phone: tryDecryptValue(row.reporter_phone),
     description: tryDecryptValue(row.description),
+    transcription: tryDecryptValue(row.transcription),
     barangay: tryDecryptValue(row.barangay),
     latitude: safeParseNumber(row.latitude),
     longitude: safeParseNumber(row.longitude),
   };
+}
+
+const INCIDENT_STATUS_FLOW = {
+  pending: new Set(['verified']),
+  verified: new Set(['in_progress']),
+  in_progress: new Set(['resolved']),
+  resolved: new Set([]),
+};
+
+function normalizeIncidentStatus(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'closed') return 'resolved';
+  if (normalized === 'in-progress') return 'in_progress';
+  if (Object.hasOwn(INCIDENT_STATUS_FLOW, normalized)) return normalized;
+  return 'pending';
+}
+
+function createIncidentStateError(code, message, status = 400) {
+  const error = new Error(message);
+  error.code = code;
+  error.httpStatus = status;
+  return error;
+}
+
+function normalizeActorRole(role) {
+  const normalized = String(role || '').trim().toLowerCase();
+  if (!normalized) return '';
+  if (['super-admin', 'superadmin', 'super admin'].includes(normalized)) return ROLES.ADMIN;
+  return normalized;
 }
 
 const Incident = {
@@ -527,6 +558,161 @@ const Incident = {
       [report_id, 'verified']
     );
     return res.rows[0];
+  },
+
+  async transitionStatus(report_id, { next_status, actor_user_id = null, actor_role = null } = {}) {
+    const normalizedNext = normalizeIncidentStatus(next_status);
+    let currentResult;
+    try {
+      currentResult = await pool.query(
+        `SELECT report_id, status, reporter_confirmed_at
+         FROM incident_reports
+         WHERE report_id = $1`,
+        [report_id]
+      );
+    } catch (error) {
+      if (error.code === '42703' || /reporter_confirmed_at/i.test(error.message)) {
+        currentResult = await pool.query(
+          `SELECT report_id, status
+           FROM incident_reports
+           WHERE report_id = $1`,
+          [report_id]
+        );
+      } else {
+        throw error;
+      }
+    }
+    const incident = currentResult.rows[0];
+    if (!incident) {
+      return null;
+    }
+
+    const currentStatus = normalizeIncidentStatus(incident.status);
+    if (currentStatus === normalizedNext) {
+      throw createIncidentStateError(
+        'INCIDENT_STATUS_ALREADY_SET',
+        `Incident is already in "${normalizedNext}" status.`,
+        409
+      );
+    }
+
+    const allowedTargets = INCIDENT_STATUS_FLOW[currentStatus] || new Set();
+    if (!allowedTargets.has(normalizedNext)) {
+      throw createIncidentStateError(
+        'INCIDENT_INVALID_TRANSITION',
+        `Invalid status transition: ${currentStatus} -> ${normalizedNext}.`,
+        400
+      );
+    }
+
+    const resolvedByUserId = normalizedNext === 'resolved' ? actor_user_id : null;
+    const actorRole = normalizeActorRole(actor_role);
+    const isDispatcherOrAdmin = [ROLES.DISPATCHER, ROLES.ADMIN].includes(actorRole);
+    if (normalizedNext === 'resolved' && (!actor_user_id || !isDispatcherOrAdmin)) {
+      throw createIncidentStateError(
+        'INCIDENT_RESOLVE_ROLE_REQUIRED',
+        'Only dispatcher/admin can mark incident as resolved.',
+        403
+      );
+    }
+
+    try {
+      const updated = await pool.query(
+        `UPDATE incident_reports
+         SET status = $2,
+             verified = CASE WHEN $3 IN ('verified', 'in_progress', 'resolved') THEN TRUE ELSE verified END,
+             resolved_by_user_id = CASE WHEN $3 = 'resolved' THEN $4 ELSE NULL END
+         WHERE report_id = $1
+         RETURNING *`,
+        [report_id, normalizedNext, normalizedNext, resolvedByUserId]
+      );
+      return updated.rows[0] || null;
+    } catch (error) {
+      if (error.code === '42703' || /resolved_by_user_id/i.test(error.message)) {
+        const fallback = await pool.query(
+          `UPDATE incident_reports
+           SET status = $2,
+               verified = CASE WHEN $3 IN ('verified', 'in_progress', 'resolved') THEN TRUE ELSE verified END
+           WHERE report_id = $1
+           RETURNING *`,
+          [report_id, normalizedNext, normalizedNext]
+        );
+        return fallback.rows[0] || null;
+      }
+      throw error;
+    }
+  },
+
+  async confirmResolution(report_id, reporter_user_id) {
+    let currentResult;
+    try {
+      currentResult = await pool.query(
+        `SELECT report_id, user_id, status, reporter_confirmed_at
+         FROM incident_reports
+         WHERE report_id = $1`,
+        [report_id]
+      );
+    } catch (error) {
+      if (error.code === '42703' || /reporter_confirmed_at/i.test(error.message)) {
+        currentResult = await pool.query(
+          `SELECT report_id, user_id, status, NULL::timestamp AS reporter_confirmed_at
+           FROM incident_reports
+           WHERE report_id = $1`,
+          [report_id]
+        );
+      } else {
+        throw error;
+      }
+    }
+    const incident = currentResult.rows[0];
+    if (!incident) {
+      return null;
+    }
+
+    if (Number(incident.user_id) !== Number(reporter_user_id)) {
+      throw createIncidentStateError(
+        'INCIDENT_CONFIRMATION_OWNERSHIP',
+        'Only the reporting user can confirm this incident resolution.',
+        403
+      );
+    }
+
+    if (normalizeIncidentStatus(incident.status) !== 'resolved') {
+      throw createIncidentStateError(
+        'INCIDENT_CONFIRMATION_INVALID_STATUS',
+        'Incident can only be confirmed after it is resolved.',
+        400
+      );
+    }
+
+    if (incident.reporter_confirmed_at) {
+      throw createIncidentStateError(
+        'INCIDENT_ALREADY_CONFIRMED',
+        'Incident resolution has already been confirmed.',
+        409
+      );
+    }
+
+    try {
+      const updated = await pool.query(
+        `UPDATE incident_reports
+         SET reporter_confirmed_at = CURRENT_TIMESTAMP,
+             reporter_confirmed_by_user_id = $2
+         WHERE report_id = $1
+         RETURNING *`,
+        [report_id, reporter_user_id]
+      );
+      return updated.rows[0] || null;
+    } catch (error) {
+      if (error.code === '42703' || /reporter_confirmed/i.test(error.message)) {
+        const fallback = await pool.query(
+          'SELECT * FROM incident_reports WHERE report_id = $1',
+          [report_id]
+        );
+        return fallback.rows[0] || null;
+      }
+      throw error;
+    }
   },
 
   /**

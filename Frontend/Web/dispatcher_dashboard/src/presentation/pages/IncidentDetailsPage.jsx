@@ -8,7 +8,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/presentation/components/ui/Textarea';
 import { Label } from '@/presentation/components/ui/Label';
 import { Separator } from '@/presentation/components/ui/Separator';
-import { Alert, AlertDescription, AlertTitle } from '@/presentation/components/ui/Alert';
 import { 
   ArrowLeft, MapPin, CheckCircle, XCircle, Bell, 
   Clock, AlertTriangle, TrendingUp, Users, Shield, FileText,
@@ -26,7 +25,7 @@ import {
   units
 } from '@/data/mock/mockData';
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { getIncidentById, getIncidentAudioUrl, getIncidentWithAi, reclassifyIncident, verifyIncident } from '@/data/api/incidents.api';
+import { getIncidentById, getIncidentAudioUrl, getIncidentWithAi, reclassifyIncident, updateIncidentStatus, verifyIncident } from '@/data/api/incidents.api';
 import { getResponders, getResponderTeams, updateResponderStatus, updateResponderTeamStatus, getTeamMembers } from '@/data/api/responders.api';
 import { createDispatch } from '@/data/api/dispatches.api';
 import { DEV_MODE } from '@/core/config/app.config';
@@ -71,7 +70,7 @@ function mapApiToIncidentDetails(api, aiClassification = null) {
   const normalizedSeverity = normalizeSeverityToDbLevel(api.severity_level);
   const severity = mapSeverityToDisplay(api.severity_level);
 
-  const statusMap = { pending: 'Pending', resolved: 'Resolved', verified: 'Verified' };
+  const statusMap = { pending: 'Pending', resolved: 'Resolved', verified: 'Verified', in_progress: 'In Progress' };
   const status = statusMap[api.status?.toLowerCase()] || (api.status || 'Pending');
 
   let timeReported = '—';
@@ -107,6 +106,9 @@ function mapApiToIncidentDetails(api, aiClassification = null) {
     audioPath: api.audio_path || null,
     mediaPaths: Array.isArray(api.media_paths) ? api.media_paths : [],
     verified: api.verified ?? false,
+    reporterConfirmedAt: api.reporter_confirmed_at || null,
+    reporterConfirmedByUserId: api.reporter_confirmed_by_user_id ?? null,
+    resolvedByUserId: api.resolved_by_user_id ?? null,
     highPriority: normalizedSeverity === 'high',
     possibleDuplicates: [],
     closureData: null,
@@ -114,8 +116,22 @@ function mapApiToIncidentDetails(api, aiClassification = null) {
   };
 }
 
+function normalizeTaskType(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (!normalized) return '';
+  const collapsed = normalized.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!collapsed) return '';
+  if (['natural disaster', 'typhoon', 'flood', 'earthquake', 'landslide', 'storm surge', 'volcanic eruption', 'disaster', 'calamity'].includes(collapsed)) return 'disaster';
+  if (['crime', 'robbery', 'theft', 'assault', 'violence', 'homicide', 'shooting', 'stabbing', 'police', 'law enforcement'].includes(collapsed)) return 'police';
+  if (['accident', 'vehicular accident', 'road accident', 'traffic accident', 'collision', 'injury', 'trauma', 'medical emergency', 'emergency medical', 'medical', 'first aid'].includes(collapsed)) return 'medical';
+  if (['fire', 'blaze', 'structural fire', 'wildfire'].includes(collapsed)) return 'fire';
+  if (normalized === 'natural disaster' || normalized === 'natural-disaster') return 'disaster';
+  if (normalized === 'crime') return 'police';
+  return normalized;
+}
+
 function getDefaultSectorByIncidentType(typeValue) {
-  const normalized = String(typeValue || '').toLowerCase();
+  const normalized = normalizeTaskType(typeValue);
   return normalized === 'police' ? 'pnp' : 'drrmo';
 }
 
@@ -229,6 +245,11 @@ export function IncidentDetailsPage() {
     normalizedRole === ROLES.SUPER_ADMIN
     || ['dispatcher', 'supervisor', 'admin', 'super-admin', 'superadmin'].includes(roleLower)
   );
+  const canMarkResolved = (
+    normalizedRole === ROLES.SUPER_ADMIN
+    || normalizedRole === ROLES.DISPATCHER
+    || normalizedRole === ROLES.DEPARTMENT_ADMIN
+  );
 
   const getConfidencePercent = (score) => {
     if (score == null || Number.isNaN(Number(score))) return null;
@@ -253,8 +274,10 @@ export function IncidentDetailsPage() {
   const [verifyDialogOpen, setVerifyDialogOpen] = useState(false);
   const [notifyDialogOpen, setNotifyDialogOpen] = useState(false);
   const [verifyLoading, setVerifyLoading] = useState(false);
+  const [resolveLoading, setResolveLoading] = useState(false);
   const [reclassDialogOpen, setReclassDialogOpen] = useState(false);
   const [reclassLoading, setReclassLoading] = useState(false);
+  const [manualReclassInfoExpanded, setManualReclassInfoExpanded] = useState(false);
 
   // Select dropdown state
   const [severitySelectOpen, setSeveritySelectOpen] = useState(false);
@@ -335,16 +358,21 @@ export function IncidentDetailsPage() {
 
   useEffect(() => {
     if (!statusDialogOpen) return;
-    if (!selectedTeamMeta?.team_id) return;
-    if (teamMembersByTeamId[selectedTeamMeta.team_id]) return;
-    getTeamMembers(selectedTeamMeta.team_id)
+    const targetTeamMeta = responderTeams.find(
+      (team) =>
+        String(team.department_code || '').toLowerCase() === String(notifyDepartment || '').toLowerCase()
+        && String(team.team_name || '') === String(notifyTeamName || '')
+    );
+    if (!targetTeamMeta?.team_id) return;
+    if (teamMembersByTeamId[targetTeamMeta.team_id]) return;
+    getTeamMembers(targetTeamMeta.team_id)
       .then((members) => {
-        setTeamMembersByTeamId((prev) => ({ ...prev, [selectedTeamMeta.team_id]: Array.isArray(members) ? members : [] }));
+        setTeamMembersByTeamId((prev) => ({ ...prev, [targetTeamMeta.team_id]: Array.isArray(members) ? members : [] }));
       })
       .catch(() => {
-        setTeamMembersByTeamId((prev) => ({ ...prev, [selectedTeamMeta.team_id]: [] }));
+        setTeamMembersByTeamId((prev) => ({ ...prev, [targetTeamMeta.team_id]: [] }));
       });
-  }, [statusDialogOpen, selectedTeamMeta, teamMembersByTeamId]);
+  }, [statusDialogOpen, notifyDepartment, notifyTeamName, responderTeams, teamMembersByTeamId]);
 
   // Get all units for workload display
   const getAllUnits = () => {
@@ -540,11 +568,11 @@ export function IncidentDetailsPage() {
       && String(team.team_name || '') === String(notifyTeamName || '')
   );
 
-  const selectedIncidentTaskType = String(incident?.incidentTypeRaw || incident?.emergencyType || '').toLowerCase();
+  const selectedIncidentTaskType = normalizeTaskType(incident?.incidentTypeRaw || incident?.emergencyType);
   const selectedTeamSupportsTask = (() => {
     if (!selectedTeamMeta) return null;
     const supported = Array.isArray(selectedTeamMeta.supported_incident_types)
-      ? selectedTeamMeta.supported_incident_types.map((entry) => String(entry).toLowerCase())
+      ? selectedTeamMeta.supported_incident_types.map((entry) => normalizeTaskType(entry))
       : [];
     if (supported.length === 0) return true;
     return supported.includes(selectedIncidentTaskType);
@@ -673,6 +701,21 @@ export function IncidentDetailsPage() {
     }
   };
 
+  const handleMarkResolved = async () => {
+    const numericId = /^\d+$/.test(String(id));
+    if (!numericId || !incident) return;
+    setResolveLoading(true);
+    try {
+      await updateIncidentStatus(id, 'resolved');
+      await fetchIncident();
+      window.dispatchEvent(new CustomEvent('incident:updated', { detail: { incidentId: id } }));
+    } catch (err) {
+      alert(err.message || 'Failed to mark incident as resolved');
+    } finally {
+      setResolveLoading(false);
+    }
+  };
+
   const openReclassDialog = () => {
     if (!incident) return;
     setReclassType((incident.incidentTypeRaw || '').toLowerCase());
@@ -758,19 +801,125 @@ export function IncidentDetailsPage() {
   const panelClass = `rounded-2xl border overflow-hidden transition-all duration-300 ${isLight ? 'glass neumorphic-light bg-white/80' : 'glass neumorphic-dark bg-card/60'}`;
   const headerClass = `flex items-center gap-3 px-4 py-3 border-b ${isLight ? 'border-gray-200/80 bg-gray-50/50' : 'border-white/10 bg-white/5'}`;
   const iconBoxClass = `w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${isLight ? 'neumorphic-light-inset bg-gray-100 text-primary' : 'neumorphic-dark-inset bg-white/10 text-primary'}`;
+  const renderPrimaryActions = ({ compact = false } = {}) => (
+    <>
+      {!incident.verified && canVerifyIncident && (
+        <Button
+          className={`gap-2 bg-[#134178] hover:bg-[#0f3256] ${compact ? 'h-8 px-3 text-xs rounded-lg' : ''}`}
+          onClick={() => setVerifyDialogOpen(true)}
+        >
+          <CheckCircle className="w-4 h-4" />
+          Verify Incident
+        </Button>
+      )}
+      {canNotifyResponders && (
+        <Button
+          variant="outline"
+          className={`gap-2 rounded-xl ${compact ? 'h-8 px-3 text-xs rounded-lg' : ''}`}
+          onClick={openNotifyRespondersDialog}
+        >
+          <Bell className="w-4 h-4" />
+          Notify Responders
+        </Button>
+      )}
+      {canUpdateResponderStatuses && (
+        <Button
+          variant="outline"
+          className={`gap-2 rounded-xl ${compact ? 'h-8 px-3 text-xs rounded-lg' : ''}`}
+          onClick={openStatusDialog}
+        >
+          <Users className="w-4 h-4" />
+          Update Team/Responder Status
+        </Button>
+      )}
+      {canMarkResolved && incident.status === 'In Progress' && (
+        <Button
+          className={`gap-2 bg-severity-resolved hover:bg-severity-resolved/90 ${compact ? 'h-8 px-3 text-xs rounded-lg' : ''}`}
+          onClick={handleMarkResolved}
+          disabled={resolveLoading}
+        >
+          {resolveLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+          Mark Resolved
+        </Button>
+      )}
+      {possibleDuplicates.length > 0 && (
+        <Button
+          variant="outline"
+          className={`gap-2 rounded-xl ${isLight ? 'text-amber-600 border-amber-200 hover:bg-amber-50' : 'text-amber-400 border-amber-500/40 hover:bg-amber-500/20'} ${compact ? 'h-8 px-3 text-xs rounded-lg' : ''}`}
+          onClick={() => setDuplicateDialogOpen(true)}
+        >
+          <Merge className="w-4 h-4" />
+          Review Duplicates ({possibleDuplicates.length})
+        </Button>
+      )}
+      <Button
+        variant="outline"
+        className={`gap-2 rounded-xl ${isLight ? 'text-primary border-primary/40 hover:bg-primary/10' : 'text-primary border-primary/50 hover:bg-primary/20'} ${compact ? 'h-8 px-3 text-xs rounded-lg' : ''}`}
+        onClick={handleMarkFalse}
+      >
+        <XCircle className="w-4 h-4" />
+        Mark as False Report
+      </Button>
+      {isSupervisor && incident.status === 'Resolved' && !incident.closureData && (
+        <Button
+          className={`bg-green-600 hover:bg-green-700 gap-2 ${compact ? 'h-8 px-3 text-xs rounded-lg' : ''}`}
+          onClick={() => setClosureDialogOpen(true)}
+        >
+          <FileText className="w-4 h-4" />
+          Formally Close Incident
+        </Button>
+      )}
+    </>
+  );
 
   return (
     <Layout>
       <div className="p-4 md:p-6">
+        <div className={`sticky top-2 z-30 mb-3 rounded-2xl border px-3 py-2 ${isLight ? 'bg-white/95 border-gray-200/80 backdrop-blur' : 'bg-card/90 border-white/10 backdrop-blur'}`}>
+          <div className="flex flex-wrap items-center gap-2">
+            {renderPrimaryActions({ compact: true })}
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+            {possibleDuplicates.length > 0 && incident.status !== 'Duplicate' && (
+              <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 border ${isLight ? 'border-amber-300 bg-amber-50 text-amber-700' : 'border-amber-500/40 bg-amber-500/10 text-amber-300'}`}>
+                <AlertCircle className="w-3 h-3" />
+                {possibleDuplicates.length} possible duplicate(s)
+              </span>
+            )}
+            {canManualReclassify && (
+              <span className="inline-flex items-center gap-1 text-muted">
+                AI confidence: {getConfidencePercent(incident.aiConfidenceScore) ?? 'N/A'}%
+                <button
+                  type="button"
+                  className="underline text-primary"
+                  onClick={() => setManualReclassInfoExpanded((prev) => !prev)}
+                >
+                  {manualReclassInfoExpanded ? 'Hide reclassify hint' : 'Show reclassify hint'}
+                </button>
+              </span>
+            )}
+          </div>
+          {canManualReclassify && manualReclassInfoExpanded && (
+            <div className={`mt-2 rounded-lg border px-2.5 py-2 text-xs ${isLight ? 'border-amber-300/70 bg-amber-50/80 text-amber-800' : 'border-amber-500/40 bg-amber-500/10 text-amber-300'}`}>
+              {incident.aiLowConfidenceFlag
+                ? 'Low AI confidence detected. Manual review and override are recommended.'
+                : 'Manual reclassification is available when operational context differs from AI output.'}{' '}
+              <button type="button" className="underline text-primary" onClick={openReclassDialog}>
+                Reclassify Incident
+              </button>
+            </div>
+          )}
+        </div>
+
         {/* Header with back + incident title – glass */}
-        <div className={`mb-6 rounded-2xl border overflow-hidden ${isLight ? 'glass neumorphic-light bg-white/80' : 'glass neumorphic-dark bg-card/60'}`}>
+        <div className={`mb-4 rounded-2xl border overflow-hidden ${isLight ? 'glass neumorphic-light bg-white/80' : 'glass neumorphic-dark bg-card/60'}`}>
           <div className={`flex items-center gap-4 px-4 py-3 border-b ${isLight ? 'border-gray-200/80 bg-gray-50/50' : 'border-white/10 bg-white/5'}`}>
             <Button variant="ghost" onClick={() => navigate(-1)} className="gap-2 rounded-xl">
               <ArrowLeft className="w-4 h-4" />
               Back
             </Button>
           </div>
-          <div className="p-4 md:p-5 space-y-4">
+          <div className="p-3 md:p-4 space-y-3">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
               <div className="flex items-center gap-3 flex-wrap">
@@ -808,6 +957,11 @@ export function IncidentDetailsPage() {
                     AI {getConfidencePercent(incident.aiConfidenceScore)}% ({getConfidenceLabel(incident.aiConfidenceScore)})
                   </Badge>
                 )}
+                {incident.status === 'Resolved' && (
+                  <Badge variant="outline" className="rounded-lg border-border">
+                    {incident.reporterConfirmedAt ? 'Reporter confirmed' : 'Awaiting reporter confirmation'}
+                  </Badge>
+                )}
                 {incident.aiSecondaryPredictedType && (
                   <Badge variant="outline" className="rounded-lg border-border">
                     2nd AI: {incident.aiSecondaryPredictedType}
@@ -828,31 +982,13 @@ export function IncidentDetailsPage() {
               </div>
             )}
 
-            <div className={`grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2.5 p-3 rounded-xl border ${isLight ? 'bg-gray-50/70 border-gray-200/80' : 'bg-white/5 border-white/10'}`}>
-              <div>
-                <p className="text-[11px] uppercase tracking-wide text-muted">Status</p>
-                <p className="text-sm font-semibold text-foreground">{incident.status}</p>
-              </div>
-              <div>
-                <p className="text-[11px] uppercase tracking-wide text-muted">Severity</p>
-                <p className="text-sm font-semibold text-foreground">{incident.severity}</p>
-              </div>
-              <div>
-                <p className="text-[11px] uppercase tracking-wide text-muted">Type</p>
-                <p className="text-sm font-semibold text-foreground">{incident.emergencyType}</p>
-              </div>
-              <div>
-                <p className="text-[11px] uppercase tracking-wide text-muted">Reporter</p>
-                <p className="text-sm font-semibold text-foreground truncate" title={incident.reporterName}>{incident.reporterName}</p>
-              </div>
-              <div>
-                <p className="text-[11px] uppercase tracking-wide text-muted">Contact</p>
-                <p className="text-sm font-semibold text-foreground truncate" title={incident.reporterPhone}>{incident.reporterPhone}</p>
-              </div>
-              <div>
-                <p className="text-[11px] uppercase tracking-wide text-muted">Barangay</p>
-                <p className="text-sm font-semibold text-foreground truncate" title={incident.barangay}>{incident.barangay}</p>
-              </div>
+            <div className={`flex flex-wrap items-center gap-2 p-2.5 rounded-xl border text-xs ${isLight ? 'bg-gray-50/70 border-gray-200/80' : 'bg-white/5 border-white/10'}`}>
+              <span className="rounded-full border border-border px-2 py-0.5"><strong>Status:</strong> {incident.status}</span>
+              <span className="rounded-full border border-border px-2 py-0.5"><strong>Severity:</strong> {incident.severity}</span>
+              <span className="rounded-full border border-border px-2 py-0.5"><strong>Type:</strong> {incident.emergencyType}</span>
+              <span className="rounded-full border border-border px-2 py-0.5 truncate max-w-[220px]" title={incident.reporterName}><strong>Reporter:</strong> {incident.reporterName}</span>
+              <span className="rounded-full border border-border px-2 py-0.5 truncate max-w-[220px]" title={incident.reporterPhone}><strong>Contact:</strong> {incident.reporterPhone}</span>
+              <span className="rounded-full border border-border px-2 py-0.5 truncate max-w-[220px]" title={incident.barangay}><strong>Barangay:</strong> {incident.barangay}</span>
             </div>
 
             {/* Incident Description - Top Priority */}
@@ -879,154 +1015,37 @@ export function IncidentDetailsPage() {
               )}
             </div>
 
-            {incident.transcription && (
-              <div className={`p-4 rounded-xl border ${isLight ? 'bg-white/80 border-gray-200/80' : 'bg-white/5 border-white/10'}`}>
+            <div className={`p-3 rounded-xl border ${isLight ? 'bg-white/80 border-gray-200/80' : 'bg-white/5 border-white/10'}`}>
+              <div className="flex items-center justify-between gap-2 mb-2">
                 <div className="flex items-start gap-2 mb-2">
                   <FileText className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
-                  <p className="text-xs uppercase tracking-wide text-muted font-semibold">Voice Transcription</p>
+                  <p className="text-xs uppercase tracking-wide text-muted font-semibold">Audio Intelligence</p>
                 </div>
-                <p className="text-sm text-foreground whitespace-pre-wrap">{incident.transcription}</p>
+                <Badge variant="outline" className="rounded-md text-[10px]">Transcription + Recording</Badge>
               </div>
-            )}
-
-            {canManualReclassify && (
-              <Alert className={`rounded-xl border ${isLight ? 'border-amber-500/40 bg-amber-500/10' : 'border-amber-500/40 bg-amber-500/10'}`}>
-                <AlertCircle className="h-4 w-4 text-amber-500" />
-                <AlertTitle className="text-amber-600 dark:text-amber-400">
-                  {incident.aiLowConfidenceFlag ? 'Low AI Confidence — Manual Review Recommended' : 'Manual Reclassification Available'}
-                </AlertTitle>
-                <AlertDescription className="text-foreground/90 flex flex-wrap items-center gap-2">
-                  AI confidence is {getConfidencePercent(incident.aiConfidenceScore) ?? 'N/A'}%. Personnel can manually reclassify incident type and severity.
-                  <Button size="sm" variant="outline" className="rounded-lg" onClick={openReclassDialog}>
-                    Reclassify Incident
-                  </Button>
-                </AlertDescription>
-              </Alert>
-            )}
-
-            <div className="flex flex-wrap gap-2">
-              {!incident.verified && canVerifyIncident && (
-                <Button
-                  className="gap-2 bg-[#134178] hover:bg-[#0f3256]"
-                  onClick={() => setVerifyDialogOpen(true)}
-                >
-                  <CheckCircle className="w-4 h-4" />
-                  Verify Incident
-                </Button>
+              {incident.transcription ? (
+                <p className="text-sm text-foreground whitespace-pre-wrap mb-3">{incident.transcription}</p>
+              ) : (
+                <p className="text-sm text-muted mb-3">No transcription available.</p>
               )}
-              {canNotifyResponders && (
-              <Button variant="outline" className="gap-2 rounded-xl" onClick={openNotifyRespondersDialog}>
-                <Bell className="w-4 h-4" />
-                Notify Responders
-              </Button>
+              {audioLoading && (
+                <div className="flex items-center gap-2 text-muted text-sm">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Loading audio...
+                </div>
               )}
-              {canUpdateResponderStatuses && (
-                <Button variant="outline" className="gap-2 rounded-xl" onClick={openStatusDialog}>
-                  <Users className="w-4 h-4" />
-                  Update Team/Responder Status
-                </Button>
+              {audioError && <p className="text-sm text-primary">{audioError}</p>}
+              {audioUrl && !audioLoading && (
+                <audio controls src={audioUrl} className="w-full h-10" preload="metadata">
+                  Your browser does not support the audio element.
+                </audio>
               )}
-              {possibleDuplicates.length > 0 && (
-                <Button
-                  variant="outline"
-                  className={`gap-2 rounded-xl ${isLight ? 'text-amber-600 border-amber-200 hover:bg-amber-50' : 'text-amber-400 border-amber-500/40 hover:bg-amber-500/20'}`}
-                  onClick={() => setDuplicateDialogOpen(true)}
-                >
-                  <Merge className="w-4 h-4" />
-                  Review Duplicates ({possibleDuplicates.length})
-                </Button>
-              )}
-              <Button
-                variant="outline"
-                className={`gap-2 rounded-xl ${isLight ? 'text-primary border-primary/40 hover:bg-primary/10' : 'text-primary border-primary/50 hover:bg-primary/20'}`}
-                onClick={handleMarkFalse}
-              >
-                <XCircle className="w-4 h-4" />
-                Mark as False Report
-              </Button>
-              {isSupervisor && incident.status === 'Resolved' && !incident.closureData && (
-                <Dialog open={closureDialogOpen} onOpenChange={setClosureDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button className="bg-green-600 hover:bg-green-700 gap-2">
-                      <FileText className="w-4 h-4" />
-                      Formally Close Incident
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Close Incident</DialogTitle>
-                      <DialogDescription>
-                        Provide final closure details for this incident. This action is permanent.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4 py-4">
-                      <div>
-                        <Label>Outcome Description</Label>
-                        <Textarea
-                          placeholder="Describe the final outcome..."
-                          value={closureOutcome}
-                          onChange={(e) => setClosureOutcome(e.target.value)}
-                          rows={3}
-                        />
-                      </div>
-                      <div>
-                        <Label>Classification</Label>
-                        <Select value={closureClassification} onValueChange={setClosureClassification} open={closureClassSelectOpen} onOpenChange={setClosureClassSelectOpen}>
-                          {({ value, onValueChange, dropdownRect }) => (
-                            <>
-                              <SelectTrigger isOpen={closureClassSelectOpen} onClick={() => setClosureClassSelectOpen(o => !o)}>
-                                <SelectValue value={value} options={[
-                                  { value: 'Successful Response', label: 'Successful Response' },
-                                  { value: 'Partial Success', label: 'Partial Success' },
-                                  { value: 'False Alarm', label: 'False Alarm' },
-                                  { value: 'Duplicate Report', label: 'Duplicate Report' },
-                                  { value: 'No Action Required', label: 'No Action Required' }
-                                ]} placeholder="Select classification" />
-                              </SelectTrigger>
-                              <SelectContent isOpen={closureClassSelectOpen} dropdownRect={dropdownRect}>
-                                <SelectItem value="Successful Response" onSelect={(v) => { onValueChange(v); setClosureClassSelectOpen(false); }}>Successful Response</SelectItem>
-                                <SelectItem value="Partial Success" onSelect={(v) => { onValueChange(v); setClosureClassSelectOpen(false); }}>Partial Success</SelectItem>
-                                <SelectItem value="False Alarm" onSelect={(v) => { onValueChange(v); setClosureClassSelectOpen(false); }}>False Alarm</SelectItem>
-                                <SelectItem value="Duplicate Report" onSelect={(v) => { onValueChange(v); setClosureClassSelectOpen(false); }}>Duplicate Report</SelectItem>
-                                <SelectItem value="No Action Required" onSelect={(v) => { onValueChange(v); setClosureClassSelectOpen(false); }}>No Action Required</SelectItem>
-                              </SelectContent>
-                            </>
-                          )}
-                        </Select>
-                      </div>
-                    </div>
-                    <DialogFooter>
-                      <Button
-                        className="bg-green-600 hover:bg-green-700"
-                        onClick={handleCloseIncident}
-                        disabled={!closureOutcome || !closureClassification}
-                      >
-                        Close Incident
-                      </Button>
-                      <Button variant="outline" onClick={() => setClosureDialogOpen(false)}>
-                        Cancel
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
+              {!incident.audioPath && !audioLoading && !audioError && (
+                <p className="text-sm text-muted">No voice recording available</p>
               )}
             </div>
           </div>
         </div>
-
-        {/* Duplicate Warning */}
-        {possibleDuplicates.length > 0 && incident.status !== 'Duplicate' && (
-          <Alert className={`mb-6 rounded-xl border ${isLight ? 'border-amber-500/40 bg-amber-500/15' : 'border-amber-500/30 bg-amber-500/10'}`}>
-            <AlertCircle className="h-4 w-4 text-amber-500" />
-            <AlertTitle className="text-amber-600 dark:text-amber-400">Possible Duplicate Detected</AlertTitle>
-            <AlertDescription className="text-foreground/90">
-              This incident may be related to {possibleDuplicates.length} other report(s).{' '}
-              <Button variant="link" className="text-amber-600 dark:text-amber-400 underline p-0 ml-2 h-auto" onClick={() => setDuplicateDialogOpen(true)}>
-                Review duplicates
-              </Button>
-            </AlertDescription>
-          </Alert>
-        )}
 
         <Tabs defaultValue="details" className="space-y-6">
           <TabsList className={`grid w-full grid-cols-5 lg:w-auto lg:inline-grid rounded-xl p-1 gap-1 ${isLight ? 'bg-gray-100 border border-gray-200' : 'bg-white/10 border border-white/10'}`}>
@@ -1057,25 +1076,6 @@ export function IncidentDetailsPage() {
                   <div>
                     <p className="text-xs uppercase tracking-wide text-muted font-semibold mb-2">Media & Evidence</p>
                     <div className="space-y-3">
-                      <div className={`p-4 rounded-xl border ${isLight ? 'bg-gray-50/80 border-gray-200' : 'bg-secondary/20 border-border'}`}>
-                        <p className="text-sm text-muted mb-2">Voice Recording</p>
-                        {audioLoading && (
-                          <div className="flex items-center gap-2 text-muted text-sm">
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                            Loading audio...
-                          </div>
-                        )}
-                        {audioError && <p className="text-sm text-primary">{audioError}</p>}
-                        {audioUrl && !audioLoading && (
-                          <audio controls src={audioUrl} className="w-full h-10" preload="metadata">
-                            Your browser does not support the audio element.
-                          </audio>
-                        )}
-                        {!incident.audioPath && !audioLoading && !audioError && (
-                          <p className="text-sm text-muted">No voice recording available</p>
-                        )}
-                      </div>
-
                       <div className="grid grid-cols-2 gap-3">
                         {(incident.mediaPaths || []).length > 0 ? (
                           (incident.mediaPaths || []).map((path, idx) => (
@@ -1354,6 +1354,65 @@ export function IncidentDetailsPage() {
                   onClick={() => setVerifyDialogOpen(false)}
                   disabled={verifyLoading}
                 >
+                  Cancel
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={closureDialogOpen} onOpenChange={setClosureDialogOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Close Incident</DialogTitle>
+                <DialogDescription>
+                  Provide final closure details for this incident. This action is permanent.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div>
+                  <Label>Outcome Description</Label>
+                  <Textarea
+                    placeholder="Describe the final outcome..."
+                    value={closureOutcome}
+                    onChange={(e) => setClosureOutcome(e.target.value)}
+                    rows={3}
+                  />
+                </div>
+                <div>
+                  <Label>Classification</Label>
+                  <Select value={closureClassification} onValueChange={setClosureClassification} open={closureClassSelectOpen} onOpenChange={setClosureClassSelectOpen}>
+                    {({ value, onValueChange, dropdownRect }) => (
+                      <>
+                        <SelectTrigger isOpen={closureClassSelectOpen} onClick={() => setClosureClassSelectOpen((o) => !o)}>
+                          <SelectValue value={value} options={[
+                            { value: 'Successful Response', label: 'Successful Response' },
+                            { value: 'Partial Success', label: 'Partial Success' },
+                            { value: 'False Alarm', label: 'False Alarm' },
+                            { value: 'Duplicate Report', label: 'Duplicate Report' },
+                            { value: 'No Action Required', label: 'No Action Required' },
+                          ]} placeholder="Select classification" />
+                        </SelectTrigger>
+                        <SelectContent isOpen={closureClassSelectOpen} dropdownRect={dropdownRect}>
+                          <SelectItem value="Successful Response" onSelect={(v) => { onValueChange(v); setClosureClassSelectOpen(false); }}>Successful Response</SelectItem>
+                          <SelectItem value="Partial Success" onSelect={(v) => { onValueChange(v); setClosureClassSelectOpen(false); }}>Partial Success</SelectItem>
+                          <SelectItem value="False Alarm" onSelect={(v) => { onValueChange(v); setClosureClassSelectOpen(false); }}>False Alarm</SelectItem>
+                          <SelectItem value="Duplicate Report" onSelect={(v) => { onValueChange(v); setClosureClassSelectOpen(false); }}>Duplicate Report</SelectItem>
+                          <SelectItem value="No Action Required" onSelect={(v) => { onValueChange(v); setClosureClassSelectOpen(false); }}>No Action Required</SelectItem>
+                        </SelectContent>
+                      </>
+                    )}
+                  </Select>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button
+                  className="bg-green-600 hover:bg-green-700"
+                  onClick={handleCloseIncident}
+                  disabled={!closureOutcome || !closureClassification}
+                >
+                  Close Incident
+                </Button>
+                <Button variant="outline" onClick={() => setClosureDialogOpen(false)}>
                   Cancel
                 </Button>
               </DialogFooter>

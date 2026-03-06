@@ -1,10 +1,27 @@
 const pool = require('../config/db');
 
+function normalizeIncidentType(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (!normalized) return '';
+  const collapsed = normalized.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!collapsed) return '';
+  if (['natural disaster', 'typhoon', 'flood', 'earthquake', 'landslide', 'storm surge', 'volcanic eruption'].includes(collapsed)) return 'disaster';
+  if (['disaster', 'calamity'].includes(collapsed)) return 'disaster';
+  if (['crime', 'robbery', 'theft', 'assault', 'violence', 'homicide', 'shooting', 'stabbing'].includes(collapsed)) return 'police';
+  if (['police', 'law enforcement'].includes(collapsed)) return 'police';
+  if (['accident', 'vehicular accident', 'road accident', 'traffic accident', 'collision', 'injury', 'trauma', 'medical emergency', 'emergency medical'].includes(collapsed)) return 'medical';
+  if (['medical', 'first aid'].includes(collapsed)) return 'medical';
+  if (['fire', 'blaze', 'structural fire', 'wildfire'].includes(collapsed)) return 'fire';
+  if (normalized === 'natural disaster' || normalized === 'natural-disaster') return 'disaster';
+  if (normalized === 'crime') return 'police';
+  return normalized;
+}
+
 function normalizeIncidentTypes(values) {
   if (!Array.isArray(values)) return [];
   const allowed = new Set(['fire', 'medical', 'police', 'disaster']);
   return [...new Set(values
-    .map((value) => String(value || '').trim().toLowerCase())
+    .map((value) => normalizeIncidentType(value))
     .filter((value) => allowed.has(value)))];
 }
 
@@ -53,7 +70,7 @@ const Responder = {
     incident_type = null,
   } = {}) {
     const cappedLimit = Math.min(Number(limit) || 20, 100);
-    const normalizedIncidentType = String(incident_type || '').trim().toLowerCase();
+    const normalizedIncidentType = normalizeIncidentType(incident_type);
 
     let query = 'SELECT * FROM responders WHERE 1=1';
     const params = [];
@@ -235,8 +252,15 @@ const Responder = {
     }
     query += ` ORDER BY department_code ASC, team_name ASC LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}`;
     params.push(cappedLimit, Number(offset) || 0);
-    const res = await pool.query(query, params);
-    return res.rows;
+    try {
+      const res = await pool.query(query, params);
+      return res.rows;
+    } catch (error) {
+      if (error.code === '42P01' || /responder_teams/i.test(error.message)) {
+        return [];
+      }
+      throw error;
+    }
   },
 
   async updateTeam(team_id, { team_name, team_status, supported_incident_types = [] }) {
@@ -334,7 +358,7 @@ const Responder = {
   async findEligibleByTeam({ department_code = null, team_name = null, incident_type = null, limit = 50 } = {}) {
     const normalizedDepartmentCode = String(department_code || '').trim().toLowerCase();
     const normalizedTeamName = String(team_name || '').trim();
-    const normalizedIncidentType = String(incident_type || '').trim().toLowerCase();
+    const normalizedIncidentType = normalizeIncidentType(incident_type);
     const cappedLimit = Math.min(Math.max(Number(limit) || 50, 1), 100);
     const eligibleStatuses = ['available', 'standby'];
 

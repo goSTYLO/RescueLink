@@ -12,18 +12,22 @@ import {
   DialogDescription,
 } from '@/presentation/components/ui/Dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/presentation/components/ui/Select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/presentation/components/ui/Tabs';
+import { Combobox } from '@/presentation/components/ui/Combobox';
 import { getDepartments, createDepartment, updateDepartment, deleteDepartment } from '@/data/api/departments.api';
 import {
   getResponders,
   getResponderTeams,
+  getTeamMembers,
   createResponder,
   createResponderTeam,
   addTeamMember,
+  removeTeamMember,
   updateResponderStatus,
   updateResponderTeamStatus,
 } from '@/data/api/responders.api';
 import { useNavigate } from 'react-router-dom';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import Swal from 'sweetalert2';
 import {
   Flame,
@@ -52,6 +56,26 @@ const DEPARTMENT_TYPES = [
 const TASK_TYPES = ['fire', 'medical', 'police', 'disaster'];
 const AVAILABILITY_OPTIONS = ['available', 'standby', 'busy', 'off-duty'];
 
+function normalizeSectorCode(rawValue) {
+  const value = String(rawValue || '').trim().toLowerCase();
+  if (!value) return '';
+  if (['drrmo', 'cdrmmo', 'cdrrmo'].includes(value)) return 'drrmo';
+  if (['pnp', 'police'].includes(value)) return 'pnp';
+  return value;
+}
+
+function inferDepartmentSectorCode(dept) {
+  const directCode = normalizeSectorCode(dept?.code);
+  if (directCode === 'drrmo' || directCode === 'pnp') return directCode;
+
+  const type = String(dept?.type || '').trim().toLowerCase();
+  if (type === 'police') return 'pnp';
+
+  const name = String(dept?.name || '').trim().toLowerCase();
+  if (/(police|pnp|crime)/i.test(name)) return 'pnp';
+  return 'drrmo';
+}
+
 export function DepartmentsPage() {
   const navigate = useNavigate();
   const { theme } = useTheme();
@@ -60,6 +84,7 @@ export function DepartmentsPage() {
   const [isLoadingDepartments, setIsLoadingDepartments] = useState(true);
   const [lastSyncAt, setLastSyncAt] = useState(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [createTeamDialogOpen, setCreateTeamDialogOpen] = useState(false);
   const [editingDept, setEditingDept] = useState(null);
   const [typeSelectOpen, setTypeSelectOpen] = useState(false);
   useEffect(() => {
@@ -67,7 +92,7 @@ export function DepartmentsPage() {
   }, [dialogOpen]);
 
   const mapDepartment = (dept) => ({
-    id: dept.code || String(dept.department_id),
+    id: String(dept.department_id),
     departmentId: dept.department_id,
     name: dept.name,
     type: dept.type,
@@ -136,7 +161,24 @@ export function DepartmentsPage() {
   const [teams, setTeams] = useState([]);
   const [teamForm, setTeamForm] = useState({ department_code: 'drrmo', team_name: '', team_status: 'available', supported_incident_types: [] });
   const [responderForm, setResponderForm] = useState({ name: '', organization: '', contact_number: '', availability_status: 'available', team_name: '', supported_incident_types: [] });
-  const [memberForm, setMemberForm] = useState({ team_id: '', responder_id: '' });
+  const [memberForm, setMemberForm] = useState({ responder_id: '' });
+  const [teamMembersByTeamId, setTeamMembersByTeamId] = useState({});
+  const [manageMembersDialogOpen, setManageMembersDialogOpen] = useState(false);
+  const [selectedTeamForMembers, setSelectedTeamForMembers] = useState(null);
+  const [teamMemberSearch, setTeamMemberSearch] = useState('');
+  const [teamMemberStatusFilter, setTeamMemberStatusFilter] = useState('all');
+  const [teamMemberPage, setTeamMemberPage] = useState(1);
+  const teamMembersPerPage = 5;
+  const [teamSearch, setTeamSearch] = useState('');
+  const [teamStatusFilter, setTeamStatusFilter] = useState('all');
+  const [teamSectorFilter, setTeamSectorFilter] = useState('all');
+  const [teamPage, setTeamPage] = useState(1);
+  const teamsPerPage = 5;
+  const [responderSearch, setResponderSearch] = useState('');
+  const [responderStatusFilter, setResponderStatusFilter] = useState('all');
+  const [responderTeamFilter, setResponderTeamFilter] = useState('all');
+  const [responderPage, setResponderPage] = useState(1);
+  const respondersPerPage = 5;
 
   const heroCardClass = `rounded-3xl border overflow-hidden transition-all duration-300 ${isLight ? 'glass neumorphic-light bg-white/80 border-gray-200/80 shadow-[8px_8px_24px_rgba(209,213,219,0.5),-8px_-8px_24px_rgba(255,255,255,0.9)]' : 'glass neumorphic-dark bg-card/60 border-white/10 shadow-[8px_8px_24px_rgba(0,0,0,0.35),-6px_-6px_20px_rgba(19,65,120,0.2)]'}`;
   const heroIconClass = `w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isLight ? 'neumorphic-light-inset bg-gray-100 text-primary' : 'neumorphic-dark-inset bg-white/10 text-primary'}`;
@@ -184,6 +226,56 @@ export function DepartmentsPage() {
 
   const totalActiveIncidents = departments.reduce((sum, dept) => sum + (dept.activeIncidents || 0), 0);
   const totalAvailableUnits = departments.reduce((sum, dept) => sum + (dept.availableUnits || 0), 0);
+
+  function buildDepartmentLiveStats(dept) {
+    const inferredCode = inferDepartmentSectorCode(dept);
+    const deptName = String(dept?.name || '').trim().toLowerCase();
+    const deptTeams = teams.filter((team) => normalizeSectorCode(team?.department_code) === inferredCode);
+    const deptTeamNames = new Set(
+      deptTeams
+        .map((team) => String(team?.team_name || '').trim())
+        .filter(Boolean)
+    );
+
+    const availableTeamCount = deptTeams.filter((team) => {
+      const status = String(team?.team_status || 'available').toLowerCase();
+      return status === 'available' || status === 'standby';
+    }).length;
+
+    const responderSet = new Map();
+    responders.forEach((responder) => {
+      const responderId = Number(responder?.responder_id);
+      if (!Number.isFinite(responderId)) return;
+      const teamName = String(responder?.team_name || '').trim();
+      const organization = String(responder?.organization || '').trim().toLowerCase();
+      const belongsToTeam = teamName && deptTeamNames.has(teamName);
+      const belongsToDeptName = deptName && organization === deptName;
+      if (belongsToTeam || belongsToDeptName) {
+        responderSet.set(responderId, responder);
+      }
+    });
+
+    const responderCount = responderSet.size;
+    const availableResponderCount = Array.from(responderSet.values()).filter((responder) => {
+      const status = String(responder?.availability_status || 'available').toLowerCase();
+      return status === 'available' || status === 'standby';
+    }).length;
+
+    const apiTotalUnits = Number(dept?.unitsCount ?? 0);
+    const apiAvailableUnits = Number(dept?.availableUnits ?? 0);
+    const apiPersonnelCount = Number(dept?.personnelCount ?? 0);
+
+    const unitsTotal = apiTotalUnits > 0 ? apiTotalUnits : deptTeams.length;
+    const unitsAvailable = apiTotalUnits > 0 ? apiAvailableUnits : availableTeamCount;
+    const personnelCount = apiPersonnelCount > 0 ? apiPersonnelCount : responderCount;
+
+    return {
+      unitsTotal,
+      unitsAvailable,
+      personnelCount,
+      responderAvailable: availableResponderCount,
+    };
+  }
 
   const openAddDialog = () => {
     setEditingDept(null);
@@ -237,7 +329,7 @@ export function DepartmentsPage() {
     }
   };
 
-  const handleDelete = (deptId, e) => {
+  const handleDelete = (departmentId, e) => {
     e?.stopPropagation();
     Swal.fire({
       title: 'Delete department?',
@@ -251,9 +343,8 @@ export function DepartmentsPage() {
       customClass: { popup: 'rounded-2xl shadow-xl', title: 'text-foreground text-xl', htmlContainer: 'text-muted', confirmButton: 'rounded-xl px-5 py-2.5 font-medium', cancelButton: 'rounded-xl px-5 py-2.5 font-medium' },
     }).then((result) => {
       if (result.isConfirmed) {
-        const target = departments.find((d) => d.id === deptId);
-        if (!target?.departmentId) return;
-        deleteDepartment(target.departmentId)
+        if (!departmentId) return;
+        deleteDepartment(departmentId)
           .then(() => loadDepartments())
           .then(() => {
             Swal.fire({ icon: 'success', title: 'Department deleted', text: 'The department has been removed.', timer: 2000, showConfirmButton: false, timerProgressBar: true });
@@ -277,8 +368,10 @@ export function DepartmentsPage() {
       setTeamForm((prev) => ({ ...prev, team_name: '', supported_incident_types: [] }));
       await loadResponderResources();
       Swal.fire({ icon: 'success', title: 'Team saved', timer: 1500, showConfirmButton: false });
+      return true;
     } catch (error) {
       Swal.fire({ icon: 'error', title: 'Team save failed', text: error.message || 'Please try again.' });
+      return false;
     }
   };
 
@@ -300,14 +393,29 @@ export function DepartmentsPage() {
     }
   };
 
-  const handleMapMember = async () => {
-    if (!memberForm.team_id || !memberForm.responder_id) return;
+  const handleMapMember = async (teamId, responderId) => {
+    if (!teamId || !responderId) return;
     try {
-      await addTeamMember(Number(memberForm.team_id), Number(memberForm.responder_id));
-      setMemberForm({ team_id: '', responder_id: '' });
+      await addTeamMember(Number(teamId), Number(responderId));
+      setMemberForm({ responder_id: '' });
+      await loadResponderResources();
+      const members = await getTeamMembers(Number(teamId));
+      setTeamMembersByTeamId((prev) => ({ ...prev, [Number(teamId)]: Array.isArray(members) ? members : [] }));
       Swal.fire({ icon: 'success', title: 'Responder mapped', timer: 1500, showConfirmButton: false });
     } catch (error) {
       Swal.fire({ icon: 'error', title: 'Map failed', text: error.message || 'Please try again.' });
+    }
+  };
+
+  const handleRemoveMember = async (teamId, responderId) => {
+    try {
+      await removeTeamMember(Number(teamId), Number(responderId));
+      await loadResponderResources();
+      const members = await getTeamMembers(Number(teamId));
+      setTeamMembersByTeamId((prev) => ({ ...prev, [Number(teamId)]: Array.isArray(members) ? members : [] }));
+      Swal.fire({ icon: 'success', title: 'Responder removed', timer: 1200, showConfirmButton: false });
+    } catch (error) {
+      Swal.fire({ icon: 'error', title: 'Remove failed', text: error.message || 'Please try again.' });
     }
   };
 
@@ -316,317 +424,491 @@ export function DepartmentsPage() {
     return [...values, taskType];
   };
 
+  const responderTeamFilterOptions = useMemo(() => {
+    const uniqueTeams = Array.from(new Set(responders.map((responder) => String(responder.team_name || '').trim()).filter(Boolean)));
+    return uniqueTeams.sort((a, b) => a.localeCompare(b));
+  }, [responders]);
+
+  const teamSectorFilterOptions = useMemo(() => {
+    const uniqueSectors = Array.from(new Set(teams.map((team) => String(team.department_code || '').trim().toLowerCase()).filter(Boolean)));
+    return uniqueSectors.sort((a, b) => a.localeCompare(b));
+  }, [teams]);
+
+  const teamStatusFiltered = useMemo(() => {
+    const normalizedSearch = teamSearch.trim().toLowerCase();
+    return teams.filter((team) => {
+      const teamStatus = String(team.team_status || 'available').toLowerCase();
+      const departmentCode = String(team.department_code || '').toLowerCase();
+      const teamName = String(team.team_name || '');
+      const memberList = teamMembersByTeamId[team.team_id] || [];
+      const memberNames = memberList.map((member) => String(member?.name || '')).join(' ');
+
+      if (teamStatusFilter !== 'all' && teamStatus !== teamStatusFilter) return false;
+      if (teamSectorFilter !== 'all' && departmentCode !== teamSectorFilter) return false;
+      if (!normalizedSearch) return true;
+
+      const haystack = `${departmentCode} ${teamName} ${teamStatus} ${memberNames}`.toLowerCase();
+      return haystack.includes(normalizedSearch);
+    });
+  }, [teams, teamMembersByTeamId, teamSearch, teamStatusFilter, teamSectorFilter]);
+
+  const teamTotalPages = Math.max(1, Math.ceil(teamStatusFiltered.length / teamsPerPage));
+  const safeTeamPage = Math.min(teamPage, teamTotalPages);
+  const paginatedTeams = useMemo(() => {
+    const start = (safeTeamPage - 1) * teamsPerPage;
+    return teamStatusFiltered.slice(start, start + teamsPerPage);
+  }, [teamStatusFiltered, safeTeamPage]);
+
+  const teamRangeStart = teamStatusFiltered.length === 0 ? 0 : (safeTeamPage - 1) * teamsPerPage + 1;
+  const teamRangeEnd = Math.min(safeTeamPage * teamsPerPage, teamStatusFiltered.length);
+
+  const selectedTeamMembers = selectedTeamForMembers?.team_id
+    ? (teamMembersByTeamId[selectedTeamForMembers.team_id] || [])
+    : [];
+
+  const selectedTeamMembersFiltered = useMemo(() => {
+    const query = teamMemberSearch.trim().toLowerCase();
+    return selectedTeamMembers.filter((member) => {
+      const status = String(member.availability_status || 'available').toLowerCase();
+      const name = String(member.name || '');
+      if (teamMemberStatusFilter !== 'all' && status !== teamMemberStatusFilter) return false;
+      if (!query) return true;
+      return `${name} ${status}`.toLowerCase().includes(query);
+    });
+  }, [selectedTeamMembers, teamMemberSearch, teamMemberStatusFilter]);
+
+  const teamMemberTotalPages = Math.max(1, Math.ceil(selectedTeamMembersFiltered.length / teamMembersPerPage));
+  const safeTeamMemberPage = Math.min(teamMemberPage, teamMemberTotalPages);
+  const paginatedTeamMembers = useMemo(() => {
+    const start = (safeTeamMemberPage - 1) * teamMembersPerPage;
+    return selectedTeamMembersFiltered.slice(start, start + teamMembersPerPage);
+  }, [selectedTeamMembersFiltered, safeTeamMemberPage]);
+
+  const assignableResponderOptions = useMemo(() => {
+    if (!selectedTeamForMembers?.team_id) return [];
+    const assignedIds = new Set(selectedTeamMembers.map((member) => Number(member.responder_id)));
+    return responders
+      .filter((responder) => !assignedIds.has(Number(responder.responder_id)))
+      .map((responder) => ({
+        value: String(responder.responder_id),
+        label: `${responder.name} • ${String(responder.availability_status || 'unknown').toLowerCase()}`,
+      }));
+  }, [responders, selectedTeamForMembers, selectedTeamMembers]);
+
+  const responderStatusFiltered = useMemo(() => {
+    const normalizedSearch = responderSearch.trim().toLowerCase();
+    return responders.filter((responder) => {
+      const status = String(responder.availability_status || 'available').toLowerCase();
+      const teamName = String(responder.team_name || '');
+      const name = String(responder.name || '');
+      if (responderStatusFilter !== 'all' && status !== responderStatusFilter) return false;
+      if (responderTeamFilter !== 'all' && teamName !== responderTeamFilter) return false;
+      if (!normalizedSearch) return true;
+      const searchHaystack = `${name} ${teamName} ${status}`.toLowerCase();
+      return searchHaystack.includes(normalizedSearch);
+    });
+  }, [responders, responderSearch, responderStatusFilter, responderTeamFilter]);
+
+  const responderTotalPages = Math.max(1, Math.ceil(responderStatusFiltered.length / respondersPerPage));
+  const safeResponderPage = Math.min(responderPage, responderTotalPages);
+  const paginatedResponders = useMemo(() => {
+    const start = (safeResponderPage - 1) * respondersPerPage;
+    return responderStatusFiltered.slice(start, start + respondersPerPage);
+  }, [responderStatusFiltered, safeResponderPage]);
+
+  const responderRangeStart = responderStatusFiltered.length === 0 ? 0 : (safeResponderPage - 1) * respondersPerPage + 1;
+  const responderRangeEnd = Math.min(safeResponderPage * respondersPerPage, responderStatusFiltered.length);
+
+  useEffect(() => {
+    const teamIds = teams.map((team) => team.team_id).filter(Boolean);
+    if (teamIds.length === 0) {
+      setTeamMembersByTeamId({});
+      return;
+    }
+
+    let cancelled = false;
+    Promise.all(
+      teamIds.map(async (teamId) => {
+        try {
+          const members = await getTeamMembers(teamId);
+          return [teamId, Array.isArray(members) ? members : []];
+        } catch {
+          return [teamId, []];
+        }
+      })
+    ).then((entries) => {
+      if (cancelled) return;
+      setTeamMembersByTeamId(Object.fromEntries(entries));
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [teams]);
+
+  useEffect(() => {
+    setTeamPage(1);
+  }, [teamSearch, teamStatusFilter, teamSectorFilter]);
+
+  useEffect(() => {
+    if (teamPage > teamTotalPages) {
+      setTeamPage(teamTotalPages);
+    }
+  }, [teamPage, teamTotalPages]);
+
+  useEffect(() => {
+    setTeamMemberPage(1);
+  }, [teamMemberSearch, teamMemberStatusFilter, selectedTeamForMembers?.team_id]);
+
+  useEffect(() => {
+    if (teamMemberPage > teamMemberTotalPages) {
+      setTeamMemberPage(teamMemberTotalPages);
+    }
+  }, [teamMemberPage, teamMemberTotalPages]);
+
+  useEffect(() => {
+    setResponderPage(1);
+  }, [responderSearch, responderStatusFilter, responderTeamFilter]);
+
+  useEffect(() => {
+    if (responderPage > responderTotalPages) {
+      setResponderPage(responderTotalPages);
+    }
+  }, [responderPage, responderTotalPages]);
+
   return (
     <Layout>
-      <div className="p-4 md:p-6 max-w-7xl mx-auto">
-        <div className={`${heroCardClass} mb-6`}>
-          <div className="p-8 flex flex-wrap items-center gap-6">
+      <div className="p-3 md:p-4 max-w-7xl mx-auto">
+        <div className={`${heroCardClass} mb-3`}>
+          <div className="px-4 py-3 flex flex-wrap items-center gap-3">
             <div className={heroIconClass}>
               <Network className="w-5 h-5" strokeWidth={2} />
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-foreground">Department Management</h1>
-              <p className="text-muted mt-1">Centralized view of all emergency departments</p>
+              <h1 className="text-xl font-semibold text-foreground">Department Operations</h1>
+              <p className="text-xs text-muted">Compact management for departments, teams, responders, and mapping.</p>
             </div>
           </div>
         </div>
 
-        {/* Summary – glass + neumorphism, modern stat cards */}
-        <div className={`mb-6 ${panelClass}`}>
-          <div className={headerClass}>
-            <div className={iconBoxClass('primary')}>
-              <LayoutGrid className="w-5 h-5" strokeWidth={2} />
-            </div>
-            <h2 className="text-base font-semibold text-foreground">Overview</h2>
-          </div>
-          <div className="p-5">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className={`flex items-center gap-4 p-4 rounded-xl border ${isLight ? 'bg-gray-50/80 border-gray-200' : 'bg-white/5 border-border'}`}>
-                <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${isLight ? 'bg-primary/15' : 'bg-primary/20'}`}>
-                  <AlertCircle className="w-6 h-6 text-primary" />
-                </div>
-                <div>
-                  <p className="text-xs font-medium text-muted uppercase tracking-wider">Total Active Incidents</p>
-                  <p className="text-2xl font-bold text-foreground mt-0.5">{totalActiveIncidents}</p>
-                </div>
-              </div>
-              <div className={`flex items-center gap-4 p-4 rounded-xl border ${isLight ? 'bg-gray-50/80 border-gray-200' : 'bg-white/5 border-border'}`}>
-                <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${isLight ? 'bg-secondary/20' : 'bg-secondary/30'}`}>
-                  <Users className="w-6 h-6 text-secondary" />
-                </div>
-                <div>
-                  <p className="text-xs font-medium text-muted uppercase tracking-wider">Total Available Units</p>
-                  <p className="text-2xl font-bold text-foreground mt-0.5">{totalAvailableUnits}</p>
-                </div>
-              </div>
-              <div className={`flex items-center gap-4 p-4 rounded-xl border ${isLight ? 'bg-gray-50/80 border-gray-200' : 'bg-white/5 border-border'}`}>
-                <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${isLight ? 'bg-severity-resolved/20' : 'bg-severity-resolved/30'}`}>
-                  <Shield className="w-6 h-6 text-severity-resolved" />
-                </div>
-                <div>
-                  <p className="text-xs font-medium text-muted uppercase tracking-wider">City-wide Alert Level</p>
-                  <Badge className="mt-1.5 rounded-lg bg-severity-resolved/20 text-severity-resolved border-severity-resolved/40 font-medium">Normal</Badge>
-                  <p className="text-[11px] text-muted mt-2">
-                    Metrics sync: {lastSyncAt ? lastSyncAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Pending'}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <Tabs defaultValue="departments" className="space-y-3">
+          <TabsList className="w-full sm:w-auto sm:inline-flex gap-1">
+            <TabsTrigger value="departments">Departments List</TabsTrigger>
+            <TabsTrigger value="teams">Teams</TabsTrigger>
+            <TabsTrigger value="responders">Responders</TabsTrigger>
+          </TabsList>
 
-        <div className="mb-6 flex justify-end">
-          <Button
-            type="button"
-            onClick={openAddDialog}
-            className="gap-2 rounded-xl bg-primary hover:bg-primary-hover text-white font-medium shadow-sm hover:shadow-md transition-all duration-200 px-5 py-2.5"
-          >
-            <PlusCircle className="w-5 h-5" strokeWidth={2} />
-            Add Department
-          </Button>
-        </div>
-
-        {/* Department cards – glass + neumorphism */}
-        {isLoadingDepartments && <p className="text-sm text-muted mb-4">Loading departments...</p>}
-        {!isLoadingDepartments && departments.length === 0 && <p className="text-sm text-muted mb-4">No departments found.</p>}
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {departments.map((dept) => {
-            const Icon = getDepartmentIcon(dept.type);
-            const stats = getDepartmentStats(dept);
-            const totalUnitsDisplay = dept.unitsCount ?? 0;
-            const availableFromUnits = stats.availableUnits;
-
-            return (
-              <div
-                key={dept.id}
-                className={`${panelClass} cursor-pointer hover:shadow-lg transition-all duration-300`}
-                onClick={() => navigate(`/departments/${dept.id}`)}
+          <TabsContent value="departments" className="space-y-3">
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                onClick={openAddDialog}
+                className="gap-2 rounded-xl bg-primary hover:bg-primary-hover text-white font-medium px-4 py-2"
               >
-                <div className={headerClass}>
-                  <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                    isLight ? 'neumorphic-light-inset bg-gray-100 text-primary' : 'neumorphic-dark-inset bg-white/10 text-primary'
-                  }`}>
-                    <Icon className="w-5 h-5" strokeWidth={2} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <h3 className="text-base font-semibold text-foreground truncate" title={dept.name}>{dept.name}</h3>
-                    <p className="text-sm text-muted truncate">{dept.type} Response</p>
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-9 w-9 p-0 min-w-[36px] rounded-lg text-foreground/80 hover:bg-primary/15 hover:text-primary"
-                      onClick={(e) => openEditDialog(dept, e)}
-                      title="Edit"
-                      aria-label="Edit department"
-                    >
-                      <PenLine className="w-4 h-4" strokeWidth={2} />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className={`h-9 w-9 p-0 min-w-[36px] rounded-lg text-foreground/80 ${isLight ? 'hover:bg-red-500/10 hover:text-red-600' : 'hover:bg-red-500/20 hover:text-red-400'}`}
-                      onClick={(e) => handleDelete(dept.id, e)}
-                      title="Delete"
-                      aria-label="Delete department"
-                    >
-                      <Trash2 className="w-4 h-4" strokeWidth={2} />
-                    </Button>
-                  </div>
-                </div>
-                <div className="p-4 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted">Status</span>
-                    <Badge className={`${getStatusColor(stats.status)} rounded-lg px-2.5 py-1 text-xs font-medium`}>{stats.status}</Badge>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted">Active Incidents</span>
-                      <span className="font-semibold text-foreground">{stats.activeIncidents}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted">Units</span>
-                      <span className="font-semibold text-primary">{`${availableFromUnits}/${Math.max(totalUnitsDisplay, 1)}`}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted">Personnel</span>
-                      <span className="font-semibold text-foreground">{dept.personnelCount ?? stats.totalUnits}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted">Active Tasks</span>
-                      <span className="font-semibold text-foreground">{dept.activeTaskCount ?? 0}</span>
-                    </div>
-                  </div>
-                  <Button
-                    className="w-full rounded-xl gap-2 bg-primary hover:bg-primary-hover text-white font-medium"
-                    onClick={(e) => { e.stopPropagation(); navigate(`/departments/${dept.id}`); }}
+                <PlusCircle className="w-4 h-4" strokeWidth={2} />
+                Add Department
+              </Button>
+            </div>
+
+            {isLoadingDepartments && <p className="text-sm text-muted">Loading departments...</p>}
+            {!isLoadingDepartments && departments.length === 0 && <p className="text-sm text-muted">No departments found.</p>}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+              {departments.map((dept) => {
+                const Icon = getDepartmentIcon(dept.type);
+                const stats = getDepartmentStats(dept);
+                const live = buildDepartmentLiveStats(dept);
+                const totalUnitsDisplay = live.unitsTotal;
+                const availableFromUnits = Math.min(live.unitsAvailable, totalUnitsDisplay);
+                const unitsDisplay = totalUnitsDisplay > 0
+                  ? `${availableFromUnits}/${totalUnitsDisplay}`
+                  : '0/0';
+                return (
+                  <div
+                    key={dept.id}
+                    className={`${panelClass} cursor-pointer hover:shadow-lg transition-all duration-300`}
+                    onClick={() => navigate(`/departments/${dept.departmentId}`)}
                   >
-                    View Department
-                    <ChevronRight className="w-4 h-4" />
+                    <div className={`${headerClass} py-2.5`}>
+                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                        isLight ? 'neumorphic-light-inset bg-gray-100 text-primary' : 'neumorphic-dark-inset bg-white/10 text-primary'
+                      }`}>
+                        <Icon className="w-4 h-4" strokeWidth={2} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="text-sm font-semibold text-foreground truncate" title={dept.name}>{dept.name}</h3>
+                        <p className="text-xs text-muted truncate">{dept.type} Response</p>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 min-w-[32px] rounded-md" onClick={(e) => openEditDialog(dept, e)} title="Edit">
+                          <PenLine className="w-3.5 h-3.5" strokeWidth={2} />
+                        </Button>
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 min-w-[32px] rounded-md" onClick={(e) => handleDelete(dept.departmentId, e)} title="Delete">
+                          <Trash2 className="w-3.5 h-3.5" strokeWidth={2} />
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="p-3 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-muted">Status</span>
+                        <Badge className={`${getStatusColor(stats.status)} rounded-lg px-2 py-0.5 text-[11px] font-medium`}>{stats.status}</Badge>
+                      </div>
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between text-xs"><span className="text-muted">Active Incidents</span><span className="font-semibold text-foreground">{stats.activeIncidents}</span></div>
+                        <div className="flex items-center justify-between text-xs"><span className="text-muted">Teams</span><span className="font-semibold text-primary">{unitsDisplay}</span></div>
+                        <div className="flex items-center justify-between text-xs"><span className="text-muted">Responders</span><span className="font-semibold text-foreground">{live.personnelCount}</span></div>
+                        <div className="flex items-center justify-between text-xs"><span className="text-muted">Active Tasks</span><span className="font-semibold text-foreground">{dept.activeTaskCount ?? 0}</span></div>
+                      </div>
+                      <Button className="w-full rounded-lg h-8 gap-2 bg-primary hover:bg-primary-hover text-white text-xs font-medium" onClick={(e) => { e.stopPropagation(); navigate(`/departments/${dept.departmentId}`); }}>
+                        View Department
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="teams">
+            <div className="grid grid-cols-1 gap-3">
+              <div className={panelClass}>
+                <div className={headerClass}>
+                  <div className={iconBoxClass('secondary')}><Shield className="w-4 h-4" /></div>
+                  <h3 className="text-sm font-semibold text-foreground flex-1">Team Status</h3>
+                  <Button
+                    type="button"
+                    className="h-8 text-xs px-3"
+                    onClick={() => setCreateTeamDialogOpen(true)}
+                  >
+                    Create Team
                   </Button>
                 </div>
-              </div>
-            );
-          })}
-        </div>
-
-        <div className="mt-8 grid grid-cols-1 xl:grid-cols-3 gap-4">
-          <div className={panelClass}>
-            <div className={headerClass}>
-              <div className={iconBoxClass('primary')}><Users className="w-5 h-5" /></div>
-              <h3 className="text-base font-semibold text-foreground">Create Team</h3>
-            </div>
-            <div className="p-4 space-y-3">
-              <div>
-                <Label className="text-xs">Sector</Label>
-                <select
-                  className="w-full mt-1 px-3 py-2 border border-border rounded-lg bg-card text-foreground text-sm"
-                  value={teamForm.department_code}
-                  onChange={(e) => setTeamForm((prev) => ({ ...prev, department_code: e.target.value }))}
-                >
-                  <option value="pnp">pnp</option>
-                  <option value="drrmo">drrmo</option>
-                </select>
-              </div>
-              <div>
-                <Label className="text-xs">Team Name</Label>
-                <Input value={teamForm.team_name} onChange={(e) => setTeamForm((prev) => ({ ...prev, team_name: e.target.value }))} />
-              </div>
-              <div>
-                <Label className="text-xs">Supported Task Types</Label>
-                <div className="mt-1 flex flex-wrap gap-2">
-                  {TASK_TYPES.map((taskType) => (
-                    <Button
-                      key={taskType}
-                      type="button"
-                      variant={teamForm.supported_incident_types.includes(taskType) ? 'default' : 'outline'}
+                <div className="p-3 space-y-2 max-h-[420px] overflow-auto">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <Input
+                      value={teamSearch}
+                      onChange={(event) => setTeamSearch(event.target.value)}
+                      placeholder="Search team/member/status"
                       className="h-8 text-xs"
-                      onClick={() => setTeamForm((prev) => ({ ...prev, supported_incident_types: toggleTaskType(prev.supported_incident_types, taskType) }))}
+                    />
+                    <select
+                      className="h-8 px-2 py-1 border border-border rounded bg-card text-foreground text-xs"
+                      value={teamStatusFilter}
+                      onChange={(event) => setTeamStatusFilter(event.target.value)}
                     >
-                      {taskType}
+                      <option value="all">All status</option>
+                      {AVAILABILITY_OPTIONS.map((status) => <option key={`team-status-filter-${status}`} value={status}>{status}</option>)}
+                    </select>
+                    <select
+                      className="h-8 px-2 py-1 border border-border rounded bg-card text-foreground text-xs"
+                      value={teamSectorFilter}
+                      onChange={(event) => setTeamSectorFilter(event.target.value)}
+                    >
+                      <option value="all">All sectors</option>
+                      {teamSectorFilterOptions.map((sectorCode) => <option key={`sector-filter-${sectorCode}`} value={sectorCode}>{sectorCode.toUpperCase()}</option>)}
+                    </select>
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] text-muted">
+                    <span>Showing {teamRangeStart}-{teamRangeEnd} of {teamStatusFiltered.length}</span>
+                    <span>{teamsPerPage} per page</span>
+                  </div>
+                  {paginatedTeams.map((team) => {
+                    const teamMembers = teamMembersByTeamId[team.team_id] || [];
+                    return (
+                    <div key={team.team_id} className="border border-border/60 rounded-lg p-2.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-xs font-semibold text-foreground">{String(team.department_code || '').toUpperCase()} • {team.team_name}</p>
+                        <select
+                          className="px-2 py-1 border border-border rounded bg-card text-foreground text-xs"
+                          value={String(team.team_status || 'available').toLowerCase()}
+                          onChange={async (e) => {
+                            await updateResponderTeamStatus(team.team_id, e.target.value);
+                            await loadResponderResources();
+                          }}
+                        >
+                          {AVAILABILITY_OPTIONS.map((status) => <option key={status} value={status}>{status}</option>)}
+                        </select>
+                      </div>
+                      <p className="text-[11px] text-muted mt-1">
+                        Supported: {Array.isArray(team.supported_incident_types) && team.supported_incident_types.length ? team.supported_incident_types.join(', ') : 'all'}
+                      </p>
+                      <p className="text-[11px] text-muted mt-1">
+                        Members: {teamMembers.length}
+                      </p>
+                      {teamMembers.length > 0 ? (
+                        <div className="mt-1.5 flex flex-wrap gap-1">
+                          {teamMembers.slice(0, 6).map((member) => (
+                            <span key={`${team.team_id}-${member.responder_id}`} className="text-[10px] px-1.5 py-0.5 rounded border border-border/60 text-muted">
+                              {member.name} • {String(member.availability_status || 'available').toLowerCase()}
+                            </span>
+                          ))}
+                          {teamMembers.length > 6 && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded border border-border/60 text-muted">
+                              +{teamMembers.length - 6} more
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-[11px] text-muted mt-1">No mapped members.</p>
+                      )}
+                      <div className="mt-2 flex justify-end">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="h-7 text-[11px] px-2.5"
+                          onClick={() => {
+                            setSelectedTeamForMembers(team);
+                            setMemberForm({ responder_id: '' });
+                            setTeamMemberSearch('');
+                            setTeamMemberStatusFilter('all');
+                            setManageMembersDialogOpen(true);
+                          }}
+                        >
+                          Assign Members
+                        </Button>
+                      </div>
+                    </div>
+                    );
+                  })}
+                  {paginatedTeams.length === 0 && (
+                    <div className="text-xs text-muted border border-border/60 rounded-lg p-2.5">No teams match the current filters.</div>
+                  )}
+                  <div className="flex items-center justify-end gap-1.5 pt-1">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-7 px-2.5 text-[11px]"
+                      onClick={() => setTeamPage((prev) => Math.max(1, prev - 1))}
+                      disabled={safeTeamPage <= 1}
+                    >
+                      Prev
                     </Button>
-                  ))}
+                    <span className="text-[11px] text-muted px-1">Page {safeTeamPage} / {teamTotalPages}</span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-7 px-2.5 text-[11px]"
+                      onClick={() => setTeamPage((prev) => Math.min(teamTotalPages, prev + 1))}
+                      disabled={safeTeamPage >= teamTotalPages}
+                    >
+                      Next
+                    </Button>
+                  </div>
                 </div>
               </div>
-              <Button className="w-full" onClick={handleCreateTeam}>Save Team</Button>
             </div>
-          </div>
+          </TabsContent>
 
-          <div className={panelClass}>
-            <div className={headerClass}>
-              <div className={iconBoxClass('secondary')}><PlusCircle className="w-5 h-5" /></div>
-              <h3 className="text-base font-semibold text-foreground">Create Responder</h3>
-            </div>
-            <div className="p-4 space-y-3">
-              <div>
-                <Label className="text-xs">Name</Label>
-                <Input value={responderForm.name} onChange={(e) => setResponderForm((prev) => ({ ...prev, name: e.target.value }))} />
-              </div>
-              <div>
-                <Label className="text-xs">Contact Number</Label>
-                <Input value={responderForm.contact_number} onChange={(e) => setResponderForm((prev) => ({ ...prev, contact_number: e.target.value }))} />
-              </div>
-              <div>
-                <Label className="text-xs">Team</Label>
-                <select
-                  className="w-full mt-1 px-3 py-2 border border-border rounded-lg bg-card text-foreground text-sm"
-                  value={responderForm.team_name}
-                  onChange={(e) => setResponderForm((prev) => ({ ...prev, team_name: e.target.value }))}
-                >
-                  <option value="">Unassigned</option>
-                  {teams.map((team) => (
-                    <option key={team.team_id} value={team.team_name}>{team.department_code}:{team.team_name}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <Label className="text-xs">Supported Task Types</Label>
-                <div className="mt-1 flex flex-wrap gap-2">
-                  {TASK_TYPES.map((taskType) => (
-                    <Button
-                      key={taskType}
-                      type="button"
-                      variant={responderForm.supported_incident_types.includes(taskType) ? 'default' : 'outline'}
-                      className="h-8 text-xs"
-                      onClick={() => setResponderForm((prev) => ({ ...prev, supported_incident_types: toggleTaskType(prev.supported_incident_types, taskType) }))}
-                    >
-                      {taskType}
-                    </Button>
-                  ))}
+          <TabsContent value="responders">
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+              <div className={panelClass}>
+                <div className={headerClass}><div className={iconBoxClass('secondary')}><PlusCircle className="w-4 h-4" /></div><h3 className="text-sm font-semibold text-foreground">Create Responder</h3></div>
+                <div className="p-3 space-y-2.5">
+                  <div><Label className="text-xs">Name</Label><Input value={responderForm.name} onChange={(e) => setResponderForm((prev) => ({ ...prev, name: e.target.value }))} /></div>
+                  <div><Label className="text-xs">Contact Number</Label><Input value={responderForm.contact_number} onChange={(e) => setResponderForm((prev) => ({ ...prev, contact_number: e.target.value }))} /></div>
+                  <div>
+                    <Label className="text-xs">Team</Label>
+                    <select className="w-full mt-1 px-2.5 py-2 border border-border rounded-lg bg-card text-foreground text-sm" value={responderForm.team_name} onChange={(e) => setResponderForm((prev) => ({ ...prev, team_name: e.target.value }))}>
+                      <option value="">Unassigned</option>
+                      {teams.map((team) => (
+                        <option key={team.team_id} value={team.team_name}>{team.department_code}:{team.team_name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Supported Task Types</Label>
+                    <div className="mt-1 flex flex-wrap gap-1.5">
+                      {TASK_TYPES.map((taskType) => (
+                        <Button key={taskType} type="button" variant={responderForm.supported_incident_types.includes(taskType) ? 'default' : 'outline'} className="h-7 text-[11px]" onClick={() => setResponderForm((prev) => ({ ...prev, supported_incident_types: toggleTaskType(prev.supported_incident_types, taskType) }))}>
+                          {taskType}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                  <Button className="w-full h-8 text-xs" onClick={handleCreateResponder}>Save Responder</Button>
                 </div>
               </div>
-              <Button className="w-full" onClick={handleCreateResponder}>Save Responder</Button>
-            </div>
-          </div>
 
-          <div className={panelClass}>
-            <div className={headerClass}>
-              <div className={iconBoxClass('primary')}><Network className="w-5 h-5" /></div>
-              <h3 className="text-base font-semibold text-foreground">Team Mapping and Status</h3>
-            </div>
-            <div className="p-4 space-y-3">
-              <div className="grid grid-cols-2 gap-2">
-                <select
-                  className="px-2 py-2 border border-border rounded bg-card text-foreground text-xs"
-                  value={memberForm.team_id}
-                  onChange={(e) => setMemberForm((prev) => ({ ...prev, team_id: e.target.value }))}
-                >
-                  <option value="">Select Team</option>
-                  {teams.map((team) => (
-                    <option key={team.team_id} value={team.team_id}>{team.department_code}:{team.team_name}</option>
-                  ))}
-                </select>
-                <select
-                  className="px-2 py-2 border border-border rounded bg-card text-foreground text-xs"
-                  value={memberForm.responder_id}
-                  onChange={(e) => setMemberForm((prev) => ({ ...prev, responder_id: e.target.value }))}
-                >
-                  <option value="">Select Responder</option>
-                  {responders.map((responder) => (
-                    <option key={responder.responder_id} value={responder.responder_id}>{responder.name}</option>
-                  ))}
-                </select>
-              </div>
-              <Button variant="outline" className="w-full" onClick={handleMapMember}>Map Responder to Team</Button>
-              <div className="space-y-2 max-h-56 overflow-auto">
-                {teams.slice(0, 8).map((team) => (
-                  <div key={team.team_id} className="border border-border/60 rounded-lg p-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-xs font-semibold text-foreground">{team.department_code}:{team.team_name}</p>
+              <div className={panelClass}>
+                <div className={headerClass}><div className={iconBoxClass('primary')}><Users className="w-4 h-4" /></div><h3 className="text-sm font-semibold text-foreground">Responder Status</h3></div>
+                <div className="p-3 space-y-2 max-h-[420px] overflow-auto">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <Input
+                      value={responderSearch}
+                      onChange={(event) => setResponderSearch(event.target.value)}
+                      placeholder="Search responder/team/status"
+                      className="h-8 text-xs"
+                    />
+                    <select
+                      className="h-8 px-2 py-1 border border-border rounded bg-card text-foreground text-xs"
+                      value={responderStatusFilter}
+                      onChange={(event) => setResponderStatusFilter(event.target.value)}
+                    >
+                      <option value="all">All status</option>
+                      {AVAILABILITY_OPTIONS.map((status) => <option key={`status-filter-${status}`} value={status}>{status}</option>)}
+                    </select>
+                    <select
+                      className="h-8 px-2 py-1 border border-border rounded bg-card text-foreground text-xs"
+                      value={responderTeamFilter}
+                      onChange={(event) => setResponderTeamFilter(event.target.value)}
+                    >
+                      <option value="all">All teams</option>
+                      {responderTeamFilterOptions.map((teamName) => <option key={`team-filter-${teamName}`} value={teamName}>{teamName}</option>)}
+                    </select>
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] text-muted">
+                    <span>Showing {responderRangeStart}-{responderRangeEnd} of {responderStatusFiltered.length}</span>
+                    <span>{respondersPerPage} per page</span>
+                  </div>
+                  {paginatedResponders.map((responder) => (
+                    <div key={responder.responder_id} className="border border-border/60 rounded-lg p-2.5 flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-foreground truncate">{responder.name}</p>
+                        <p className="text-[11px] text-muted truncate">{responder.team_name || 'Unassigned team'}</p>
+                      </div>
                       <select
                         className="px-2 py-1 border border-border rounded bg-card text-foreground text-xs"
-                        value={String(team.team_status || 'available').toLowerCase()}
+                        value={String(responder.availability_status || 'available').toLowerCase()}
                         onChange={async (e) => {
-                          await updateResponderTeamStatus(team.team_id, e.target.value);
+                          await updateResponderStatus(responder.responder_id, e.target.value);
                           await loadResponderResources();
                         }}
                       >
                         {AVAILABILITY_OPTIONS.map((status) => <option key={status} value={status}>{status}</option>)}
                       </select>
                     </div>
-                  </div>
-                ))}
-                {responders.slice(0, 8).map((responder) => (
-                  <div key={responder.responder_id} className="border border-border/60 rounded-lg p-2 flex items-center justify-between gap-2">
-                    <p className="text-xs text-foreground">{responder.name}</p>
-                    <select
-                      className="px-2 py-1 border border-border rounded bg-card text-foreground text-xs"
-                      value={String(responder.availability_status || 'available').toLowerCase()}
-                      onChange={async (e) => {
-                        await updateResponderStatus(responder.responder_id, e.target.value);
-                        await loadResponderResources();
-                      }}
+                  ))}
+                  {paginatedResponders.length === 0 && (
+                    <div className="text-xs text-muted border border-border/60 rounded-lg p-2.5">No responders match the current filters.</div>
+                  )}
+                  <div className="flex items-center justify-end gap-1.5 pt-1">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-7 px-2.5 text-[11px]"
+                      onClick={() => setResponderPage((prev) => Math.max(1, prev - 1))}
+                      disabled={safeResponderPage <= 1}
                     >
-                      {AVAILABILITY_OPTIONS.map((status) => <option key={status} value={status}>{status}</option>)}
-                    </select>
+                      Prev
+                    </Button>
+                    <span className="text-[11px] text-muted px-1">Page {safeResponderPage} / {responderTotalPages}</span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-7 px-2.5 text-[11px]"
+                      onClick={() => setResponderPage((prev) => Math.min(responderTotalPages, prev + 1))}
+                      disabled={safeResponderPage >= responderTotalPages}
+                    >
+                      Next
+                    </Button>
                   </div>
-                ))}
+                </div>
               </div>
             </div>
-          </div>
-        </div>
+          </TabsContent>
+
+        </Tabs>
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -691,6 +973,158 @@ export function DepartmentsPage() {
               Cancel
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={createTeamDialogOpen} onOpenChange={setCreateTeamDialogOpen}>
+        <DialogContent className={`max-w-lg w-full !p-0 overflow-visible rounded-2xl border-0 shadow-2xl ${isLight ? 'bg-white border border-gray-200/90 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.15)]' : 'bg-card border border-white/20 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.4)]'}`}>
+          <div className={`px-6 py-5 rounded-t-2xl ${isLight ? 'bg-gradient-to-br from-primary via-primary to-primary-hover' : 'bg-gradient-to-br from-primary/95 via-primary to-primary-hover'}`}>
+            <DialogTitle className="text-lg font-semibold text-white m-0 tracking-tight">
+              Create Team
+            </DialogTitle>
+            <DialogDescription className="!text-white/90 mt-1 text-sm">
+              Add a new team and configure supported task types.
+            </DialogDescription>
+          </div>
+          <div className={`p-6 space-y-3 w-full min-w-0 overflow-visible ${isLight ? 'bg-white' : 'bg-card'}`}>
+            <div>
+              <Label className="text-xs">Sector</Label>
+              <select className="w-full mt-1 px-2.5 py-2 border border-border rounded-lg bg-card text-foreground text-sm" value={teamForm.department_code} onChange={(e) => setTeamForm((prev) => ({ ...prev, department_code: e.target.value }))}>
+                <option value="pnp">pnp</option>
+                <option value="drrmo">drrmo</option>
+              </select>
+            </div>
+            <div>
+              <Label className="text-xs">Team Name</Label>
+              <Input value={teamForm.team_name} onChange={(e) => setTeamForm((prev) => ({ ...prev, team_name: e.target.value }))} />
+            </div>
+            <div>
+              <Label className="text-xs">Supported Task Types</Label>
+              <div className="mt-1 flex flex-wrap gap-1.5">
+                {TASK_TYPES.map((taskType) => (
+                  <Button key={taskType} type="button" variant={teamForm.supported_incident_types.includes(taskType) ? 'default' : 'outline'} className="h-7 text-[11px]" onClick={() => setTeamForm((prev) => ({ ...prev, supported_incident_types: toggleTaskType(prev.supported_incident_types, taskType) }))}>
+                    {taskType}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          </div>
+          <DialogFooter className={`px-6 py-4 border-t gap-2 ${isLight ? 'bg-gray-50/90 border-t border-gray-200' : 'bg-white/[0.03] border-t border-border'}`}>
+            <Button
+              type="button"
+              className="h-8 text-xs px-4"
+              onClick={async () => {
+                const ok = await handleCreateTeam();
+                if (ok) setCreateTeamDialogOpen(false);
+              }}
+            >
+              Save Team
+            </Button>
+            <Button type="button" variant="outline" className="h-8 text-xs px-4" onClick={() => setCreateTeamDialogOpen(false)}>
+              Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={manageMembersDialogOpen} onOpenChange={setManageMembersDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              Assign Members - {selectedTeamForMembers ? `${String(selectedTeamForMembers.department_code || '').toUpperCase()} • ${selectedTeamForMembers.team_name}` : 'Team'}
+            </DialogTitle>
+            <DialogDescription>
+              Add or remove members for this team. Status is shown for assignment decisions.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] gap-2 items-end">
+              <div>
+                <Label className="text-xs">Add responder</Label>
+                <Combobox
+                  options={assignableResponderOptions}
+                  value={memberForm.responder_id}
+                  onValueChange={(nextValue) => setMemberForm({ responder_id: nextValue })}
+                  placeholder="Select responder"
+                  searchPlaceholder="Search responder..."
+                />
+              </div>
+              <Button
+                type="button"
+                className="h-9"
+                disabled={!selectedTeamForMembers?.team_id || !memberForm.responder_id}
+                onClick={() => handleMapMember(selectedTeamForMembers?.team_id, memberForm.responder_id)}
+              >
+                Add
+              </Button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <Input
+                value={teamMemberSearch}
+                onChange={(event) => setTeamMemberSearch(event.target.value)}
+                placeholder="Search assigned members"
+                className="h-8 text-xs"
+              />
+              <select
+                className="h-8 px-2 py-1 border border-border rounded bg-card text-foreground text-xs"
+                value={teamMemberStatusFilter}
+                onChange={(event) => setTeamMemberStatusFilter(event.target.value)}
+              >
+                <option value="all">All status</option>
+                {AVAILABILITY_OPTIONS.map((status) => <option key={`member-status-filter-${status}`} value={status}>{status}</option>)}
+              </select>
+            </div>
+
+            <div className="space-y-2 max-h-64 overflow-auto">
+              {paginatedTeamMembers.map((member) => (
+                <div key={`assigned-member-${member.responder_id}`} className="border border-border/60 rounded-lg p-2 flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-foreground truncate">{member.name}</p>
+                    <p className="text-[11px] text-muted">Status: {String(member.availability_status || 'available').toLowerCase()}</p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-7 text-[11px] px-2.5"
+                    onClick={() => handleRemoveMember(selectedTeamForMembers?.team_id, member.responder_id)}
+                  >
+                    Remove
+                  </Button>
+                </div>
+              ))}
+              {paginatedTeamMembers.length === 0 && (
+                <p className="text-xs text-muted border border-border/60 rounded-lg p-2.5">No team members match current filters.</p>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-1.5">
+              <Button
+                type="button"
+                variant="outline"
+                className="h-7 px-2.5 text-[11px]"
+                onClick={() => setTeamMemberPage((prev) => Math.max(1, prev - 1))}
+                disabled={safeTeamMemberPage <= 1}
+              >
+                Prev
+              </Button>
+              <span className="text-[11px] text-muted px-1">Page {safeTeamMemberPage} / {teamMemberTotalPages}</span>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-7 px-2.5 text-[11px]"
+                onClick={() => setTeamMemberPage((prev) => Math.min(teamMemberTotalPages, prev + 1))}
+                disabled={safeTeamMemberPage >= teamMemberTotalPages}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setManageMembersDialogOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </Layout>

@@ -1,5 +1,6 @@
 const Dispatch = require('../models/dispatch');
 const Responder = require('../models/responder');
+const Incident = require('../models/incident');
 const { validateInteger, validateOptionalString, validatePagination } = require('../utils/validation');
 const { logDispatcherAction } = require('../utils/auditLog');
 
@@ -33,6 +34,7 @@ const dispatchController = {
       if (!reportExists) {
         return res.status(404).json({ error: 'Incident report not found' });
       }
+      const existingDispatchCount = await Dispatch.countByReportId(validatedReportId);
       const incidentType = await Dispatch.getIncidentType(validatedReportId);
 
       const hasResponderArray = Array.isArray(responders) && responders.length > 0;
@@ -89,6 +91,18 @@ const dispatchController = {
           team_name: validatedTeamName,
         });
 
+        if (dispatches.length > 0 && existingDispatchCount === 0) {
+          try {
+            await Incident.transitionStatus(validatedReportId, {
+              next_status: 'in_progress',
+              actor_user_id: assignedByUserId,
+              actor_role: req.user?.role || null,
+            });
+          } catch (_) {
+            // Best-effort lifecycle hook; keep dispatch creation successful.
+          }
+        }
+
         return res.status(201).json({
           assignment_group_id: assignmentGroupId,
           report_id: validatedReportId,
@@ -138,6 +152,18 @@ const dispatchController = {
           });
         }
 
+        if (autoAssignment.dispatches.length > 0 && existingDispatchCount === 0) {
+          try {
+            await Incident.transitionStatus(validatedReportId, {
+              next_status: 'in_progress',
+              actor_user_id: assignedByUserId,
+              actor_role: req.user?.role || null,
+            });
+          } catch (_) {
+            // Best-effort lifecycle hook; keep dispatch creation successful.
+          }
+        }
+
         return res.status(201).json({
           assignment_group_id: assignmentGroupId,
           report_id: validatedReportId,
@@ -178,6 +204,18 @@ const dispatchController = {
         department_code: validatedDepartmentCode,
         team_name: validatedTeamName,
       });
+
+      if (existingDispatchCount === 0) {
+        try {
+          await Incident.transitionStatus(validatedReportId, {
+            next_status: 'in_progress',
+            actor_user_id: assignedByUserId,
+            actor_role: req.user?.role || null,
+          });
+        } catch (_) {
+          // Best-effort lifecycle hook; keep dispatch creation successful.
+        }
+      }
       res.status(201).json(dispatch);
     } catch (error) {
       console.error('Error creating dispatch:', error);

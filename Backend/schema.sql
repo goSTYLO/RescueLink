@@ -89,6 +89,9 @@ CREATE TABLE IF NOT EXISTS incident_reports (
   scanned_at TIMESTAMP,
   quarantined BOOLEAN DEFAULT FALSE,
   quarantine_reason TEXT,
+  reporter_confirmed_at TIMESTAMP,
+  reporter_confirmed_by_user_id INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
+  resolved_by_user_id INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -120,7 +123,12 @@ ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS scan_error TEXT;
 ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS scanned_at TIMESTAMP;
 ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS quarantined BOOLEAN DEFAULT FALSE;
 ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS quarantine_reason TEXT;
+ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS reporter_confirmed_at TIMESTAMP;
+ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS reporter_confirmed_by_user_id INTEGER REFERENCES users(user_id) ON DELETE SET NULL;
+ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS resolved_by_user_id INTEGER REFERENCES users(user_id) ON DELETE SET NULL;
 CREATE INDEX IF NOT EXISTS idx_incident_reports_scan_status ON incident_reports(scan_status);
+CREATE INDEX IF NOT EXISTS idx_incident_reports_reporter_confirmed_at ON incident_reports(reporter_confirmed_at);
+CREATE INDEX IF NOT EXISTS idx_incident_reports_resolved_by_user_id ON incident_reports(resolved_by_user_id);
 
 -- Create responders table
 CREATE TABLE IF NOT EXISTS responders (
@@ -153,6 +161,11 @@ CREATE TABLE IF NOT EXISTS responder_team_members (
   added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(team_id, responder_id)
 );
+
+-- Ensure new responder/team columns also exist on older databases
+ALTER TABLE responders ADD COLUMN IF NOT EXISTS supported_incident_types TEXT[] NOT NULL DEFAULT '{}';
+ALTER TABLE responder_teams ADD COLUMN IF NOT EXISTS team_status VARCHAR(50) NOT NULL DEFAULT 'available';
+ALTER TABLE responder_teams ADD COLUMN IF NOT EXISTS supported_incident_types TEXT[] NOT NULL DEFAULT '{}';
 
 CREATE INDEX IF NOT EXISTS idx_responder_teams_department_code ON responder_teams(department_code);
 CREATE INDEX IF NOT EXISTS idx_responder_teams_team_name ON responder_teams(team_name);

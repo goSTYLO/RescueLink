@@ -5,6 +5,14 @@
 
 const { ROLES, PERMISSIONS, hasPermission, requiresOwnership } = require('../config/roles');
 
+function normalizeRoleAlias(role) {
+  const normalized = String(role || '').trim().toLowerCase();
+  if (!normalized) return '';
+  if (['super-admin', 'superadmin', 'super admin'].includes(normalized)) return ROLES.ADMIN;
+  if (normalized === 'dept admin' || normalized === 'department admin') return 'department-admin';
+  return normalized;
+}
+
 /**
  * Middleware to check if user has one of the required roles
  * @param {array} allowedRoles - Array of role strings (e.g., [ROLES.DISPATCHER, ROLES.ADMIN])
@@ -26,7 +34,9 @@ const authorize = (allowedRoles = []) => {
     }
 
     // Check if user's role is in allowed roles
-    if (!allowedRoles.includes(req.user.role)) {
+    const userRole = normalizeRoleAlias(req.user.role);
+    const normalizedAllowedRoles = allowedRoles.map((role) => normalizeRoleAlias(role));
+    if (!normalizedAllowedRoles.includes(userRole)) {
       console.warn(
         `[RBAC] User ${req.user.user_id} (${req.user.role}) attempted unauthorized access to route: ${req.method} ${req.path}`
       );
@@ -91,7 +101,8 @@ const checkOwnership = (userIdField = 'user_id') => {
     }
 
     // Admins and dispatchers have unrestricted access
-    if ([ROLES.ADMIN, ROLES.DISPATCHER].includes(req.user.role)) {
+    const userRole = normalizeRoleAlias(req.user.role);
+    if ([ROLES.ADMIN, ROLES.DISPATCHER].includes(userRole)) {
       return next();
     }
 
@@ -152,7 +163,8 @@ const setResourceOwner = (userIdField = 'user_id') => {
 const isResourceOwner = (user, resourceOwnerId) => {
   if (!user) return false;
   // Admins and dispatchers can access any resource
-  if ([ROLES.ADMIN, ROLES.DISPATCHER].includes(user.role)) {
+  const userRole = normalizeRoleAlias(user.role);
+  if ([ROLES.ADMIN, ROLES.DISPATCHER].includes(userRole)) {
     return true;
   }
   // Users can only access their own
@@ -172,7 +184,8 @@ const applyRoleFilter = (user, userIdField = 'user_id') => {
   if (!user) return {};
   
   // Admins and dispatchers see all
-  if ([ROLES.ADMIN, ROLES.DISPATCHER].includes(user.role)) {
+  const userRole = normalizeRoleAlias(user.role);
+  if ([ROLES.ADMIN, ROLES.DISPATCHER].includes(userRole)) {
     return {};  // No filter
   }
   

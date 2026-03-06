@@ -5,11 +5,23 @@ const { logDispatcherAction } = require('../utils/auditLog');
 const RESOLVER_STATUSES = ['available', 'standby', 'busy', 'off-duty'];
 const INCIDENT_TASK_TYPES = ['fire', 'medical', 'police', 'disaster'];
 
+function normalizeTaskType(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (!normalized) return '';
+  const collapsed = normalized.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!collapsed) return '';
+  if (['natural disaster', 'typhoon', 'flood', 'earthquake', 'landslide', 'storm surge', 'volcanic eruption', 'disaster', 'calamity'].includes(collapsed)) return 'disaster';
+  if (['crime', 'robbery', 'theft', 'assault', 'violence', 'homicide', 'shooting', 'stabbing', 'police', 'law enforcement'].includes(collapsed)) return 'police';
+  if (['accident', 'vehicular accident', 'road accident', 'traffic accident', 'collision', 'injury', 'trauma', 'medical emergency', 'emergency medical', 'medical', 'first aid'].includes(collapsed)) return 'medical';
+  if (['fire', 'blaze', 'structural fire', 'wildfire'].includes(collapsed)) return 'fire';
+  return normalized;
+}
+
 function normalizeTaskTypes(input) {
   if (!Array.isArray(input)) return [];
   return [...new Set(
     input
-      .map((entry) => String(entry || '').trim().toLowerCase())
+      .map((entry) => normalizeTaskType(entry))
       .filter((entry) => INCIDENT_TASK_TYPES.includes(entry))
   )];
 }
@@ -73,6 +85,7 @@ const responderController = {
     try {
       const { limit, offset, organization, availability_status, source_type, team_name, incident_type } = req.query;
       const { limit: validatedLimit, offset: validatedOffset } = validatePagination(limit, offset);
+      const normalizedIncidentType = incident_type ? normalizeTaskType(incident_type) : null;
       const responders = await Responder.findAll({
         limit: validatedLimit,
         offset: validatedOffset,
@@ -80,7 +93,7 @@ const responderController = {
         availability_status: availability_status ? validateString(availability_status, 'availability_status', 1, 50) : null,
         source_type: source_type ? validateAllowedValue(source_type, ['account', 'directory'], 'source_type') : null,
         team_name: team_name ? validateString(team_name, 'team_name', 1, 150) : null,
-        incident_type: incident_type ? validateAllowedValue(String(incident_type).toLowerCase(), INCIDENT_TASK_TYPES, 'incident_type') : null,
+        incident_type: normalizedIncidentType && INCIDENT_TASK_TYPES.includes(normalizedIncidentType) ? normalizedIncidentType : null,
       });
       res.json(responders);
     } catch (error) {

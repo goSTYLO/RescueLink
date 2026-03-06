@@ -1,791 +1,745 @@
 import { Layout } from '@/presentation/components/layout/Layout';
 import { Badge } from '@/presentation/components/ui/Badge';
 import { Button } from '@/presentation/components/ui/Button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/presentation/components/ui/Tabs';
-import { Label } from '@/presentation/components/ui/Label';
 import { Input } from '@/presentation/components/ui/Input';
+import { Label } from '@/presentation/components/ui/Label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/presentation/components/ui/Tabs';
+import { Combobox } from '@/presentation/components/ui/Combobox';
 import {
   Dialog,
   DialogContent,
-  DialogTitle,
   DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from '@/presentation/components/ui/Dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/presentation/components/ui/Select';
-import {
-  ArrowLeft,
-  Truck,
-  Users as UsersIcon,
-  ClipboardList,
-  Wrench,
-  Award,
-  AlertCircle,
-  CheckCircle,
-  Plus,
-  Pencil,
-  Trash2,
-  Building2,
-  Phone,
-  Activity,
-  LayoutGrid,
-} from 'lucide-react';
+import { ArrowLeft, Shield, Users, Link2 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useState, useEffect } from 'react';
-import { departments, units as initialUnits, personnel as initialPersonnel, incidents } from '@/data/mock/mockData';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Swal from 'sweetalert2';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
+import { normalizeRole, ROLES } from '@/core/constants';
+import { getDepartmentById } from '@/data/api/departments.api';
+import {
+  addTeamMember,
+  getResponders,
+  getResponderTeams,
+  getTeamMembers,
+  removeTeamMember,
+  updateResponderStatus,
+  updateResponderTeamStatus,
+} from '@/data/api/responders.api';
 
-const UNIT_STATUS_OPTIONS = ['Available', 'On Dispatch', 'On Duty', 'Busy', 'Under Maintenance', 'Out of Service'];
-const MAINTENANCE_STATUS_OPTIONS = ['Operational', 'Under Maintenance', 'Out of Service'];
-const PERSONNEL_STATUS_OPTIONS = ['Available', 'On Duty', 'On Leave', 'Off Duty'];
+const AVAILABILITY_OPTIONS = ['available', 'standby', 'busy', 'off-duty'];
+
+function normalizeStatus(value) {
+  const next = String(value || '').trim().toLowerCase();
+  return AVAILABILITY_OPTIONS.includes(next) ? next : 'available';
+}
+
+function toTitleCase(value) {
+  return String(value || '')
+    .split('-')
+    .map((part) => (part ? `${part.charAt(0).toUpperCase()}${part.slice(1)}` : ''))
+    .join(' ');
+}
 
 export function DepartmentDetailsPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const department = departments.find(d => d.id === id);
-
-  const [deptUnits, setDeptUnits] = useState([]);
-  const [deptPersonnel, setDeptPersonnel] = useState([]);
-  useEffect(() => {
-    const list = initialUnits[id || ''] || [];
-    setDeptUnits(list.map(u => ({ ...u })));
-    const plist = (initialPersonnel[id || ''] || []).map((p, i) => ({ ...p, id: p.id || `person-${i}` }));
-    setDeptPersonnel(plist);
-  }, [id]);
-
-  const [unitDialogOpen, setUnitDialogOpen] = useState(false);
-  const [editingUnit, setEditingUnit] = useState(null);
-  const [unitForm, setUnitForm] = useState({
-    name: '', type: '', status: 'Available', maintenanceStatus: 'Operational',
-    lastMaintenance: '', nextMaintenance: '', maintenanceNotes: '',
-  });
-
-  const [personnelDialogOpen, setPersonnelDialogOpen] = useState(false);
-  const [editingPersonnel, setEditingPersonnel] = useState(null);
-  const [unitStatusOpen, setUnitStatusOpen] = useState(false);
-  const [unitMaintenanceOpen, setUnitMaintenanceOpen] = useState(false);
-  const [personnelUnitOpen, setPersonnelUnitOpen] = useState(false);
-  const [personnelStatusOpen, setPersonnelStatusOpen] = useState(false);
-  useEffect(() => { if (!unitDialogOpen) { setUnitStatusOpen(false); setUnitMaintenanceOpen(false); } }, [unitDialogOpen]);
-  useEffect(() => { if (!personnelDialogOpen) { setPersonnelUnitOpen(false); setPersonnelStatusOpen(false); } }, [personnelDialogOpen]);
-  const [personnelForm, setPersonnelForm] = useState({
-    name: '', role: '', unit: '', status: 'Available',
-    specialSkills: '', certifications: [],
-  });
-
-  const deptIncidents = incidents.filter(i => i.status === 'In Progress');
-
   const { theme } = useTheme();
   const isLight = theme === 'light';
+
+  const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+  const normalizedRole = normalizeRole(currentUser?.role);
+  const canManageMembership = normalizedRole === ROLES.SUPER_ADMIN;
+  const canUpdateStatuses = (
+    normalizedRole === ROLES.SUPER_ADMIN
+    || normalizedRole === ROLES.DISPATCHER
+  );
+
+  const [department, setDepartment] = useState(null);
+  const [loadingDepartment, setLoadingDepartment] = useState(true);
+  const [resourceLoading, setResourceLoading] = useState(true);
+
+  const [teams, setTeams] = useState([]);
+  const [responders, setResponders] = useState([]);
+  const [teamMembersByTeamId, setTeamMembersByTeamId] = useState({});
+
+  const [teamSearch, setTeamSearch] = useState('');
+  const [teamStatusFilter, setTeamStatusFilter] = useState('all');
+  const [teamPage, setTeamPage] = useState(1);
+  const teamsPerPage = 5;
+
+  const [responderSearch, setResponderSearch] = useState('');
+  const [responderStatusFilter, setResponderStatusFilter] = useState('all');
+  const [responderPage, setResponderPage] = useState(1);
+  const respondersPerPage = 5;
+
+  const [manageMembersDialogOpen, setManageMembersDialogOpen] = useState(false);
+  const [selectedTeamForMembers, setSelectedTeamForMembers] = useState(null);
+  const [memberForm, setMemberForm] = useState({ responder_id: '' });
+  const [teamMemberSearch, setTeamMemberSearch] = useState('');
+  const [teamMemberStatusFilter, setTeamMemberStatusFilter] = useState('all');
+  const [teamMemberPage, setTeamMemberPage] = useState(1);
+  const teamMembersPerPage = 5;
+
+  const departmentId = Number(id);
+  const departmentCode = String(department?.code || '').trim().toLowerCase();
+  const departmentName = String(department?.name || '').trim().toLowerCase();
+
   const panelClass = `rounded-2xl border overflow-hidden transition-all duration-300 ${isLight ? 'glass neumorphic-light bg-white/80' : 'glass neumorphic-dark bg-card/60'}`;
   const headerClass = `flex items-center gap-3 px-4 py-3 border-b ${isLight ? 'border-gray-200/80 bg-gray-50/50' : 'border-white/10 bg-white/5'}`;
-  const iconBoxClass = (accent = 'primary') =>
-    `w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isLight ? 'neumorphic-light-inset bg-gray-100' : 'neumorphic-dark-inset bg-white/10'} ${
-      accent === 'primary' ? 'text-primary' : accent === 'secondary' ? 'text-secondary' : 'text-foreground'
-    }`;
-  const iconSmClass = (accent = 'primary') =>
-    `w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${isLight ? 'neumorphic-light-inset bg-gray-100' : 'neumorphic-dark-inset bg-white/10'} ${accent === 'primary' ? 'text-primary' : 'text-foreground'}`;
+
+  const loadDepartment = useCallback(async () => {
+    if (!Number.isFinite(departmentId) || departmentId <= 0) {
+      setDepartment(null);
+      setLoadingDepartment(false);
+      return;
+    }
+
+    setLoadingDepartment(true);
+    try {
+      const row = await getDepartmentById(departmentId);
+      setDepartment(row || null);
+    } catch (error) {
+      setDepartment(null);
+      Swal.fire({
+        icon: 'error',
+        title: 'Could not load department',
+        text: error.message || 'Please try again later.',
+        confirmButtonColor: '#134178',
+      });
+    } finally {
+      setLoadingDepartment(false);
+    }
+  }, [departmentId]);
+
+  const loadResponderResources = useCallback(async () => {
+    setResourceLoading(true);
+    try {
+      const [teamRows, responderRows] = await Promise.all([
+        getResponderTeams({ limit: 300, offset: 0 }),
+        getResponders({ limit: 500, offset: 0 }),
+      ]);
+      setTeams(Array.isArray(teamRows) ? teamRows : []);
+      setResponders(Array.isArray(responderRows) ? responderRows : []);
+    } catch (error) {
+      setTeams([]);
+      setResponders([]);
+      Swal.fire({
+        icon: 'error',
+        title: 'Could not load team resources',
+        text: error.message || 'Please try again later.',
+        confirmButtonColor: '#134178',
+      });
+    } finally {
+      setResourceLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadDepartment();
+    loadResponderResources();
+  }, [loadDepartment, loadResponderResources]);
+
+  const departmentTeams = useMemo(() => {
+    if (!departmentCode) return [];
+    return teams.filter((team) => String(team?.department_code || '').trim().toLowerCase() === departmentCode);
+  }, [teams, departmentCode]);
+
+  useEffect(() => {
+    const teamIds = departmentTeams.map((team) => Number(team.team_id)).filter((teamId) => Number.isFinite(teamId));
+    if (teamIds.length === 0) {
+      setTeamMembersByTeamId({});
+      return;
+    }
+
+    let cancelled = false;
+    Promise.all(teamIds.map(async (teamId) => {
+      try {
+        const members = await getTeamMembers(teamId);
+        return [teamId, Array.isArray(members) ? members : []];
+      } catch {
+        return [teamId, []];
+      }
+    })).then((entries) => {
+      if (cancelled) return;
+      setTeamMembersByTeamId(Object.fromEntries(entries));
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [departmentTeams]);
+
+  const filteredTeams = useMemo(() => {
+    const query = teamSearch.trim().toLowerCase();
+    return departmentTeams.filter((team) => {
+      const status = normalizeStatus(team.team_status);
+      const teamName = String(team.team_name || '');
+      const members = teamMembersByTeamId[team.team_id] || [];
+      const memberNames = members.map((entry) => String(entry?.name || '')).join(' ');
+
+      if (teamStatusFilter !== 'all' && status !== teamStatusFilter) return false;
+      if (!query) return true;
+      return `${teamName} ${status} ${memberNames}`.toLowerCase().includes(query);
+    });
+  }, [departmentTeams, teamMembersByTeamId, teamSearch, teamStatusFilter]);
+
+  const teamTotalPages = Math.max(1, Math.ceil(filteredTeams.length / teamsPerPage));
+  const safeTeamPage = Math.min(teamPage, teamTotalPages);
+  const paginatedTeams = useMemo(() => {
+    const start = (safeTeamPage - 1) * teamsPerPage;
+    return filteredTeams.slice(start, start + teamsPerPage);
+  }, [filteredTeams, safeTeamPage]);
+
+  useEffect(() => {
+    setTeamPage(1);
+  }, [teamSearch, teamStatusFilter]);
+  useEffect(() => {
+    if (teamPage > teamTotalPages) setTeamPage(teamTotalPages);
+  }, [teamPage, teamTotalPages]);
+
+  const departmentResponders = useMemo(() => {
+    const teamNames = new Set(departmentTeams.map((team) => String(team.team_name || '').trim()).filter(Boolean));
+    const members = Object.values(teamMembersByTeamId).flat();
+    const map = new Map();
+
+    members.forEach((member) => {
+      const responderId = Number(member?.responder_id);
+      if (!Number.isFinite(responderId)) return;
+      map.set(responderId, member);
+    });
+
+    responders.forEach((responder) => {
+      const responderId = Number(responder?.responder_id);
+      if (!Number.isFinite(responderId)) return;
+      const responderTeam = String(responder?.team_name || '').trim();
+      const responderOrg = String(responder?.organization || '').trim().toLowerCase();
+      const belongsToTeam = responderTeam && teamNames.has(responderTeam);
+      const belongsToDepartmentOrg = departmentName && responderOrg === departmentName;
+      if (belongsToTeam || belongsToDepartmentOrg) {
+        map.set(responderId, responder);
+      }
+    });
+
+    return Array.from(map.values());
+  }, [departmentTeams, teamMembersByTeamId, responders, departmentName]);
+
+  const filteredResponders = useMemo(() => {
+    const query = responderSearch.trim().toLowerCase();
+    return departmentResponders.filter((responder) => {
+      const status = normalizeStatus(responder.availability_status);
+      const name = String(responder.name || '');
+      const teamName = String(responder.team_name || '');
+      if (responderStatusFilter !== 'all' && status !== responderStatusFilter) return false;
+      if (!query) return true;
+      return `${name} ${status} ${teamName}`.toLowerCase().includes(query);
+    });
+  }, [departmentResponders, responderSearch, responderStatusFilter]);
+
+  const responderTotalPages = Math.max(1, Math.ceil(filteredResponders.length / respondersPerPage));
+  const safeResponderPage = Math.min(responderPage, responderTotalPages);
+  const paginatedResponders = useMemo(() => {
+    const start = (safeResponderPage - 1) * respondersPerPage;
+    return filteredResponders.slice(start, start + respondersPerPage);
+  }, [filteredResponders, safeResponderPage]);
+
+  useEffect(() => {
+    setResponderPage(1);
+  }, [responderSearch, responderStatusFilter]);
+  useEffect(() => {
+    if (responderPage > responderTotalPages) setResponderPage(responderTotalPages);
+  }, [responderPage, responderTotalPages]);
+
+  const selectedTeamMembers = selectedTeamForMembers?.team_id
+    ? (teamMembersByTeamId[selectedTeamForMembers.team_id] || [])
+    : [];
+
+  const selectedTeamMembersFiltered = useMemo(() => {
+    const query = teamMemberSearch.trim().toLowerCase();
+    return selectedTeamMembers.filter((member) => {
+      const status = normalizeStatus(member.availability_status);
+      const name = String(member.name || '');
+      if (teamMemberStatusFilter !== 'all' && status !== teamMemberStatusFilter) return false;
+      if (!query) return true;
+      return `${name} ${status}`.toLowerCase().includes(query);
+    });
+  }, [selectedTeamMembers, teamMemberSearch, teamMemberStatusFilter]);
+
+  const teamMemberTotalPages = Math.max(1, Math.ceil(selectedTeamMembersFiltered.length / teamMembersPerPage));
+  const safeTeamMemberPage = Math.min(teamMemberPage, teamMemberTotalPages);
+  const paginatedTeamMembers = useMemo(() => {
+    const start = (safeTeamMemberPage - 1) * teamMembersPerPage;
+    return selectedTeamMembersFiltered.slice(start, start + teamMembersPerPage);
+  }, [selectedTeamMembersFiltered, safeTeamMemberPage]);
+
+  useEffect(() => {
+    setTeamMemberPage(1);
+  }, [teamMemberSearch, teamMemberStatusFilter, selectedTeamForMembers?.team_id]);
+  useEffect(() => {
+    if (teamMemberPage > teamMemberTotalPages) setTeamMemberPage(teamMemberTotalPages);
+  }, [teamMemberPage, teamMemberTotalPages]);
+
+  const assignableResponderOptions = useMemo(() => {
+    if (!selectedTeamForMembers?.team_id) return [];
+    const assignedIds = new Set(selectedTeamMembers.map((member) => Number(member.responder_id)));
+    return responders
+      .filter((responder) => !assignedIds.has(Number(responder.responder_id)))
+      .map((responder) => ({
+        value: String(responder.responder_id),
+        label: `${responder.name} • ${toTitleCase(normalizeStatus(responder.availability_status))}`,
+      }));
+  }, [responders, selectedTeamForMembers, selectedTeamMembers]);
+
+  const handleUpdateTeamStatus = async (teamId, teamStatus) => {
+    if (!canUpdateStatuses) {
+      Swal.fire({ icon: 'warning', title: 'Not allowed', text: 'Your account cannot update statuses.' });
+      return;
+    }
+    try {
+      await updateResponderTeamStatus(teamId, teamStatus);
+      await loadResponderResources();
+    } catch (error) {
+      Swal.fire({ icon: 'error', title: 'Update failed', text: error.message || 'Please try again.' });
+    }
+  };
+
+  const handleUpdateResponderStatus = async (responderId, status) => {
+    if (!canUpdateStatuses) {
+      Swal.fire({ icon: 'warning', title: 'Not allowed', text: 'Your account cannot update statuses.' });
+      return;
+    }
+    try {
+      await updateResponderStatus(responderId, status);
+      await loadResponderResources();
+    } catch (error) {
+      Swal.fire({ icon: 'error', title: 'Update failed', text: error.message || 'Please try again.' });
+    }
+  };
+
+  const handleMapMember = async () => {
+    if (!canManageMembership) {
+      Swal.fire({ icon: 'warning', title: 'Not allowed', text: 'Only admins can assign team members.' });
+      return;
+    }
+    if (!selectedTeamForMembers?.team_id || !memberForm.responder_id) return;
+    try {
+      await addTeamMember(Number(selectedTeamForMembers.team_id), Number(memberForm.responder_id));
+      setMemberForm({ responder_id: '' });
+      await loadResponderResources();
+      const members = await getTeamMembers(Number(selectedTeamForMembers.team_id));
+      setTeamMembersByTeamId((prev) => ({
+        ...prev,
+        [Number(selectedTeamForMembers.team_id)]: Array.isArray(members) ? members : [],
+      }));
+      Swal.fire({ icon: 'success', title: 'Member assigned', timer: 1200, showConfirmButton: false });
+    } catch (error) {
+      Swal.fire({ icon: 'error', title: 'Assign failed', text: error.message || 'Please try again.' });
+    }
+  };
+
+  const handleRemoveMember = async (responderId) => {
+    if (!canManageMembership) {
+      Swal.fire({ icon: 'warning', title: 'Not allowed', text: 'Only admins can remove team members.' });
+      return;
+    }
+    if (!selectedTeamForMembers?.team_id) return;
+    try {
+      await removeTeamMember(Number(selectedTeamForMembers.team_id), Number(responderId));
+      await loadResponderResources();
+      const members = await getTeamMembers(Number(selectedTeamForMembers.team_id));
+      setTeamMembersByTeamId((prev) => ({
+        ...prev,
+        [Number(selectedTeamForMembers.team_id)]: Array.isArray(members) ? members : [],
+      }));
+      Swal.fire({ icon: 'success', title: 'Member removed', timer: 1200, showConfirmButton: false });
+    } catch (error) {
+      Swal.fire({ icon: 'error', title: 'Remove failed', text: error.message || 'Please try again.' });
+    }
+  };
+
+  if (loadingDepartment) {
+    return (
+      <Layout>
+        <div className="p-6 text-sm text-muted">Loading department...</div>
+      </Layout>
+    );
+  }
 
   if (!department) {
     return (
       <Layout>
-        <div className="p-8">
-          <p className="text-foreground">Department not found</p>
-          <Button variant="outline" className="mt-4 rounded-xl" onClick={() => navigate('/departments')}>Back to Departments</Button>
+        <div className="p-6">
+          <p className="text-foreground">Department not found.</p>
+          <Button className="mt-3" variant="outline" onClick={() => navigate('/departments')}>
+            Back to Departments
+          </Button>
         </div>
       </Layout>
     );
   }
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'Available': return 'bg-severity-resolved/20 text-severity-resolved border-emerald-500/40';
-      case 'On Dispatch': case 'On Duty': return 'bg-secondary/30 text-secondary-light border-secondary/50';
-      case 'Busy': return 'bg-amber-500/20 text-amber-400 border-amber-500/40';
-      case 'Under Maintenance': return 'bg-amber-500/20 text-amber-400 border-amber-500/40';
-      case 'Out of Service': return 'bg-primary/20 text-primary border-primary/50';
-      default: return 'bg-card text-muted border-[rgba(19,65,120,0.35)]';
-    }
-  };
-
-  const getCertificationStatus = (status) => {
-    switch (status) {
-      case 'Valid': return <Badge variant="outline" className="bg-severity-resolved/20 text-severity-resolved border-emerald-500/40 text-xs">Valid</Badge>;
-      case 'Expiring Soon': return <Badge variant="outline" className="bg-amber-500/20 text-amber-400 border-amber-500/40 text-xs">Expiring Soon</Badge>;
-      case 'Expired': return <Badge variant="outline" className="bg-primary/20 text-primary border-primary/50 text-xs">Expired</Badge>;
-      default: return null;
-    }
-  };
-
-  const openAddUnit = () => {
-    setEditingUnit(null);
-    setUnitForm({
-      name: '', type: '', status: 'Available', maintenanceStatus: 'Operational',
-      lastMaintenance: '', nextMaintenance: '', maintenanceNotes: '',
-    });
-    setUnitDialogOpen(true);
-  };
-
-  const openEditUnit = (unit, e) => {
-    e?.stopPropagation();
-    setEditingUnit(unit);
-    setUnitForm({
-      name: unit.name,
-      type: unit.type,
-      status: unit.status,
-      maintenanceStatus: unit.maintenanceStatus || 'Operational',
-      lastMaintenance: unit.lastMaintenance || '',
-      nextMaintenance: unit.nextMaintenance || '',
-      maintenanceNotes: unit.maintenanceNotes || '',
-    });
-    setUnitDialogOpen(true);
-  };
-
-  const handleSaveUnit = () => {
-    if (!unitForm.name.trim()) {
-      Swal.fire({ icon: 'error', title: 'Validation failed', text: 'Please enter unit name.', confirmButtonColor: '#134178' });
-      return;
-    }
-    if (editingUnit) {
-      setDeptUnits(prev =>
-        prev.map(u =>
-          u.id === editingUnit.id
-            ? {
-                ...u,
-                name: unitForm.name.trim(),
-                type: unitForm.type.trim() || u.type,
-                status: unitForm.status,
-                maintenanceStatus: unitForm.maintenanceStatus,
-                lastMaintenance: unitForm.lastMaintenance || u.lastMaintenance,
-                nextMaintenance: unitForm.nextMaintenance || u.nextMaintenance,
-                maintenanceNotes: unitForm.maintenanceNotes || undefined,
-              }
-            : u
-        )
-      );
-      Swal.fire({ icon: 'success', title: 'Unit updated', text: 'Unit details have been saved.', timer: 2000, showConfirmButton: false, timerProgressBar: true });
-    } else {
-      const newId = (unitForm.name.trim().toUpperCase().replace(/\s+/g, '-').replace(/[^A-Z0-9-]/g, '') || `unit-${Date.now()}`).slice(0, 12);
-      setDeptUnits(prev => [
-        ...prev,
-        {
-          id: newId,
-          name: unitForm.name.trim(),
-          type: unitForm.type.trim() || 'Unit',
-          status: unitForm.status,
-          assignedIncident: null,
-          maintenanceStatus: unitForm.maintenanceStatus,
-          lastMaintenance: unitForm.lastMaintenance || '',
-          nextMaintenance: unitForm.nextMaintenance || '',
-          maintenanceNotes: unitForm.maintenanceNotes || undefined,
-          activeTaskCount: 0,
-        },
-      ]);
-      Swal.fire({ icon: 'success', title: 'Unit added', text: 'The new unit has been added.', timer: 2000, showConfirmButton: false, timerProgressBar: true });
-    }
-    setUnitDialogOpen(false);
-  };
-
-  const handleDeleteUnit = (unitId, e) => {
-    e?.stopPropagation();
-    Swal.fire({
-      title: 'Delete unit?',
-      text: 'This action cannot be undone. The unit will be removed.',
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonColor: '#dc2626',
-      cancelButtonColor: '#6b7280',
-      confirmButtonText: 'Yes, delete it',
-      cancelButtonText: 'Cancel',
-      customClass: { popup: 'rounded-2xl shadow-xl', title: 'text-foreground text-xl', htmlContainer: 'text-muted', confirmButton: 'rounded-xl px-5 py-2.5 font-medium', cancelButton: 'rounded-xl px-5 py-2.5 font-medium' },
-    }).then((result) => {
-      if (result.isConfirmed) {
-        setDeptUnits(prev => prev.filter(u => u.id !== unitId));
-        Swal.fire({ icon: 'success', title: 'Unit deleted', text: 'The unit has been removed.', timer: 2000, showConfirmButton: false, timerProgressBar: true });
-      }
-    });
-  };
-
-  const openAddPersonnel = () => {
-    setEditingPersonnel(null);
-    setPersonnelForm({
-      name: '', role: '', unit: deptUnits[0]?.id || '', status: 'Available',
-      specialSkills: '', certifications: [],
-    });
-    setPersonnelDialogOpen(true);
-  };
-
-  const openEditPersonnel = (person, e) => {
-    e?.stopPropagation();
-    setEditingPersonnel(person);
-    setPersonnelForm({
-      name: person.name,
-      role: person.role,
-      unit: person.unit || '',
-      status: person.status,
-      specialSkills: (person.specialSkills || []).join(', '),
-      certifications: (person.certifications || []).map(c => ({ ...c })),
-    });
-    setPersonnelDialogOpen(true);
-  };
-
-  const handleSavePersonnel = () => {
-    if (!personnelForm.name.trim()) {
-      Swal.fire({ icon: 'error', title: 'Validation failed', text: 'Please enter personnel name.', confirmButtonColor: '#134178' });
-      return;
-    }
-    const skills = personnelForm.specialSkills
-      ? personnelForm.specialSkills.split(',').map(s => s.trim()).filter(Boolean)
-      : [];
-    const payload = {
-      name: personnelForm.name.trim(),
-      role: personnelForm.role.trim() || 'Staff',
-      unit: personnelForm.unit || (deptUnits[0]?.id),
-      status: personnelForm.status,
-      specialSkills: skills,
-      certifications: personnelForm.certifications || [],
-    };
-    if (editingPersonnel) {
-      setDeptPersonnel(prev =>
-        prev.map(p =>
-          (p.id && p.id === editingPersonnel.id) || (p.name === editingPersonnel.name && p.role === editingPersonnel.role)
-            ? { ...p, ...payload, id: p.id }
-            : p
-        )
-      );
-      Swal.fire({ icon: 'success', title: 'Personnel updated', text: 'Personnel details have been saved.', timer: 2000, showConfirmButton: false, timerProgressBar: true });
-    } else {
-      setDeptPersonnel(prev => [
-        ...prev,
-        { ...payload, id: `person-${Date.now()}` },
-      ]);
-      Swal.fire({ icon: 'success', title: 'Personnel added', text: 'The new personnel has been added.', timer: 2000, showConfirmButton: false, timerProgressBar: true });
-    }
-    setPersonnelDialogOpen(false);
-  };
-
-  const handleDeletePersonnel = (person, e) => {
-    e?.stopPropagation();
-    Swal.fire({
-      title: 'Remove personnel?',
-      text: `Remove ${person.name} from the department roster? This action cannot be undone.`,
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonColor: '#dc2626',
-      cancelButtonColor: '#6b7280',
-      confirmButtonText: 'Yes, remove',
-      cancelButtonText: 'Cancel',
-      customClass: { popup: 'rounded-2xl shadow-xl', title: 'text-foreground text-xl', htmlContainer: 'text-muted', confirmButton: 'rounded-xl px-5 py-2.5 font-medium', cancelButton: 'rounded-xl px-5 py-2.5 font-medium' },
-    }).then((result) => {
-      if (result.isConfirmed) {
-        setDeptPersonnel(prev =>
-          prev.filter(p =>
-            person.id ? p.id !== person.id : (p.name !== person.name || p.role !== person.role)
-          )
-        );
-        Swal.fire({ icon: 'success', title: 'Personnel removed', text: 'The person has been removed from the roster.', timer: 2000, showConfirmButton: false, timerProgressBar: true });
-      }
-    });
-  };
+  const teamRangeStart = filteredTeams.length === 0 ? 0 : (safeTeamPage - 1) * teamsPerPage + 1;
+  const teamRangeEnd = Math.min(safeTeamPage * teamsPerPage, filteredTeams.length);
+  const responderRangeStart = filteredResponders.length === 0 ? 0 : (safeResponderPage - 1) * respondersPerPage + 1;
+  const responderRangeEnd = Math.min(safeResponderPage * respondersPerPage, filteredResponders.length);
 
   return (
     <Layout>
-      <div className="p-8">
-        <div className={`mb-6 rounded-2xl border overflow-hidden ${isLight ? 'glass neumorphic-light bg-white/80' : 'glass neumorphic-dark bg-card/60'}`}>
-          <div className="flex items-center gap-4 p-4">
-            <Button
-              variant="ghost"
-              onClick={() => navigate('/departments')}
-              className={`gap-2 rounded-xl ${isLight ? 'hover:bg-gray-100 text-foreground' : 'hover:bg-white/10 text-foreground'}`}
-            >
-              <span className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${isLight ? 'neumorphic-light-inset bg-gray-100 text-primary' : 'neumorphic-dark-inset bg-white/10 text-primary'}`}>
-                <ArrowLeft className="w-4 h-4" strokeWidth={2} />
-              </span>
-              Back to Departments
+      <div className="p-3 md:p-4 max-w-7xl mx-auto space-y-3">
+        <div className={panelClass}>
+          <div className={headerClass}>
+            <Button variant="ghost" className="gap-2 rounded-lg" onClick={() => navigate('/departments')}>
+              <ArrowLeft className="w-4 h-4" />
+              Back
             </Button>
           </div>
-        </div>
-
-        <div className={`mb-6 rounded-2xl border overflow-hidden ${isLight ? 'glass neumorphic-light bg-white/80' : 'glass neumorphic-dark bg-card/60'}`}>
-          <div className="p-6">
-            <h1 className="text-2xl font-semibold text-foreground tracking-tight">{department.name}</h1>
-            <p className="text-muted mt-1">{department.type} Response Department</p>
-          </div>
-        </div>
-
-        <div className={`mb-6 ${panelClass}`}>
-          <div className={`${headerClass} rounded-t-2xl`}>
-            <span className={iconBoxClass('primary')}>
-              <LayoutGrid className="w-5 h-5" strokeWidth={2} />
-            </span>
-            <span className="font-medium text-foreground">Overview</span>
-          </div>
-          <div className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <div className={`rounded-xl p-4 ${isLight ? 'bg-gray-50/80' : 'bg-white/5'}`}>
-                <div className="flex items-center gap-3 mb-2">
-                  <span className={iconSmClass('primary')}>
-                    <Building2 className="w-4 h-4" strokeWidth={2} />
-                  </span>
-                  <p className="text-xs font-medium uppercase tracking-wider text-muted">Department Type</p>
-                </div>
-                <p className="font-semibold text-foreground">{department.type}</p>
-              </div>
-              <div className={`rounded-xl p-4 ${isLight ? 'bg-gray-50/80' : 'bg-white/5'}`}>
-                <div className="flex items-center gap-3 mb-2">
-                  <span className={iconSmClass('primary')}>
-                    <UsersIcon className="w-4 h-4" strokeWidth={2} />
-                  </span>
-                  <p className="text-xs font-medium uppercase tracking-wider text-muted">Officer-in-Charge</p>
-                </div>
-                <p className="font-semibold text-foreground">Chief Roberto Santos</p>
-                <p className="text-xs text-muted mt-0.5 flex items-center gap-1">
-                  <Phone className="w-3 h-3" strokeWidth={2} />
-                  +63 917 123 4567
-                </p>
-              </div>
-              <div className={`rounded-xl p-4 ${isLight ? 'bg-gray-50/80' : 'bg-white/5'}`}>
-                <div className="flex items-center gap-3 mb-2">
-                  <span className={iconSmClass('primary')}>
-                    <Activity className="w-4 h-4" strokeWidth={2} />
-                  </span>
-                  <p className="text-xs font-medium uppercase tracking-wider text-muted">Status</p>
-                </div>
-                <Badge className="bg-severity-resolved/20 text-severity-resolved border-severity-resolved/40 rounded-lg">Available</Badge>
-              </div>
-              <div className={`rounded-xl p-4 ${isLight ? 'bg-gray-50/80' : 'bg-white/5'}`}>
-                <div className="flex items-center gap-3 mb-2">
-                  <span className={iconSmClass('primary')}>
-                    <Truck className="w-4 h-4" strokeWidth={2} />
-                  </span>
-                  <p className="text-xs font-medium uppercase tracking-wider text-muted">Operational Units</p>
-                </div>
-                <p className="font-semibold text-primary">
-                  {deptUnits.filter(u => u.maintenanceStatus === 'Operational').length}/{deptUnits.length}
-                </p>
-              </div>
+          <div className="p-3 md:p-4 space-y-2">
+            <h1 className="text-xl font-semibold text-foreground">{department.name}</h1>
+            <p className="text-xs text-muted">
+              {department.type} response department
+            </p>
+            <div className="flex flex-wrap gap-2 text-xs">
+              <Badge variant="outline" className="rounded-lg">Department ID: {department.department_id}</Badge>
+              <Badge variant="outline" className="rounded-lg">Code: {String(department.code || '').toUpperCase() || 'N/A'}</Badge>
+              <Badge variant="outline" className="rounded-lg">Teams: {departmentTeams.length}</Badge>
+              <Badge variant="outline" className="rounded-lg">Responders: {departmentResponders.length}</Badge>
             </div>
+            {!canManageMembership && (
+              <p className="text-xs text-muted">
+                Membership assignment is admin-only. This view is read/status-update only for your role.
+              </p>
+            )}
           </div>
         </div>
 
-        <Tabs defaultValue="units" className="w-full">
-          <div className={`mb-4 rounded-xl p-1 ${isLight ? 'glass neumorphic-light bg-white/80' : 'glass neumorphic-dark bg-card/60'}`}>
-            <TabsList className={`grid w-full max-w-md grid-cols-3 rounded-xl border-0 bg-transparent p-0 gap-1 ${isLight ? '' : ''}`}>
-              <TabsTrigger value="units" className="rounded-lg">Units</TabsTrigger>
-              <TabsTrigger value="personnel" className="rounded-lg">Personnel</TabsTrigger>
-              <TabsTrigger value="tasks" className="rounded-lg">Active Tasks</TabsTrigger>
-            </TabsList>
-          </div>
+        <Tabs defaultValue="teams" className="space-y-3">
+          <TabsList className="w-full sm:w-auto sm:inline-flex gap-1">
+            <TabsTrigger value="teams">Teams</TabsTrigger>
+            <TabsTrigger value="responders">Responders</TabsTrigger>
+          </TabsList>
 
-          <TabsContent value="units" className="mt-6">
+          <TabsContent value="teams">
             <div className={panelClass}>
               <div className={headerClass}>
-                <span className={iconBoxClass('primary')}>
-                  <Truck className="w-5 h-5" strokeWidth={2} />
+                <span className={`w-9 h-9 rounded-lg flex items-center justify-center ${isLight ? 'bg-gray-100 text-primary' : 'bg-white/10 text-primary'}`}>
+                  <Shield className="w-4 h-4" />
                 </span>
-                <span className="font-medium text-foreground flex-1">Department Units & Resources</span>
-                <Button onClick={openAddUnit} className="rounded-xl gap-2 bg-primary hover:bg-primary-hover text-white font-medium" size="default">
-                  <Plus className="w-4 h-4" strokeWidth={2} />
-                  Add Unit
-                </Button>
+                <h3 className="text-sm font-semibold text-foreground flex-1">Department Teams</h3>
               </div>
-              <div className="p-4 space-y-3">
-                {deptUnits.map((unit) => (
-                  <div
-                    key={unit.id}
-                    className={`rounded-xl border p-4 transition-all duration-200 ${isLight ? 'bg-gray-50/80 border-gray-200/80 hover:border-gray-300' : 'bg-white/5 border-white/10 hover:border-white/20'}`}
+              <div className="p-3 space-y-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <Input
+                    value={teamSearch}
+                    onChange={(event) => setTeamSearch(event.target.value)}
+                    placeholder="Search team/member/status"
+                    className="h-8 text-xs"
+                  />
+                  <select
+                    className="h-8 px-2 py-1 border border-border rounded bg-card text-foreground text-xs"
+                    value={teamStatusFilter}
+                    onChange={(event) => setTeamStatusFilter(event.target.value)}
                   >
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex-1 flex items-center gap-3">
-                        <span className={iconSmClass('primary')}>
-                          <Truck className="w-4 h-4" strokeWidth={2} />
-                        </span>
-                        <div>
-                          <div className="flex items-center gap-2 mb-0.5">
-                            <p className="font-semibold text-foreground">{unit.name}</p>
-                            {unit.maintenanceStatus === 'Under Maintenance' && (
-                              <span className={iconSmClass()} title="Under Maintenance">
-                                <Wrench className="w-3.5 h-3.5 text-amber-500" strokeWidth={2} />
-                              </span>
-                            )}
-                            {unit.maintenanceStatus === 'Out of Service' && (
-                              <span className={iconSmClass()} title="Out of Service">
-                                <AlertCircle className="w-3.5 h-3.5 text-primary" strokeWidth={2} />
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-sm text-muted">{unit.type}</p>
-                          {unit.assignedIncident && (
-                            <p className="text-xs text-primary mt-1">
-                              Assigned: <Button variant="link" className="p-0 h-auto text-xs text-primary" onClick={(e) => { e.stopPropagation(); navigate(`/incidents/${unit.assignedIncident}`); }}>
-                                {unit.assignedIncident}
-                              </Button>
-                            </p>
+                    <option value="all">All status</option>
+                    {AVAILABILITY_OPTIONS.map((status) => (
+                      <option key={`team-status-${status}`} value={status}>{toTitleCase(status)}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex items-center justify-between text-[11px] text-muted">
+                  <span>Showing {teamRangeStart}-{teamRangeEnd} of {filteredTeams.length}</span>
+                  <span>{teamsPerPage} per page</span>
+                </div>
+
+                {resourceLoading && (
+                  <div className="text-xs text-muted border border-border/60 rounded-lg p-2.5">Loading team resources...</div>
+                )}
+
+                {!resourceLoading && paginatedTeams.map((team) => {
+                  const members = teamMembersByTeamId[team.team_id] || [];
+                  return (
+                    <div key={team.team_id} className="border border-border/60 rounded-lg p-2.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-xs font-semibold text-foreground truncate">{team.team_name}</p>
+                        <select
+                          className="px-2 py-1 border border-border rounded bg-card text-foreground text-xs"
+                          value={normalizeStatus(team.team_status)}
+                          disabled={!canUpdateStatuses}
+                          onChange={(event) => handleUpdateTeamStatus(team.team_id, event.target.value)}
+                        >
+                          {AVAILABILITY_OPTIONS.map((status) => (
+                            <option key={`team-update-${status}`} value={status}>{toTitleCase(status)}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <p className="text-[11px] text-muted mt-1">
+                        Supported: {Array.isArray(team.supported_incident_types) && team.supported_incident_types.length
+                          ? team.supported_incident_types.join(', ')
+                          : 'all'}
+                      </p>
+                      <p className="text-[11px] text-muted mt-1">Members: {members.length}</p>
+                      {members.length > 0 ? (
+                        <div className="mt-1.5 flex flex-wrap gap-1">
+                          {members.slice(0, 6).map((member) => (
+                            <span key={`${team.team_id}-${member.responder_id}`} className="text-[10px] px-1.5 py-0.5 rounded border border-border/60 text-muted">
+                              {member.name} • {toTitleCase(normalizeStatus(member.availability_status))}
+                            </span>
+                          ))}
+                          {members.length > 6 && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded border border-border/60 text-muted">
+                              +{members.length - 6} more
+                            </span>
                           )}
                         </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge className={`${getStatusColor(unit.status)} rounded-lg`}>{unit.status}</Badge>
-                        <Button variant="ghost" size="sm" className="h-9 w-9 p-0 min-w-[36px] rounded-lg text-foreground/80 hover:bg-primary/15 hover:text-primary" onClick={(e) => openEditUnit(unit, e)} title="Edit unit" aria-label="Edit unit">
-                          <Pencil className="w-4 h-4" strokeWidth={2} />
-                        </Button>
-                        <Button variant="ghost" size="sm" className={`h-9 w-9 p-0 min-w-[36px] rounded-lg ${isLight ? 'text-foreground/80 hover:bg-red-500/10 hover:text-red-600' : 'text-foreground/80 hover:bg-red-500/20 hover:text-red-400'}`} onClick={(e) => handleDeleteUnit(unit.id, e)} title="Delete unit" aria-label="Delete unit">
-                          <Trash2 className="w-4 h-4" strokeWidth={2} />
+                      ) : (
+                        <p className="text-[11px] text-muted mt-1">No mapped members.</p>
+                      )}
+
+                      <div className="mt-2 flex justify-end">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="h-7 text-[11px] px-2.5"
+                          onClick={() => {
+                            setSelectedTeamForMembers(team);
+                            setMemberForm({ responder_id: '' });
+                            setTeamMemberSearch('');
+                            setTeamMemberStatusFilter('all');
+                            setManageMembersDialogOpen(true);
+                          }}
+                        >
+                          <Link2 className="w-3.5 h-3.5 mr-1" />
+                          Assign Members
                         </Button>
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-3 text-xs">
-                      <div className={`rounded-lg p-3 ${isLight ? 'bg-white/80 border border-gray-200/80' : 'bg-white/5 border border-white/10'}`}>
-                        <p className="text-muted mb-0.5">Last Maintenance</p>
-                        <p className="font-medium text-foreground">{unit.lastMaintenance || '—'}</p>
-                      </div>
-                      <div className={`rounded-lg p-3 ${isLight ? 'bg-white/80 border border-gray-200/80' : 'bg-white/5 border border-white/10'}`}>
-                        <p className="text-muted mb-0.5">Next Scheduled</p>
-                        <p className="font-medium text-foreground">{unit.nextMaintenance || '—'}</p>
-                      </div>
-                    </div>
+                  );
+                })}
+
+                {!resourceLoading && paginatedTeams.length === 0 && (
+                  <div className="text-xs text-muted border border-border/60 rounded-lg p-2.5">
+                    No teams found for this department.
                   </div>
-                ))}
-                {deptUnits.length === 0 && (
-                  <p className="text-center text-muted py-8">No units yet. Add one to get started.</p>
                 )}
+
+                <div className="flex items-center justify-end gap-1.5 pt-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-7 px-2.5 text-[11px]"
+                    onClick={() => setTeamPage((prev) => Math.max(1, prev - 1))}
+                    disabled={safeTeamPage <= 1}
+                  >
+                    Prev
+                  </Button>
+                  <span className="text-[11px] text-muted px-1">Page {safeTeamPage} / {teamTotalPages}</span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-7 px-2.5 text-[11px]"
+                    onClick={() => setTeamPage((prev) => Math.min(teamTotalPages, prev + 1))}
+                    disabled={safeTeamPage >= teamTotalPages}
+                  >
+                    Next
+                  </Button>
+                </div>
               </div>
             </div>
           </TabsContent>
 
-          <TabsContent value="personnel" className="mt-6">
+          <TabsContent value="responders">
             <div className={panelClass}>
               <div className={headerClass}>
-                <span className={iconBoxClass('primary')}>
-                  <UsersIcon className="w-5 h-5" strokeWidth={2} />
+                <span className={`w-9 h-9 rounded-lg flex items-center justify-center ${isLight ? 'bg-gray-100 text-primary' : 'bg-white/10 text-primary'}`}>
+                  <Users className="w-4 h-4" />
                 </span>
-                <span className="font-medium text-foreground flex-1">Department Personnel</span>
-                <Button onClick={openAddPersonnel} className="rounded-xl gap-2 bg-primary hover:bg-primary-hover text-white font-medium" size="default">
-                  <Plus className="w-4 h-4" strokeWidth={2} />
-                  Add Personnel
-                </Button>
+                <h3 className="text-sm font-semibold text-foreground flex-1">Department Responders</h3>
               </div>
-              <div className="p-4 space-y-3">
-                {deptPersonnel.map((person, index) => (
-                  <div
-                    key={person.id || index}
-                    className={`rounded-xl border p-4 transition-all duration-200 ${isLight ? 'bg-gray-50/80 border-gray-200/80 hover:border-gray-300' : 'bg-white/5 border-white/10 hover:border-white/20'}`}
+              <div className="p-3 space-y-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <Input
+                    value={responderSearch}
+                    onChange={(event) => setResponderSearch(event.target.value)}
+                    placeholder="Search responder/team/status"
+                    className="h-8 text-xs"
+                  />
+                  <select
+                    className="h-8 px-2 py-1 border border-border rounded bg-card text-foreground text-xs"
+                    value={responderStatusFilter}
+                    onChange={(event) => setResponderStatusFilter(event.target.value)}
                   >
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center gap-3">
-                        <span className={iconSmClass('primary')}>
-                          <UsersIcon className="w-4 h-4" strokeWidth={2} />
-                        </span>
-                        <div>
-                          <p className="font-semibold text-foreground">{person.name}</p>
-                          <p className="text-sm text-muted">{person.role}</p>
-                          <p className="text-xs text-muted mt-0.5">Unit: {person.unit}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge className={`${getStatusColor(person.status)} rounded-lg`}>{person.status}</Badge>
-                        <Button variant="ghost" size="sm" className="h-9 w-9 p-0 min-w-[36px] rounded-lg text-foreground/80 hover:bg-primary/15 hover:text-primary" onClick={(e) => openEditPersonnel(person, e)} title="Edit personnel" aria-label="Edit personnel">
-                          <Pencil className="w-4 h-4" strokeWidth={2} />
-                        </Button>
-                        <Button variant="ghost" size="sm" className={`h-9 w-9 p-0 min-w-[36px] rounded-lg ${isLight ? 'text-foreground/80 hover:bg-red-500/10 hover:text-red-600' : 'text-foreground/80 hover:bg-red-500/20 hover:text-red-400'}`} onClick={(e) => handleDeletePersonnel(person, e)} title="Remove personnel" aria-label="Remove personnel">
-                          <Trash2 className="w-4 h-4" strokeWidth={2} />
-                        </Button>
-                      </div>
+                    <option value="all">All status</option>
+                    {AVAILABILITY_OPTIONS.map((status) => (
+                      <option key={`responder-status-${status}`} value={status}>{toTitleCase(status)}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex items-center justify-between text-[11px] text-muted">
+                  <span>Showing {responderRangeStart}-{responderRangeEnd} of {filteredResponders.length}</span>
+                  <span>{respondersPerPage} per page</span>
+                </div>
+
+                {!resourceLoading && paginatedResponders.map((responder) => (
+                  <div key={responder.responder_id} className="border border-border/60 rounded-lg p-2.5 flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-foreground truncate">{responder.name}</p>
+                      <p className="text-[11px] text-muted truncate">{responder.team_name || 'Unassigned team'}</p>
                     </div>
-
-                    {person.certifications && person.certifications.length > 0 && (
-                      <div className="mb-3">
-                        <Label className="text-xs text-muted mb-2 flex items-center gap-2">
-                          <span className={iconSmClass()}>
-                            <Award className="w-3.5 h-3.5" strokeWidth={2} />
-                          </span>
-                          Certifications
-                        </Label>
-                        <div className="space-y-2">
-                          {person.certifications.map((cert, idx) => (
-                            <div key={idx} className={`flex items-center justify-between p-3 rounded-lg ${isLight ? 'bg-white/80 border border-gray-200/80' : 'bg-white/5 border border-white/10'}`}>
-                              <div className="flex-1">
-                                <p className="text-xs font-medium text-foreground">{cert.name}</p>
-                                <p className="text-xs text-muted">Valid until: {cert.validUntil}</p>
-                              </div>
-                              {getCertificationStatus(cert.status)}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {person.specialSkills && person.specialSkills.length > 0 && (
-                      <div>
-                        <Label className="text-xs text-muted mb-2 block">Special Skills</Label>
-                        <div className="flex flex-wrap gap-1.5">
-                          {person.specialSkills.map((skill, idx) => (
-                            <Badge key={idx} variant="outline" className="text-xs bg-primary/10 text-primary border-primary/30 rounded-lg">
-                              {skill}
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                    <select
+                      className="px-2 py-1 border border-border rounded bg-card text-foreground text-xs"
+                      value={normalizeStatus(responder.availability_status)}
+                      disabled={!canUpdateStatuses}
+                      onChange={(event) => handleUpdateResponderStatus(responder.responder_id, event.target.value)}
+                    >
+                      {AVAILABILITY_OPTIONS.map((status) => (
+                        <option key={`responder-update-${status}`} value={status}>{toTitleCase(status)}</option>
+                      ))}
+                    </select>
                   </div>
                 ))}
-                {deptPersonnel.length === 0 && (
-                  <p className="text-center text-muted py-8">No personnel yet. Add one to get started.</p>
-                )}
-              </div>
-            </div>
-          </TabsContent>
 
-          <TabsContent value="tasks" className="mt-6">
-            <div className={panelClass}>
-              <div className={headerClass}>
-                <span className={iconBoxClass('primary')}>
-                  <ClipboardList className="w-5 h-5" strokeWidth={2} />
-                </span>
-                <span className="font-medium text-foreground">Active Tasks</span>
-              </div>
-              <div className="p-4 space-y-3">
-                {deptIncidents.map((incident) => (
-                  <div
-                    key={incident.id}
-                    className={`rounded-xl border p-4 cursor-pointer transition-all duration-200 ${isLight ? 'bg-gray-50/80 border-gray-200/80 hover:bg-gray-100/80 hover:border-gray-300' : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20'}`}
-                    onClick={() => navigate(`/incidents/${incident.id}`)}
-                  >
-                    <div className="flex items-start justify-between mb-2">
-                      <p className="font-semibold text-foreground">{incident.id}</p>
-                      <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/40 rounded-lg">
-                        {incident.status}
-                      </Badge>
-                    </div>
-                    <p className="text-sm text-muted mb-1">{incident.description}</p>
-                    <p className="text-xs text-muted">Barangay: {incident.barangay}</p>
-                  </div>
-                ))}
-                {deptIncidents.length === 0 && (
-                  <div className="text-center py-12">
-                    <span className={`inline-flex w-14 h-14 rounded-2xl items-center justify-center mb-4 ${isLight ? 'neumorphic-light-inset bg-gray-100 text-severity-resolved' : 'neumorphic-dark-inset bg-white/10 text-severity-resolved'}`}>
-                      <CheckCircle className="w-7 h-7" strokeWidth={2} />
-                    </span>
-                    <p className="text-muted">No active tasks at this time</p>
+                {!resourceLoading && paginatedResponders.length === 0 && (
+                  <div className="text-xs text-muted border border-border/60 rounded-lg p-2.5">
+                    No responders found for this department.
                   </div>
                 )}
+
+                <div className="flex items-center justify-end gap-1.5 pt-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-7 px-2.5 text-[11px]"
+                    onClick={() => setResponderPage((prev) => Math.max(1, prev - 1))}
+                    disabled={safeResponderPage <= 1}
+                  >
+                    Prev
+                  </Button>
+                  <span className="text-[11px] text-muted px-1">Page {safeResponderPage} / {responderTotalPages}</span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-7 px-2.5 text-[11px]"
+                    onClick={() => setResponderPage((prev) => Math.min(responderTotalPages, prev + 1))}
+                    disabled={safeResponderPage >= responderTotalPages}
+                  >
+                    Next
+                  </Button>
+                </div>
               </div>
             </div>
           </TabsContent>
         </Tabs>
-
-        {/* Unit Add/Edit Dialog */}
-        <Dialog open={unitDialogOpen} onOpenChange={setUnitDialogOpen}>
-          <DialogContent className="w-full p-0 overflow-hidden rounded-2xl shadow-2xl border border-border">
-            <div className="bg-gradient-to-br from-secondary to-secondary-hover px-6 py-5">
-              <DialogTitle className="text-lg font-semibold text-white m-0">
-                {editingUnit ? 'Edit Unit' : 'Add Unit'}
-              </DialogTitle>
-              <DialogDescription className="!text-white/80 mt-1 text-sm">
-                {editingUnit ? 'Update unit details below.' : 'Enter the new unit details.'}
-              </DialogDescription>
-            </div>
-            <div className="p-6 space-y-4 w-full min-w-0 bg-card">
-              <div className="w-full min-w-0">
-                <Label className="block text-sm font-medium text-foreground mb-2">Name</Label>
-                <Input
-                  value={unitForm.name}
-                  onChange={(e) => setUnitForm(f => ({ ...f, name: e.target.value }))}
-                  placeholder="e.g. Fire Truck 01"
-                  className="w-full min-w-0 rounded-xl border-border focus:border-secondary focus:ring-secondary/20"
-                />
-              </div>
-              <div className="w-full min-w-0">
-                <Label className="block text-sm font-medium text-foreground mb-2">Type</Label>
-                <Input
-                  value={unitForm.type}
-                  onChange={(e) => setUnitForm(f => ({ ...f, type: e.target.value }))}
-                  placeholder="e.g. Fire Truck, Patrol, Ambulance"
-                  className="w-full min-w-0 rounded-xl border-border focus:border-secondary focus:ring-secondary/20"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4 w-full min-w-0">
-                <div className="min-w-0 flex flex-col">
-                  <Label className="block text-sm font-medium text-foreground mb-2">Status</Label>
-                  <Select value={unitForm.status} onValueChange={(v) => setUnitForm(f => ({ ...f, status: v }))}>
-                    {({ value }) => (
-                      <>
-                        <SelectTrigger
-                          isOpen={unitStatusOpen}
-                          onClick={() => setUnitStatusOpen(o => !o)}
-                          className="w-full min-w-0 px-4 py-3 rounded-xl border-2 border-border bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-secondary/20 focus:border-secondary"
-                        >
-                          <SelectValue value={value} options={UNIT_STATUS_OPTIONS.map(o => ({ value: o, label: o }))} />
-                        </SelectTrigger>
-                        <SelectContent isOpen={unitStatusOpen} className="rounded-xl border-2 border-border shadow-lg bg-card">
-                          {UNIT_STATUS_OPTIONS.map(opt => (
-                            <SelectItem key={opt} value={opt} onSelect={(v) => { setUnitForm(f => ({ ...f, status: v })); setUnitStatusOpen(false); }}>
-                              {opt}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </>
-                    )}
-                  </Select>
-                </div>
-                <div className="min-w-0 flex flex-col">
-                  <Label className="block text-sm font-medium text-foreground mb-2">Maintenance</Label>
-                  <Select value={unitForm.maintenanceStatus} onValueChange={(v) => setUnitForm(f => ({ ...f, maintenanceStatus: v }))}>
-                    {({ value }) => (
-                      <>
-                        <SelectTrigger
-                          isOpen={unitMaintenanceOpen}
-                          onClick={() => setUnitMaintenanceOpen(o => !o)}
-                          className="w-full min-w-0 px-4 py-3 rounded-xl border-2 border-border bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-secondary/20 focus:border-secondary"
-                        >
-                          <SelectValue value={value} options={MAINTENANCE_STATUS_OPTIONS.map(o => ({ value: o, label: o }))} />
-                        </SelectTrigger>
-                        <SelectContent isOpen={unitMaintenanceOpen} className="rounded-xl border-2 border-border shadow-lg bg-card">
-                          {MAINTENANCE_STATUS_OPTIONS.map(opt => (
-                            <SelectItem key={opt} value={opt} onSelect={(v) => { setUnitForm(f => ({ ...f, maintenanceStatus: v })); setUnitMaintenanceOpen(false); }}>
-                              {opt}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </>
-                    )}
-                  </Select>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4 w-full min-w-0">
-                <div className="min-w-0 flex flex-col">
-                  <Label className="block text-sm font-medium text-foreground mb-2">Last Maintenance</Label>
-                  <Input
-                    type="date"
-                    value={unitForm.lastMaintenance}
-                    onChange={(e) => setUnitForm(f => ({ ...f, lastMaintenance: e.target.value }))}
-                    className="w-full min-w-0 rounded-xl border-border focus:border-secondary focus:ring-secondary/20"
-                  />
-                </div>
-                <div className="min-w-0 flex flex-col">
-                  <Label className="block text-sm font-medium text-foreground mb-2">Next Maintenance</Label>
-                  <Input
-                    type="date"
-                    value={unitForm.nextMaintenance}
-                    onChange={(e) => setUnitForm(f => ({ ...f, nextMaintenance: e.target.value }))}
-                    className="w-full min-w-0 rounded-xl border-border focus:border-secondary focus:ring-secondary/20"
-                  />
-                </div>
-              </div>
-              <div className="w-full min-w-0">
-                <Label className="block text-sm font-medium text-foreground mb-2">Maintenance Notes (optional)</Label>
-                <Input
-                  value={unitForm.maintenanceNotes}
-                  onChange={(e) => setUnitForm(f => ({ ...f, maintenanceNotes: e.target.value }))}
-                  placeholder="e.g. Routine engine check"
-                  className="w-full min-w-0 rounded-xl border-border focus:border-secondary focus:ring-secondary/20"
-                />
-              </div>
-            </div>
-            <div className={`px-6 py-4 border-t flex justify-between items-center gap-3 rounded-b-2xl ${isLight ? 'bg-gray-50/90 border-gray-200' : 'bg-white/5 border-border'}`}>
-              <Button type="button" onClick={handleSaveUnit} className="rounded-xl bg-primary hover:bg-primary-hover text-white font-medium px-5 py-2.5">
-                {editingUnit ? 'Save Changes' : 'Add Unit'}
-              </Button>
-              <Button type="button" variant="outline" onClick={() => setUnitDialogOpen(false)} className="rounded-xl font-medium px-5 py-2.5 text-foreground hover:bg-muted/50 hover:text-foreground">
-                Cancel
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-
-        {/* Personnel Add/Edit Dialog */}
-        <Dialog open={personnelDialogOpen} onOpenChange={setPersonnelDialogOpen}>
-          <DialogContent className="w-full p-0 overflow-hidden rounded-2xl shadow-2xl border border-border">
-            <div className="bg-gradient-to-br from-secondary to-secondary-hover px-6 py-5">
-              <DialogTitle className="text-lg font-semibold text-white m-0">
-                {editingPersonnel ? 'Edit Personnel' : 'Add Personnel'}
-              </DialogTitle>
-              <DialogDescription className="!text-white/80 mt-1 text-sm">
-                {editingPersonnel ? 'Update personnel details below.' : 'Enter the new personnel details.'}
-              </DialogDescription>
-            </div>
-            <div className="p-6 space-y-4 w-full min-w-0 bg-card">
-              <div className="w-full min-w-0">
-                <Label className="block text-sm font-medium text-foreground mb-2">Name</Label>
-                <Input
-                  value={personnelForm.name}
-                  onChange={(e) => setPersonnelForm(f => ({ ...f, name: e.target.value }))}
-                  placeholder="e.g. SFO3 Ramon Cruz"
-                  className="w-full min-w-0 rounded-xl border-border focus:border-secondary focus:ring-secondary/20"
-                />
-              </div>
-              <div className="w-full min-w-0">
-                <Label className="block text-sm font-medium text-foreground mb-2">Role</Label>
-                <Input
-                  value={personnelForm.role}
-                  onChange={(e) => setPersonnelForm(f => ({ ...f, role: e.target.value }))}
-                  placeholder="e.g. Fire Officer, Patrol Officer"
-                  className="w-full min-w-0 rounded-xl border-border focus:border-secondary focus:ring-secondary/20"
-                />
-              </div>
-              <div className="w-full min-w-0">
-                <Label className="block text-sm font-medium text-foreground mb-2">Unit</Label>
-                <Select value={personnelForm.unit} onValueChange={(v) => setPersonnelForm(f => ({ ...f, unit: v }))}>
-                  {({ value }) => (
-                    <>
-                      <SelectTrigger
-                        isOpen={personnelUnitOpen}
-                        onClick={() => setPersonnelUnitOpen(o => !o)}
-                        className="w-full min-w-0 px-4 py-3 rounded-xl border-2 border-border bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-secondary/20 focus:border-secondary"
-                      >
-                        <SelectValue placeholder="Select unit" value={value} options={[{ value: '', label: 'Select unit' }, ...deptUnits.map(u => ({ value: u.id, label: u.name }))]} />
-                      </SelectTrigger>
-                      <SelectContent isOpen={personnelUnitOpen} className="rounded-xl border-2 border-border shadow-lg bg-card">
-                        <SelectItem value="" onSelect={(v) => { setPersonnelForm(f => ({ ...f, unit: v })); setPersonnelUnitOpen(false); }}>Select unit</SelectItem>
-                        {deptUnits.map(u => (
-                          <SelectItem key={u.id} value={u.id} onSelect={(v) => { setPersonnelForm(f => ({ ...f, unit: v })); setPersonnelUnitOpen(false); }}>{u.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </>
-                  )}
-                </Select>
-              </div>
-              <div className="w-full min-w-0">
-                <Label className="block text-sm font-medium text-foreground mb-2">Status</Label>
-                <Select value={personnelForm.status} onValueChange={(v) => setPersonnelForm(f => ({ ...f, status: v }))}>
-                  {({ value }) => (
-                    <>
-                      <SelectTrigger
-                        isOpen={personnelStatusOpen}
-                        onClick={() => setPersonnelStatusOpen(o => !o)}
-                        className="w-full min-w-0 px-4 py-3 rounded-xl border-2 border-border bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-secondary/20 focus:border-secondary"
-                      >
-                        <SelectValue value={value} options={PERSONNEL_STATUS_OPTIONS.map(o => ({ value: o, label: o }))} />
-                      </SelectTrigger>
-                      <SelectContent isOpen={personnelStatusOpen} className="rounded-xl border-2 border-border shadow-lg bg-card">
-                        {PERSONNEL_STATUS_OPTIONS.map(opt => (
-                          <SelectItem key={opt} value={opt} onSelect={(v) => { setPersonnelForm(f => ({ ...f, status: v })); setPersonnelStatusOpen(false); }}>{opt}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </>
-                  )}
-                </Select>
-              </div>
-              <div className="w-full min-w-0">
-                <Label className="block text-sm font-medium text-foreground mb-2">Special Skills (comma-separated)</Label>
-                <Input
-                  value={personnelForm.specialSkills}
-                  onChange={(e) => setPersonnelForm(f => ({ ...f, specialSkills: e.target.value }))}
-                  placeholder="e.g. Search & Rescue, First Aid"
-                  className="w-full min-w-0 rounded-xl border-border focus:border-secondary focus:ring-secondary/20"
-                />
-              </div>
-            </div>
-            <div className={`px-6 py-4 border-t flex justify-between items-center gap-3 rounded-b-2xl ${isLight ? 'bg-gray-50/90 border-gray-200' : 'bg-white/5 border-border'}`}>
-              <Button type="button" onClick={handleSavePersonnel} className="rounded-xl bg-primary hover:bg-primary-hover text-white font-medium px-5 py-2.5">
-                {editingPersonnel ? 'Save Changes' : 'Add Personnel'}
-              </Button>
-              <Button type="button" variant="outline" onClick={() => setPersonnelDialogOpen(false)} className="rounded-xl font-medium px-5 py-2.5 text-foreground hover:bg-muted/50 hover:text-foreground">
-                Cancel
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
       </div>
+
+      <Dialog open={manageMembersDialogOpen} onOpenChange={setManageMembersDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              Assign Members - {selectedTeamForMembers ? `${String(selectedTeamForMembers.department_code || '').toUpperCase()} • ${selectedTeamForMembers.team_name}` : 'Team'}
+            </DialogTitle>
+            <DialogDescription>
+              Add or remove members for this team. Availability is shown for assignment decisions.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2">
+            <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] gap-2 items-end">
+              <div>
+                <Label className="text-xs">Add responder</Label>
+                <Combobox
+                  options={assignableResponderOptions}
+                  value={memberForm.responder_id}
+                  onValueChange={(nextValue) => setMemberForm({ responder_id: nextValue })}
+                  placeholder="Select responder"
+                  searchPlaceholder="Search responder..."
+                />
+              </div>
+              <Button
+                type="button"
+                className="h-9"
+                disabled={!selectedTeamForMembers?.team_id || !memberForm.responder_id || !canManageMembership}
+                onClick={handleMapMember}
+              >
+                Add
+              </Button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <Input
+                value={teamMemberSearch}
+                onChange={(event) => setTeamMemberSearch(event.target.value)}
+                placeholder="Search assigned members"
+                className="h-8 text-xs"
+              />
+              <select
+                className="h-8 px-2 py-1 border border-border rounded bg-card text-foreground text-xs"
+                value={teamMemberStatusFilter}
+                onChange={(event) => setTeamMemberStatusFilter(event.target.value)}
+              >
+                <option value="all">All status</option>
+                {AVAILABILITY_OPTIONS.map((status) => (
+                  <option key={`dialog-member-status-${status}`} value={status}>{toTitleCase(status)}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-2 max-h-64 overflow-auto">
+              {paginatedTeamMembers.map((member) => (
+                <div key={`assigned-member-${member.responder_id}`} className="border border-border/60 rounded-lg p-2 flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-foreground truncate">{member.name}</p>
+                    <p className="text-[11px] text-muted">Status: {toTitleCase(normalizeStatus(member.availability_status))}</p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-7 text-[11px] px-2.5"
+                    disabled={!canManageMembership}
+                    onClick={() => handleRemoveMember(member.responder_id)}
+                  >
+                    Remove
+                  </Button>
+                </div>
+              ))}
+              {paginatedTeamMembers.length === 0 && (
+                <p className="text-xs text-muted border border-border/60 rounded-lg p-2.5">No team members match current filters.</p>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-1.5">
+              <Button
+                type="button"
+                variant="outline"
+                className="h-7 px-2.5 text-[11px]"
+                onClick={() => setTeamMemberPage((prev) => Math.max(1, prev - 1))}
+                disabled={safeTeamMemberPage <= 1}
+              >
+                Prev
+              </Button>
+              <span className="text-[11px] text-muted px-1">Page {safeTeamMemberPage} / {teamMemberTotalPages}</span>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-7 px-2.5 text-[11px]"
+                onClick={() => setTeamMemberPage((prev) => Math.min(teamMemberTotalPages, prev + 1))}
+                disabled={safeTeamMemberPage >= teamMemberTotalPages}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setManageMembersDialogOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Layout>
   );
 }

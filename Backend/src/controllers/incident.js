@@ -122,7 +122,7 @@ const incidentController = {
       const { limit, offset, severity_level, status, incident_type, barangay } = req.query;
       const { limit: validatedLimit, offset: validatedOffset } = validatePagination(limit, offset);
       const validatedSeverityLevel = validateAllowedValue(severity_level, ['low', 'medium', 'high'], 'severity_level');
-      const validatedStatus = validateAllowedValue(status, ['pending', 'verified', 'resolved'], 'status');
+      const validatedStatus = validateAllowedValue(status, ['pending', 'verified', 'in_progress', 'resolved'], 'status');
       const validatedIncidentType = validateAllowedValue(incident_type, ['fire', 'medical', 'police', 'disaster'], 'incident_type');
       const validatedBarangay = validateOptionalString(barangay, 'barangay', 150);
 
@@ -599,6 +599,75 @@ const incidentController = {
         return res.status(503).json({ error: error.message });
       }
       res.status(500).json({ error: 'Failed to verify incident' });
+    }
+  },
+
+  async updateStatus(req, res) {
+    try {
+      const { id } = req.params;
+      const validatedId = validateInteger(id, 'report_id');
+      const nextStatus = validateAllowedValue(req.body?.status, ['verified', 'in_progress', 'resolved'], 'status');
+      if (!nextStatus) {
+        return res.status(400).json({ error: 'status is required' });
+      }
+
+      const updatedIncident = await Incident.transitionStatus(validatedId, {
+        next_status: nextStatus,
+        actor_user_id: req.user?.user_id || null,
+        actor_role: req.user?.role || null,
+      });
+
+      if (!updatedIncident) {
+        return res.status(404).json({ error: 'Incident not found' });
+      }
+
+      await logIncidentAction(req, 'incident_status_update', validatedId, {
+        next_status: nextStatus,
+      });
+      res.json({
+        success: true,
+        incident: updatedIncident,
+      });
+    } catch (error) {
+      console.error('Error updating incident status:', error);
+      if (error.httpStatus) {
+        return res.status(error.httpStatus).json({ error: error.message, code: error.code });
+      }
+      if (error.message.includes('must be') || error.message.includes('must not')) {
+        return res.status(400).json({ error: error.message });
+      }
+      res.status(500).json({ error: 'Failed to update incident status' });
+    }
+  },
+
+  async confirmResolution(req, res) {
+    try {
+      const { id } = req.params;
+      const validatedId = validateInteger(id, 'report_id');
+      const userId = req.user?.user_id;
+      if (!userId) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+
+      const updatedIncident = await Incident.confirmResolution(validatedId, userId);
+      if (!updatedIncident) {
+        return res.status(404).json({ error: 'Incident not found' });
+      }
+
+      await logIncidentAction(req, 'incident_reporter_confirm_resolution', validatedId, {});
+      res.json({
+        success: true,
+        incident: updatedIncident,
+      });
+    } catch (error) {
+      console.error('Error confirming incident resolution:', error);
+      if (error.httpStatus) {
+        return res.status(error.httpStatus).json({ error: error.message, code: error.code });
+      }
+      if (error.message.includes('must be') || error.message.includes('must not')) {
+        return res.status(400).json({ error: error.message });
+      }
+      res.status(500).json({ error: 'Failed to confirm incident resolution' });
     }
   },
 

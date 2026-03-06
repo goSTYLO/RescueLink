@@ -46,6 +46,12 @@ router.get('/:id/with-ai', authMiddleware, checkOwnership('user_id'), incidentCo
 // Dispatcher and admin only
 router.post('/:id/verify', authMiddleware, authorize([ROLES.DISPATCHER, ROLES.ADMIN]), incidentController.verifyIncident);
 
+// Guarded incident status transitions (dispatcher/admin only)
+router.patch('/:id/status', authMiddleware, authorize([ROLES.DISPATCHER, ROLES.ADMIN]), incidentController.updateStatus);
+
+// Reporter confirms resolution (owner-only is enforced in controller)
+router.post('/:id/confirm-resolution', authMiddleware, authorize([ROLES.USER]), incidentController.confirmResolution);
+
 // Manual reclassification with AI override audit trail
 // Dispatcher/admin/supervisor including admin role aliases
 router.post('/:id/reclassify', authMiddleware, authorize([

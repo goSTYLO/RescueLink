@@ -2,18 +2,25 @@ const pool = require('../config/db');
 
 const Department = {
   async findAll() {
-    const res = await pool.query(
-      `SELECT d.department_id, d.code, d.name, d.type, d.color, d.status, d.created_at,
-              COUNT(DISTINCT u.unit_id) AS units_count,
-              COUNT(DISTINCT p.personnel_id) AS personnel_count,
-              COALESCE(SUM(u.active_task_count), 0) AS active_task_count
-       FROM departments d
-       LEFT JOIN department_units u ON u.department_id = d.department_id
-       LEFT JOIN department_personnel p ON p.department_id = d.department_id
-       GROUP BY d.department_id
-       ORDER BY d.name ASC`
-    );
-    return res.rows;
+    try {
+      const res = await pool.query(
+        `SELECT d.department_id, d.code, d.name, d.type, d.color, d.status, d.created_at,
+                COUNT(DISTINCT u.unit_id) AS units_count,
+                COUNT(DISTINCT p.personnel_id) AS personnel_count,
+                COALESCE(SUM(u.active_task_count), 0) AS active_task_count
+         FROM departments d
+         LEFT JOIN department_units u ON u.department_id = d.department_id
+         LEFT JOIN department_personnel p ON p.department_id = d.department_id
+         GROUP BY d.department_id
+         ORDER BY d.name ASC`
+      );
+      return res.rows;
+    } catch (error) {
+      if (error.code === '42P01' || /departments|department_units|department_personnel/i.test(error.message)) {
+        return [];
+      }
+      throw error;
+    }
   },
 
   async findById(departmentId) {

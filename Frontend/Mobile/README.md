@@ -2,6 +2,20 @@
 
 Flutter mobile application for RescueLink built with BLoC architecture.
 
+## Session Updates (Lifecycle + Refresh UX)
+
+Recent mobile updates:
+
+- **Incident lifecycle UX alignment**:
+  - mobile status rendering supports canonical flow including `in_progress`.
+  - reporter confirmation action is available after dispatcher/admin marks incident `resolved`.
+- **Swipe-to-refresh (pull down) added on incident views**:
+  - `Report History` supports pull-to-refresh for latest incidents.
+  - `Report Details` supports pull-to-refresh for latest status/AI/transcription fields.
+  - `Emergency Tracking` already supports pull-to-refresh and remains enabled.
+- **Resolution confirmation UX**:
+  - resolved incidents show a confirmation CTA and "confirmed" state after successful reporter confirmation.
+
 ## Prerequisites
 
 - Flutter SDK (3.0.0 or higher)

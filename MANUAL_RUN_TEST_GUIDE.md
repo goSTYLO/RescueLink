@@ -69,15 +69,16 @@ npm run setup-db
 psql $DATABASE_URL -f migrations/add_dispatch_assignment_v2_and_secondary_ai.sql
 psql $DATABASE_URL -f migrations/add_team_member_assignment_schema.sql
 psql $DATABASE_URL -f migrations/add_responder_task_and_team_status.sql
-# Populate with test data (users, responders, incidents)
+# Populate with realistic test data
 npm run seed-db
+npm run seed-incidents -- --reset --count=10
 ```
 
-Note: The `seed-db` script is idempotent (safe to run multiple times). It creates:
-- 2 dispatchers, 5 responders, 10 regular users
-- 6 sample incidents with various statuses
-- Dispatches linking incidents to responders
-- Sample notifications
+Note:
+- `seed-db` is idempotent and seeds realistic core data (departments, users, teams, responders, team memberships).
+- `seed-incidents` seeds incidents from real audio assets (`RescueLink AI/test` + `Backend/uploads/incidents`).
+- incident seeding is capped for local/dev (`max/default: 10`).
+- Use `--reset` to clear prior incident-related records before repopulating.
 
 **Seeded test accounts:**
 
@@ -202,6 +203,22 @@ Backend integration test
 node Backend/tests/integration.test.js
 ```
 
+Incident lifecycle verification (manual)
+----------------------------------------
+1. Verify a report from dispatcher flow:
+   - `POST /api/incidents/:id/verify`
+2. Create first dispatch assignment:
+   - `POST /api/dispatches`
+   - expected automatic transition: `verified -> in_progress`
+3. Mark resolved from dispatcher/admin:
+   - `PATCH /api/incidents/:id/status` with `{ "status": "resolved" }`
+4. Confirm from mobile reporter account:
+   - `POST /api/incidents/:id/confirm-resolution`
+5. Validate resulting fields:
+   - `status` remains `resolved`
+   - `resolved_by_user_id` set
+   - `reporter_confirmed_at` and `reporter_confirmed_by_user_id` set after reporter confirmation
+
 Health endpoints (quick checks)
 --------------------------------
 - Blockchain: `http://localhost:8001/health` (`Blockchain/main.py`)
@@ -216,6 +233,9 @@ Troubleshooting & common blockers
 - Missing AI model files: `RescueLink AI/models/emergency_model.pt` and `RescueLink AI/models/label_meta.json` are required for classification. If absent, the AI service will fallback or fail on model load.
 - `CONTRACT_ADDRESS`: If you want to reuse a deployed `IncidentRegistry` contract, set `CONTRACT_ADDRESS` in `Blockchain/.env`; otherwise the service will deploy on first call (requires `PRIVATE_KEY`).
 - npm `web3` version: If installing tests, `Blockchain/tests/package.json` pins a compatible `web3` (use the provided package.json in that folder).
+- Lifecycle endpoint auth:
+  - `PATCH /api/incidents/:id/status` requires dispatcher/admin token.
+  - `POST /api/incidents/:id/confirm-resolution` requires the owning reporter token.
 
 Web API base URL configuration
 ------------------------------
@@ -249,15 +269,17 @@ git push
 
 Database seeding script details
 -------------------------------
-- Script: `Backend/scripts/seed-db.js`
-- Creates test data for full-stack testing
-- Safely clears and repopulates on each run
-- Run with: `npm run seed-db` (from `Backend` folder)
+- Core script: `Backend/scripts/seed-db.js`
+- Incident audio script: `Backend/scripts/seed-incidents-from-audio.js`
+- Run with:
+  - `npm run seed-db`
+  - `npm run seed-incidents -- --reset --count=10`
+  - or `npm run seed-db:full`
 
 Where to look for more details
 ------------------------------
 - Backend server & DB setup: `Backend/src/server.js`, `Backend/setup-db.js`, `Backend/schema.sql`
-- Database seeding: `Backend/scripts/seed-db.js`
+- Database seeding: `Backend/scripts/seed-db.js`, `Backend/scripts/seed-incidents-from-audio.js`
 - Blockchain code + helpers: `Blockchain/main.py`, `Blockchain/services/incident_registry.py`, `Blockchain/services/contract.py`, `Blockchain/contracts/IncidentRegistry.sol`
 - Blockchain test harness: `Blockchain/tests/test_blockchain_connection.test.js`, `Blockchain/tests/package.json`
 - RescueLink AI server & docs: `RescueLink AI/api/main.py`, `RescueLink AI/README.md`

@@ -10,6 +10,7 @@
     "test": "jest --runInBand",
     "test:watch": "jest --watch",
     "test:ci": "jest --runInBand --coverage",
+    "test:all": "npm run test && npm run test:e2e:smoke",
     "test:e2e:smoke": "node -e \"console.log('E2E smoke placeholder. See e2e/smoke.placeholder.md for steps.');\""
   },
   "dependencies": {

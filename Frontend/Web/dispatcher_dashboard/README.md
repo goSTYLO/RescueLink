@@ -34,6 +34,10 @@ Config source is centralized in:
   ```bash
   npm test
   ```
+- Full local suite:
+  ```bash
+  npm run test:all
+  ```
 - CI-style run with coverage:
   ```bash
   npm run test:ci
@@ -48,7 +52,7 @@ Config source is centralized in:
 - Standardized API client behavior (auth headers, request IDs, error mapping) via:
   - `src/data/api/http.js`
 - Canonical incident lifecycle mapping:
-  - `pending`, `verified`, `resolved`
+  - `pending`, `verified`, `in_progress`, `resolved`
 - Queue sync and convergence improvements:
   - deterministic polling
   - optimistic rollback on failed action flows
@@ -71,12 +75,33 @@ Config source is centralized in:
   - responder/team status values (`available`, `standby`, `busy`, `off-duty`) are now wired to backend status endpoints.
 - Incident Details now surfaces secondary AI classification when provided by backend:
   - `2nd AI classification` label with confidence percentage when available
+- Incident lifecycle controls update:
+  - Incident Details now supports persisted `Mark Resolved` action for dispatcher/admin roles.
+  - resolved incidents show reporter confirmation state (`Awaiting reporter confirmation` vs `Reporter confirmed`).
+  - dashboard status filtering and badges now include `In Progress` consistently.
+  - backend lifecycle auto-transition reliability fix is now compatible with team assignment flow (first successful assignment should move to `In Progress`).
+- Assignment conflict handling clarity:
+  - `POST /api/dispatches` may return `409` when selected team has no eligible available/standby members.
+  - UI should treat this as an operational assignment conflict (not a server crash) and guide user to switch team/status.
+- Incident-to-task normalization alignment:
+  - incident/task matching now recognizes common synonyms (e.g., `accident` -> `medical`, `natural disaster` -> `disaster`) so team compatibility hints align with backend eligibility checks.
 - Dashboard density refresh:
   - single compact summary strip (hero/cards/banners reduced)
   - incident table area uses `flex-1 min-h-0` + internal scroll for one-screen operation
 - Map view simplification:
   - map-first emergency layout with focused filters and marker-to-details interaction
   - removed geo-intelligence side panels for faster operational scanning
+- Department operations alignment (Teams/Responders model):
+  - `DepartmentDetailsPage` now uses backend APIs (no mock units/personnel local state).
+  - route identity is standardized to numeric `department_id` for `/departments/:id`.
+  - details view now focuses on team/member assignment and status operations.
+  - role gating mirrors backend rules: admin can assign/remove members; dispatcher updates statuses only.
+- Department dashboard card metric alignment:
+  - department cards now derive operational counts from responder/team mappings when legacy unit tables are empty.
+  - sector-code normalization handles `pnp/police` and `drrmo/cdrrmo/cdrmmo` variants to prevent false `0/0` team counts.
+- Department API rate-limit hardening:
+  - read endpoints in `departments.api.js` and `responders.api.js` use short-lived dedupe/cache windows.
+  - client-side cooldown on `429` (`Retry-After` aware) prevents burst refetch loops and repeated console floods.
 
 ## Backend contract and sync docs
 

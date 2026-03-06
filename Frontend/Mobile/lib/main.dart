@@ -101,6 +101,8 @@ class _AuthNavigatorState extends State<AuthNavigator> {
   bool _showEmergencyTracking = false;
   bool _showReportDetails = false;
   int? _selectedReportId;
+  int? _activeTrackingReportId;
+  Map<String, dynamic>? _activeTrackingIncident;
   bool _emergencyNoAiInProgress = false;
   bool _showChangePhoneNumber = false;
   bool _showEnterNewPhoneNumber = false;
@@ -172,6 +174,8 @@ class _AuthNavigatorState extends State<AuthNavigator> {
       _showEmergencyTracking = false;
       _showReportDetails = false;
       _selectedReportId = null;
+      _activeTrackingReportId = null;
+      _activeTrackingIncident = null;
       _emergencyNoAiInProgress = false;
       _showChangePhoneNumber = false;
       _showEnterNewPhoneNumber = false;
@@ -229,21 +233,30 @@ class _AuthNavigatorState extends State<AuthNavigator> {
     setState(() => _emergencyNoAiInProgress = true);
 
     try {
-      await IncidentService().reportEmergency();
+      final response = await IncidentService().reportEmergency();
+      final incident =
+          (response['incident'] as Map?)?.cast<String, dynamic>() ??
+              <String, dynamic>{};
+      final reportId = (incident['report_id'] as num?)?.toInt();
       if (!mounted) return;
       setState(() {
         _emergencyNoAiInProgress = false;
+        _activeTrackingReportId = reportId;
+        _activeTrackingIncident = incident.isEmpty ? null : incident;
         _showEmergencyTracking = true;
       });
+      if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Report submitted.')),
       );
     } catch (e) {
       if (!mounted) return;
       setState(() => _emergencyNoAiInProgress = false);
+      if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(e is IncidentServiceException ? e.message : e.toString()),
+          content:
+              Text(e is IncidentServiceException ? e.message : e.toString()),
           backgroundColor: Colors.red,
         ),
       );
@@ -259,7 +272,8 @@ class _AuthNavigatorState extends State<AuthNavigator> {
           setState(() {
             _registeredPhone = state.phone;
             _showSignUp = false;
-            _showAccountCreated = true; // Account Created first; OTP when they tap "Continue to verify phone"
+            _showAccountCreated =
+                true; // Account Created first; OTP when they tap "Continue to verify phone"
           });
           context.read<AuthBloc>().add(const AuthReset());
         }
@@ -294,10 +308,12 @@ class _AuthNavigatorState extends State<AuthNavigator> {
       if (_showEmergencyReport) {
         return EmergencyReportScreen(
           onBack: () => setState(() => _showEmergencyReport = false),
-          onSubmit: () {
-            // TODO: submit report to API
+          onSubmit: (incident) {
+            final reportId = (incident['report_id'] as num?)?.toInt();
             setState(() {
               _showEmergencyReport = false;
+              _activeTrackingReportId = reportId;
+              _activeTrackingIncident = incident.isEmpty ? null : incident;
               _showEmergencyTracking = true;
             });
           },
@@ -305,7 +321,13 @@ class _AuthNavigatorState extends State<AuthNavigator> {
       }
       if (_showEmergencyTracking) {
         return EmergencyTrackingScreen(
-          onBack: () => setState(() => _showEmergencyTracking = false),
+          reportId: _activeTrackingReportId,
+          initialIncident: _activeTrackingIncident,
+          onBack: () => setState(() {
+            _showEmergencyTracking = false;
+            _activeTrackingReportId = null;
+            _activeTrackingIncident = null;
+          }),
         );
       }
       if (_showReportDetails) {
@@ -416,19 +438,26 @@ class _AuthNavigatorState extends State<AuthNavigator> {
         children: [
           HomePlaceholderScreen(
             initialTabIndex: _returnToSettingsTab ? 2 : null,
-            onInitialTabApplied: _returnToSettingsTab ? () => setState(() => _returnToSettingsTab = false) : null,
+            onInitialTabApplied: _returnToSettingsTab
+                ? () => setState(() => _returnToSettingsTab = false)
+                : null,
             onLogout: () => setState(() => _showLogoutConfirmation = true),
             onSosPressed: () => setState(() => _showEmergencyReport = true),
             onEmergencyNoAiPressed: () => _onEmergencyNoAiPressed(context),
             onReportTap: (reportId) => setState(() {
-          _showReportDetails = true;
-          _selectedReportId = reportId;
-        }),
-            onPhoneNumberTap: () => setState(() => _showChangePhoneNumber = true),
-            onBarangayTap: () => setState(() => _showBarangayInformation = true),
-            onEmergencyContactsTap: () => setState(() => _showEmergencyContacts = true),
-            onChangePasswordTap: () => setState(() => _showChangePassword = true),
-            onPrivacySecurityTap: () => setState(() => _showPrivacySecurity = true),
+              _showReportDetails = true;
+              _selectedReportId = reportId;
+            }),
+            onPhoneNumberTap: () =>
+                setState(() => _showChangePhoneNumber = true),
+            onBarangayTap: () =>
+                setState(() => _showBarangayInformation = true),
+            onEmergencyContactsTap: () =>
+                setState(() => _showEmergencyContacts = true),
+            onChangePasswordTap: () =>
+                setState(() => _showChangePassword = true),
+            onPrivacySecurityTap: () =>
+                setState(() => _showPrivacySecurity = true),
           ),
           if (_emergencyNoAiInProgress)
             Container(
@@ -442,7 +471,9 @@ class _AuthNavigatorState extends State<AuthNavigator> {
     }
 
     // Sign-up flow: Verify Dagupan (only after Create Account from form)
-    if (_showSignUp && _showVerifyDagupanForSignup && _pendingSignUpData != null) {
+    if (_showSignUp &&
+        _showVerifyDagupanForSignup &&
+        _pendingSignUpData != null) {
       return VerifyDagupanResidencyScreen(
         onVerificationComplete: (double lat, double lng) {
           final data = _pendingSignUpData!;
@@ -464,12 +495,14 @@ class _AuthNavigatorState extends State<AuthNavigator> {
         onRefreshGps: () => setState(() {}),
         onLocationVerificationFailed: () {
           setState(() {
-            _registeredBarangay = _pendingSignUpData?['address'] ?? 'Barangay Poblacion Oeste';
+            _registeredBarangay =
+                _pendingSignUpData?['address'] ?? 'Barangay Poblacion Oeste';
             _showVerifyDagupanForSignup = false;
             _pendingSignUpData = null;
           });
         },
-        selectedBarangay: _pendingSignUpData!['address'] ?? 'Barangay Poblacion Oeste',
+        selectedBarangay:
+            _pendingSignUpData!['address'] ?? 'Barangay Poblacion Oeste',
       );
     }
 
@@ -496,7 +529,8 @@ class _AuthNavigatorState extends State<AuthNavigator> {
             _showVerificationOtp = false;
             _showSignUp = false;
             _showAccountCreated = false;
-            _showLoginAfterPhoneVerified = true; // go to Login after OTP success
+            _showLoginAfterPhoneVerified =
+                true; // go to Login after OTP success
           });
           context.read<AuthBloc>().add(const AuthReset());
         },
@@ -513,7 +547,8 @@ class _AuthNavigatorState extends State<AuthNavigator> {
     if (_showSignUp) {
       return SignUpScreen(
         onLoginTap: _toggleView,
-        onRequestLocationVerification: (firstName, lastName, phone, address, password) {
+        onRequestLocationVerification:
+            (firstName, lastName, phone, address, password) {
           setState(() {
             _pendingSignUpData = {
               'firstName': firstName,
@@ -591,7 +626,8 @@ class _AuthNavigatorState extends State<AuthNavigator> {
           );
         }
         return VerifyDagupanResidencyScreen(
-          onVerificationComplete: (double lat, double lng) => setState(() => _verificationStep = 'human'),
+          onVerificationComplete: (double lat, double lng) =>
+              setState(() => _verificationStep = 'human'),
           onRefreshGps: () => setState(() {}),
           selectedBarangay: 'Barangay Poblacion Oeste',
         );
@@ -615,7 +651,8 @@ class _AuthNavigatorState extends State<AuthNavigator> {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text(r['error'] as String? ?? 'Could not send code. Check the number and try again.'),
+                      content: Text(r['error'] as String? ??
+                          'Could not send code. Check the number and try again.'),
                       backgroundColor: const Color(0xFFEF4444),
                       behavior: SnackBarBehavior.floating,
                     ),
@@ -642,7 +679,8 @@ class _AuthNavigatorState extends State<AuthNavigator> {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text(r['error'] as String? ?? 'Invalid code. Please try again.'),
+                      content: Text(r['error'] as String? ??
+                          'Invalid code. Please try again.'),
                       backgroundColor: const Color(0xFFEF4444),
                       behavior: SnackBarBehavior.floating,
                     ),
@@ -660,11 +698,13 @@ class _AuthNavigatorState extends State<AuthNavigator> {
           );
         case 'verified':
           return VerifiedScreen(
-            onDone: () => setState(() => _forgotFlowScreen = 'create_new_password'),
+            onDone: () =>
+                setState(() => _forgotFlowScreen = 'create_new_password'),
           );
         case 'identity_error':
           return IdentityErrorScreen(
-            onTryAgain: () => setState(() => _forgotFlowScreen = 'verify_number'),
+            onTryAgain: () =>
+                setState(() => _forgotFlowScreen = 'verify_number'),
           );
         case 'create_new_password':
           return CreateNewPasswordScreen(

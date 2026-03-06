@@ -260,6 +260,14 @@ const Dispatch = {
     return res.rows?.[0]?.incident_type ? String(res.rows[0].incident_type).toLowerCase() : null;
   },
 
+  async countByReportId(report_id) {
+    const res = await pool.query(
+      'SELECT COUNT(*)::int AS total FROM dispatches WHERE report_id = $1',
+      [report_id]
+    );
+    return Number(res.rows?.[0]?.total || 0);
+  },
+
   // Helper to check if responder exists
   async responderExists(responder_id) {
     const res = await pool.query(

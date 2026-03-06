@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'report_history_screen.dart';
 import 'notifications_screen.dart';
 import 'settings_screen.dart';
+import '../../utils/responsive.dart';
 
 class HomePlaceholderScreen extends StatefulWidget {
   final int? initialTabIndex;
@@ -96,7 +97,7 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.2),
+                color: Colors.black.withValues(alpha: 0.2),
                 blurRadius: 16,
                 offset: const Offset(0, 4),
               ),
@@ -105,7 +106,8 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.warning_amber_rounded, color: Color(0xFFEF4444), size: 56),
+              const Icon(Icons.warning_amber_rounded,
+                  color: Color(0xFFEF4444), size: 56),
               const SizedBox(height: 16),
               Text(
                 'SOS in $_sosCountdown',
@@ -139,36 +141,53 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
     );
   }
 
-  Widget _buildLogo() {
+  Widget _buildLogo(double width) {
+    final logoSize = Responsive.logoSize(width);
+    final titleSize = Responsive.brandTitleSize(width);
+    final subtitleSize = Responsive.brandSubtitleSize(width);
+    final compact = Responsive.isCompact(width);
+
     return Row(
-      mainAxisSize: MainAxisSize.min,
+      mainAxisSize: MainAxisSize.max,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Image.asset(
           'assets/logo/logo2.png',
-          width: 64,
-          height: 64,
+          width: logoSize,
+          height: logoSize,
           fit: BoxFit.contain,
         ),
-        const SizedBox(width: 0),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            RichText(
-              text: const TextSpan(
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-                children: [
-                  TextSpan(text: 'Rescue', style: TextStyle(color: Color(0xFF2563EB))),
-                  TextSpan(text: 'Link', style: TextStyle(color: Color(0xFFEF4444))),
-                ],
+        SizedBox(width: compact ? 6 : 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text.rich(
+                TextSpan(
+                  style: TextStyle(
+                      fontSize: titleSize, fontWeight: FontWeight.bold),
+                  children: const [
+                    TextSpan(
+                        text: 'Rescue',
+                        style: TextStyle(color: Color(0xFF2563EB))),
+                    TextSpan(
+                        text: 'Link',
+                        style: TextStyle(color: Color(0xFFEF4444))),
+                  ],
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
-            ),
-            const Text(
-              'Emergency Response and Safety',
-              style: TextStyle(color: Color(0xFF6B7280), fontSize: 13),
-            ),
-          ],
+              Text(
+                'Emergency Response and Safety',
+                style: TextStyle(
+                    color: const Color(0xFF6B7280), fontSize: subtitleSize),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
         ),
       ],
     );
@@ -188,7 +207,8 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
             ),
             title: const Text(
               'Notifications',
-              style: TextStyle(color: Color(0xFF111827), fontWeight: FontWeight.w600),
+              style: TextStyle(
+                  color: Color(0xFF111827), fontWeight: FontWeight.w600),
             ),
           ),
           body: const SafeArea(child: NotificationsScreen()),
@@ -202,10 +222,12 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
     required IconData icon,
     required String label,
     required String subtitle,
+    required double size,
+    required double iconSize,
+    int subtitleMaxLines = 2,
     VoidCallback? onTap,
     VoidCallback? onLongPress,
   }) {
-    const size = 88.0;
     const color = Color(0xFFEF4444);
     final hasAction = onTap != null || onLongPress != null;
     return Column(
@@ -222,17 +244,17 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
               height: size,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: color.withOpacity(0.35),
+                color: color.withValues(alpha: 0.35),
                 border: Border.all(color: color, width: 2),
                 boxShadow: [
                   BoxShadow(
-                    color: color.withOpacity(0.25),
+                    color: color.withValues(alpha: 0.25),
                     blurRadius: 16,
                     offset: const Offset(0, 4),
                   ),
                 ],
               ),
-              child: Icon(icon, color: Colors.white, size: 40),
+              child: Icon(icon, color: Colors.white, size: iconSize),
             ),
           ),
         ),
@@ -242,7 +264,8 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
           style: TextStyle(
             fontSize: 17,
             fontWeight: FontWeight.bold,
-            color: hasAction ? const Color(0xFF111827) : const Color(0xFF9CA3AF),
+            color:
+                hasAction ? const Color(0xFF111827) : const Color(0xFF9CA3AF),
           ),
           textAlign: TextAlign.center,
         ),
@@ -251,163 +274,208 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
           subtitle,
           style: TextStyle(
             fontSize: 13,
-            color: hasAction ? const Color(0xFF6B7280) : const Color(0xFF9CA3AF),
+            color:
+                hasAction ? const Color(0xFF6B7280) : const Color(0xFF9CA3AF),
           ),
           textAlign: TextAlign.center,
+          maxLines: subtitleMaxLines,
+          overflow: TextOverflow.ellipsis,
         ),
       ],
     );
   }
 
   Widget _buildHomeContent() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const SizedBox(height: 16),
-          // Header: centered logo, notification upper-right
-          Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final horizontalPadding = Responsive.horizontalPadding(width);
+        final spacingScale = Responsive.spacingScale(width);
+        final compact = Responsive.isCompact(width);
+        final contentWidth =
+            (width - (horizontalPadding * 2)).clamp(0.0, width);
+        final sosCircleSize = Responsive.sosCircleSize(width);
+        final sosIconSize = Responsive.sosIconSize(width);
+        final sosItemWidth = compact ? contentWidth : ((contentWidth - 16) / 2);
+
+        return SingleChildScrollView(
+          padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _buildLogo(),
-              IconButton(
-                icon: const Icon(Icons.notifications_none, color: Color(0xFF374151), size: 28),
-                onPressed: () => _openNotifications(context),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          // Location Display Card
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF3F4F6),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFFE5E7EB)),
-            ),
-            child: const Row(
-              children: [
-                Icon(Icons.location_on, color: Color(0xFF374151), size: 26),
-                SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Dagupan City, Pangasinan',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF111827),
-                        ),
-                      ),
-                      SizedBox(height: 2),
-                      Text(
-                        'Barangay Poblacion Oeste',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Color(0xFF374151),
-                        ),
-                      ),
-                    ],
+              SizedBox(height: 16 * spacingScale),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: _buildLogo(width)),
+                  IconButton(
+                    icon: const Icon(Icons.notifications_none,
+                        color: Color(0xFF374151), size: 28),
+                    onPressed: () => _openNotifications(context),
+                    visualDensity: compact
+                        ? VisualDensity.compact
+                        : VisualDensity.standard,
                   ),
+                ],
+              ),
+              SizedBox(height: 20 * spacingScale),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF3F4F6),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFE5E7EB)),
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          // System Status Banner
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              color: const Color(0xFFDCFCE7),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFF86EFAC)),
-            ),
-            child: const Row(
-              children: [
-                Icon(Icons.shield, color: Color(0xFF22C55E), size: 28),
-                SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'All Systems Active',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF16A34A),
-                        ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.location_on, color: Color(0xFF374151), size: 26),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Dagupan City, Pangasinan',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF111827),
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            'Barangay Poblacion Oeste',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Color(0xFF374151),
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
                       ),
-                      SizedBox(height: 2),
-                      Text(
-                        'Emergency services ready',
-                        style: TextStyle(fontSize: 13, color: Color(0xFF16A34A), fontWeight: FontWeight.w500),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(height: 16 * spacingScale),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFDCFCE7),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFF86EFAC)),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.shield, color: Color(0xFF22C55E), size: 28),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'All Systems Active',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF16A34A),
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            'Emergency services ready',
+                            style: TextStyle(
+                                fontSize: 13,
+                                color: Color(0xFF16A34A),
+                                fontWeight: FontWeight.w500),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(height: 28 * spacingScale),
+              Wrap(
+                spacing: compact ? 0 : 16,
+                runSpacing: 16,
+                children: [
+                  SizedBox(
+                    width: sosItemWidth,
+                    child: _buildOutlinedRedCircleButton(
+                      icon: Icons.report_problem,
+                      label: 'SOS',
+                      subtitle: _sosCountdown > 0
+                          ? 'Cancelling in $_sosCountdown...'
+                          : 'Long press to report. 1 tap: 5 sec to cancel.',
+                      size: sosCircleSize,
+                      iconSize: sosIconSize,
+                      subtitleMaxLines: compact ? 3 : 2,
+                      onTap: _sosCountdown > 0 ? null : _startSosCountdown,
+                      onLongPress: () {
+                        _cancelSosCountdown();
+                        widget.onEmergencyNoAiPressed?.call();
+                      },
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 28),
-          // SOS and Incident Reports — outlined style from second image
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _buildOutlinedRedCircleButton(
-                icon: Icons.report_problem,
-                label: 'SOS',
-                subtitle: _sosCountdown > 0 ? 'Cancelling in $_sosCountdown...' : 'Long press to report. 1 tap: 5 sec to cancel.',
-                onTap: _sosCountdown > 0 ? null : _startSosCountdown,
-                onLongPress: () {
-                  _cancelSosCountdown();
-                  widget.onEmergencyNoAiPressed?.call();
-                },
+                  SizedBox(
+                    width: sosItemWidth,
+                    child: _buildOutlinedRedCircleButton(
+                      icon: Icons.bar_chart,
+                      label: 'Report Incident',
+                      subtitle: 'Press to report incident',
+                      size: sosCircleSize,
+                      iconSize: sosIconSize,
+                      onTap: widget.onSosPressed,
+                    ),
+                  ),
+                ],
               ),
-              _buildOutlinedRedCircleButton(
-                icon: Icons.bar_chart,
-                label: 'Report Incident',
-                subtitle: 'Press to report incident',
-                onTap: widget.onSosPressed,
+              SizedBox(height: 28 * spacingScale),
+              const Row(
+                children: [
+                  Icon(Icons.lightbulb_outline,
+                      color: Color(0xFFF97316), size: 22),
+                  SizedBox(width: 6),
+                  Text(
+                    'Emergency Tips',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF111827),
+                    ),
+                  ),
+                ],
               ),
+              SizedBox(height: 12 * spacingScale),
+              _tipCard(
+                title: 'Fire Safety',
+                subtitle: 'Keep fire extinguishers accessible',
+              ),
+              const SizedBox(height: 10),
+              _tipCard(
+                title: 'Fire Safety',
+                subtitle: 'Keep fire extinguishers accessible',
+              ),
+              const SizedBox(height: 10),
+              _tipCard(
+                title: 'Fire Safety',
+                subtitle: 'Keep fire extinguishers accessible',
+              ),
+              SizedBox(height: 24 * spacingScale),
             ],
           ),
-          const SizedBox(height: 28),
-          // Emergency Tips
-          const Row(
-            children: [
-              Icon(Icons.lightbulb_outline, color: Color(0xFFF97316), size: 22),
-              SizedBox(width: 6),
-              Text(
-                'Emergency Tips',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF111827),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          _tipCard(
-            title: 'Fire Safety',
-            subtitle: 'Keep fire extinguishers accessible',
-          ),
-          const SizedBox(height: 10),
-          _tipCard(
-            title: 'Fire Safety',
-            subtitle: 'Keep fire extinguishers accessible',
-          ),
-          const SizedBox(height: 10),
-          _tipCard(
-            title: 'Fire Safety',
-            subtitle: 'Keep fire extinguishers accessible',
-          ),
-          const SizedBox(height: 24),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -420,7 +488,7 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
         border: Border.all(color: const Color(0xFFE5E7EB)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 6,
             offset: const Offset(0, 2),
           ),
@@ -434,7 +502,8 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
               color: const Color(0xFFEFF6FF),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: const Icon(Icons.shield_outlined, color: Color(0xFF2563EB), size: 24),
+            child: const Icon(Icons.shield_outlined,
+                color: Color(0xFF2563EB), size: 24),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -448,11 +517,16 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
                     fontWeight: FontWeight.bold,
                     color: Color(0xFF111827),
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 2),
                 Text(
                   subtitle,
-                  style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+                  style:
+                      const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
@@ -467,11 +541,18 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
   }
 
   Widget _buildSettingsContent() {
-    return SettingsScreen(onLogout: widget.onLogout, onPhoneNumberTap: widget.onPhoneNumberTap, onBarangayTap: widget.onBarangayTap, onEmergencyContactsTap: widget.onEmergencyContactsTap, onChangePasswordTap: widget.onChangePasswordTap, onPrivacySecurityTap: widget.onPrivacySecurityTap);
+    return SettingsScreen(
+        onLogout: widget.onLogout,
+        onPhoneNumberTap: widget.onPhoneNumberTap,
+        onBarangayTap: widget.onBarangayTap,
+        onEmergencyContactsTap: widget.onEmergencyContactsTap,
+        onChangePasswordTap: widget.onChangePasswordTap,
+        onPrivacySecurityTap: widget.onPrivacySecurityTap);
   }
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.sizeOf(context).width;
     final List<Widget> pages = [
       _buildHomeContent(),
       _buildReportHistoryContent(),
@@ -497,7 +578,7 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
           borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.06),
+              color: Colors.black.withValues(alpha: 0.06),
               blurRadius: 12,
               offset: const Offset(0, -2),
             ),
@@ -509,9 +590,9 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _navItem(0, Icons.home, 'Home'),
-                _navItem(1, Icons.bar_chart, 'Reports'),
-                _navItem(2, Icons.settings, 'Settings'),
+                _navItem(0, Icons.home, 'Home', screenWidth),
+                _navItem(1, Icons.bar_chart, 'Reports', screenWidth),
+                _navItem(2, Icons.settings, 'Settings', screenWidth),
               ],
             ),
           ),
@@ -520,28 +601,35 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
     );
   }
 
-  Widget _navItem(int index, IconData icon, String label) {
+  Widget _navItem(int index, IconData icon, String label, double screenWidth) {
     final isSelected = _currentIndex == index;
+    final horizontalPadding = Responsive.navItemHorizontalPadding(screenWidth);
+    final labelSize = Responsive.navLabelSize(screenWidth);
     return InkWell(
       onTap: () => setState(() => _currentIndex = index),
       borderRadius: BorderRadius.circular(12),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding:
+            EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 8),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
               icon,
               size: 24,
-              color: isSelected ? const Color(0xFFEF4444) : const Color(0xFF6B7280),
+              color: isSelected
+                  ? const Color(0xFFEF4444)
+                  : const Color(0xFF6B7280),
             ),
             const SizedBox(height: 4),
             Text(
               label,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: labelSize,
                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                color: isSelected ? const Color(0xFFEF4444) : const Color(0xFF6B7280),
+                color: isSelected
+                    ? const Color(0xFFEF4444)
+                    : const Color(0xFF6B7280),
               ),
             ),
             if (isSelected) ...[

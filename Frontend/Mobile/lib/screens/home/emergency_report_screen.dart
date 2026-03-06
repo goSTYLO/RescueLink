@@ -8,7 +8,7 @@ import '../../services/incident_service.dart';
 
 class EmergencyReportScreen extends StatefulWidget {
   final VoidCallback? onBack;
-  final VoidCallback? onSubmit;
+  final void Function(Map<String, dynamic> incident)? onSubmit;
 
   const EmergencyReportScreen({
     super.key,
@@ -61,7 +61,8 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
           _currentLng = (result['longitude'] as num).toDouble();
           _locationError = null;
         } else {
-          _locationError = result['error'] as String? ?? 'Could not get location.';
+          _locationError =
+              result['error'] as String? ?? 'Could not get location.';
         }
       });
     } catch (e) {
@@ -91,7 +92,9 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
         if (mounted) setState(() => _isRecording = false);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Recording error: $e'), backgroundColor: Colors.red),
+            SnackBar(
+                content: Text('Recording error: $e'),
+                backgroundColor: Colors.red),
           );
         }
       }
@@ -99,8 +102,11 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
       try {
         if (await _recorder.hasPermission()) {
           final dir = await getTemporaryDirectory();
-          final path = '${dir.path}/recording_${DateTime.now().millisecondsSinceEpoch}.wav';
-          await _recorder.start(const RecordConfig(encoder: AudioEncoder.wav, sampleRate: 44100), path: path);
+          final path =
+              '${dir.path}/recording_${DateTime.now().millisecondsSinceEpoch}.wav';
+          await _recorder.start(
+              const RecordConfig(encoder: AudioEncoder.wav, sampleRate: 44100),
+              path: path);
           setState(() {
             _isRecording = true;
             _audioBytes = null;
@@ -108,14 +114,18 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
         } else {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Microphone permission is required.'), backgroundColor: Colors.red),
+              const SnackBar(
+                  content: Text('Microphone permission is required.'),
+                  backgroundColor: Colors.red),
             );
           }
         }
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Could not start recording: $e'), backgroundColor: Colors.red),
+            SnackBar(
+                content: Text('Could not start recording: $e'),
+                backgroundColor: Colors.red),
           );
         }
       }
@@ -129,12 +139,15 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
       if (xfile == null || !mounted) return;
       final bytes = await xfile.readAsBytes();
       final ext = xfile.path.split('.').last.toLowerCase();
-      final filename = 'photo_${DateTime.now().millisecondsSinceEpoch}.${ext == 'jpg' || ext == 'jpeg' ? 'jpg' : 'png'}';
+      final filename =
+          'photo_${DateTime.now().millisecondsSinceEpoch}.${ext == 'jpg' || ext == 'jpeg' ? 'jpg' : 'png'}';
       setState(() => _mediaFiles.add((bytes: bytes, filename: filename)));
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not pick photo: $e'), backgroundColor: Colors.red),
+          SnackBar(
+              content: Text('Could not pick photo: $e'),
+              backgroundColor: Colors.red),
         );
       }
     }
@@ -147,12 +160,15 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
       if (xfile == null || !mounted) return;
       final bytes = await xfile.readAsBytes();
       final ext = xfile.path.split('.').last.toLowerCase();
-      final filename = 'video_${DateTime.now().millisecondsSinceEpoch}.${ext == 'mov' ? 'mov' : 'mp4'}';
+      final filename =
+          'video_${DateTime.now().millisecondsSinceEpoch}.${ext == 'mov' ? 'mov' : 'mp4'}';
       setState(() => _mediaFiles.add((bytes: bytes, filename: filename)));
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not pick video: $e'), backgroundColor: Colors.red),
+          SnackBar(
+              content: Text('Could not pick video: $e'),
+              backgroundColor: Colors.red),
         );
       }
     }
@@ -166,7 +182,8 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
     if (_currentLat == null || _currentLng == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(_locationError ?? 'Location is required. Please enable GPS.'),
+          content: Text(
+              _locationError ?? 'Location is required. Please enable GPS.'),
           backgroundColor: Colors.red,
         ),
       );
@@ -186,23 +203,29 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
     setState(() => _isSubmitting = true);
 
     try {
-      await IncidentService().reportWithAudio(
+      final response = await IncidentService().reportWithAudio(
         latitude: _currentLat!,
         longitude: _currentLng!,
-        description: _detailsController.text.trim().isEmpty ? null : _detailsController.text.trim(),
+        description: _detailsController.text.trim().isEmpty
+            ? null
+            : _detailsController.text.trim(),
         audioBytes: _audioBytes!,
         audioFilename: 'recording.wav',
         mediaFiles: _mediaFiles.isEmpty ? null : _mediaFiles,
       );
       if (!mounted) return;
       setState(() => _isSubmitting = false);
-      widget.onSubmit?.call();
+      final incident =
+          (response['incident'] as Map?)?.cast<String, dynamic>() ??
+              <String, dynamic>{};
+      widget.onSubmit?.call(incident);
     } catch (e) {
       if (!mounted) return;
       setState(() => _isSubmitting = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(e is IncidentServiceException ? e.message : e.toString()),
+          content:
+              Text(e is IncidentServiceException ? e.message : e.toString()),
           backgroundColor: Colors.red,
         ),
       );
@@ -221,7 +244,8 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
                 // Red header bar
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   decoration: const BoxDecoration(
                     color: Color(0xFFEF4444),
                   ),
@@ -231,7 +255,8 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
                         onPressed: _isSubmitting ? null : widget.onBack,
                         icon: const CircleAvatar(
                           backgroundColor: Colors.white,
-                          child: Icon(Icons.arrow_back, color: Color(0xFF111827), size: 22),
+                          child: Icon(Icons.arrow_back,
+                              color: Color(0xFF111827), size: 22),
                         ),
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(),
@@ -268,7 +293,8 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
                         fit: BoxFit.contain,
                         color: Colors.white,
                         colorBlendMode: BlendMode.srcIn,
-                        errorBuilder: (_, __, ___) => const Icon(Icons.shield, color: Colors.white, size: 28),
+                        errorBuilder: (_, __, ___) => const Icon(Icons.shield,
+                            color: Colors.white, size: 28),
                       ),
                     ],
                   ),
@@ -276,7 +302,8 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
                 // Scrollable content
                 Expanded(
                   child: SingleChildScrollView(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 20),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
@@ -299,7 +326,8 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
                             children: [
                               Row(
                                 children: [
-                                  const Icon(Icons.mic, color: Color(0xFFEF4444), size: 22),
+                                  const Icon(Icons.mic,
+                                      color: Color(0xFFEF4444), size: 22),
                                   const SizedBox(width: 8),
                                   const Text(
                                     'Voice Recording',
@@ -322,14 +350,21 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
                                     const SizedBox(width: 6),
                                     const Text(
                                       'Recording...',
-                                      style: TextStyle(fontSize: 12, color: Color(0xFFEF4444), fontWeight: FontWeight.w500),
+                                      style: TextStyle(
+                                          fontSize: 12,
+                                          color: Color(0xFFEF4444),
+                                          fontWeight: FontWeight.w500),
                                     ),
                                   ] else if (_audioBytes != null) ...[
-                                    const Icon(Icons.check_circle, color: Color(0xFF22C55E), size: 20),
+                                    const Icon(Icons.check_circle,
+                                        color: Color(0xFF22C55E), size: 20),
                                     const SizedBox(width: 6),
                                     const Text(
                                       'Recorded',
-                                      style: TextStyle(fontSize: 12, color: Color(0xFF22C55E), fontWeight: FontWeight.w500),
+                                      style: TextStyle(
+                                          fontSize: 12,
+                                          color: Color(0xFF22C55E),
+                                          fontWeight: FontWeight.w500),
                                     ),
                                   ],
                                 ],
@@ -339,17 +374,23 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
                                 onTap: _isSubmitting ? null : _toggleRecording,
                                 borderRadius: BorderRadius.circular(12),
                                 child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 20, vertical: 28),
                                   decoration: BoxDecoration(
                                     color: const Color(0xFFEF4444),
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                   child: Column(
                                     children: [
-                                      const Icon(Icons.mic, color: Colors.white, size: 48),
+                                      const Icon(Icons.mic,
+                                          color: Colors.white, size: 48),
                                       const SizedBox(height: 12),
                                       Text(
-                                        _isRecording ? 'Tap to Stop Recording' : (_audioBytes != null ? 'Tap to Re-record' : 'Tap to Start Recording'),
+                                        _isRecording
+                                            ? 'Tap to Stop Recording'
+                                            : (_audioBytes != null
+                                                ? 'Tap to Re-record'
+                                                : 'Tap to Start Recording'),
                                         style: const TextStyle(
                                           fontSize: 15,
                                           fontWeight: FontWeight.w600,
@@ -359,7 +400,9 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
                                       const SizedBox(height: 4),
                                       const Text(
                                         'Audio is required for AI classification',
-                                        style: TextStyle(fontSize: 12, color: Colors.white70),
+                                        style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.white70),
                                       ),
                                     ],
                                   ),
@@ -369,10 +412,14 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
                           ),
                         ),
                         const SizedBox(height: 20),
-                        _sectionTitle(icon: Icons.location_on, iconColor: const Color(0xFF0EA5E9), title: 'Location'),
+                        _sectionTitle(
+                            icon: Icons.location_on,
+                            iconColor: const Color(0xFF0EA5E9),
+                            title: 'Location'),
                         const SizedBox(height: 10),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 20),
                           decoration: BoxDecoration(
                             color: const Color(0xFFF3F4F6),
                             borderRadius: BorderRadius.circular(12),
@@ -380,17 +427,22 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
                           ),
                           child: Column(
                             children: [
-                              const Icon(Icons.location_on, color: Color(0xFF0EA5E9), size: 40),
+                              const Icon(Icons.location_on,
+                                  color: Color(0xFF0EA5E9), size: 40),
                               const SizedBox(height: 12),
                               if (_locationLoading)
                                 const Text(
                                   'Getting location...',
-                                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF374151)),
+                                  style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF374151)),
                                 )
                               else if (_locationError != null)
                                 Text(
                                   _locationError!,
-                                  style: const TextStyle(fontSize: 13, color: Color(0xFFDC2626)),
+                                  style: const TextStyle(
+                                      fontSize: 13, color: Color(0xFFDC2626)),
                                   textAlign: TextAlign.center,
                                 )
                               else ...[
@@ -407,17 +459,22 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
                                   _currentLat != null && _currentLng != null
                                       ? '${_currentLat!.toStringAsFixed(5)}, ${_currentLng!.toStringAsFixed(5)}'
                                       : 'Dagupan City',
-                                  style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
+                                  style: const TextStyle(
+                                      fontSize: 13, color: Color(0xFF6B7280)),
                                 ),
                                 const SizedBox(height: 10),
                                 const Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    Icon(Icons.check_circle, color: Color(0xFF22C55E), size: 18),
+                                    Icon(Icons.check_circle,
+                                        color: Color(0xFF22C55E), size: 18),
                                     SizedBox(width: 6),
                                     Text(
                                       'Accuracy: High',
-                                      style: TextStyle(fontSize: 13, color: Color(0xFF22C55E), fontWeight: FontWeight.w500),
+                                      style: TextStyle(
+                                          fontSize: 13,
+                                          color: Color(0xFF22C55E),
+                                          fontWeight: FontWeight.w500),
                                     ),
                                   ],
                                 ),
@@ -441,14 +498,16 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
                           enabled: !_isSubmitting,
                           decoration: InputDecoration(
                             hintText: 'Describe the emergency situation..',
-                            hintStyle: const TextStyle(color: Color(0xFF9CA3AF), fontSize: 14),
+                            hintStyle: const TextStyle(
+                                color: Color(0xFF9CA3AF), fontSize: 14),
                             filled: true,
                             fillColor: const Color(0xFFF3F4F6),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
                               borderSide: BorderSide.none,
                             ),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 14),
                           ),
                         ),
                         const SizedBox(height: 20),
@@ -468,26 +527,38 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
                                 onTap: _isSubmitting ? null : _pickPhoto,
                                 borderRadius: BorderRadius.circular(12),
                                 child: Container(
-                                  padding: const EdgeInsets.symmetric(vertical: 20),
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 20),
                                   decoration: BoxDecoration(
                                     color: const Color(0xFFDCFCE7),
                                     borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: const Color(0xFF86EFAC)),
+                                    border: Border.all(
+                                        color: const Color(0xFF86EFAC)),
                                   ),
                                   child: Column(
                                     children: [
-                                      Icon(Icons.camera_alt, size: 28, color: _mediaFiles.isNotEmpty ? const Color(0xFF22C55E) : const Color(0xFF16A34A)),
+                                      Icon(Icons.camera_alt,
+                                          size: 28,
+                                          color: _mediaFiles.isNotEmpty
+                                              ? const Color(0xFF22C55E)
+                                              : const Color(0xFF16A34A)),
                                       const SizedBox(height: 8),
                                       Text(
                                         'Photo (${_mediaFiles.length})',
                                         style: TextStyle(
                                           fontSize: 14,
                                           fontWeight: FontWeight.w600,
-                                          color: _mediaFiles.isNotEmpty ? const Color(0xFF22C55E) : const Color(0xFF166534),
+                                          color: _mediaFiles.isNotEmpty
+                                              ? const Color(0xFF22C55E)
+                                              : const Color(0xFF166534),
                                         ),
                                       ),
                                       const SizedBox(height: 6),
-                                      Icon(Icons.add_circle_outline, size: 20, color: _mediaFiles.isNotEmpty ? const Color(0xFF22C55E) : const Color(0xFF86EFAC)),
+                                      Icon(Icons.add_circle_outline,
+                                          size: 20,
+                                          color: _mediaFiles.isNotEmpty
+                                              ? const Color(0xFF22C55E)
+                                              : const Color(0xFF86EFAC)),
                                     ],
                                   ),
                                 ),
@@ -499,15 +570,18 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
                                 onTap: _isSubmitting ? null : _pickVideo,
                                 borderRadius: BorderRadius.circular(12),
                                 child: Container(
-                                  padding: const EdgeInsets.symmetric(vertical: 20),
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 20),
                                   decoration: BoxDecoration(
                                     color: const Color(0xFFDCFCE7),
                                     borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: const Color(0xFF86EFAC)),
+                                    border: Border.all(
+                                        color: const Color(0xFF86EFAC)),
                                   ),
                                   child: const Column(
                                     children: [
-                                      Icon(Icons.videocam, size: 28, color: Color(0xFF16A34A)),
+                                      Icon(Icons.videocam,
+                                          size: 28, color: Color(0xFF16A34A)),
                                       SizedBox(height: 8),
                                       Text(
                                         'Video',
@@ -518,7 +592,8 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
                                         ),
                                       ),
                                       SizedBox(height: 6),
-                                      Icon(Icons.add_circle_outline, size: 20, color: Color(0xFF86EFAC)),
+                                      Icon(Icons.add_circle_outline,
+                                          size: 20, color: Color(0xFF86EFAC)),
                                     ],
                                   ),
                                 ),
@@ -551,25 +626,31 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFFEF4444),
                         padding: const EdgeInsets.symmetric(vertical: 18),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
                       ),
                       child: _isSubmitting
                           ? const SizedBox(
                               height: 24,
                               width: 24,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Colors.white),
                             )
                           : const Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Text(
                                   'Submit Emergency Report',
-                                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                                  style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16),
                                 ),
                                 SizedBox(height: 4),
                                 Text(
                                   'AI will verify and dispatch immediately',
-                                  style: TextStyle(color: Colors.white70, fontSize: 12),
+                                  style: TextStyle(
+                                      color: Colors.white70, fontSize: 12),
                                 ),
                               ],
                             ),
@@ -587,7 +668,8 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
                     children: [
                       CircularProgressIndicator(),
                       SizedBox(height: 16),
-                      Text('Submitting...', style: TextStyle(color: Colors.white, fontSize: 16)),
+                      Text('Submitting...',
+                          style: TextStyle(color: Colors.white, fontSize: 16)),
                     ],
                   ),
                 ),
@@ -598,7 +680,10 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
     );
   }
 
-  Widget _sectionTitle({required IconData icon, required Color iconColor, required String title}) {
+  Widget _sectionTitle(
+      {required IconData icon,
+      required Color iconColor,
+      required String title}) {
     return Row(
       children: [
         Icon(icon, color: iconColor, size: 22),

@@ -38,6 +38,7 @@ function getDefaultSectorId(emergencyType) {
 function mapStatusFilterToApi(value) {
   if (value === 'Pending') return 'pending';
   if (value === 'Verified') return 'verified';
+  if (value === 'In Progress') return 'in_progress';
   if (value === 'Resolved') return 'resolved';
   return undefined;
 }
@@ -71,7 +72,7 @@ function mapApiIncidentToDashboard(api) {
   const severityMap = { high: 'Critical', medium: 'Warning', low: 'Low' };
   const severity = severityMap[api.severity_level?.toLowerCase()] || (api.severity_level || '—');
 
-  const statusMap = { pending: 'Pending', resolved: 'Resolved', verified: 'Verified' };
+  const statusMap = { pending: 'Pending', resolved: 'Resolved', verified: 'Verified', in_progress: 'In Progress' };
   const canonicalStatus = normalizeIncidentStatus(api.status);
   const status = statusMap[canonicalStatus];
 
@@ -97,6 +98,7 @@ function mapApiIncidentToDashboard(api) {
     timeReported,
     timeReportedTs,
     verified: api.verified ?? false,
+    reporterConfirmedAt: api.reporter_confirmed_at || null,
   };
 }
 
@@ -471,6 +473,7 @@ export function DashboardPage() {
     { value: 'All', label: 'All Status' },
     { value: 'Pending', label: 'Pending' },
     { value: 'Verified', label: 'Verified' },
+    { value: 'In Progress', label: 'In Progress' },
     { value: 'Resolved', label: 'Resolved' },
   ];
 
@@ -781,9 +784,16 @@ export function DashboardPage() {
                             </Badge>
                           </td>
                           <td className="py-2.5 px-3">
-                            <Badge className={`${getStatusColor(incident.status)} border rounded-lg px-2 py-0.5 text-[11px] font-semibold`}>
-                              {(incident.status || '—').toString().toUpperCase()}
-                            </Badge>
+                            <div className="flex flex-col gap-1">
+                              <Badge className={`${getStatusColor(incident.status)} border rounded-lg px-2 py-0.5 text-[11px] font-semibold w-fit`}>
+                                {(incident.status || '—').toString().toUpperCase()}
+                              </Badge>
+                              {incident.status === 'Resolved' && (
+                                <span className="text-[10px] text-muted">
+                                  {incident.reporterConfirmedAt ? 'Reporter confirmed' : 'Awaiting confirmation'}
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td className="py-2.5 px-3 text-sm text-muted">{incident.timeReported}</td>
                           <td className="py-2.5 px-3">

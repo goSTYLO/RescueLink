@@ -58,6 +58,54 @@ Recent backend updates for responder/team operations:
     - incident-type compatibility when team/responder specialization is configured.
   - assignment summary now includes requested incident type metadata.
 
+## Session Updates (Department Ops Integration Support)
+
+Backend endpoints continue to support the updated web department operations flow:
+
+- `GET /api/departments/:id` is used as the canonical detail source with numeric `department_id`.
+- Team/member assignment and status endpoints remain the source of truth for Department Details and Departments Teams tabs:
+  - team listing/status updates
+  - team-member list/add/remove
+  - responder status updates
+- This keeps department operations aligned with assignment v2 (team-first, status-aware workflows).
+
+## Session Updates (Incident Lifecycle + Reporter Confirmation)
+
+Implemented end-to-end lifecycle flow updates:
+
+- **Canonical status flow**:
+  - `pending -> verified -> in_progress -> resolved`
+  - guarded transitions enforced in backend model/controller path.
+- **Dispatcher/admin status endpoint**:
+  - `PATCH /api/incidents/:id/status`
+  - validates allowed transitions and rejects invalid jumps.
+- **Reporter confirmation endpoint**:
+  - `POST /api/incidents/:id/confirm-resolution`
+  - owner-only confirmation after incident is already `resolved`.
+  - persists `reporter_confirmed_at` + `reporter_confirmed_by_user_id`.
+- **Resolve actor audit field**:
+  - `resolved_by_user_id` is persisted when dispatcher/admin marks resolved.
+- **Auto-start lifecycle hook**:
+  - first successful dispatch assignment now attempts `verified -> in_progress`.
+
+## Session Updates (Lifecycle Reliability + Task Mapping Normalization)
+
+Latest reliability fixes applied:
+
+- **Auto-transition reliability fix**:
+  - fixed SQL parameter binding in incident status transition update path.
+  - resolves cases where assignment created a dispatch but incident status stayed `verified`.
+  - expected behavior is now consistent: first successful assignment moves `verified -> in_progress`.
+- **Task-to-incident normalization for assignment eligibility**:
+  - responder/team task matching now normalizes common synonyms into canonical task buckets:
+    - medical: `accident`, `vehicular accident`, `traffic accident`, `collision`, `injury`, `trauma`
+    - police: `crime`, `robbery`, `theft`, `assault`, `violence`
+    - disaster: `natural disaster`, `typhoon`, `flood`, `earthquake`, `landslide`
+    - fire: `fire`, `blaze`, `wildfire`
+- **Conflict semantics remain explicit**:
+  - `POST /api/dispatches` returns `409` when no eligible/available team members are found for the selected team.
+  - response includes `assignment_summary.unassigned_reason` to help client-side messaging.
+
 ## Quick start
 
 1. **Copy environment file and configure:**
@@ -85,6 +133,7 @@ Recent backend updates for responder/team operations:
    psql $DATABASE_URL -f migrations/add_dispatch_assignment_v2_and_secondary_ai.sql
    psql $DATABASE_URL -f migrations/add_team_member_assignment_schema.sql
    psql $DATABASE_URL -f migrations/add_responder_task_and_team_status.sql
+   psql $DATABASE_URL -f migrations/add_incident_resolution_confirmation_fields.sql
    ```
    Run other migrations in `migrations/` as needed for your schema version.
 
@@ -97,8 +146,11 @@ Recent backend updates for responder/team operations:
 5. **Seed test data (optional, local/dev only):**
    ```bash
    node scripts/seed-db.js
+   node scripts/seed-incidents-from-audio.js --reset --count=10
    ```
-   Seed creates 2 accounts per role (`admin`, `dispatcher`, `supervisor`, `responder`, `user`) plus responders/incidents/dispatches.
+   `seed-db.js` seeds realistic core operational data (departments, users, teams, responders, team memberships).
+   `seed-incidents-from-audio.js` seeds incidents using real audio files from `RescueLink AI/test` and `Backend/uploads/incidents`.
+   Incident seeding is intentionally capped for local/dev predictability (max/default: 10 incidents).
 
 ## Environment variables
 
@@ -198,6 +250,7 @@ Dispatcher actions (login, logout, signup, password change, dispatch, etc.) are 
 | `add_dispatch_assignment_v2_and_secondary_ai.sql` | Assignment v2 metadata, hybrid responder fields, and top-2 AI fields |
 | `add_team_member_assignment_schema.sql` | Team and team-member mapping tables for auto-assignment |
 | `add_responder_task_and_team_status.sql` | Responder/team specialization fields and team status availability |
+| `add_incident_resolution_confirmation_fields.sql` | Incident resolve/confirmation metadata fields for reporter confirmation flow |
 
 Run migrations in order for existing databases. New setups via `setup-db` use `schema.sql` which includes core tables.
 
@@ -219,10 +272,11 @@ Operational scanner outage and quarantine procedures are documented in [SECURITY
 From `Backend/`:
 
 ```bash
+npm run test:all
+npm run test:endpoints
 npm run test:rbac
 npm run test:security
-npx jest tests/location.integration.test.js --detectOpenHandles --forceExit
-npx jest tests/department.integration.test.js --detectOpenHandles --forceExit
+npm run test:integration
 ```
 
 Live API integration (requires backend running on `http://localhost:3000`):
