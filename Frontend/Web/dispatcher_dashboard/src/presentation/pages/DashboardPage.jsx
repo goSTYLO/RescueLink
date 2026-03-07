@@ -13,6 +13,7 @@ import { getIncidents, normalizeIncidentStatus, verifyIncident } from '@/data/ap
 import { createDispatch } from '@/data/api/dispatches.api';
 import { DEV_MODE } from '@/core/config/app.config';
 import { normalizeRole, ROLES } from '@/core/constants';
+import { mapIncidentTypeFilterToApi } from '@/core/utils/incidentClassification';
 import Swal from 'sweetalert2';
 
 const POLLING_INTERVAL_MS = 30000;
@@ -50,14 +51,6 @@ function mapSeverityFilterToApi(value) {
   return undefined;
 }
 
-function mapTypeFilterToApi(value) {
-  if (value === 'Fire') return 'fire';
-  if (value === 'Medical') return 'medical';
-  if (value === 'Police') return 'police';
-  if (value === 'Disaster') return 'disaster';
-  return undefined;
-}
-
 // Map API incident to dashboard shape
 function mapApiIncidentToDashboard(api) {
   const firstName = api.reporter_first_name || '';
@@ -66,7 +59,7 @@ function mapApiIncidentToDashboard(api) {
     ? [firstName, lastName].filter(Boolean).join(' ').trim()
     : `User #${api.user_id}`;
 
-  const typeMap = { fire: 'Fire', medical: 'Medical', police: 'Police', disaster: 'Disaster' };
+  const typeMap = { fire: 'Fire', medical: 'Medical', police: 'Police', disaster: 'Disaster', other: 'Other' };
   const emergencyType = typeMap[api.incident_type?.toLowerCase()] || (api.incident_type ? String(api.incident_type).charAt(0).toUpperCase() + String(api.incident_type).slice(1) : '—');
 
   const severityMap = { high: 'Critical', medium: 'Warning', low: 'Low' };
@@ -182,7 +175,7 @@ export function DashboardPage() {
     try {
       const apiStatus = mapStatusFilterToApi(filterStatus);
       const apiSeverity = mapSeverityFilterToApi(filterSeverity);
-      const apiType = mapTypeFilterToApi(filterType);
+      const apiType = mapIncidentTypeFilterToApi(filterType);
       const apiBarangay = filterBarangay !== 'All' ? filterBarangay : undefined;
       const offset = (currentPage - 1) * itemsPerPage;
       const result = await getIncidents({
@@ -467,6 +460,7 @@ export function DashboardPage() {
     { value: 'Medical', label: 'Medical' },
     { value: 'Police', label: 'Police' },
     { value: 'Disaster', label: 'Disaster' },
+    { value: 'Other', label: 'Other' },
   ];
 
   const statusOptions = [

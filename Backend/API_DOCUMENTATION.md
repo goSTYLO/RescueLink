@@ -6,6 +6,20 @@
 http://localhost:3000/api
 ```
 
+## Latest Integration Notes (Mobile + Backend)
+
+- Mobile incident detail flow is now unified on a single screen that uses `GET /api/incidents/:id/with-ai` as its primary data source.
+- AI confidence values may appear under different keys depending on endpoint/path:
+  - `ai_classification.confidence` (create response path)
+  - `ai_classification.confidence_score` (stored classification path)
+  - `incident.primary_confidence` (incident-level fallback)
+- Incident evidence download endpoints used by mobile:
+  - `GET /api/incidents/:id/audio`
+  - `GET /api/incidents/:id/media/:index`
+- Notification ownership behavior for role `user`:
+  - list endpoint always returns only the authenticated user's notifications (even if `user_id` query is provided)
+  - detail endpoint returns `403` when accessing another user's notification
+
 ## Authentication
 
 All API endpoints **except** authentication endpoints require JWT authentication. Include a valid JWT token in the Authorization header:
@@ -843,6 +857,11 @@ Create a new notification record. Validates that the user exists and optionally 
 
 Retrieve a paginated list of notifications with optional filtering.
 
+**Role-specific behavior:**
+
+- `user`: always scoped to authenticated user's notifications
+- `dispatcher`, `admin`: can query across users (including `user_id` filter)
+
 **Query Parameters:**
 
 - `limit` (integer, optional) - Number of records to return (default: 20, max: 100)
@@ -882,6 +901,8 @@ GET /api/notifications?limit=10&offset=0&user_id=1&sent_via=SMS
 
 **Error Responses:**
 
+- `401 Unauthorized` - Missing or invalid authentication token
+- `403 Forbidden` - Accessing notifications outside user ownership (regular users)
 - `500 Internal Server Error` - Server error
 
 ---
@@ -911,7 +932,124 @@ Retrieve a specific notification by ID.
 
 **Error Responses:**
 
+- `401 Unauthorized` - Missing or invalid authentication token
+- `403 Forbidden` - User cannot access this notification (ownership violation)
 - `404 Not Found` - Notification not found
+- `500 Internal Server Error` - Server error
+
+---
+
+### Get Incident by ID with AI
+
+**GET** `/api/incidents/:id/with-ai`
+
+Retrieve incident detail plus latest AI classification (if available).
+
+**Required Role:** `user`, `dispatcher`, `admin`
+
+**Ownership Rules:**
+
+- Regular users can only view incidents they created
+- Dispatchers and admins can view any incident
+
+**Parameters:**
+
+- `id` (integer) - Incident report ID
+
+**Response:** `200 OK`
+
+```json
+{
+  "incident": {
+    "report_id": 123,
+    "user_id": 9,
+    "incident_type": "medical",
+    "severity_level": "high",
+    "primary_confidence": 0.88,
+    "audio_path": "uploads/incidents/incident_123_audio.wav",
+    "media_paths": [
+      "uploads/incidents/incident_123_photo_1.jpg"
+    ],
+    "status": "in_progress"
+  },
+  "ai_classification": {
+    "classification_id": 55,
+    "report_id": 123,
+    "predicted_type": "medical",
+    "predicted_severity": "high",
+    "confidence_score": 0.88,
+    "secondary_predicted_type": "disaster",
+    "secondary_confidence_score": 0.41,
+    "low_confidence_flag": false
+  }
+}
+```
+
+**Error Responses:**
+
+- `400 Bad Request` - Invalid incident ID format
+- `401 Unauthorized` - Missing or invalid authentication token
+- `403 Forbidden` - User cannot access this incident (ownership violation)
+- `404 Not Found` - Incident not found
+- `500 Internal Server Error` - Server error
+
+---
+
+### Download Incident Audio
+
+**GET** `/api/incidents/:id/audio`
+
+Download the incident's audio evidence file.
+
+**Required Role:** `user`, `dispatcher`, `admin`
+
+**Ownership Rules:**
+
+- Regular users can only download from incidents they created
+- Dispatchers and admins can download from any incident
+
+**Parameters:**
+
+- `id` (integer) - Incident report ID
+
+**Response:** `200 OK` (binary file stream)
+
+**Error Responses:**
+
+- `400 Bad Request` - Invalid incident ID format
+- `401 Unauthorized` - Missing or invalid authentication token
+- `403 Forbidden` - User cannot access this incident (ownership violation)
+- `404 Not Found` - Incident or audio file not found
+- `500 Internal Server Error` - Server error
+
+---
+
+### Download Incident Media by Index
+
+**GET** `/api/incidents/:id/media/:index`
+
+Download a specific incident media file by index from `media_paths`.
+
+**Required Role:** `user`, `dispatcher`, `admin`
+
+**Ownership Rules:**
+
+- Regular users can only download from incidents they created
+- Dispatchers and admins can download from any incident
+
+**Parameters:**
+
+- `id` (integer) - Incident report ID
+- `index` (integer) - Zero-based media index
+
+**Response:** `200 OK` (binary file stream)
+
+**Error Responses:**
+
+- `400 Bad Request` - Invalid incident ID or media index
+- `401 Unauthorized` - Missing or invalid authentication token
+- `403 Forbidden` - User cannot access this incident (ownership violation)
+- `404 Not Found` - Incident, media index, or media file not found
 - `500 Internal Server Error` - Server error
 
 ---

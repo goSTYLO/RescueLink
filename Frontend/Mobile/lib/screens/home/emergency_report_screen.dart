@@ -215,9 +215,10 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
       );
       if (!mounted) return;
       setState(() => _isSubmitting = false);
-      final incident =
-          (response['incident'] as Map?)?.cast<String, dynamic>() ??
-              <String, dynamic>{};
+        final dynamic rawIncident = response['incident'] ?? response;
+        final incident = rawIncident is Map
+          ? rawIncident.cast<String, dynamic>()
+          : <String, dynamic>{};
       widget.onSubmit?.call(incident);
     } catch (e) {
       if (!mounted) return;

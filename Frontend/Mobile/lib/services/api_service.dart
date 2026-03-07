@@ -32,6 +32,8 @@ class ApiService {
       throw ApiException('GET request timed out after ${AppConfig.apiTimeout.inSeconds}s. Check connection to $baseUrl');
     } on SocketException {
       throw ApiException('Unable to connect to $baseUrl. Check network and API_BASE_URL.');
+    } on ApiException {
+      rethrow;
     } catch (e) {
       throw ApiException('GET request failed: $e');
     }
@@ -65,9 +67,10 @@ class ApiService {
     } on SocketException {
       print('❌ [API POST] Socket connection failed to $baseUrl');
       throw ApiException('Unable to connect to $baseUrl. Check network and API_BASE_URL.');
+    } on ApiException {
+      rethrow;
     } catch (e) {
       print('❌ [API POST] Request failed: $e');
-      if (e is ApiException) rethrow;
       throw ApiException('POST request failed: $e');
     }
   }
@@ -91,6 +94,8 @@ class ApiService {
       throw ApiException('PUT request timed out after ${AppConfig.apiTimeout.inSeconds}s. Check connection to $baseUrl');
     } on SocketException {
       throw ApiException('Unable to connect to $baseUrl. Check network and API_BASE_URL.');
+    } on ApiException {
+      rethrow;
     } catch (e) {
       throw ApiException('PUT request failed: $e');
     }
@@ -113,6 +118,8 @@ class ApiService {
       throw ApiException('DELETE request timed out after ${AppConfig.apiTimeout.inSeconds}s. Check connection to $baseUrl');
     } on SocketException {
       throw ApiException('Unable to connect to $baseUrl. Check network and API_BASE_URL.');
+    } on ApiException {
+      rethrow;
     } catch (e) {
       throw ApiException('DELETE request failed: $e');
     }

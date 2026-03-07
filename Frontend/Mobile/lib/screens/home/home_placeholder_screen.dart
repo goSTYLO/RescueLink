@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'report_history_screen.dart';
 import 'notifications_screen.dart';
 import 'settings_screen.dart';
+import '../../services/auth_service.dart';
 import '../../utils/responsive.dart';
 
 class HomePlaceholderScreen extends StatefulWidget {
@@ -40,10 +41,15 @@ class HomePlaceholderScreen extends StatefulWidget {
 class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
   Timer? _sosTimer;
   int _sosCountdown = 0;
+  bool _loadingLocation = true;
+  String? _locationError;
+  String _locationTitle = 'Dagupan City, Pangasinan';
+  String _locationSubtitle = 'Loading location...';
 
   @override
   void initState() {
     super.initState();
+    _loadHomeLocation();
     if (widget.initialTabIndex != null) {
       _currentIndex = widget.initialTabIndex!;
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -56,6 +62,40 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
   void dispose() {
     _sosTimer?.cancel();
     super.dispose();
+  }
+
+  Future<void> _loadHomeLocation() async {
+    setState(() {
+      _loadingLocation = true;
+      _locationError = null;
+    });
+
+    final result = await AuthService().getProfile();
+    if (!mounted) {
+      return;
+    }
+
+    if (result['success'] == true) {
+      final profile = (result['user'] as Map?)?.cast<String, dynamic>() ??
+          <String, dynamic>{};
+      final addressRaw = profile['address'];
+      final address = addressRaw is String ? addressRaw.trim() : '';
+
+      setState(() {
+        _loadingLocation = false;
+        _locationTitle = 'Dagupan City, Pangasinan';
+        _locationSubtitle =
+            address.isNotEmpty ? address : 'Address not set in profile';
+      });
+      return;
+    }
+
+    setState(() {
+      _loadingLocation = false;
+      _locationError = result['error']?.toString() ?? 'Failed to load location';
+      _locationTitle = 'Dagupan City, Pangasinan';
+      _locationSubtitle = 'Unable to load profile location';
+    });
   }
 
   void _startSosCountdown() {
@@ -298,11 +338,14 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
         final sosIconSize = Responsive.sosIconSize(width);
         final sosItemWidth = compact ? contentWidth : ((contentWidth - 16) / 2);
 
-        return SingleChildScrollView(
-          padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
+        return RefreshIndicator(
+          onRefresh: _loadHomeLocation,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
               SizedBox(height: 16 * spacingScale),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -327,17 +370,18 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: const Color(0xFFE5E7EB)),
                 ),
-                child: const Row(
+                child: Row(
                   children: [
-                    Icon(Icons.location_on, color: Color(0xFF374151), size: 26),
-                    SizedBox(width: 12),
+                    const Icon(Icons.location_on,
+                        color: Color(0xFF374151), size: 26),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Dagupan City, Pangasinan',
-                            style: TextStyle(
+                            _locationTitle,
+                            style: const TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.bold,
                               color: Color(0xFF111827),
@@ -345,18 +389,38 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
-                          SizedBox(height: 2),
+                          const SizedBox(height: 2),
                           Text(
-                            'Barangay Poblacion Oeste',
-                            style: TextStyle(
+                            _loadingLocation
+                                ? 'Loading location...'
+                                : _locationSubtitle,
+                            style: const TextStyle(
                               fontSize: 13,
                               color: Color(0xFF374151),
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
+                          if (_locationError != null) ...[
+                            const SizedBox(height: 2),
+                            const Text(
+                              'Pull down to refresh profile data',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Color(0xFF6B7280),
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
                         ],
                       ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.refresh, size: 20),
+                      color: const Color(0xFF6B7280),
+                      tooltip: 'Refresh location',
+                      onPressed: _loadingLocation ? null : _loadHomeLocation,
                     ),
                   ],
                 ),
@@ -471,8 +535,9 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
                 title: 'Fire Safety',
                 subtitle: 'Keep fire extinguishers accessible',
               ),
-              SizedBox(height: 24 * spacingScale),
-            ],
+                SizedBox(height: 24 * spacingScale),
+              ],
+            ),
           ),
         );
       },

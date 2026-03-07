@@ -2,19 +2,31 @@
 
 Flutter mobile application for RescueLink built with BLoC architecture.
 
-## Session Updates (Lifecycle + Refresh UX)
+## Session Updates (Incident + Notification Integration)
 
 Recent mobile updates:
 
+- **Unified incident experience**:
+  - `Emergency Tracking` and `Report Details` were merged into a single `Incident Details` screen.
+  - incident layout is tracking-first (status, timeline, responder availability/location placeholders, then details/evidence).
+  - opening from submit flow and report history now routes to the same incident screen.
 - **Incident lifecycle UX alignment**:
   - mobile status rendering supports canonical flow including `in_progress`.
   - reporter confirmation action is available after dispatcher/admin marks incident `resolved`.
-- **Swipe-to-refresh (pull down) added on incident views**:
+- **Swipe-to-refresh coverage**:
   - `Report History` supports pull-to-refresh for latest incidents.
-  - `Report Details` supports pull-to-refresh for latest status/AI/transcription fields.
-  - `Emergency Tracking` already supports pull-to-refresh and remains enabled.
-- **Resolution confirmation UX**:
-  - resolved incidents show a confirmation CTA and "confirmed" state after successful reporter confirmation.
+  - `Incident Details` supports pull-to-refresh for latest status, AI fields, and evidence metadata.
+- **Inline evidence UX**:
+  - voice recording supports inline play/pause/progress and file download.
+  - attached images support inline preview and download.
+  - attached videos currently use download flow (inline video preview/playback is pending).
+- **Notifications integration**:
+  - notifications screen is backend-driven via `/api/notifications`.
+  - pull-to-refresh, loading/error/empty states, and dynamic card styling by `sent_via` are now implemented.
+  - mark-as-read is intentionally shown as unavailable until backend contract is added.
+- **API error handling hardening**:
+  - `ApiService` now rethrows `ApiException` consistently so screen-level messages preserve backend context.
+  - incident detail loading now handles `/with-ai` fallback more strictly (falls back only when endpoint is unavailable).
 
 ## Prerequisites
 
@@ -108,6 +120,7 @@ class ExampleBloc extends Bloc<ExampleEvent, ExampleState> {
 - **equatable**: Value equality for states and events
 - **http**: HTTP client for API calls
 - **shared_preferences**: Local storage for app data
+- **audioplayers**: Inline audio playback for incident evidence
 
 ## API Integration
 
@@ -164,8 +177,8 @@ flutter build ios --release
 ## Next Steps
 
 - Implement authentication BLoC
-- Create incident reporting screens
-- Integrate with backend API endpoints
+- Extend inline incident evidence support to video preview/playback
+- Add notification read-state lifecycle once backend endpoint is available
 - Add location services
 - Implement push notifications
 

@@ -2,6 +2,21 @@
 
 Node.js + Express backend for RescueLink, using PostgreSQL. Handles authentication, incident reporting, dispatcher workflows, AI-powered incident classification, and audit logging.
 
+## Session Updates (Mobile + Backend Incident Integration)
+
+Recent backend changes aligned with current mobile integration:
+
+- **Notifications ownership enforcement for user role**:
+  - `GET /api/notifications` now forces `user_id = req.user.user_id` for role `user`.
+  - `GET /api/notifications/:id` returns `403` if a regular user tries to access another user's notification.
+- **Incident detail contract parity with mobile unified screen**:
+  - `GET /api/incidents/:id/with-ai` remains the primary detail source for combined tracking/details UI.
+  - mobile now supports AI confidence keys from both create and stored-classification paths (`confidence`, `confidence_score`, and incident `primary_confidence` fallback).
+- **Incident evidence download endpoints in active use by mobile**:
+  - `GET /api/incidents/:id/audio`
+  - `GET /api/incidents/:id/media/:index`
+  - both routes keep ownership protection for regular users through RBAC middleware.
+
 ## Session Updates (Performance Session 2)
 
 Implemented updates during this session:

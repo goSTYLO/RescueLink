@@ -1,9 +1,67 @@
 import 'package:flutter/material.dart';
 
-class NotificationsScreen extends StatelessWidget {
+import '../../services/notification_service.dart';
+
+class NotificationsScreen extends StatefulWidget {
   final VoidCallback? onNotificationTap;
 
   const NotificationsScreen({super.key, this.onNotificationTap});
+
+  @override
+  State<NotificationsScreen> createState() => _NotificationsScreenState();
+}
+
+class _NotificationsScreenState extends State<NotificationsScreen> {
+  final NotificationService _notificationService = NotificationService();
+  List<Map<String, dynamic>> _notifications = const [];
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadNotifications();
+  }
+
+  Future<void> _loadNotifications() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    try {
+      final notifications = await _notificationService.getNotifications(limit: 50);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _notifications = notifications;
+        _loading = false;
+      });
+    } on NotificationServiceException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _loading = false;
+        _error = error.message;
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _loading = false;
+        _error = 'Unable to load notifications right now.';
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _notificationService.close();
+    super.dispose();
+  }
 
   Widget _buildLogo() {
     return Row(
@@ -40,51 +98,99 @@ class NotificationsScreen extends StatelessWidget {
     );
   }
 
+  DateTime? _sentAt(Map<String, dynamic> notification) {
+    final raw = notification['sent_at'];
+    if (raw is! String || raw.isEmpty) {
+      return null;
+    }
+    return DateTime.tryParse(raw);
+  }
+
+  String _timeAgo(Map<String, dynamic> notification) {
+    final sentAt = _sentAt(notification);
+    if (sentAt == null) {
+      return 'Unknown time';
+    }
+
+    final diff = DateTime.now().difference(sentAt.toLocal());
+    if (diff.inMinutes < 1) {
+      return 'Just now';
+    }
+    if (diff.inMinutes < 60) {
+      return '${diff.inMinutes} minutes ago';
+    }
+    if (diff.inHours < 24) {
+      return '${diff.inHours} hours ago';
+    }
+    return '${sentAt.month}/${sentAt.day}/${sentAt.year}';
+  }
+
+  bool _isNew(Map<String, dynamic> notification) {
+    final sentAt = _sentAt(notification);
+    if (sentAt == null) {
+      return false;
+    }
+    return DateTime.now().difference(sentAt.toLocal()).inHours < 1;
+  }
+
+  void _showUnavailableMarkReadMessage() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Mark-as-read is not yet available in the current backend contract.'),
+      ),
+    );
+  }
+
+  ({IconData icon, Color iconBg, Color iconColor, Color cardColor})
+      _notificationStyle(Map<String, dynamic> notification) {
+    final sentVia = (notification['sent_via'] as String?)?.toLowerCase() ?? '';
+    if (sentVia.contains('sms')) {
+      return (
+        icon: Icons.sms_outlined,
+        iconBg: const Color(0xFFFEF3C7),
+        iconColor: const Color(0xFFD97706),
+        cardColor: const Color(0xFFFFFBEB),
+      );
+    }
+    if (sentVia.contains('email')) {
+      return (
+        icon: Icons.mail_outline,
+        iconBg: const Color(0xFFEDE9FE),
+        iconColor: const Color(0xFF6D28D9),
+        cardColor: const Color(0xFFF5F3FF),
+      );
+    }
+    if (sentVia.contains('push')) {
+      return (
+        icon: Icons.notifications_active_outlined,
+        iconBg: const Color(0xFFDBEAFE),
+        iconColor: const Color(0xFF2563EB),
+        cardColor: const Color(0xFFEFF6FF),
+      );
+    }
+    return (
+      icon: Icons.info_outline,
+      iconBg: const Color(0xFFFCE7F3),
+      iconColor: const Color(0xFFEC4899),
+      cardColor: const Color(0xFFFDF2F8),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
+    final newItems = _notifications.where(_isNew).toList();
+    final earlierItems = _notifications.where((item) => !_isNew(item)).toList();
+
+    return RefreshIndicator(
+      onRefresh: _loadNotifications,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
           const SizedBox(height: 16),
           Align(alignment: Alignment.centerLeft, child: _buildLogo()),
-          const SizedBox(height: 20),
-          // Location bar
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF3F4F6),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFFE5E7EB)),
-            ),
-            child: const Row(
-              children: [
-                Icon(Icons.location_on, color: Color(0xFF111827), size: 24),
-                SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Dagupan City, Pangasinan',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF111827),
-                        ),
-                      ),
-                      SizedBox(height: 2),
-                      Text(
-                        'Barangay Poblacion Oeste',
-                        style: TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
           const SizedBox(height: 20),
           // Notifications banner (red)
           Container(
@@ -110,7 +216,7 @@ class NotificationsScreen extends StatelessWidget {
                       const SizedBox(height: 2),
                       Text(
                         'Emergency updates & alerts',
-                        style: TextStyle(color: Colors.white.withOpacity(0.95), fontSize: 12),
+                        style: TextStyle(color: Colors.white.withValues(alpha: 0.95), fontSize: 12),
                       ),
                     ],
                   ),
@@ -120,78 +226,108 @@ class NotificationsScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 24),
-          // NEW section
-          const Text(
-            'NEW',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF374151),
-            ),
-          ),
-          const SizedBox(height: 12),
-          _notificationCard(
-            icon: Icons.error_outline,
-            iconBg: const Color(0xFFFCE7F3),
-            iconColor: const Color(0xFFEC4899),
-            cardColor: const Color(0xFFFDF2F8),
-            title: 'Emergency Report Submitted',
-            description: 'Your fire emergency report #DGP-2026-0119 has been submitted successfully.',
-            time: '2 minutes ago',
-            showUnreadDot: true,
-            onTap: onNotificationTap,
-          ),
-          const SizedBox(height: 12),
-          _notificationCard(
-            icon: Icons.local_shipping_outlined,
-            iconBg: const Color(0xFFFFEDD5),
-            iconColor: const Color(0xFFEA580C),
-            cardColor: const Color(0xFFFFF7ED),
-            title: 'Responder Dispatched',
-            description: 'Fire Truck #3 has been dispatched to your location. ETA: 4 minutes',
-            time: '5 minutes ago',
-            showUnreadDot: true,
-            onTap: onNotificationTap,
-          ),
-          const SizedBox(height: 12),
-          _notificationCard(
-            icon: Icons.schedule,
-            iconBg: const Color(0xFFDBEAFE),
-            iconColor: const Color(0xFF2563EB),
-            cardColor: const Color(0xFFEFF6FF),
-            title: 'Responder En Route',
-            description: 'Fire Team is on the way. Current distance: 2.3 km.',
-            time: '8 minutes ago',
-            showUnreadDot: true,
-            onTap: onNotificationTap,
-          ),
-          const SizedBox(height: 24),
-          // EARLIER section
-          const Text(
-            'EARLIER',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF374151),
-            ),
-          ),
-          const SizedBox(height: 12),
-          _notificationCard(
-            icon: Icons.schedule,
-            iconBg: const Color(0xFFDBEAFE),
-            iconColor: const Color(0xFF2563EB),
-            cardColor: const Color(0xFFF3F4F6),
-            title: 'Previous Emergency Resolved',
-            description: 'Your medical emergency report #DGP-2026-0118-045 has been successfully resolved.',
-            time: '2 hours ago',
-            showUnreadDot: false,
-            onTap: onNotificationTap,
-          ),
+          if (_loading)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 40),
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else if (_error != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 20),
+              child: Column(
+                children: [
+                  Text(
+                    _error!,
+                    style: const TextStyle(color: Color(0xFFDC2626)),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 10),
+                  TextButton(onPressed: _loadNotifications, child: const Text('Retry')),
+                ],
+              ),
+            )
+          else if (_notifications.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 30),
+              child: Center(
+                child: Text(
+                  'No notifications yet.',
+                  style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
+                ),
+              ),
+            )
+          else ...[
+            if (newItems.isNotEmpty) ...[
+              const Text(
+                'NEW',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF374151),
+                ),
+              ),
+              const SizedBox(height: 12),
+              ...newItems.map((item) {
+                final style = _notificationStyle(item);
+                final message = (item['message'] as String?) ?? 'Notification update';
+                final reportId = item['report_id'];
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _notificationCard(
+                    icon: style.icon,
+                    iconBg: style.iconBg,
+                    iconColor: style.iconColor,
+                    cardColor: style.cardColor,
+                    title: reportId is num
+                        ? 'Incident Update #DGP-${reportId.toInt()}'
+                        : 'Incident Update',
+                    description: message,
+                    time: _timeAgo(item),
+                    showUnreadDot: true,
+                    onTap: widget.onNotificationTap,
+                  ),
+                );
+              }),
+              const SizedBox(height: 20),
+            ],
+            if (earlierItems.isNotEmpty) ...[
+              const Text(
+                'EARLIER',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF374151),
+                ),
+              ),
+              const SizedBox(height: 12),
+              ...earlierItems.map((item) {
+                final style = _notificationStyle(item);
+                final message = (item['message'] as String?) ?? 'Notification update';
+                final reportId = item['report_id'];
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _notificationCard(
+                    icon: style.icon,
+                    iconBg: style.iconBg,
+                    iconColor: style.iconColor,
+                    cardColor: style.cardColor,
+                    title: reportId is num
+                        ? 'Incident Update #DGP-${reportId.toInt()}'
+                        : 'Incident Update',
+                    description: message,
+                    time: _timeAgo(item),
+                    showUnreadDot: false,
+                    onTap: widget.onNotificationTap,
+                  ),
+                );
+              }),
+            ],
+          ],
           const SizedBox(height: 24),
           // Mark all as Read button
           Center(
             child: OutlinedButton(
-              onPressed: () {},
+              onPressed: _showUnavailableMarkReadMessage,
               style: OutlinedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                 side: const BorderSide(color: Color(0xFFE5E7EB)),
@@ -205,6 +341,7 @@ class NotificationsScreen extends StatelessWidget {
           ),
           const SizedBox(height: 24),
         ],
+        ),
       ),
     );
   }
@@ -231,7 +368,7 @@ class NotificationsScreen extends StatelessWidget {
           border: Border.all(color: const Color(0xFFE5E7EB)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.03),
+              color: Colors.black.withValues(alpha: 0.03),
               blurRadius: 6,
               offset: const Offset(0, 2),
             ),

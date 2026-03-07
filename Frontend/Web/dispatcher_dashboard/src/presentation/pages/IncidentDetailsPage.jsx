@@ -30,6 +30,7 @@ import { getResponders, getResponderTeams, updateResponderStatus, updateResponde
 import { createDispatch } from '@/data/api/dispatches.api';
 import { DEV_MODE } from '@/core/config/app.config';
 import { ROLES, normalizeRole } from '@/core/constants';
+import { normalizeIncidentTaskType, doesTeamSupportIncidentType } from '@/core/utils/incidentClassification';
 import { Loader2 } from 'lucide-react';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
 import Swal from 'sweetalert2';
@@ -64,7 +65,7 @@ function mapApiToIncidentDetails(api, aiClassification = null) {
     ? [firstName, lastName].filter(Boolean).join(' ').trim()
     : `User #${api.user_id}`;
 
-  const typeMap = { fire: 'Fire', medical: 'Medical', police: 'Police', disaster: 'Disaster' };
+  const typeMap = { fire: 'Fire', medical: 'Medical', police: 'Police', disaster: 'Disaster', other: 'Other' };
   const emergencyType = typeMap[api.incident_type?.toLowerCase()] || (api.incident_type ? String(api.incident_type).charAt(0).toUpperCase() + String(api.incident_type).slice(1) : '—');
 
   const normalizedSeverity = normalizeSeverityToDbLevel(api.severity_level);
@@ -116,19 +117,7 @@ function mapApiToIncidentDetails(api, aiClassification = null) {
   };
 }
 
-function normalizeTaskType(value) {
-  const normalized = String(value || '').trim().toLowerCase();
-  if (!normalized) return '';
-  const collapsed = normalized.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
-  if (!collapsed) return '';
-  if (['natural disaster', 'typhoon', 'flood', 'earthquake', 'landslide', 'storm surge', 'volcanic eruption', 'disaster', 'calamity'].includes(collapsed)) return 'disaster';
-  if (['crime', 'robbery', 'theft', 'assault', 'violence', 'homicide', 'shooting', 'stabbing', 'police', 'law enforcement'].includes(collapsed)) return 'police';
-  if (['accident', 'vehicular accident', 'road accident', 'traffic accident', 'collision', 'injury', 'trauma', 'medical emergency', 'emergency medical', 'medical', 'first aid'].includes(collapsed)) return 'medical';
-  if (['fire', 'blaze', 'structural fire', 'wildfire'].includes(collapsed)) return 'fire';
-  if (normalized === 'natural disaster' || normalized === 'natural-disaster') return 'disaster';
-  if (normalized === 'crime') return 'police';
-  return normalized;
-}
+const normalizeTaskType = normalizeIncidentTaskType;
 
 function getDefaultSectorByIncidentType(typeValue) {
   const normalized = normalizeTaskType(typeValue);
@@ -569,13 +558,10 @@ export function IncidentDetailsPage() {
   );
 
   const selectedIncidentTaskType = normalizeTaskType(incident?.incidentTypeRaw || incident?.emergencyType);
+  const selectedIncidentTypeIsWildcard = selectedIncidentTaskType === 'other';
   const selectedTeamSupportsTask = (() => {
     if (!selectedTeamMeta) return null;
-    const supported = Array.isArray(selectedTeamMeta.supported_incident_types)
-      ? selectedTeamMeta.supported_incident_types.map((entry) => normalizeTaskType(entry))
-      : [];
-    if (supported.length === 0) return true;
-    return supported.includes(selectedIncidentTaskType);
+    return doesTeamSupportIncidentType(selectedTeamMeta.supported_incident_types, selectedIncidentTaskType);
   })();
 
   const openStatusDialog = async () => {
@@ -1476,7 +1462,9 @@ export function IncidentDetailsPage() {
                     : 'border-border bg-muted/20 text-muted'
                 }`}>
                   Incident task type: <strong>{selectedIncidentTaskType || 'n/a'}</strong>.{' '}
-                  {selectedTeamSupportsTask === false
+                  {selectedIncidentTypeIsWildcard
+                    ? 'Other incidents are wildcard-assignable, so any team can be selected.'
+                    : selectedTeamSupportsTask === false
                     ? 'Selected team does not explicitly list this task type; assignment may return no eligible members.'
                     : 'Selected team is task-aligned or has open specialization.'}
                 </div>

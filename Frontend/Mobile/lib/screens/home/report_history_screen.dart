@@ -122,6 +122,36 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
     return months[m - 1];
   }
 
+  String _locationTitle() {
+    if (_incidents.isEmpty) {
+      return 'Location unavailable';
+    }
+    return 'Latest incident location';
+  }
+
+  String _locationSubtitle() {
+    if (_incidents.isEmpty) {
+      return 'Submit an incident report to see location details.';
+    }
+    final latest = _incidents.first;
+    if (latest is! Map) {
+      return 'Incident location data is unavailable.';
+    }
+
+    final incident = latest.cast<String, dynamic>();
+    final barangay = incident['barangay'] as String?;
+    final latitude = incident['latitude'] as num?;
+    final longitude = incident['longitude'] as num?;
+
+    if (barangay != null && barangay.isNotEmpty) {
+      return '$barangay, Dagupan City';
+    }
+    if (latitude != null && longitude != null) {
+      return '${latitude.toStringAsFixed(4)}, ${longitude.toStringAsFixed(4)}';
+    }
+    return 'Incident location data is unavailable.';
+  }
+
   @override
   Widget build(BuildContext context) {
     return RefreshIndicator(
@@ -142,26 +172,26 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: const Color(0xFFE5E7EB)),
             ),
-            child: const Row(
+            child: Row(
               children: [
-                Icon(Icons.location_on, color: Color(0xFF6B7280), size: 24),
-                SizedBox(width: 12),
+                const Icon(Icons.location_on, color: Color(0xFF6B7280), size: 24),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Dagupan City, Pangasinan',
-                        style: TextStyle(
+                        _locationTitle(),
+                        style: const TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w600,
                           color: Color(0xFF111827),
                         ),
                       ),
-                      SizedBox(height: 2),
+                      const SizedBox(height: 2),
                       Text(
-                        'Barangay Poblacion Oeste',
-                        style: TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
+                        _locationSubtitle(),
+                        style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
                       ),
                     ],
                   ),

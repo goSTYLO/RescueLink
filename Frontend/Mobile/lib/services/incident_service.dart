@@ -8,6 +8,18 @@ import '../utils/app_config.dart';
 import 'api_service.dart';
 import 'auth_service.dart';
 
+class IncidentFileDownload {
+  final List<int> bytes;
+  final String filename;
+  final String? contentType;
+
+  const IncidentFileDownload({
+    required this.bytes,
+    required this.filename,
+    this.contentType,
+  });
+}
+
 class IncidentService {
   final ApiService _apiService = ApiService();
   final AuthService _authService = AuthService();
@@ -214,7 +226,10 @@ class IncidentService {
     if (decoded is Map && decoded['incidents'] is List) {
       return decoded['incidents'] as List;
     }
-    return [];
+    throw IncidentServiceException(
+      'Unexpected incidents response format from server.',
+      statusCode: response.statusCode,
+    );
   }
 
   /// Get incident by ID. Set [withAi] true for AI classification details.
@@ -234,16 +249,24 @@ class IncidentService {
       _logInfo(
           '[mobile][incident][getIncidentById] request_id=$requestId report_id=$reportId status=success latency_ms=${stopwatch.elapsedMilliseconds}');
       return response;
+    } on ApiException catch (error) {
+      stopwatch.stop();
+      _logError(
+          '[mobile][incident][getIncidentById] request_id=$requestId report_id=$reportId status=api_error latency_ms=${stopwatch.elapsedMilliseconds} error=${error.message}');
+      throw IncidentServiceException(
+        error.message,
+        statusCode: error.statusCode,
+      );
     } catch (error) {
       stopwatch.stop();
       _logError(
           '[mobile][incident][getIncidentById] request_id=$requestId report_id=$reportId status=error latency_ms=${stopwatch.elapsedMilliseconds} error=$error');
-      rethrow;
+      throw IncidentServiceException('Failed to load incident details.');
     }
   }
 
   /// Get incident details with graceful fallback:
-  /// try `/with-ai`, then plain `/api/incidents/:id` if unavailable.
+  /// try `/with-ai`, then plain `/api/incidents/:id` if endpoint is unavailable.
   Future<Map<String, dynamic>> getIncidentWithAiFallback(int reportId) async {
     try {
       final withAiData = await getIncidentById(reportId, withAi: true);
@@ -254,13 +277,142 @@ class IncidentService {
         'incident': withAiData,
         'ai_classification': null,
       };
-    } catch (_) {
+    } on IncidentServiceException catch (error) {
+      // Only treat 404 as "with-ai endpoint unavailable".
+      if (error.statusCode != 404) {
+        rethrow;
+      }
       final incident = await getIncidentById(reportId, withAi: false);
       return {
         'incident': incident,
         'ai_classification': null,
       };
     }
+  }
+
+  Future<IncidentFileDownload> downloadIncidentAudio(int reportId) async {
+    return _downloadIncidentBinary(
+      endpoint: '/api/incidents/$reportId/audio',
+      fallbackFilename: 'incident_${reportId}_audio.wav',
+    );
+  }
+
+  Future<IncidentFileDownload> downloadIncidentMedia(
+    int reportId,
+    int mediaIndex,
+  ) async {
+    return _downloadIncidentBinary(
+      endpoint: '/api/incidents/$reportId/media/$mediaIndex',
+      fallbackFilename: 'incident_${reportId}_media_$mediaIndex',
+    );
+  }
+
+  Future<IncidentFileDownload> _downloadIncidentBinary({
+    required String endpoint,
+    required String fallbackFilename,
+  }) async {
+    final requestId = _newRequestId();
+    final uri = Uri.parse('${AppConfig.apiBaseUrl}$endpoint');
+    final stopwatch = Stopwatch()..start();
+
+    http.Response response;
+    try {
+      response = await _client
+          .get(uri, headers: {
+            ..._authHeaders(),
+            'x-request-id': requestId,
+          })
+          .timeout(AppConfig.apiTimeout);
+      stopwatch.stop();
+    } on TimeoutException {
+      stopwatch.stop();
+      throw IncidentServiceException('Download timed out. Please try again.');
+    } on SocketException {
+      stopwatch.stop();
+      throw IncidentServiceException(
+        'Unable to connect to server at ${AppConfig.apiBaseUrl}.',
+      );
+    } catch (_) {
+      stopwatch.stop();
+      throw IncidentServiceException('Failed to download incident file.');
+    }
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      String errorMessage =
+          'Download failed with status ${response.statusCode}.';
+      try {
+        final body = jsonDecode(response.body) as Map<String, dynamic>;
+        if (body['message'] is String) {
+          errorMessage = body['message'] as String;
+        } else if (body['error'] is String) {
+          errorMessage = body['error'] as String;
+        }
+      } catch (_) {
+        if (response.body.isNotEmpty) {
+          errorMessage = response.body;
+        }
+      }
+      _logError(
+          '[mobile][incident][download] request_id=$requestId endpoint=$endpoint status=${response.statusCode} latency_ms=${stopwatch.elapsedMilliseconds} error=$errorMessage');
+      throw IncidentServiceException(
+        errorMessage,
+        statusCode: response.statusCode,
+      );
+    }
+
+    final contentType = response.headers['content-type'];
+    final disposition = response.headers['content-disposition'];
+    final filename = _filenameFromContentDisposition(disposition) ??
+        _filenameWithExtensionFallback(fallbackFilename, contentType);
+
+    return IncidentFileDownload(
+      bytes: response.bodyBytes,
+      filename: filename,
+      contentType: contentType,
+    );
+  }
+
+  String? _filenameFromContentDisposition(String? value) {
+    if (value == null || value.isEmpty) {
+      return null;
+    }
+    final lower = value.toLowerCase();
+    if (!lower.contains('filename=')) {
+      return null;
+    }
+    final parts = value.split(';');
+    for (final part in parts) {
+      final trimmed = part.trim();
+      if (trimmed.toLowerCase().startsWith('filename=')) {
+        return trimmed.substring(9).replaceAll('"', '');
+      }
+    }
+    return null;
+  }
+
+  String _filenameWithExtensionFallback(String fallback, String? contentType) {
+    if (contentType == null) {
+      return fallback;
+    }
+    if (fallback.contains('.')) {
+      return fallback;
+    }
+    if (contentType.contains('audio/mpeg')) {
+      return '$fallback.mp3';
+    }
+    if (contentType.contains('audio/wav')) {
+      return '$fallback.wav';
+    }
+    if (contentType.contains('image/jpeg')) {
+      return '$fallback.jpg';
+    }
+    if (contentType.contains('image/png')) {
+      return '$fallback.png';
+    }
+    if (contentType.contains('video/mp4')) {
+      return '$fallback.mp4';
+    }
+    return fallback;
   }
 
   Future<Map<String, dynamic>> confirmIncidentResolution(int reportId) async {

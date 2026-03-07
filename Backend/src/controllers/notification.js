@@ -1,5 +1,6 @@
 const Notification = require('../models/notification');
 const { validateInteger, validateString, validateOptionalString, validatePagination } = require('../utils/validation');
+const { ROLES } = require('../config/roles');
 
 const notificationController = {
   // Create new notification
@@ -61,6 +62,11 @@ const notificationController = {
         return res.status(404).json({ error: 'Notification not found' });
       }
 
+      const isUserRole = String(req.user?.role || '').toLowerCase() === ROLES.USER;
+      if (isUserRole && notification.user_id !== req.user.user_id) {
+        return res.status(403).json({ error: 'Forbidden. You can only access your own notifications.' });
+      }
+
       res.json(notification);
     } catch (error) {
       console.error('Error fetching notification:', error);
@@ -86,9 +92,14 @@ const notificationController = {
       const { limit: validatedLimit, offset: validatedOffset } = validatePagination(limit, offset);
       
       // Validate optional filters
-      const validatedUserId = user_id ? validateInteger(user_id, 'user_id') : null;
+      let validatedUserId = user_id ? validateInteger(user_id, 'user_id') : null;
       const validatedReportId = report_id ? validateInteger(report_id, 'report_id') : null;
       const validatedSentVia = sent_via ? validateString(sent_via, 'sent_via', 1, 50) : null;
+
+      const isUserRole = String(req.user?.role || '').toLowerCase() === ROLES.USER;
+      if (isUserRole) {
+        validatedUserId = req.user.user_id;
+      }
 
       const notifications = await Notification.findAll({
         limit: validatedLimit,

@@ -26,6 +26,7 @@ dependencies:
 
   # Audio recording and media
   record: ^6.0.0
+  audioplayers: ^6.1.0
   image_picker: ^1.0.7
   path_provider: ^2.1.2
   

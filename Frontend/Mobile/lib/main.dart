@@ -22,8 +22,7 @@ import 'screens/verification/verification_otp_screen.dart';
 import 'screens/verification/outside_service_area_screen.dart';
 import 'screens/home/home_placeholder_screen.dart';
 import 'screens/home/emergency_report_screen.dart';
-import 'screens/home/emergency_tracking_screen.dart';
-import 'screens/home/report_details_screen.dart';
+import 'screens/home/incident_details_screen.dart';
 import 'screens/home/change_phone_number_screen.dart';
 import 'screens/home/enter_new_phone_number_screen.dart';
 import 'screens/home/verify_new_phone_otp_screen.dart';
@@ -98,11 +97,10 @@ class _AuthNavigatorState extends State<AuthNavigator> {
   bool _isInsideDagupan = true;
   bool _showDashboard = false;
   bool _showEmergencyReport = false;
-  bool _showEmergencyTracking = false;
-  bool _showReportDetails = false;
-  int? _selectedReportId;
-  int? _activeTrackingReportId;
-  Map<String, dynamic>? _activeTrackingIncident;
+  bool _showIncidentDetails = false;
+  bool _incidentDetailsFromHistory = false;
+  int? _incidentDetailsReportId;
+  Map<String, dynamic>? _incidentDetailsInitialIncident;
   bool _emergencyNoAiInProgress = false;
   bool _showChangePhoneNumber = false;
   bool _showEnterNewPhoneNumber = false;
@@ -115,6 +113,7 @@ class _AuthNavigatorState extends State<AuthNavigator> {
   bool _showPrivacySecurity = false;
   bool _showLogoutConfirmation = false;
   bool _returnToSettingsTab = false;
+  bool _returnToReportsTab = false;
   String _newPhoneNumberForOtp = '';
 
   // Login path verification flow (after login): Request OTP -> Enter OTP -> dashboard
@@ -171,11 +170,10 @@ class _AuthNavigatorState extends State<AuthNavigator> {
       _showResidencyCheck = false;
       _showDashboard = false;
       _showEmergencyReport = false;
-      _showEmergencyTracking = false;
-      _showReportDetails = false;
-      _selectedReportId = null;
-      _activeTrackingReportId = null;
-      _activeTrackingIncident = null;
+      _showIncidentDetails = false;
+      _incidentDetailsFromHistory = false;
+      _incidentDetailsReportId = null;
+      _incidentDetailsInitialIncident = null;
       _emergencyNoAiInProgress = false;
       _showChangePhoneNumber = false;
       _showEnterNewPhoneNumber = false;
@@ -188,6 +186,7 @@ class _AuthNavigatorState extends State<AuthNavigator> {
       _showPrivacySecurity = false;
       _showLogoutConfirmation = false;
       _returnToSettingsTab = false;
+      _returnToReportsTab = false;
       _newPhoneNumberForOtp = '';
       _verificationStep = null;
       _forgotPasswordIdToken = null;
@@ -241,9 +240,10 @@ class _AuthNavigatorState extends State<AuthNavigator> {
       if (!mounted) return;
       setState(() {
         _emergencyNoAiInProgress = false;
-        _activeTrackingReportId = reportId;
-        _activeTrackingIncident = incident.isEmpty ? null : incident;
-        _showEmergencyTracking = true;
+        _showIncidentDetails = true;
+        _incidentDetailsFromHistory = false;
+        _incidentDetailsReportId = reportId;
+        _incidentDetailsInitialIncident = incident.isEmpty ? null : incident;
       });
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -312,30 +312,24 @@ class _AuthNavigatorState extends State<AuthNavigator> {
             final reportId = (incident['report_id'] as num?)?.toInt();
             setState(() {
               _showEmergencyReport = false;
-              _activeTrackingReportId = reportId;
-              _activeTrackingIncident = incident.isEmpty ? null : incident;
-              _showEmergencyTracking = true;
+              _showIncidentDetails = true;
+              _incidentDetailsFromHistory = false;
+              _incidentDetailsReportId = reportId;
+              _incidentDetailsInitialIncident = incident.isEmpty ? null : incident;
             });
           },
         );
       }
-      if (_showEmergencyTracking) {
-        return EmergencyTrackingScreen(
-          reportId: _activeTrackingReportId,
-          initialIncident: _activeTrackingIncident,
+      if (_showIncidentDetails) {
+        return IncidentDetailsScreen(
+          reportId: _incidentDetailsReportId,
+          initialIncident: _incidentDetailsInitialIncident,
           onBack: () => setState(() {
-            _showEmergencyTracking = false;
-            _activeTrackingReportId = null;
-            _activeTrackingIncident = null;
-          }),
-        );
-      }
-      if (_showReportDetails) {
-        return ReportDetailsScreen(
-          reportId: _selectedReportId,
-          onBack: () => setState(() {
-            _showReportDetails = false;
-            _selectedReportId = null;
+            _showIncidentDetails = false;
+            _incidentDetailsReportId = null;
+            _incidentDetailsInitialIncident = null;
+            _returnToReportsTab = _incidentDetailsFromHistory;
+            _incidentDetailsFromHistory = false;
           }),
         );
       }
@@ -437,16 +431,23 @@ class _AuthNavigatorState extends State<AuthNavigator> {
       return Stack(
         children: [
           HomePlaceholderScreen(
-            initialTabIndex: _returnToSettingsTab ? 2 : null,
-            onInitialTabApplied: _returnToSettingsTab
-                ? () => setState(() => _returnToSettingsTab = false)
+            initialTabIndex: _returnToSettingsTab
+                ? 2
+                : (_returnToReportsTab ? 1 : null),
+            onInitialTabApplied: (_returnToSettingsTab || _returnToReportsTab)
+                ? () => setState(() {
+                      _returnToSettingsTab = false;
+                      _returnToReportsTab = false;
+                    })
                 : null,
             onLogout: () => setState(() => _showLogoutConfirmation = true),
             onSosPressed: () => setState(() => _showEmergencyReport = true),
             onEmergencyNoAiPressed: () => _onEmergencyNoAiPressed(context),
             onReportTap: (reportId) => setState(() {
-              _showReportDetails = true;
-              _selectedReportId = reportId;
+              _showIncidentDetails = true;
+              _incidentDetailsFromHistory = true;
+              _incidentDetailsReportId = reportId;
+              _incidentDetailsInitialIncident = null;
             }),
             onPhoneNumberTap: () =>
                 setState(() => _showChangePhoneNumber = true),

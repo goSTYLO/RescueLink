@@ -14,7 +14,12 @@ function normalizeIncidentType(value) {
   if (['fire', 'blaze', 'structural fire', 'wildfire'].includes(collapsed)) return 'fire';
   if (normalized === 'natural disaster' || normalized === 'natural-disaster') return 'disaster';
   if (normalized === 'crime') return 'police';
+  if (normalized === 'other') return 'other';
   return normalized;
+}
+
+function shouldBypassIncidentTypeFilter(incidentType) {
+  return !incidentType || incidentType === 'other';
 }
 
 function normalizeIncidentTypes(values) {
@@ -359,6 +364,8 @@ const Responder = {
     const normalizedDepartmentCode = String(department_code || '').trim().toLowerCase();
     const normalizedTeamName = String(team_name || '').trim();
     const normalizedIncidentType = normalizeIncidentType(incident_type);
+    const incidentFilterBypass = shouldBypassIncidentTypeFilter(normalizedIncidentType);
+    const incidentTypeFilterValue = incidentFilterBypass ? '' : normalizedIncidentType;
     const cappedLimit = Math.min(Math.max(Number(limit) || 50, 1), 100);
     const eligibleStatuses = ['available', 'standby'];
 
@@ -397,7 +404,7 @@ const Responder = {
            )
          ORDER BY ${rankCase} DESC, r.responder_id ASC
          LIMIT $${eligibleStatuses.length + 4}`,
-        [normalizedDepartmentCode, normalizedTeamName, normalizedIncidentType, ...eligibleStatuses, cappedLimit]
+        [normalizedDepartmentCode, normalizedTeamName, incidentTypeFilterValue, ...eligibleStatuses, cappedLimit]
       );
       if (preferred.rows.length > 0) {
         return preferred.rows;
@@ -416,7 +423,7 @@ const Responder = {
       limit: cappedLimit,
       offset: 0,
       team_name: normalizedTeamName,
-      incident_type: normalizedIncidentType || null,
+      incident_type: incidentFilterBypass ? null : (normalizedIncidentType || null),
     });
     return fallback
       .filter((responder) => {
