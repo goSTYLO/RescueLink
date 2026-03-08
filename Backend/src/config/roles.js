@@ -8,7 +8,9 @@ const ROLES = {
   DISPATCHER: 'dispatcher', // Web app administrators who manage dispatches
   RESPONDER: 'responder', // Authenticated responders
   SUPERVISOR: 'supervisor', // Supervisors for escalation/reclassification
-  ADMIN: 'admin'          // Super-users with full system access
+  ADMIN: 'admin',         // Super-users with full system access
+  DEPARTMENT_ADMIN: 'department-admin',  // Full department dashboard access
+  DEPARTMENT_HEAD: 'department-head'  // Department head: sees only assigned incidents for their department
 };
 
 /**
@@ -72,6 +74,24 @@ const PERMISSIONS = {
     auditLogs: ['read', 'list', 'listAll'],  // Read all audit logs
     users: ['create', 'read', 'list', 'update', 'delete'],  // User management
     settings: ['manage']
+  },
+  [ROLES.DEPARTMENT_ADMIN]: {
+    incidents: ['read', 'list'],
+    dispatches: ['read', 'list'],
+    responders: ['read'],
+    notifications: ['readOwn'],
+    auditLogs: [],
+    users: [],
+    settings: []
+  },
+  [ROLES.DEPARTMENT_HEAD]: {
+    incidents: ['read', 'list'],
+    dispatches: ['read', 'list'],
+    responders: ['read'],
+    notifications: ['readOwn'],
+    auditLogs: [],
+    users: [],
+    settings: []
   }
 };
 

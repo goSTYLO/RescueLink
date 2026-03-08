@@ -98,11 +98,13 @@ const departmentController = {
 
   async create(req, res) {
     try {
-      const payload = normalizeDepartmentPayload(req.body);
+      const body = req.body || {};
+      const payload = normalizeDepartmentPayload(body);
       const created = await Department.create({
         ...payload,
         code: toDepartmentCode(payload.name),
       });
+
       res.status(201).json(created);
     } catch (error) {
       console.error('Error creating department:', error);

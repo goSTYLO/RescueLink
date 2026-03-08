@@ -82,19 +82,11 @@ const adminController = {
   /**
    * Create a new user with specified role
    * POST /api/admin/users
-   * 
-   * Body: {
-   *   email: string,
-   *   phone_number: string (optional),
-   *   first_name: string (optional),
-   *   last_name: string (optional),
-   *   password: string,
-  *   role: 'user' | 'dispatcher' | 'responder' | 'supervisor' | 'admin'
-   * }
+   * Body: email, password, first_name, last_name, role, department_id (required when role is department-head or department-admin)
    */
   async createUser(req, res) {
     try {
-      const { email, phone_number, first_name, last_name, password, role } = req.body;
+      const { email, phone_number, first_name, last_name, password, role, department_id } = req.body;
 
       // Validate required fields
       if (!email || !password) {
@@ -112,8 +104,16 @@ const adminController = {
       }
 
       // Validate role
-      if (role && !Object.values(ROLES).includes(role)) {
+      const effectiveRole = role || ROLES.USER;
+      if (!Object.values(ROLES).includes(effectiveRole)) {
         return res.status(400).json({ error: `Invalid role. Must be one of: ${Object.values(ROLES).join(', ')}` });
+      }
+
+      // department_id required for department-head, department-admin, and user (Personnel)
+      if (effectiveRole === ROLES.DEPARTMENT_HEAD || effectiveRole === ROLES.DEPARTMENT_ADMIN || effectiveRole === ROLES.USER) {
+        if (department_id == null || department_id === '' || isNaN(parseInt(department_id, 10))) {
+          return res.status(400).json({ error: 'department_id is required for department-head, department-admin, and user (Personnel) roles' });
+        }
       }
 
       // Validate phone if provided
@@ -138,6 +138,10 @@ const adminController = {
       // Hash password
       const passwordHash = await hashPassword(password);
 
+      const departmentIdValue = (effectiveRole === ROLES.DEPARTMENT_HEAD || effectiveRole === ROLES.DEPARTMENT_ADMIN || effectiveRole === ROLES.USER)
+        ? parseInt(department_id, 10)
+        : null;
+
       // Create user with specified role
       const newUser = await User.create({
         email,
@@ -145,7 +149,8 @@ const adminController = {
         first_name: validateOptionalString(first_name, 'first_name', 100),
         last_name: validateOptionalString(last_name, 'last_name', 100),
         password: passwordHash,
-        role: role || ROLES.USER
+        role: effectiveRole,
+        department_id: departmentIdValue
       });
 
       // Remove password from response
@@ -154,7 +159,8 @@ const adminController = {
       await logAdminAction(req, 'user_create', 'user', newUser.user_id, {
         email,
         phone_number: phone_number || null,
-        role: role || ROLES.USER
+        role: effectiveRole,
+        department_id: departmentIdValue
       });
 
       res.status(201).json({
@@ -168,17 +174,14 @@ const adminController = {
   },
 
   /**
-   * Update user role
+   * Update user role (and department_id when role is department-head or department-admin)
    * PUT /api/admin/users/:id/role
-   * 
-   * Body: {
-  *   role: 'user' | 'dispatcher' | 'responder' | 'supervisor' | 'admin'
-   * }
+   * Body: { role, department_id (required when role is department-head or department-admin) }
    */
   async updateUserRole(req, res) {
     try {
       const { id } = req.params;
-      const { role } = req.body;
+      const { role, department_id } = req.body;
 
       // Validate ID format
       if (!id || isNaN(parseInt(id, 10))) {
@@ -188,6 +191,13 @@ const adminController = {
       // Validate role
       if (!role || !Object.values(ROLES).includes(role)) {
         return res.status(400).json({ error: `Invalid role. Must be one of: ${Object.values(ROLES).join(', ')}` });
+      }
+
+      // department_id required for department-head, department-admin, and user (Personnel)
+      if (role === ROLES.DEPARTMENT_HEAD || role === ROLES.DEPARTMENT_ADMIN || role === ROLES.USER) {
+        if (department_id == null || department_id === '' || isNaN(parseInt(department_id, 10))) {
+          return res.status(400).json({ error: 'department_id is required for department-head, department-admin, and user (Personnel) roles' });
+        }
       }
 
       // Prevent demoting the last admin
@@ -205,15 +215,19 @@ const adminController = {
       }
 
       const oldRole = user.role;
+      const userId = parseInt(id, 10);
+      const departmentIdValue = (role === ROLES.DEPARTMENT_HEAD || role === ROLES.DEPARTMENT_ADMIN || role === ROLES.USER)
+        ? parseInt(department_id, 10)
+        : null;
 
-      // Update role
-      const updatedUser = await User.updateRole(parseInt(id, 10), role);
+      const updatedUser = await User.updateRoleAndDepartment(userId, role, departmentIdValue);
       updatedUser.password = undefined;
 
       await logAdminAction(req, 'user_role_update', 'user', user.user_id, {
-        user_id,
+        user_id: userId,
         old_role: oldRole,
-        new_role: role
+        new_role: role,
+        department_id: departmentIdValue
       });
 
       res.json({

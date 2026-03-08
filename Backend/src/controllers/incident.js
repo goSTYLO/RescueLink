@@ -1,4 +1,7 @@
 const Incident = require('../models/incident');
+const User = require('../models/user');
+const Department = require('../models/department');
+const Dispatch = require('../models/dispatch');
 const pool = require('../config/db');
 const { validateLatitude, validateLongitude, validateInteger, validatePagination, validateOptionalString, validateAllowedValue } = require('../utils/validation');
 const { getBarangayFromCoordinates } = require('../utils/geolocation');
@@ -96,7 +99,19 @@ const incidentController = {
         return res.status(404).json({ error: 'Incident not found' });
       }
 
-      // Check ownership for regular users (dispatchers/admins can see all)
+      // Check ownership: dispatchers/admins see all; department-head sees if assigned to their department; users see own only
+      if (req.user.role === ROLES.DEPARTMENT_HEAD && req.user.user_id) {
+        const fullUser = await User.findById(req.user.user_id);
+        if (fullUser && fullUser.department_id) {
+          const dept = await Department.findById(fullUser.department_id);
+          if (dept && dept.code) {
+            const dispatches = await Dispatch.findAll({ report_id: validatedId, department_code: dept.code, limit: 1 });
+            if (dispatches && dispatches.length > 0) {
+              return res.json(incident);
+            }
+          }
+        }
+      }
       if (!isResourceOwner(req.user, incident.user_id)) {
         return res.status(403).json({ error: 'Forbidden. You can only access your own incidents.' });
       }
@@ -126,10 +141,20 @@ const incidentController = {
       const validatedIncidentType = validateAllowedValue(incident_type, ['fire', 'medical', 'police', 'disaster'], 'incident_type');
       const validatedBarangay = validateOptionalString(barangay, 'barangay', 150);
 
-      // Regular users only see their own incidents; dispatcher/admin see all
+      // Regular users only see their own incidents; dispatcher/admin see all; department-head/admin/personnel see only incidents assigned to their department
       let incidents;
       let totalCount;
-      if (user.role === ROLES.USER) {
+      let departmentCode = null;
+      const roleNeedsDeptFilter = user.role === ROLES.DEPARTMENT_HEAD || user.role === ROLES.DEPARTMENT_ADMIN || user.role === ROLES.USER;
+      if (user.user_id && roleNeedsDeptFilter) {
+        const fullUser = await User.findById(user.user_id);
+        if (fullUser && fullUser.department_id) {
+          const dept = await Department.findById(fullUser.department_id);
+          if (dept && dept.code) departmentCode = dept.code;
+        }
+      }
+
+      if (user.role === ROLES.USER && !departmentCode) {
         incidents = await Incident.findByUserId(user.user_id, {
           limit: validatedLimit,
           offset: validatedOffset,
@@ -153,12 +178,14 @@ const incidentController = {
           status: validatedStatus,
           incident_type: validatedIncidentType,
           barangay: validatedBarangay,
+          department_code: departmentCode,
         });
         totalCount = await Incident.countAll({
           severity_level: validatedSeverityLevel,
           status: validatedStatus,
           incident_type: validatedIncidentType,
           barangay: validatedBarangay,
+          department_code: departmentCode,
         });
       }
 
@@ -749,6 +776,24 @@ const incidentController = {
       const incident = await Incident.findById(validatedId);
       if (!incident) {
         return res.status(404).json({ error: 'Incident not found' });
+      }
+
+      // Same access rules as getById: department-head can see if assigned to their department
+      if (req.user.role === ROLES.DEPARTMENT_HEAD && req.user.user_id) {
+        const fullUser = await User.findById(req.user.user_id);
+        if (fullUser && fullUser.department_id) {
+          const dept = await Department.findById(fullUser.department_id);
+          if (dept && dept.code) {
+            const dispatches = await Dispatch.findAll({ report_id: validatedId, department_code: dept.code, limit: 1 });
+            if (dispatches && dispatches.length > 0) {
+              const classification = await Incident.getClassificationByReportId(validatedId);
+              return res.json({ incident, ai_classification: classification || null });
+            }
+          }
+        }
+      }
+      if (!isResourceOwner(req.user, incident.user_id)) {
+        return res.status(403).json({ error: 'Forbidden. You can only access your own incidents.' });
       }
 
       // Get AI classification if exists

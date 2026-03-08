@@ -315,7 +315,7 @@ export function DepartmentsPage() {
         Swal.fire({ icon: 'success', title: 'Department updated', text: 'Department details have been saved.', timer: 2000, showConfirmButton: false, timerProgressBar: true });
       } else {
         await createDepartment(payload);
-        Swal.fire({ icon: 'success', title: 'Department added', text: 'The new department has been added.', timer: 2000, showConfirmButton: false, timerProgressBar: true });
+        Swal.fire({ icon: 'success', title: 'Department added', text: 'The new department has been added.', timer: 2000, showConfirmButton: false, timerProgressBar: true, confirmButtonColor: '#134178' });
       }
       await loadDepartments();
       setDialogOpen(false);

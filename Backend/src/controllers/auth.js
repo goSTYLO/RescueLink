@@ -11,12 +11,15 @@ const TokenBlacklist = require('../models/tokenBlacklist');
 const DispatcherOtp = require('../models/dispatcherOtp');
 const { sendOtpEmail } = require('../services/email');
 const { ROLES } = require('../config/roles');
+const Department = require('../models/department');
 
 const WEB_EMAIL_AUTH_ROLES = [
   ROLES.DISPATCHER,
   ROLES.ADMIN,
   ROLES.SUPERVISOR,
   ROLES.RESPONDER,
+  ROLES.DEPARTMENT_ADMIN,
+  ROLES.DEPARTMENT_HEAD,
 ];
 
 function canUseWebEmailAuth(role) {
@@ -302,7 +305,23 @@ exports.dispatcherLogin = async (req, res) => {
     const token = jwt.sign({ user_id: user.user_id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
     await logDispatcherActionByUser(user, req, 'dispatcher_login', 'auth', null, { method: 'email' });
     console.log('✅ Dispatcher login successful:', { user_id: user.user_id });
-    res.json({ user: { user_id: user.user_id, email: user.email, role: user.role, firstName: user.first_name, lastName: user.last_name }, token });
+    let department = null;
+    if (user.department_id) {
+      const dept = await Department.findById(user.department_id);
+      department = dept ? dept.name : null;
+    }
+    res.json({
+      user: {
+        user_id: user.user_id,
+        email: user.email,
+        role: user.role,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        department_id: user.department_id ?? null,
+        department: department ?? null,
+      },
+      token,
+    });
   } catch (err) {
     console.error('❌ Dispatcher login error:', err.message);
     const isValidationError = /required|must be|Invalid|not exceed/i.test(err.message);
@@ -332,7 +351,23 @@ exports.dispatcherVerifyOtp = async (req, res) => {
     const token = jwt.sign({ user_id: user.user_id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
     await logDispatcherActionByUser(user, req, 'dispatcher_login', 'auth', null, { method: 'email', mfa: true });
     console.log('✅ Dispatcher MFA verified:', { user_id: user.user_id });
-    res.json({ user: { user_id: user.user_id, email: user.email, role: user.role, firstName: user.first_name, lastName: user.last_name }, token });
+    let department = null;
+    if (user.department_id) {
+      const dept = await Department.findById(user.department_id);
+      department = dept ? dept.name : null;
+    }
+    res.json({
+      user: {
+        user_id: user.user_id,
+        email: user.email,
+        role: user.role,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        department_id: user.department_id ?? null,
+        department: department ?? null,
+      },
+      token,
+    });
   } catch (err) {
     console.error('❌ Dispatcher verify OTP error:', err.message);
     if (err.message && /required|Invalid|must be/i.test(err.message)) {
@@ -396,6 +431,12 @@ exports.getMe = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
+    let department = null;
+    if (user.department_id) {
+      const dept = await Department.findById(user.department_id);
+      department = dept ? dept.name : null;
+    }
+
     res.json({
       user: {
         user_id: user.user_id,
@@ -406,6 +447,8 @@ exports.getMe = async (req, res) => {
         firstName: user.first_name,
         lastName: user.last_name,
         role: user.role,
+        department_id: user.department_id ?? null,
+        department: department ?? null,
         created_at: user.created_at,
       },
     });

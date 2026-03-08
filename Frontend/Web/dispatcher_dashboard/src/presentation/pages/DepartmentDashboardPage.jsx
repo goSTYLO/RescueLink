@@ -6,10 +6,37 @@ import { Button } from '@/presentation/components/ui/Button';
 import { Badge } from '@/presentation/components/ui/Badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/presentation/components/ui/Dialog';
 import { Eye, Truck, MapPin, CheckCircle, AlertCircle, LayoutDashboard, UserPlus, X, UserCheck, Clock } from 'lucide-react';
-import { incidents as mockIncidents, personnel as mockPersonnel, units as mockUnits } from '@/data/mock/mockData';
+import { personnel as mockPersonnel, units as mockUnits } from '@/data/mock/mockData';
+import { getIncidents, normalizeIncidentStatus } from '@/data/api/incidents.api';
 import { ROLES } from '@/core/constants';
 import { useTheme } from '@/presentation/context/ThemeContext';
 import Swal from 'sweetalert2';
+
+function mapApiIncidentToRow(api) {
+  const typeMap = { fire: 'Fire', medical: 'Medical', police: 'Police', disaster: 'Disaster', other: 'Other' };
+  const emergencyType = typeMap[api.incident_type?.toLowerCase()] || (api.incident_type ? String(api.incident_type).charAt(0).toUpperCase() + String(api.incident_type).slice(1) : '—');
+  const severityMap = { high: 'Critical', medium: 'Warning', low: 'Low' };
+  const severity = severityMap[api.severity_level?.toLowerCase()] || (api.severity_level || '—');
+  const statusMap = { pending: 'Pending', resolved: 'Resolved', verified: 'Verified', in_progress: 'In Progress' };
+  const canonicalStatus = normalizeIncidentStatus(api.status);
+  const status = statusMap[canonicalStatus];
+  let timeReported = '—';
+  if (api.created_at) {
+    const d = new Date(api.created_at);
+    timeReported = d.toLocaleString('en-US', {
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: 'numeric', minute: '2-digit', hour12: true
+    });
+  }
+  return {
+    id: api.report_id,
+    barangay: api.barangay || '—',
+    emergencyType,
+    severity,
+    status,
+    timeReported,
+  };
+}
 
 const ASSIGNMENTS_STORAGE_KEY = 'rescuelink_incident_personnel_assignments';
 const VEHICLE_ASSIGNMENTS_STORAGE_KEY = 'rescuelink_incident_vehicle_assignments';
@@ -39,6 +66,9 @@ export function DepartmentDashboardPage() {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const departmentId = user.departmentId || user.department_id;
 
+  const [incidents, setIncidents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [assignments, setAssignments] = useState(getStoredAssignments);
   const [vehicleAssignments, setVehicleAssignments] = useState(getStoredVehicleAssignments);
   const [assignModalOpen, setAssignModalOpen] = useState(false);
@@ -46,11 +76,38 @@ export function DepartmentDashboardPage() {
   const [vehicleModalOpen, setVehicleModalOpen] = useState(false);
   const [assigningIncidentIdVehicle, setAssigningIncidentIdVehicle] = useState(null);
 
+  const fetchIncidents = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await getIncidents({ limit: 100, offset: 0, withMeta: false });
+      const list = Array.isArray(result) ? result : (result?.items || []);
+      setIncidents(list.map(mapApiIncidentToRow));
+    } catch (err) {
+      setError(err.message || 'Failed to load incidents');
+      setIncidents([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (user.role !== ROLES.DEPARTMENT_ADMIN && user.role !== ROLES.PERSONNEL) {
       navigate('/dashboard', { replace: true });
     }
   }, [user.role, navigate]);
+
+  useEffect(() => {
+    if (user.role !== ROLES.DEPARTMENT_ADMIN && user.role !== ROLES.PERSONNEL) return;
+    fetchIncidents();
+    const intervalId = setInterval(fetchIncidents, 15000);
+    const handleUpdated = () => fetchIncidents();
+    window.addEventListener('incident:updated', handleUpdated);
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener('incident:updated', handleUpdated);
+    };
+  }, [user.role, fetchIncidents]);
 
   useEffect(() => {
     try {
@@ -64,7 +121,7 @@ export function DepartmentDashboardPage() {
     } catch (_) {}
   }, [vehicleAssignments]);
 
-  const departmentIncidents = (mockIncidents || []).filter((inc) => inc.assignedDepartmentId === departmentId);
+  const departmentIncidents = incidents;
   const activeIncidents = departmentIncidents.filter((i) => i.status !== 'Resolved' && i.status !== 'resolved');
 
   const personnelList = (departmentId && mockPersonnel && mockPersonnel[departmentId]) ? mockPersonnel[departmentId] : [];
@@ -165,7 +222,16 @@ export function DepartmentDashboardPage() {
           </div>
         </div>
 
-        {activeIncidents.length > 0 && (
+        {loading && (
+          <p className="text-muted text-center py-4">Loading incidents…</p>
+        )}
+        {error && (
+          <Card className="p-4 rounded-2xl border border-amber-500/30 bg-amber-500/10">
+            <p className="text-foreground mb-2">{error}</p>
+            <Button variant="outline" size="sm" onClick={() => fetchIncidents()}>Retry</Button>
+          </Card>
+        )}
+        {activeIncidents.length > 0 && !loading && (
           <Card className="bg-amber-500/10 border-amber-500/30 p-4 rounded-2xl">
             <div className="flex items-start gap-3">
               <AlertCircle className="w-5 h-5 text-amber-500 mt-0.5" />
@@ -246,7 +312,12 @@ export function DepartmentDashboardPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {departmentIncidents.map((incident) => (
+                {loading ? (
+                  <tr>
+                    <td colSpan={9} className="px-4 py-8 text-center text-muted">Loading incidents…</td>
+                  </tr>
+                ) : (
+                departmentIncidents.map((incident) => (
                   <tr key={incident.id} className="hover:bg-muted/20 transition-colors">
                     <td className="px-4 py-3">
                       <button type="button" onClick={() => navigate(`/incidents/${incident.id}`)} className="text-sm font-medium text-primary hover:underline">
@@ -294,13 +365,14 @@ export function DepartmentDashboardPage() {
                       </div>
                     </td>
                   </tr>
-                ))}
+                ))
+                )}
               </tbody>
             </table>
           </div>
         </Card>
 
-        {departmentIncidents.length === 0 && (
+        {!loading && !error && departmentIncidents.length === 0 && (
           <div className="text-center py-12 text-muted">
             <p className="text-lg">No incidents assigned to your department yet</p>
           </div>

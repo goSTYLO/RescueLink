@@ -12,14 +12,14 @@ from typing import Any, Optional
 from dotenv import load_dotenv
 from web3 import Web3
 
-from services.contract import get_contract
+from services.contract import get_contract, _is_valid_private_key
 
 load_dotenv()
 
 logger = logging.getLogger(__name__)
 
 GANACHE_URL = os.getenv("GANACHE_URL", "http://127.0.0.1:8545")
-PRIVATE_KEY = os.getenv("PRIVATE_KEY", "")
+PRIVATE_KEY = (os.getenv("PRIVATE_KEY", "") or "").strip()
 
 # Web3 instance (lazy init)
 _w3: Optional[Web3] = None
@@ -63,6 +63,11 @@ def record_incident_on_blockchain(
         raise ValueError(
             "PRIVATE_KEY not set. Use first Ganache account's private key from .env"
         )
+    if not _is_valid_private_key(PRIVATE_KEY):
+        raise ValueError(
+            "PRIVATE_KEY in .env must be a single 0x-prefixed 64-character hex string. "
+            "Check for pasted keys (e.g. two keys concatenated or extra characters)."
+        )
 
     w3 = get_web3()
     if not w3.is_connected():
@@ -74,7 +79,7 @@ def record_incident_on_blockchain(
     hash_bytes = bytes.fromhex(hash_value)
 
     contract = get_contract(w3)
-    account = w3.eth.account.from_key(PRIVATE_KEY.strip())
+    account = w3.eth.account.from_key(PRIVATE_KEY)
 
     existing_logs = contract.events.IncidentVerified().get_logs(
         from_block=0,
