@@ -21,6 +21,7 @@ import { DepartmentDashboardPage } from '@/presentation/pages/DepartmentDashboar
 import { DepartmentTasksPage } from '@/presentation/pages/DepartmentTasksPage';
 import { DepartmentPersonnelPage } from '@/presentation/pages/DepartmentPersonnelPage';
 import { DepartmentVehiclesPage } from '@/presentation/pages/DepartmentVehiclesPage';
+import { DepartmentViewPage } from '@/presentation/pages/DepartmentViewPage';
 import ForgotPassword from '@/presentation/pages/ForgotPassword';
 import EnterCode from '@/presentation/pages/EnterCode';
 import CreateNewPassword from '@/presentation/pages/CreateNewPassword';
@@ -32,7 +33,7 @@ import { logout as logoutDispatcher } from '@/data/api/auth.api';
 const SUPER_ADMIN_ONLY = [ROLES.SUPER_ADMIN];
 const DASHBOARD_OPERATIONS_ROLES = [ROLES.SUPER_ADMIN, ROLES.DISPATCHER];
 const DEPARTMENT_AND_UP = [ROLES.SUPER_ADMIN, ROLES.DEPARTMENT_ADMIN];
-const ANY_AUTH_ROLE = [ROLES.SUPER_ADMIN, ROLES.DISPATCHER, ROLES.DEPARTMENT_ADMIN, ROLES.PERSONNEL];
+const ANY_AUTH_ROLE = [ROLES.SUPER_ADMIN, ROLES.DISPATCHER, ROLES.DEPARTMENT_ADMIN, ROLES.DEPARTMENT_HEAD, ROLES.PERSONNEL];
 
 // Protected Route Component
 function ProtectedRoute({ children, allowedRoles = [] }) {
@@ -95,9 +96,11 @@ function ProtectedRoute({ children, allowedRoles = [] }) {
   if (!hasRoleAccess(userRole, allowedRoles)) {
     const redirectPath = userRole === ROLES.DEPARTMENT_ADMIN
       ? '/department/dashboard'
-      : userRole === ROLES.PERSONNEL
-        ? '/department/tasks'
-        : '/dashboard';
+      : userRole === ROLES.DEPARTMENT_HEAD
+        ? '/department/view'
+        : userRole === ROLES.PERSONNEL
+          ? '/department/tasks'
+          : '/dashboard';
     return (
       <AccessDeniedNotice
         message="Your role does not allow access to this route."
@@ -242,6 +245,11 @@ export default function App() {
               <DepartmentVehiclesPage />
             </ProtectedRoute>
           } />
+          <Route path="/department/view" element={
+            <ProtectedRoute allowedRoles={[ROLES.DEPARTMENT_HEAD]}>
+              <DepartmentViewPage />
+            </ProtectedRoute>
+          } />
           <Route path="/profile" element={
             <ProtectedRoute allowedRoles={ANY_AUTH_ROLE}>
               <ProfilePage />
@@ -269,6 +277,7 @@ export default function App() {
                 const u = JSON.parse(localStorage.getItem('user') || '{}');
                 const r = normalizeRole(u.role);
                 if (r === ROLES.DEPARTMENT_ADMIN) return <Navigate to="/department/dashboard" replace />;
+                if (r === ROLES.DEPARTMENT_HEAD) return <Navigate to="/department/view" replace />;
                 if (r === ROLES.PERSONNEL) return <Navigate to="/department/tasks" replace />;
               } catch (_) {}
               return <Navigate to="/dashboard" replace />;

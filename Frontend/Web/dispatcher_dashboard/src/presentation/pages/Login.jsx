@@ -12,6 +12,7 @@ import { AuthFloatingInput } from '@/presentation/components/ui/AuthFloatingInpu
 
 function getRedirectPathByRole(role) {
   if (role === ROLES.DEPARTMENT_ADMIN) return '/department/dashboard';
+  if (role === ROLES.DEPARTMENT_HEAD) return '/department/view';
   if (role === ROLES.PERSONNEL) return '/department/tasks';
   return '/dashboard';
 }

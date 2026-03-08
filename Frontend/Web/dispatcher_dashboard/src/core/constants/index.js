@@ -3,6 +3,7 @@ export const ROLES = {
   SUPER_ADMIN: 'super-admin',
   DISPATCHER: 'dispatcher',
   DEPARTMENT_ADMIN: 'department-admin',
+  DEPARTMENT_HEAD: 'department-head',
   PERSONNEL: 'personnel',
 };
 
@@ -13,6 +14,7 @@ export function normalizeRole(role) {
   if (r === 'admin' || r === 'super-admin' || r === 'superadmin') return ROLES.SUPER_ADMIN;
   if (r === 'dispatcher') return ROLES.DISPATCHER;
   if (r === 'department-admin' || r === 'dept admin' || r === 'department admin') return ROLES.DEPARTMENT_ADMIN;
+  if (r === 'department_head' || r === 'department-head') return ROLES.DEPARTMENT_HEAD;
   if (r === 'personnel' || r === 'operator' || r === 'supervisor') return r === 'personnel' ? ROLES.PERSONNEL : ROLES.SUPER_ADMIN;
   return ROLES.PERSONNEL;
 }
@@ -23,6 +25,10 @@ export function isSuperAdmin(role) {
 
 export function isDepartmentAdmin(role) {
   return normalizeRole(role) === ROLES.DEPARTMENT_ADMIN;
+}
+
+export function isDepartmentHead(role) {
+  return normalizeRole(role) === ROLES.DEPARTMENT_HEAD;
 }
 
 export function isPersonnel(role) {
