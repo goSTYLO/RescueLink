@@ -113,7 +113,7 @@ python -m venv .venv
 .venv\Scripts\activate   # Windows PowerShell
 pip install -r requirements.txt
 # Ensure Blockchain/.env contains GANACHE_URL and PRIVATE_KEY
-uvicorn main:app --reload --host 0.0.0.0 --port 8001
+   uvicorn main:app --reload --host 0.0.0.0 --port 8001
 ```
 
 RescueLink AI (Terminal 4)
