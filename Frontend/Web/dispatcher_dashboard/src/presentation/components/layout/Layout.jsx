@@ -65,25 +65,17 @@ const NAV_DISPATCHER = [
   ]},
 ];
 
-const NAV_DEPARTMENT_HEAD = [
-  { title: 'DEPARTMENT', items: [
-    { icon: Building2, label: 'Department View', path: '/department/view' },
-  ]},
-];
-
 // Dev-only: switch role without re-login (uses preset users)
 const DEV_ROLE_PRESETS = [
   { value: ROLES.SUPER_ADMIN, label: 'Super Admin', user: { name: 'Super Admin', username: 'Super Admin', email: 'admin@rescuelink.dagupan.gov.ph', role: ROLES.SUPER_ADMIN, department: 'All', departmentId: null } },
   { value: ROLES.DISPATCHER, label: 'Dispatcher', user: { name: 'Dispatcher Cruz', username: 'Dispatcher Cruz', email: 'dispatcher@rescuelink.dagupan.gov.ph', role: ROLES.DISPATCHER, department: 'Operations', departmentId: null } },
   { value: ROLES.DEPARTMENT_ADMIN, label: 'Dept Admin (Fire)', user: { name: 'Fire Chief Mendoza', username: 'Fire Chief Mendoza', email: 'mendoza@fire.dagupan.gov', role: ROLES.DEPARTMENT_ADMIN, department: 'Bureau of Fire Protection (BFP Dagupan)', departmentId: 'bfp' } },
   { value: ROLES.PERSONNEL, label: 'Personnel (Fire)', user: { name: 'Officer Pedro Ramos', username: 'Officer Pedro Ramos', email: 'pedro.ramos@pnp.dagupan.gov', role: ROLES.PERSONNEL, department: 'Bureau of Fire Protection (BFP Dagupan)', departmentId: 'bfp' } },
-  { value: ROLES.DEPARTMENT_HEAD, label: 'Dept Head (DRRMO)', user: { name: 'Dept Head Garcia', username: 'Dept Head Garcia', email: 'garcia@drrmo.dagupan.gov', role: ROLES.DEPARTMENT_HEAD, department: 'DRRMO Dagupan', departmentId: 'drrmo' } },
 ];
 
 function getRedirectPathForRole(r) {
   if (r === ROLES.DISPATCHER) return '/dashboard';
   if (r === ROLES.DEPARTMENT_ADMIN) return '/department/dashboard';
-  if (r === ROLES.DEPARTMENT_HEAD) return '/department/view';
   if (r === ROLES.PERSONNEL) return '/department/tasks';
   return '/dashboard';
 }
@@ -146,9 +138,7 @@ export function Layout({ children }) {
       ? 'Dispatcher'
       : role === ROLES.DEPARTMENT_ADMIN
         ? 'Dept Admin'
-        : role === ROLES.DEPARTMENT_HEAD
-          ? 'Dept Head'
-          : 'Personnel';
+        : 'Personnel';
   const userRole = currentUser.role ? userRoleLabel : (currentUser.role || 'Operator');
 
   const handleDevRoleChange = (e) => {
@@ -196,7 +186,6 @@ export function Layout({ children }) {
   };
 
   const getNavSections = () => {
-    if (role === ROLES.DEPARTMENT_HEAD) return NAV_DEPARTMENT_HEAD;
     if (role === ROLES.DISPATCHER) return NAV_DISPATCHER;
     if (role === ROLES.DEPARTMENT_ADMIN) return NAV_DEPARTMENT_ADMIN;
     if (role === ROLES.PERSONNEL) return NAV_PERSONNEL;
