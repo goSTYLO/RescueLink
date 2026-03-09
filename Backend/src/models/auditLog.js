@@ -1,4 +1,37 @@
 const pool = require('../config/db');
+const { decrypt } = require('../utils/encryption');
+
+function looksEncryptedValue(value) {
+  return typeof value === 'string'
+    && /^[0-9a-f]+$/i.test(value)
+    && value.length >= 184
+    && value.length % 2 === 0;
+}
+
+function tryDecryptValue(value) {
+  if (!looksEncryptedValue(value)) {
+    return value;
+  }
+
+  try {
+    return decrypt(value);
+  } catch {
+    return value;
+  }
+}
+
+function decodeAuditUserFields(row) {
+  if (!row || typeof row !== 'object') {
+    return row;
+  }
+
+  return {
+    ...row,
+    user_email: tryDecryptValue(row.user_email),
+    user_first_name: tryDecryptValue(row.user_first_name),
+    user_last_name: tryDecryptValue(row.user_last_name)
+  };
+}
 
 const AuditLog = {
   async create({ user_id, action, resource_type, resource_id = null, details = null, ip_address = null, user_agent = null }) {
@@ -52,7 +85,7 @@ const AuditLog = {
     params.push(cappedLimit, offset);
 
     const res = await pool.query(query, params);
-    return res.rows;
+    return res.rows.map(decodeAuditUserFields);
   }
 };
 

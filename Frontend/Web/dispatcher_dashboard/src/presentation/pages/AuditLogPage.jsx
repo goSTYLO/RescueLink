@@ -19,8 +19,6 @@ import { getAuditLogs } from '@/data/api/auditLog.api';
 import { useState, useEffect, useCallback } from 'react';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
 
-const ROWS_PER_PAGE = 10;
-
 const ACTION_OPTIONS = [
   { value: '', label: 'All Actions' },
   { value: 'dispatcher_login', label: 'Login' },
@@ -69,6 +67,8 @@ export function AuditLogPage() {
   const [filterFrom, setFilterFrom] = useState('');
   const [filterTo, setFilterTo] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(5);
+  const [pageSizeSelectOpen, setPageSizeSelectOpen] = useState(false);
   const [selectStates, setSelectStates] = useState({ action: false, resource: false });
 
   const fetchLogs = useCallback(async () => {
@@ -98,9 +98,11 @@ export function AuditLogPage() {
     fetchLogs();
   }, [fetchLogs]);
 
-  const totalPages = Math.ceil(logs.length / ROWS_PER_PAGE) || 1;
-  const startIndex = (currentPage - 1) * ROWS_PER_PAGE;
-  const paginatedLogs = logs.slice(startIndex, startIndex + ROWS_PER_PAGE);
+  const totalPages = Math.ceil(logs.length / itemsPerPage) || 1;
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedLogs = logs.slice(startIndex, startIndex + itemsPerPage);
+  const pageStart = logs.length === 0 ? 0 : startIndex + 1;
+  const pageEnd = Math.min(startIndex + itemsPerPage, logs.length);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -320,88 +322,161 @@ export function AuditLogPage() {
                 <span>Loading audit logs...</span>
               </div>
             ) : (
-              <div className="overflow-x-auto rounded-xl border border-border">
-                <table className="w-full">
-                  <thead>
-                    <tr className={isLight ? 'border-b border-gray-200/80 bg-gray-50/50' : 'border-b border-white/10 bg-white/5'}>
-                      <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider text-muted">Time</th>
-                      <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider text-muted">User</th>
-                      <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider text-muted">Action</th>
-                      <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider text-muted">Resource</th>
-                      <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider text-muted">Resource ID</th>
-                      <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider text-muted">Details</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {paginatedLogs.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="py-12 text-center text-muted">
-                          No audit log entries found.
-                        </td>
-                      </tr>
-                    ) : (
-                      paginatedLogs.map((log) => (
-                        <tr
-                          key={log.id}
-                          className={isLight ? 'border-b border-gray-200/60 hover:bg-gray-50/80 transition-colors' : 'border-b border-white/10 hover:bg-white/5 transition-colors'}
+              <>
+                {logs.length > 0 && (
+                  <div className={`px-2 sm:px-3 py-2 mb-3 rounded-xl border ${isLight ? 'border-gray-200/80 bg-gray-50/20' : 'border-white/10 bg-white/[0.02]'}`}>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-xs text-muted">Rows</span>
+                        <Select
+                          value={String(itemsPerPage)}
+                          onValueChange={(value) => {
+                            setItemsPerPage(Number(value));
+                            setCurrentPage(1);
+                          }}
+                          open={pageSizeSelectOpen}
+                          onOpenChange={setPageSizeSelectOpen}
                         >
-                          <td className="py-4 px-4 text-sm text-muted whitespace-nowrap">
-                            {formatTimestamp(log.created_at)}
-                          </td>
-                          <td className="py-4 px-4 text-sm text-foreground">
-                            {log.user_email || ([log.user_first_name, log.user_last_name].filter(Boolean).join(' ') || (log.user_id != null ? `User #${log.user_id}` : '—'))}
-                          </td>
-                          <td className="py-4 px-4">
-                            <Badge variant="outline" className="rounded-lg border-border bg-primary/5 text-primary">
-                              {formatActionLabel(log.action)}
-                            </Badge>
-                          </td>
-                          <td className="py-4 px-4 text-sm text-foreground">{log.resource_type || '—'}</td>
-                          <td className="py-4 px-4 text-sm font-mono text-muted">
-                            {log.resource_id != null ? log.resource_id : '—'}
-                          </td>
-                          <td className="py-4 px-4 text-sm text-muted max-w-[200px] truncate" title={log.details ? JSON.stringify(log.details) : ''}>
-                            {log.details && typeof log.details === 'object'
-                              ? Object.entries(log.details)
-                                  .map(([k, v]) => `${k}: ${v}`)
-                                  .join(', ') || '—'
-                              : log.details != null ? String(log.details) : '—'}
+                          {({ value }) => (
+                            <>
+                              <SelectTrigger
+                                isOpen={pageSizeSelectOpen}
+                                onClick={() => setPageSizeSelectOpen((o) => !o)}
+                                className="h-8 w-[84px]"
+                              >
+                                <SelectValue
+                                  value={value}
+                                  options={[
+                                    { value: '5', label: '5' },
+                                    { value: '8', label: '8' },
+                                    { value: '10', label: '10' },
+                                    { value: '15', label: '15' },
+                                    { value: '20', label: '20' },
+                                  ]}
+                                />
+                              </SelectTrigger>
+                              <SelectContent isOpen={pageSizeSelectOpen}>
+                                {['5', '8', '10', '15', '20'].map((size) => (
+                                  <SelectItem
+                                    key={size}
+                                    value={size}
+                                    onSelect={(v) => {
+                                      setItemsPerPage(Number(v));
+                                      setCurrentPage(1);
+                                      setPageSizeSelectOpen(false);
+                                    }}
+                                  >
+                                    {size}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </>
+                          )}
+                        </Select>
+                        <span className="text-xs text-muted sm:ml-1">Showing {pageStart}-{pageEnd} of {logs.length}</span>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                          disabled={currentPage === 1}
+                          className="h-9 w-9 p-0 rounded-lg"
+                        >
+                          <ChevronLeft className="w-4 h-4" />
+                        </Button>
+                        <div className="flex items-center gap-1">
+                          {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                            let pageNum;
+                            if (totalPages <= 5) pageNum = i + 1;
+                            else if (currentPage <= 3) pageNum = i + 1;
+                            else if (currentPage >= totalPages - 2) pageNum = totalPages - 4 + i;
+                            else pageNum = currentPage - 2 + i;
+                            return (
+                              <Button
+                                key={pageNum}
+                                variant={currentPage === pageNum ? 'default' : 'ghost'}
+                                size="sm"
+                                onClick={() => setCurrentPage(pageNum)}
+                                className={`h-9 w-9 p-0 rounded-lg min-w-[36px] ${currentPage === pageNum ? 'bg-primary text-white hover:bg-primary-hover' : ''}`}
+                              >
+                                {pageNum}
+                              </Button>
+                            );
+                          })}
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                          disabled={currentPage === totalPages}
+                          className="h-9 w-9 p-0 rounded-lg"
+                        >
+                          <ChevronRight className="w-4 h-4" />
+                        </Button>
+                        <span className="text-sm text-muted ml-2">Page {currentPage} of {totalPages}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="overflow-x-auto rounded-xl border border-border">
+                  <table className="w-full">
+                    <thead>
+                      <tr className={isLight ? 'border-b border-gray-200/80 bg-gray-50/50' : 'border-b border-white/10 bg-white/5'}>
+                        <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider text-muted">Time</th>
+                        <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider text-muted">User</th>
+                        <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider text-muted">Action</th>
+                        <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider text-muted">Resource</th>
+                        <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider text-muted">Resource ID</th>
+                        <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider text-muted">Details</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paginatedLogs.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="py-12 text-center text-muted">
+                            No audit log entries found.
                           </td>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                      ) : (
+                        paginatedLogs.map((log) => (
+                          <tr
+                            key={log.id}
+                            className={isLight ? 'border-b border-gray-200/60 hover:bg-gray-50/80 transition-colors' : 'border-b border-white/10 hover:bg-white/5 transition-colors'}
+                          >
+                            <td className="py-4 px-4 text-sm text-muted whitespace-nowrap">
+                              {formatTimestamp(log.created_at)}
+                            </td>
+                            <td className="py-4 px-4 text-sm text-foreground">
+                              {log.user_email || ([log.user_first_name, log.user_last_name].filter(Boolean).join(' ') || (log.user_id != null ? `User #${log.user_id}` : '—'))}
+                            </td>
+                            <td className="py-4 px-4">
+                              <Badge variant="outline" className="rounded-lg border-border bg-primary/5 text-primary">
+                                {formatActionLabel(log.action)}
+                              </Badge>
+                            </td>
+                            <td className="py-4 px-4 text-sm text-foreground">{log.resource_type || '—'}</td>
+                            <td className="py-4 px-4 text-sm font-mono text-muted">
+                              {log.resource_id != null ? log.resource_id : '—'}
+                            </td>
+                            <td className="py-4 px-4 text-sm text-muted max-w-[200px] truncate" title={log.details ? JSON.stringify(log.details) : ''}>
+                              {log.details && typeof log.details === 'object'
+                                ? Object.entries(log.details)
+                                    .map(([k, v]) => `${k}: ${v}`)
+                                    .join(', ') || '—'
+                                : log.details != null ? String(log.details) : '—'}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             )}
 
-            {!loading && logs.length > 0 && (
-              <div className={`flex items-center justify-end gap-3 mt-4 pt-4 border-t ${isLight ? 'border-gray-200' : 'border-border'}`}>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                  className="h-9 w-9 p-0 rounded-xl"
-                >
-                  <ChevronLeft className="w-4 h-4" strokeWidth={2} />
-                </Button>
-                <span className="text-sm text-muted">
-                  Page {currentPage} of {totalPages}
-                  {logs.length > ROWS_PER_PAGE &&
-                    ` (${startIndex + 1}-${Math.min(startIndex + ROWS_PER_PAGE, logs.length)} of ${logs.length})`}
-                </span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={currentPage === totalPages}
-                  className="h-9 w-9 p-0 rounded-xl"
-                >
-                  <ChevronRight className="w-4 h-4" strokeWidth={2} />
-                </Button>
-              </div>
-            )}
           </div>
         </div>
       </div>

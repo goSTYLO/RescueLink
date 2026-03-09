@@ -138,7 +138,7 @@ export function DashboardPage() {
   const [sortColumn, setSortColumn] = useState(null);
   const [sortDirection, setSortDirection] = useState('asc');
   const [currentPage, setCurrentPage] = useState(Number(persistedFilterState.currentPage) || 1);
-  const [itemsPerPage, setItemsPerPage] = useState(Number(persistedFilterState.itemsPerPage) || 8);
+  const [itemsPerPage, setItemsPerPage] = useState(Number(persistedFilterState.itemsPerPage) || 5);
   const [pageSizeSelectOpen, setPageSizeSelectOpen] = useState(false);
 
   // Verify & Assign modal (new incidents must be verified and assigned to a department first)
