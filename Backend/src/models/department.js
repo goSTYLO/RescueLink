@@ -33,6 +33,17 @@ const Department = {
     return res.rows[0] || null;
   },
 
+  async findByCode(code) {
+    if (!code || String(code).trim() === '') return null;
+    const res = await pool.query(
+      `SELECT department_id, code, name, type, color, status, created_at
+       FROM departments
+       WHERE LOWER(TRIM(code)) = LOWER(TRIM($1))`,
+      [String(code).trim()]
+    );
+    return res.rows[0] || null;
+  },
+
   async create({ code, name, type, color = 'gray', status = 'active' }) {
     const res = await pool.query(
       `INSERT INTO departments(code, name, type, color, status)
@@ -116,7 +127,7 @@ const Department = {
   async listUnits(departmentId) {
     const res = await pool.query(
       `SELECT unit_id, department_id, name, type, status, maintenance_status, last_maintenance,
-              next_maintenance, maintenance_notes, active_task_count, created_at
+              next_maintenance, maintenance_notes, active_task_count, assigned_report_id, created_at
        FROM department_units
        WHERE department_id = $1
        ORDER BY created_at DESC`,
@@ -186,6 +197,76 @@ const Department = {
       [departmentId, unitId]
     );
     return res.rows[0] || null;
+  },
+
+  /**
+   * Assign a unit to an incident: set status to 'On Dispatch' and assigned_report_id to reportId.
+   * Returns the updated unit or null if not found.
+   */
+  async assignUnitToIncident(departmentId, unitId, reportId) {
+    const res = await pool.query(
+      `UPDATE department_units
+       SET status = 'On Dispatch', assigned_report_id = $1
+       WHERE department_id = $2 AND unit_id = $3
+       RETURNING unit_id, department_id, name, type, status, maintenance_status, last_maintenance,
+                 next_maintenance, maintenance_notes, active_task_count, assigned_report_id, created_at`,
+      [reportId, departmentId, unitId]
+    );
+    return res.rows[0] || null;
+  },
+
+  /**
+   * Record that a unit was used for an incident (monitoring only). Does not update the unit's status or assigned_report_id.
+   * Verifies the unit exists and belongs to the department. Idempotent for same (report_id, unit_id).
+   * Returns the usage row or null if unit not found / not in department.
+   */
+  async recordUnitUsageForIncident(reportId, unitId, departmentId) {
+    const check = await pool.query(
+      'SELECT 1 FROM department_units WHERE unit_id = $1 AND department_id = $2',
+      [unitId, departmentId]
+    );
+    if (!check.rows || check.rows.length === 0) return null;
+    try {
+      const res = await pool.query(
+        `INSERT INTO incident_unit_usage (report_id, unit_id, department_id)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (report_id, unit_id) DO NOTHING
+         RETURNING report_id, unit_id, department_id, created_at`,
+        [reportId, unitId, departmentId]
+      );
+      if (res.rows[0]) return res.rows[0];
+      const existing = await pool.query(
+        'SELECT report_id, unit_id, department_id, created_at FROM incident_unit_usage WHERE report_id = $1 AND unit_id = $2',
+        [reportId, unitId]
+      );
+      return existing.rows[0] || null;
+    } catch (error) {
+      if (error.code === '42P01' || /incident_unit_usage/i.test(error.message)) {
+        return null;
+      }
+      throw error;
+    }
+  },
+
+  /**
+   * Release all units assigned to this report: set status to 'Available' and clear assigned_report_id.
+   * Called when an incident is marked resolved.
+   */
+  async releaseUnitsFromReport(reportId) {
+    try {
+      const res = await pool.query(
+        `UPDATE department_units
+         SET status = 'Available', assigned_report_id = NULL
+         WHERE assigned_report_id = $1`,
+        [reportId]
+      );
+      return res.rowCount ?? 0;
+    } catch (error) {
+      if (error.code === '42703' || /assigned_report_id/i.test(error.message)) {
+        return 0;
+      }
+      throw error;
+    }
   },
 
   async listPersonnel(departmentId) {

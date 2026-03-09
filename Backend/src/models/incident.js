@@ -620,11 +620,11 @@ const Incident = {
 
     const resolvedByUserId = normalizedNext === 'resolved' ? actor_user_id : null;
     const actorRole = normalizeActorRole(actor_role);
-    const isDispatcherOrAdmin = [ROLES.DISPATCHER, ROLES.ADMIN].includes(actorRole);
-    if (normalizedNext === 'resolved' && (!actor_user_id || !isDispatcherOrAdmin)) {
+    const canResolve = [ROLES.DISPATCHER, ROLES.ADMIN, ROLES.DEPARTMENT_ADMIN].includes(actorRole);
+    if (normalizedNext === 'resolved' && (!actor_user_id || !canResolve)) {
       throw createIncidentStateError(
         'INCIDENT_RESOLVE_ROLE_REQUIRED',
-        'Only dispatcher/admin can mark incident as resolved.',
+        'Only dispatcher, admin, or department admin can mark incident as resolved.',
         403
       );
     }

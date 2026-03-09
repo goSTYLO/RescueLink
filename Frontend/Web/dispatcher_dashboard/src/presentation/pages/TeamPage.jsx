@@ -33,6 +33,13 @@ const ROLE_OPTIONS = [
   { value: ROLES.PERSONNEL, label: 'Personnel', backend: 'user' },
 ];
 
+// Add/Edit user modal: only these roles (no Department Head when adding, no Personnel)
+const ROLE_OPTIONS_FOR_ADD = [
+  { value: ROLES.SUPER_ADMIN, label: 'Super Admin', backend: 'admin' },
+  { value: ROLES.DISPATCHER, label: 'Dispatcher', backend: 'dispatcher' },
+  { value: ROLES.DEPARTMENT_ADMIN, label: 'Department Admin', backend: 'department-admin' },
+];
+
 function roleToBackend(frontendRole) {
   return ROLE_TO_BACKEND[frontendRole] ?? frontendRole;
 }
@@ -123,7 +130,7 @@ export function TeamPage() {
       last_name: '',
       email: '',
       password: '',
-      role: ROLES.PERSONNEL,
+      role: ROLES.DEPARTMENT_ADMIN,
       department_id: '',
     });
     setUserModalOpen(true);
@@ -131,7 +138,8 @@ export function TeamPage() {
 
   const openEditUser = (u) => {
     setEditingUser(u);
-    const frontendRole = u.role === 'admin' ? ROLES.SUPER_ADMIN : (ROLE_OPTIONS.find((o) => o.backend === u.role)?.value ?? u.role);
+    const backendRole = String(u.role || '').toLowerCase();
+    const frontendRole = backendRole === 'admin' ? ROLES.SUPER_ADMIN : (ROLE_OPTIONS.find((o) => o.backend === backendRole)?.value ?? (ROLE_OPTIONS_FOR_ADD.find((o) => o.backend === backendRole)?.value ?? u.role));
     setUserForm({
       first_name: u.first_name || '',
       last_name: u.last_name || '',
@@ -225,6 +233,11 @@ export function TeamPage() {
     if (r === 'department-head') return 'bg-amber-500/20 text-amber-500';
     return 'bg-gray-500/20 text-gray-400';
   };
+
+  const roleOptionsForModal =
+    editingUser && String(editingUser.role || '').toLowerCase() === 'department-head'
+      ? [...ROLE_OPTIONS_FOR_ADD, { value: ROLES.DEPARTMENT_HEAD, label: 'Department Head', backend: 'department-head' }]
+      : ROLE_OPTIONS_FOR_ADD;
 
   if (role !== ROLES.SUPER_ADMIN) {
     return (
@@ -404,10 +417,10 @@ export function TeamPage() {
                   {({ value, dropdownRect }) => (
                     <>
                       <SelectTrigger isOpen={roleSelectOpen} onClick={() => setRoleSelectOpen((o) => !o)} className="mt-1.5">
-                        <SelectValue value={value} options={ROLE_OPTIONS} />
+                        <SelectValue value={value} options={roleOptionsForModal} />
                       </SelectTrigger>
                       <SelectContent isOpen={roleSelectOpen} dropdownRect={dropdownRect}>
-                        {ROLE_OPTIONS.map((opt) => (
+                        {roleOptionsForModal.map((opt) => (
                           <SelectItem
                             key={opt.value}
                             value={opt.value}

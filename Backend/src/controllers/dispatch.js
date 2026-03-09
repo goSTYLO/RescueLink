@@ -1,8 +1,11 @@
 const Dispatch = require('../models/dispatch');
 const Responder = require('../models/responder');
 const Incident = require('../models/incident');
+const User = require('../models/user');
+const Department = require('../models/department');
 const { validateInteger, validateOptionalString, validatePagination } = require('../utils/validation');
 const { logDispatcherAction } = require('../utils/auditLog');
+const { ROLES } = require('../config/roles');
 
 const dispatchController = {
   // Create new dispatch
@@ -28,6 +31,18 @@ const dispatchController = {
       const validatedDefaultDepartmentCode = validateOptionalString(default_department_code, 'default_department_code', 40);
       const validatedWasDefaultDepartment = typeof was_default_department === 'boolean' ? was_default_department : null;
       const assignedByUserId = req.user?.user_id ? validateInteger(req.user.user_id, 'assigned_by_user_id') : null;
+
+      // Department admin may only create dispatches for their own department
+      if (req.user.role === ROLES.DEPARTMENT_ADMIN && req.user.user_id && validatedDepartmentCode) {
+        const fullUser = await User.findById(req.user.user_id);
+        if (!fullUser || fullUser.department_id == null) {
+          return res.status(403).json({ error: 'You can only create dispatches for your own department.' });
+        }
+        const dept = await Department.findById(fullUser.department_id);
+        if (!dept || !dept.code || String(dept.code).toLowerCase() !== String(validatedDepartmentCode).toLowerCase()) {
+          return res.status(403).json({ error: 'You can only create dispatches for your own department.' });
+        }
+      }
 
       // Check if report exists
       const reportExists = await Dispatch.reportExists(validatedReportId);
@@ -113,6 +128,52 @@ const dispatchController = {
             attempted_count: normalizedResponders.length,
             assigned_count: dispatches.length,
             unassigned_reason: null,
+          },
+        });
+      }
+
+      // Department-only path: frontend submits sector only (no team; department admin selects team later)
+      if (!responder_id && validatedDepartmentCode && !validatedTeamName && !hasResponderArray) {
+        const assignmentGroupId = `asg-${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
+        const dispatch = await Dispatch.createDepartmentOnly({
+          report_id: validatedReportId,
+          department_code: validatedDepartmentCode,
+          department_name: validatedDepartmentName,
+          default_department_code: validatedDefaultDepartmentCode,
+          was_default_department: validatedWasDefaultDepartment,
+          response_status: validatedResponseStatus || 'assigned',
+          assignment_group_id: assignmentGroupId,
+          assigned_by_user_id: assignedByUserId,
+        });
+
+        await logDispatcherAction(req, 'dispatch_create_department_only', 'dispatch', dispatch?.dispatch_id || null, {
+          report_id: validatedReportId,
+          assignment_group_id: assignmentGroupId,
+          department_code: validatedDepartmentCode,
+        });
+
+        if (existingDispatchCount === 0) {
+          try {
+            await Incident.transitionStatus(validatedReportId, {
+              next_status: 'in_progress',
+              actor_user_id: assignedByUserId,
+              actor_role: req.user?.role || null,
+            });
+          } catch (_) {
+            // Best-effort lifecycle hook; keep dispatch creation successful.
+          }
+        }
+
+        return res.status(201).json({
+          assignment_group_id: assignmentGroupId,
+          report_id: validatedReportId,
+          dispatches: [dispatch],
+          assignment_summary: {
+            department_only: true,
+            requested_department_code: validatedDepartmentCode,
+            requested_team_name: null,
+            attempted_count: 0,
+            assigned_count: 0,
           },
         });
       }

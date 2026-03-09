@@ -78,7 +78,7 @@ const PERMISSIONS = {
   [ROLES.DEPARTMENT_ADMIN]: {
     incidents: ['read', 'list'],
     dispatches: ['read', 'list'],
-    responders: ['read'],
+    responders: ['create', 'read', 'update', 'list'],
     notifications: ['readOwn'],
     auditLogs: [],
     users: [],

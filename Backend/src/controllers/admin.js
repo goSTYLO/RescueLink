@@ -10,6 +10,17 @@ const { hashPassword } = require('../utils/hash');
 const { validateEmail, validatePhoneNumber, validateOptionalString, validatePagination } = require('../utils/validation');
 const { logAdminAction } = require('../utils/auditLog');
 
+/** Normalize incoming role from request body to canonical value (never default to supervisor). */
+function normalizeRoleForAdmin(role) {
+  if (role == null || String(role).trim() === '') return ROLES.USER;
+  const r = String(role).toLowerCase().trim();
+  if (r === 'admin' || r === 'super-admin' || r === 'superadmin') return ROLES.ADMIN;
+  if (r === 'department-admin' || r === 'department admin' || r === 'dept admin') return ROLES.DEPARTMENT_ADMIN;
+  if (r === 'department-head' || r === 'department head') return ROLES.DEPARTMENT_HEAD;
+  if (Object.values(ROLES).includes(r)) return r;
+  return ROLES.USER;
+}
+
 const adminController = {
   /**
    * List all users (with pagination)
@@ -103,8 +114,8 @@ const adminController = {
         return res.status(400).json({ error: 'Password must be at least 8 characters' });
       }
 
-      // Validate role
-      const effectiveRole = role || ROLES.USER;
+      // Normalize role (aliases → canonical) then validate
+      const effectiveRole = normalizeRoleForAdmin(role);
       if (!Object.values(ROLES).includes(effectiveRole)) {
         return res.status(400).json({ error: `Invalid role. Must be one of: ${Object.values(ROLES).join(', ')}` });
       }
@@ -181,15 +192,19 @@ const adminController = {
   async updateUserRole(req, res) {
     try {
       const { id } = req.params;
-      const { role, department_id } = req.body;
+      const { role: roleParam, department_id } = req.body;
 
       // Validate ID format
       if (!id || isNaN(parseInt(id, 10))) {
         return res.status(400).json({ error: 'Invalid user ID format' });
       }
 
-      // Validate role
-      if (!role || !Object.values(ROLES).includes(role)) {
+      // Normalize role (aliases → canonical) then validate
+      if (roleParam == null || String(roleParam).trim() === '') {
+        return res.status(400).json({ error: 'role is required' });
+      }
+      const role = normalizeRoleForAdmin(roleParam);
+      if (!Object.values(ROLES).includes(role)) {
         return res.status(400).json({ error: `Invalid role. Must be one of: ${Object.values(ROLES).join(', ')}` });
       }
 

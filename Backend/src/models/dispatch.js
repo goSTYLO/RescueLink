@@ -157,8 +157,60 @@ const Dispatch = {
         assigned_by_user_id,
       });
       createdDispatches.push(dispatch);
+      // Set assigned personnel status to busy so Personnel management shows them as busy
+      if (responderId) {
+        try {
+          await Responder.updateStatus(responderId, 'busy');
+        } catch (err) {
+          console.error('Failed to update responder status to busy:', err.message);
+        }
+      }
+    }
+    // Set team status to busy when department + team are present
+    if (createdDispatches.length > 0 && department_code && team_name) {
+      try {
+        const team = await Responder.findTeamByDepartmentAndName(department_code, team_name);
+        if (team && team.team_id) {
+          await Responder.updateTeamStatus(team.team_id, 'busy');
+        }
+      } catch (err) {
+        console.error('Failed to update team status to busy:', err.message);
+      }
     }
     return createdDispatches;
+  },
+
+  /**
+   * Create a single department-only dispatch (no responder, no team).
+   * Used when dispatcher notifies a department; department admin selects team later.
+   */
+  async createDepartmentOnly({
+    report_id,
+    department_code,
+    department_name = null,
+    default_department_code = null,
+    was_default_department = null,
+    response_status = 'assigned',
+    assignment_group_id,
+    assigned_by_user_id = null,
+  }) {
+    const res = await pool.query(
+      `INSERT INTO dispatches(
+         report_id, responder_id, response_status, assignment_group_id, department_code, department_name,
+         team_name, default_department_code, was_default_department, responder_source, responder_name, assigned_by_user_id
+       ) VALUES($1, NULL, $2, $3, $4, $5, NULL, $6, $7, 'account', NULL, $8) RETURNING *`,
+      [
+        report_id,
+        response_status,
+        assignment_group_id,
+        department_code,
+        department_name,
+        default_department_code,
+        was_default_department,
+        assigned_by_user_id,
+      ]
+    );
+    return res.rows[0];
   },
 
   async createAutoAssignmentGroup({
@@ -213,6 +265,18 @@ const Dispatch = {
       assignment_group_id,
       assigned_by_user_id,
     });
+
+    // Set team status to busy when assignment succeeded
+    if (dispatches.length > 0 && department_code && team_name) {
+      try {
+        const team = await Responder.findTeamByDepartmentAndName(department_code, team_name);
+        if (team && team.team_id) {
+          await Responder.updateTeamStatus(team.team_id, 'busy');
+        }
+      } catch (err) {
+        console.error('Failed to update team status to busy:', err.message);
+      }
+    }
 
     return {
       dispatches,

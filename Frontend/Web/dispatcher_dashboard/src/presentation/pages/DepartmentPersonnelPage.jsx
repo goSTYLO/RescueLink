@@ -21,7 +21,7 @@ import {
   Truck,
   Clock,
 } from 'lucide-react';
-import { getDepartmentById } from '@/data/api/departments.api';
+import { getDepartmentById, getDepartmentUnits, assignDepartmentUnit } from '@/data/api/departments.api';
 import {
   getResponders,
   getResponderTeams,
@@ -33,7 +33,7 @@ import {
   updateResponderStatus,
   updateResponderTeamStatus,
 } from '@/data/api/responders.api';
-import { personnel as mockPersonnel, incidents as mockIncidents, units as mockUnits } from '@/data/mock/mockData';
+import { personnel as mockPersonnel, incidents as mockIncidents } from '@/data/mock/mockData';
 import { ROLES } from '@/core/constants';
 import { normalizeSectorCode, inferDepartmentSectorCode } from '@/core/utils/departmentSector';
 import { useTheme } from '@/presentation/context/ThemeContext';
@@ -109,6 +109,8 @@ export function DepartmentPersonnelPage() {
   const [assigningIncidentId, setAssigningIncidentId] = useState(null);
   const [vehicleModalOpen, setVehicleModalOpen] = useState(false);
   const [assigningIncidentIdVehicle, setAssigningIncidentIdVehicle] = useState(null);
+  const [unitsList, setUnitsList] = useState([]);
+  const [assigningVehicleId, setAssigningVehicleId] = useState(null);
 
   useEffect(() => {
     const role = user.role || '';
@@ -203,18 +205,51 @@ export function DepartmentPersonnelPage() {
     } catch (_) {}
   }, [vehicleAssignments]);
 
+  useEffect(() => {
+    if (!departmentId || (user.role !== ROLES.DEPARTMENT_ADMIN && user.role !== ROLES.PERSONNEL)) return;
+    let cancelled = false;
+    getDepartmentUnits(departmentId)
+      .then((rows) => {
+        if (cancelled) return;
+        const list = (Array.isArray(rows) ? rows : []).map((u) => ({
+          id: u.unit_id,
+          name: u.name,
+          type: u.type,
+          status: u.status || 'Available',
+        }));
+        setUnitsList(list);
+      })
+      .catch(() => { if (!cancelled) setUnitsList([]); });
+    return () => { cancelled = true; };
+  }, [departmentId, user.role]);
+
   const list = (mockPersonnel && departmentId && mockPersonnel[departmentId]) ? mockPersonnel[departmentId] : [];
   const departmentIncidents = (mockIncidents || []).filter((inc) => inc.assignedDepartmentId === departmentId);
   const activeDepartmentIncidents = departmentIncidents.filter((i) => i.status !== 'Resolved' && i.status !== 'resolved');
-  const unitsList = (departmentId && mockUnits && mockUnits[departmentId]) ? mockUnits[departmentId] : [];
   const getAssignment = useCallback((incidentId) => assignments[incidentId] || null, [assignments]);
   const getVehicleAssignment = useCallback((incidentId) => vehicleAssignments[incidentId] || null, [vehicleAssignments]);
-  const setVehicleAssignment = useCallback((incidentId, vehicleId, vehicleName) => {
-    setVehicleAssignments((prev) => ({ ...prev, [incidentId]: { vehicleId, name: vehicleName } }));
-    setVehicleModalOpen(false);
-    setAssigningIncidentIdVehicle(null);
-    Swal.fire({ icon: 'success', title: 'Vehicle assigned', html: `<strong>${vehicleName}</strong> has been assigned.`, timer: 2500, showConfirmButton: false, timerProgressBar: true });
-  }, []);
+  const assignVehicleToIncident = useCallback(async (incidentId, unitId, unitName) => {
+    if (!departmentId || !incidentId || !unitId) return;
+    setAssigningVehicleId(unitId);
+    try {
+      await assignDepartmentUnit(departmentId, unitId, Number(incidentId));
+      const rows = await getDepartmentUnits(departmentId);
+      setUnitsList((Array.isArray(rows) ? rows : []).map((u) => ({
+        id: u.unit_id,
+        name: u.name,
+        type: u.type,
+        status: u.status || 'Available',
+      })));
+      setVehicleAssignments((prev) => ({ ...prev, [incidentId]: { vehicleId: unitId, name: unitName } }));
+      setVehicleModalOpen(false);
+      setAssigningIncidentIdVehicle(null);
+      Swal.fire({ icon: 'success', title: 'Vehicle assigned', html: `<strong>${unitName}</strong> has been assigned. Status set to On Dispatch.`, timer: 2500, showConfirmButton: false, timerProgressBar: true });
+    } catch (e) {
+      Swal.fire({ icon: 'error', title: 'Assign failed', text: e?.message || 'Failed to assign vehicle' });
+    } finally {
+      setAssigningVehicleId(null);
+    }
+  }, [departmentId]);
   const setAssignment = useCallback((incidentId, personnelKey, name) => {
     setAssignments((prev) => ({ ...prev, [incidentId]: { personnelKey, name } }));
     setAssignModalOpen(false);
@@ -657,10 +692,15 @@ export function DepartmentPersonnelPage() {
                 <div className="mt-4 space-y-3 max-h-[280px] overflow-y-auto pr-1">
                   {unitsList.map((u) => {
                     const isAvailable = String(u.status || '').toLowerCase() === 'available';
-                    const Wrapper = isAvailable ? 'button' : 'div';
-                    const wrapperProps = isAvailable ? { type: 'button', onClick: () => setVehicleAssignment(assigningIncidentIdVehicle, u.id, u.name) } : {};
+                    const isAssigning = assigningVehicleId === u.id;
                     return (
-                      <Wrapper key={u.id} {...wrapperProps} className={`w-full text-left flex items-center gap-4 px-4 py-3.5 rounded-xl border transition-all duration-200 ${isAvailable ? (isLight ? 'border-gray-200/80 bg-white hover:bg-primary/5 hover:border-primary/30 cursor-pointer' : 'border-white/10 bg-white/5 hover:bg-primary/10 hover:border-primary/30 cursor-pointer') : (isLight ? 'border-gray-200/60 bg-gray-50/50 opacity-60 cursor-not-allowed' : 'border-white/5 bg-white/5 opacity-60 cursor-not-allowed')}`}>
+                      <button
+                        key={u.id}
+                        type="button"
+                        onClick={() => assignVehicleToIncident(assigningIncidentIdVehicle, u.id, u.name)}
+                        disabled={isAssigning}
+                        className={`w-full text-left flex items-center gap-4 px-4 py-3.5 rounded-xl border transition-all duration-200 ${isLight ? 'border-gray-200/80 bg-white hover:bg-primary/5 hover:border-primary/30 cursor-pointer' : 'border-white/10 bg-white/5 hover:bg-primary/10 hover:border-primary/30 cursor-pointer'}`}
+                      >
                         <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isAvailable ? (isLight ? 'bg-green-500/15 text-green-600' : 'bg-green-500/20 text-green-400') : (isLight ? 'bg-amber-500/15 text-amber-600' : 'bg-amber-500/20 text-amber-400')}`}>
                           {isAvailable ? <Truck className="w-5 h-5" strokeWidth={2} /> : <Clock className="w-5 h-5" strokeWidth={2} />}
                         </div>
@@ -668,8 +708,8 @@ export function DepartmentPersonnelPage() {
                           <p className="font-semibold text-foreground">{u.name}</p>
                           <p className="text-sm text-muted">{u.type} · {u.id}</p>
                         </div>
-                        <span className={`flex-shrink-0 px-2.5 py-1 rounded-lg text-xs font-medium ${isAvailable ? 'bg-green-500/20 text-green-600' : 'bg-amber-500/20 text-amber-600'}`}>{u.status}</span>
-                      </Wrapper>
+                        <span className={`flex-shrink-0 px-2.5 py-1 rounded-lg text-xs font-medium ${isAvailable ? 'bg-green-500/20 text-green-600' : 'bg-amber-500/20 text-amber-600'}`}>{isAssigning ? 'Assigning…' : u.status}</span>
+                      </button>
                     );
                   })}
                 </div>

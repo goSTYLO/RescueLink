@@ -409,6 +409,26 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
   Future<void> _confirmResolution() async {
     final reportId = _resolvedReportId;
     if (reportId == null || _confirmingResolution) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirm resolution?'),
+        content: const Text(
+          'Confirm that this incident is resolved on your end? This will record your confirmation for our records.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Confirm'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || confirmed != true) return;
     setState(() => _confirmingResolution = true);
     try {
       await _incidentService.confirmIncidentResolution(reportId);
@@ -815,9 +835,8 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
                                     const SizedBox(height: 10),
                                     _simpleRow(
                                         'Department',
-                                        departmentFromIncidentType(
-                                            _incident?['incident_type']
-                                                as String?)),
+                                        assignedDepartmentDisplayName(
+                                            _incident)),
                                     const SizedBox(height: 10),
                                     _simpleRow(
                                         'Severity',
@@ -1040,8 +1059,7 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
   }
 
   Widget _buildResponderAvailabilityCard() {
-    final department =
-        departmentFromIncidentType(_incident?['incident_type'] as String?);
+    final department = assignedDepartmentDisplayName(_incident);
     return _whiteCard(
       title: 'Assigned Department',
       icon: Icons.local_fire_department,

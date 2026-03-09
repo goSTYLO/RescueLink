@@ -129,3 +129,55 @@ export async function deleteDepartment(id) {
   }
   return data;
 }
+
+export async function getDepartmentUnits(departmentId) {
+  return readWithCache(`departments:units:${departmentId}`, async () => {
+    const requestId = createRequestId('web-departments-units');
+    const response = await fetch(`${API_URL}/api/departments/${departmentId}/units`, {
+      method: 'GET',
+      headers: getAuthHeaders({ requestId }),
+    });
+
+    const data = await parseJsonOrEmpty(response);
+    if (response.status === 429) {
+      rateLimitUntilMs = Date.now() + getRetryAfterMs(response);
+      throw new Error(parseErrorMessage(data, 'Rate limited by server. Retry in ~30s.'));
+    }
+    if (!response.ok) {
+      throw new Error(parseErrorMessage(data, 'Failed to fetch department units'));
+    }
+    return data;
+  });
+}
+
+export async function createDepartmentUnit(departmentId, payload) {
+  const requestId = createRequestId('web-departments-units-create');
+  const response = await fetch(`${API_URL}/api/departments/${departmentId}/units`, {
+    method: 'POST',
+    headers: getAuthHeaders({ requestId }),
+    body: JSON.stringify(payload),
+  });
+
+  const data = await parseJsonOrEmpty(response);
+  if (!response.ok) {
+    throw new Error(parseErrorMessage(data, 'Failed to create unit'));
+  }
+  readCache.delete(`departments:units:${departmentId}`);
+  return data;
+}
+
+export async function assignDepartmentUnit(departmentId, unitId, reportId) {
+  const requestId = createRequestId('web-departments-units-assign');
+  const response = await fetch(`${API_URL}/api/departments/${departmentId}/units/${unitId}/assign`, {
+    method: 'POST',
+    headers: getAuthHeaders({ requestId }),
+    body: JSON.stringify({ report_id: reportId }),
+  });
+
+  const data = await parseJsonOrEmpty(response);
+  if (!response.ok) {
+    throw new Error(parseErrorMessage(data, 'Failed to assign vehicle'));
+  }
+  readCache.delete(`departments:units:${departmentId}`);
+  return data;
+}

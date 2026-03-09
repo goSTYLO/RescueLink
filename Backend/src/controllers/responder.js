@@ -1,6 +1,9 @@
 const Responder = require('../models/responder');
+const User = require('../models/user');
+const Department = require('../models/department');
 const { validateInteger, validateString, validateOptionalString, validatePagination, validateAllowedValue } = require('../utils/validation');
 const { logDispatcherAction } = require('../utils/auditLog');
+const { ROLES } = require('../config/roles');
 
 const RESOLVER_STATUSES = ['available', 'standby', 'busy', 'off-duty'];
 const INCIDENT_TASK_TYPES = ['fire', 'medical', 'police', 'disaster'];
@@ -169,6 +172,17 @@ const responderController = {
   async createTeam(req, res) {
     try {
       const departmentCode = validateString(req.body?.department_code, 'department_code', 1, 40).toLowerCase();
+      // Department admin may only create teams for their own department
+      if (req.user.role === ROLES.DEPARTMENT_ADMIN && req.user.user_id) {
+        const fullUser = await User.findById(req.user.user_id);
+        if (!fullUser || fullUser.department_id == null) {
+          return res.status(403).json({ error: 'Forbidden. Department admin must be assigned to a department to create teams.' });
+        }
+        const dept = await Department.findById(fullUser.department_id);
+        if (!dept || !dept.code || String(dept.code).toLowerCase() !== departmentCode) {
+          return res.status(403).json({ error: 'Forbidden. You can only create teams for your own department.' });
+        }
+      }
       const teamName = validateString(req.body?.team_name, 'team_name', 1, 150);
       const teamStatus = validateAllowedValue(String(req.body?.team_status || 'available').toLowerCase(), RESOLVER_STATUSES, 'team_status');
       const team = await Responder.createTeam({
@@ -221,6 +235,18 @@ const responderController = {
       const teamId = validateInteger(req.params.teamId, 'team ID');
       const existing = await Responder.findTeamById(teamId);
       if (!existing) return res.status(404).json({ error: 'Team not found' });
+      // Department admin may only update teams in their own department
+      if (req.user.role === ROLES.DEPARTMENT_ADMIN && req.user.user_id) {
+        const fullUser = await User.findById(req.user.user_id);
+        if (!fullUser || fullUser.department_id == null) {
+          return res.status(403).json({ error: 'Forbidden. Department admin must be assigned to a department to update teams.' });
+        }
+        const dept = await Department.findById(fullUser.department_id);
+        const existingCode = String(existing.department_code || '').toLowerCase();
+        if (!dept || !dept.code || existingCode !== String(dept.code).toLowerCase()) {
+          return res.status(403).json({ error: 'Forbidden. You can only update teams in your own department.' });
+        }
+      }
       const updated = await Responder.updateTeam(teamId, {
         team_name: validateString(req.body?.team_name, 'team_name', 1, 150),
         team_status: validateAllowedValue(String(req.body?.team_status || 'available').toLowerCase(), RESOLVER_STATUSES, 'team_status'),
