@@ -94,6 +94,7 @@ export function DepartmentsPage() {
   const mapDepartment = (dept) => ({
     id: String(dept.department_id),
     departmentId: dept.department_id,
+    code: dept.code || '',
     name: dept.name,
     type: dept.type,
     color: dept.color || 'gray',
@@ -230,7 +231,16 @@ export function DepartmentsPage() {
   function buildDepartmentLiveStats(dept) {
     const inferredCode = inferDepartmentSectorCode(dept);
     const deptName = String(dept?.name || '').trim().toLowerCase();
-    const deptTeams = teams.filter((team) => normalizeSectorCode(team?.department_code) === inferredCode);
+    const deptCode = String(dept?.code || '').trim().toLowerCase();
+    // Match teams by inferred sector code OR the department's actual code for backward compatibility
+    // Only match by deptCode if both team and department have non-empty codes to avoid matching empty/null teams
+    const deptTeams = teams.filter((team) => {
+      const teamCodeRaw = String(team?.department_code || '').trim().toLowerCase();
+      const teamCode = normalizeSectorCode(team?.department_code);
+      const matchesInferred = teamCode === inferredCode;
+      const matchesDeptCode = teamCodeRaw && deptCode && teamCode === deptCode;
+      return matchesInferred || matchesDeptCode;
+    });
     const deptTeamNames = new Set(
       deptTeams
         .map((team) => String(team?.team_name || '').trim())
@@ -265,9 +275,11 @@ export function DepartmentsPage() {
     const apiAvailableUnits = Number(dept?.availableUnits ?? 0);
     const apiPersonnelCount = Number(dept?.personnelCount ?? 0);
 
-    const unitsTotal = apiTotalUnits > 0 ? apiTotalUnits : deptTeams.length;
-    const unitsAvailable = apiTotalUnits > 0 ? apiAvailableUnits : availableTeamCount;
-    const personnelCount = apiPersonnelCount > 0 ? apiPersonnelCount : responderCount;
+    // Prioritize actual team count from teams data over stored unitsCount for accuracy
+    const actualTeamCount = deptTeams.length;
+    const unitsTotal = actualTeamCount > 0 ? actualTeamCount : apiTotalUnits;
+    const unitsAvailable = actualTeamCount > 0 ? availableTeamCount : apiAvailableUnits;
+    const personnelCount = responderCount > 0 ? responderCount : apiPersonnelCount;
 
     return {
       unitsTotal,
@@ -990,8 +1002,14 @@ export function DepartmentsPage() {
             <div>
               <Label className="text-xs">Sector</Label>
               <select className="w-full mt-1 px-2.5 py-2 border border-border rounded-lg bg-card text-foreground text-sm" value={teamForm.department_code} onChange={(e) => setTeamForm((prev) => ({ ...prev, department_code: e.target.value }))}>
-                <option value="pnp">pnp</option>
-                <option value="drrmo">drrmo</option>
+                {departments.length === 0 && (
+                  <option value="">No departments available</option>
+                )}
+                {departments.map((dept) => (
+                  <option key={dept.id} value={dept.code || dept.id}>
+                    {dept.name} ({dept.code || dept.id})
+                  </option>
+                ))}
               </select>
             </div>
             <div>

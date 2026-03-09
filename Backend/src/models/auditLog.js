@@ -1,4 +1,16 @@
 const pool = require('../config/db');
+const { tryDecryptValue, recursivelyDecrypt } = require('../utils/encryption');
+
+function decodeAuditRow(row) {
+  if (!row || typeof row !== 'object') return row;
+  return {
+    ...row,
+    user_email: row.user_email != null ? tryDecryptValue(row.user_email) : row.user_email,
+    user_first_name: row.user_first_name != null ? tryDecryptValue(row.user_first_name) : row.user_first_name,
+    user_last_name: row.user_last_name != null ? tryDecryptValue(row.user_last_name) : row.user_last_name,
+    details: row.details != null ? recursivelyDecrypt(row.details) : row.details,
+  };
+}
 
 const AuditLog = {
   async create({ user_id, action, resource_type, resource_id = null, details = null, ip_address = null, user_agent = null }) {
@@ -52,7 +64,7 @@ const AuditLog = {
     params.push(cappedLimit, offset);
 
     const res = await pool.query(query, params);
-    return res.rows;
+    return res.rows.map(decodeAuditRow);
   }
 };
 

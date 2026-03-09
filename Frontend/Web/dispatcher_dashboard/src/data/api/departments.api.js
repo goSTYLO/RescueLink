@@ -78,6 +78,7 @@ export async function createDepartment(payload) {
   if (!response.ok) {
     throw new Error(parseErrorMessage(data, 'Failed to create department'));
   }
+  readCache.delete('departments:list');
   return data;
 }
 
@@ -113,6 +114,7 @@ export async function updateDepartment(id, payload) {
   if (!response.ok) {
     throw new Error(parseErrorMessage(data, 'Failed to update department'));
   }
+  readCache.delete('departments:list');
   return data;
 }
 
@@ -127,6 +129,7 @@ export async function deleteDepartment(id) {
   if (!response.ok) {
     throw new Error(parseErrorMessage(data, 'Failed to delete department'));
   }
+  readCache.delete('departments:list');
   return data;
 }
 

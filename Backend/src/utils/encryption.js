@@ -82,7 +82,60 @@ function decrypt(encryptedData) {
   return decrypted;
 }
 
+/**
+ * Returns true if the value looks like data encrypted with encrypt() (hex string, min length).
+ */
+function looksEncryptedValue(value) {
+  return typeof value === 'string'
+    && /^[0-9a-f]+$/i.test(value)
+    && value.length >= 184
+    && value.length % 2 === 0;
+}
+
+/**
+ * Decrypts value if it looks encrypted; otherwise returns as-is. Never throws.
+ */
+function tryDecryptValue(value) {
+  if (!looksEncryptedValue(value)) {
+    return value;
+  }
+  try {
+    return decrypt(value);
+  } catch {
+    return value;
+  }
+}
+
+/**
+ * Recursively decrypt any encrypted strings in an object or array.
+ * If a string is decrypted and the result looks like JSON, it is parsed and recursively decrypted.
+ */
+function recursivelyDecrypt(obj) {
+  if (obj == null) return obj;
+  if (typeof obj === 'string') {
+    const decrypted = tryDecryptValue(obj);
+    if (typeof decrypted === 'string' && (decrypted.trim().startsWith('{') || decrypted.trim().startsWith('['))) {
+      try {
+        return recursivelyDecrypt(JSON.parse(decrypted));
+      } catch {
+        return decrypted;
+      }
+    }
+    return decrypted;
+  }
+  if (Array.isArray(obj)) return obj.map(recursivelyDecrypt);
+  if (typeof obj === 'object') {
+    const out = {};
+    for (const [k, v] of Object.entries(obj)) out[k] = recursivelyDecrypt(v);
+    return out;
+  }
+  return obj;
+}
+
 module.exports = {
   encrypt,
-  decrypt
+  decrypt,
+  looksEncryptedValue,
+  tryDecryptValue,
+  recursivelyDecrypt,
 };
