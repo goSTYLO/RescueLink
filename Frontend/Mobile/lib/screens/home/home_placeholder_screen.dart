@@ -480,15 +480,12 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
                       label: 'SOS',
                       subtitle: _sosCountdown > 0
                           ? 'Cancelling in $_sosCountdown...'
-                          : 'Long press to report. 1 tap: 5 sec to cancel.',
+                          : 'Tap to send now. Long-press for 5s countdown.',
                       size: sosCircleSize,
                       iconSize: sosIconSize,
                       subtitleMaxLines: compact ? 3 : 2,
-                      onTap: _sosCountdown > 0 ? null : _startSosCountdown,
-                      onLongPress: () {
-                        _cancelSosCountdown();
-                        widget.onEmergencyNoAiPressed?.call();
-                      },
+                      onTap: _sosCountdown > 0 ? null : () => widget.onEmergencyNoAiPressed?.call(),
+                      onLongPress: _sosCountdown > 0 ? null : _startSosCountdown,
                     ),
                   ),
                   SizedBox(

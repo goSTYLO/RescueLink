@@ -11,28 +11,55 @@ class ReportHistoryScreen extends StatefulWidget {
 }
 
 class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
+  static const int _pageSize = 20;
+
   List<dynamic> _incidents = [];
   bool _loading = true;
+  bool _loadingMore = false;
+  bool _hasMore = true;
   String? _error;
+  String? _filterStatus; // null = All; pending, verified, in_progress, resolved
+  String? _filterType;   // null = All; fire, medical, police, disaster
+  String _searchQuery = '';
+  final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
 
   @override
   void initState() {
     super.initState();
     _loadIncidents();
+    _searchController.addListener(() {
+      if (mounted) setState(() => _searchQuery = _searchController.text.trim());
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _searchFocusNode.dispose();
+    super.dispose();
   }
 
   Future<void> _loadIncidents() async {
     setState(() {
       _loading = true;
       _error = null;
+      _incidents = [];
+      _hasMore = true;
     });
     try {
-      final list = await IncidentService().getMyIncidents(limit: 50);
+      final list = await IncidentService().getMyIncidents(
+        limit: _pageSize,
+        offset: 0,
+        status: _filterStatus,
+        incidentType: _filterType,
+      );
       if (!mounted) return;
       setState(() {
         _incidents = list;
         _loading = false;
         _error = null;
+        _hasMore = list.length == _pageSize;
       });
     } catch (e) {
       if (!mounted) return;
@@ -41,6 +68,51 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
         _error = e is IncidentServiceException ? e.message : e.toString();
       });
     }
+  }
+
+  Future<void> _loadMore() async {
+    if (_loadingMore || !_hasMore || _loading) return;
+    setState(() => _loadingMore = true);
+    try {
+      final list = await IncidentService().getMyIncidents(
+        limit: _pageSize,
+        offset: _incidents.length,
+        status: _filterStatus,
+        incidentType: _filterType,
+      );
+      if (!mounted) return;
+      setState(() {
+        _incidents = [..._incidents, ...list];
+        _loadingMore = false;
+        _hasMore = list.length == _pageSize;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _loadingMore = false);
+    }
+  }
+
+  List<dynamic> get _filteredIncidents {
+    if (_searchQuery.isEmpty) return _incidents;
+    final q = _searchQuery.toLowerCase();
+    return _incidents.where((e) {
+      try {
+        final map = e is Map ? e : <String, dynamic>{};
+        final id = map['report_id'];
+        final idStr = id != null ? 'DGP-$id' : '';
+        final type = (map['incident_type'] as String? ?? '').toLowerCase();
+        final desc = (map['description'] as String? ?? '').toLowerCase();
+        final createdAt = (map['created_at'] as String? ?? '').toLowerCase();
+        final status = (map['status'] as String? ?? '').toLowerCase();
+        return idStr.toLowerCase().contains(q) ||
+            type.contains(q) ||
+            desc.contains(q) ||
+            createdAt.contains(q) ||
+            status.contains(q);
+      } catch (_) {
+        return false;
+      }
+    }).toList();
   }
 
   Widget _buildLogo() {
@@ -243,6 +315,61 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
               ],
             ),
           ),
+          const SizedBox(height: 12),
+          // Search
+          TextField(
+            controller: _searchController,
+            focusNode: _searchFocusNode,
+            decoration: InputDecoration(
+              hintText: 'Search by ID, type, status, date...',
+              prefixIcon: const Icon(Icons.search, color: Color(0xFF6B7280), size: 22),
+              suffixIcon: _searchQuery.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.clear, size: 20),
+                      onPressed: () {
+                        _searchController.clear();
+                      },
+                    )
+                  : null,
+              filled: true,
+              fillColor: Colors.white,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+              ),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            ),
+          ),
+          const SizedBox(height: 12),
+          // Filters: Status
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                const Text('Status: ', style: TextStyle(fontSize: 13, color: Color(0xFF6B7280))),
+                _filterChip('All', _filterStatus == null, () => setState(() { _filterStatus = null; _loadIncidents(); })),
+                _filterChip('Pending', _filterStatus == 'pending', () => setState(() { _filterStatus = 'pending'; _loadIncidents(); })),
+                _filterChip('Verified', _filterStatus == 'verified', () => setState(() { _filterStatus = 'verified'; _loadIncidents(); })),
+                _filterChip('In progress', _filterStatus == 'in_progress', () => setState(() { _filterStatus = 'in_progress'; _loadIncidents(); })),
+                _filterChip('Resolved', _filterStatus == 'resolved', () => setState(() { _filterStatus = 'resolved'; _loadIncidents(); })),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          // Filters: Type
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                const Text('Type: ', style: TextStyle(fontSize: 13, color: Color(0xFF6B7280))),
+                _filterChip('All', _filterType == null, () => setState(() { _filterType = null; _loadIncidents(); })),
+                _filterChip('Fire', _filterType == 'fire', () => setState(() { _filterType = 'fire'; _loadIncidents(); })),
+                _filterChip('Medical', _filterType == 'medical', () => setState(() { _filterType = 'medical'; _loadIncidents(); })),
+                _filterChip('Police', _filterType == 'police', () => setState(() { _filterType = 'police'; _loadIncidents(); })),
+                _filterChip('Disaster', _filterType == 'disaster', () => setState(() { _filterType = 'disaster'; _loadIncidents(); })),
+              ],
+            ),
+          ),
           const SizedBox(height: 16),
           if (_loading && _incidents.isEmpty)
             const Padding(
@@ -268,15 +395,15 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
               children: [
                 Expanded(
                   child: _summaryCard(
-                    value: '${_incidents.length}',
-                    label: 'Total',
+                    value: '${_filteredIncidents.length}',
+                    label: _searchQuery.isNotEmpty ? 'Shown' : 'Total',
                     valueColor: const Color(0xFF14B8A6),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: _summaryCard(
-                    value: '${_incidents.where((e) => _status(e)?.toLowerCase() == 'resolved' || _status(e)?.toLowerCase() == 'closed').length}',
+                    value: '${_filteredIncidents.where((e) => _status(e)?.toLowerCase() == 'resolved' || _status(e)?.toLowerCase() == 'closed').length}',
                     label: 'Resolved',
                     valueColor: const Color(0xFF22C55E),
                   ),
@@ -284,7 +411,7 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: _summaryCard(
-                    value: '${_incidents.where((e) => _status(e)?.toLowerCase() != 'resolved' && _status(e)?.toLowerCase() != 'closed').length}',
+                    value: '${_filteredIncidents.where((e) => _status(e)?.toLowerCase() != 'resolved' && _status(e)?.toLowerCase() != 'closed').length}',
                     label: 'Active',
                     valueColor: const Color(0xFF2563EB),
                   ),
@@ -292,18 +419,18 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
               ],
             ),
             const SizedBox(height: 20),
-            if (_incidents.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 24),
+            if (_filteredIncidents.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 24),
                 child: Center(
                   child: Text(
-                    'No reports yet',
-                    style: TextStyle(fontSize: 15, color: Color(0xFF6B7280)),
+                    _searchQuery.isNotEmpty ? 'No reports match your search' : 'No reports yet',
+                    style: const TextStyle(fontSize: 15, color: Color(0xFF6B7280)),
                   ),
                 ),
               )
-            else
-              ..._incidents.map<Widget>((incident) {
+            else ...[
+              ..._filteredIncidents.map<Widget>((incident) {
                 final reportId = incident['report_id'] as int?;
                 final type = incident['incident_type'] as String? ?? 'Emergency';
                 final status = _status(incident);
@@ -324,6 +451,23 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                   ),
                 );
               }),
+              if (_hasMore || _loadingMore) ...[
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: _loadingMore
+                      ? const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 16),
+                          child: Center(child: CircularProgressIndicator()),
+                        )
+                      : TextButton.icon(
+                          onPressed: _loadMore,
+                          icon: const Icon(Icons.add_circle_outline, size: 20),
+                          label: const Text('Load more'),
+                        ),
+                ),
+              ],
+            ],
           ],
             const SizedBox(height: 24),
           ],
@@ -338,6 +482,19 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
     } catch (_) {
       return null;
     }
+  }
+
+  Widget _filterChip(String label, bool selected, VoidCallback onTap) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: FilterChip(
+        label: Text(label),
+        selected: selected,
+        onSelected: (_) => onTap(),
+        selectedColor: const Color(0xFFEF4444).withValues(alpha: 0.25),
+        checkmarkColor: const Color(0xFFEF4444),
+      ),
+    );
   }
 
   Widget _summaryCard({

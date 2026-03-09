@@ -210,12 +210,16 @@ const incidentController = {
         return res.status(401).json({ error: 'Authentication required' });
       }
 
-      const { limit, offset } = req.query;
+      const { limit, offset, status, incident_type } = req.query;
       const { limit: validatedLimit, offset: validatedOffset } = validatePagination(limit, offset);
+      const validatedStatus = validateAllowedValue(status, ['pending', 'verified', 'in_progress', 'resolved'], 'status');
+      const validatedIncidentType = validateAllowedValue(incident_type, ['fire', 'medical', 'police', 'disaster'], 'incident_type');
 
       const incidents = await Incident.findByUserId(user_id, {
         limit: validatedLimit,
-        offset: validatedOffset
+        offset: validatedOffset,
+        status: validatedStatus,
+        incident_type: validatedIncidentType
       });
 
       res.json(incidents);
