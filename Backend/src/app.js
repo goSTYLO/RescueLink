@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
+const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
 const crypto = require('crypto');
 const authRoutes = require('./routes/auth');
 const responderRoutes = require('./routes/responder');
@@ -71,9 +71,9 @@ const authLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => {
-    const ip = req.ip || 'unknown';
+    const ipPart = ipKeyGenerator(req.ip || 'unknown');
     const accountKey = getAuthAccountKey(req);
-    return accountKey ? `${ip}:${accountKey}` : ip;
+    return accountKey ? `${ipPart}:${accountKey}` : ipPart;
   },
 });
 

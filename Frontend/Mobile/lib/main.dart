@@ -207,28 +207,6 @@ class _AuthNavigatorState extends State<AuthNavigator> {
   }
 
   Future<void> _onEmergencyNoAiPressed(BuildContext context) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Send emergency report?'),
-        content: const Text(
-          'Your location will be sent immediately. Responders will be notified. Continue?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Send'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
-
     setState(() => _emergencyNoAiInProgress = true);
 
     try {

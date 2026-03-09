@@ -1,10 +1,12 @@
 const Department = require('../models/department');
+const User = require('../models/user');
 const {
   validateInteger,
   validateString,
   validateOptionalString,
   validateAllowedValue,
 } = require('../utils/validation');
+const { ROLES } = require('../config/roles');
 
 function toDepartmentCode(name) {
   return String(name)
@@ -86,6 +88,14 @@ const departmentController = {
       if (!department) {
         return res.status(404).json({ error: 'Department not found' });
       }
+      // Department admin and department head may only access their own department
+      const deptRole = req.user.role === ROLES.DEPARTMENT_ADMIN || req.user.role === ROLES.DEPARTMENT_HEAD;
+      if (deptRole && req.user.user_id) {
+        const fullUser = await User.findById(req.user.user_id);
+        if (!fullUser || fullUser.department_id == null || fullUser.department_id !== departmentId) {
+          return res.status(403).json({ error: 'Forbidden. You can only access your own department.' });
+        }
+      }
       res.json(department);
     } catch (error) {
       console.error('Error fetching department:', error);
@@ -98,11 +108,13 @@ const departmentController = {
 
   async create(req, res) {
     try {
-      const payload = normalizeDepartmentPayload(req.body);
+      const body = req.body || {};
+      const payload = normalizeDepartmentPayload(body);
       const created = await Department.create({
         ...payload,
         code: toDepartmentCode(payload.name),
       });
+
       res.status(201).json(created);
     } catch (error) {
       console.error('Error creating department:', error);
@@ -173,6 +185,13 @@ const departmentController = {
   async listUnits(req, res) {
     try {
       const departmentId = validateInteger(req.params.id, 'department_id');
+      const deptRole = req.user.role === ROLES.DEPARTMENT_ADMIN || req.user.role === ROLES.DEPARTMENT_HEAD;
+      if (deptRole && req.user.user_id) {
+        const fullUser = await User.findById(req.user.user_id);
+        if (!fullUser || fullUser.department_id == null || fullUser.department_id !== departmentId) {
+          return res.status(403).json({ error: 'You can only manage units for your own department.' });
+        }
+      }
       const rows = await Department.listUnits(departmentId);
       res.json(rows);
     } catch (error) {
@@ -187,6 +206,12 @@ const departmentController = {
   async createUnit(req, res) {
     try {
       const departmentId = validateInteger(req.params.id, 'department_id');
+      if (req.user.role === ROLES.DEPARTMENT_ADMIN && req.user.user_id) {
+        const fullUser = await User.findById(req.user.user_id);
+        if (!fullUser || fullUser.department_id == null || fullUser.department_id !== departmentId) {
+          return res.status(403).json({ error: 'You can only manage units for your own department.' });
+        }
+      }
       const payload = normalizeUnitPayload(req.body);
       const created = await Department.createUnit(departmentId, payload);
       res.status(201).json(created);
@@ -211,6 +236,31 @@ const departmentController = {
       res.json(updated);
     } catch (error) {
       console.error('Error updating unit:', error);
+      if (error.message.includes('must')) {
+        return res.status(400).json({ error: error.message });
+      }
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+
+  async assignUnit(req, res) {
+    try {
+      const departmentId = validateInteger(req.params.id, 'department_id');
+      const unitId = validateInteger(req.params.unitId, 'unit_id');
+      const reportId = validateInteger(req.body.report_id, 'report_id');
+      if (req.user.role === ROLES.DEPARTMENT_ADMIN && req.user.user_id) {
+        const fullUser = await User.findById(req.user.user_id);
+        if (!fullUser || fullUser.department_id == null || fullUser.department_id !== departmentId) {
+          return res.status(403).json({ error: 'You can only assign units for your own department.' });
+        }
+      }
+      const usage = await Department.recordUnitUsageForIncident(reportId, unitId, departmentId);
+      if (!usage) {
+        return res.status(404).json({ error: 'Unit not found' });
+      }
+      res.status(201).json(usage);
+    } catch (error) {
+      console.error('Error assigning unit:', error);
       if (error.message.includes('must')) {
         return res.status(400).json({ error: error.message });
       }

@@ -1,5 +1,5 @@
 const express = require('express');
-const rateLimit = require('express-rate-limit');
+const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
 const router = express.Router();
 const incidentController = require('../controllers/incident');
 const authMiddleware = require('../middleware/auth');
@@ -17,8 +17,8 @@ const incidentReportLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: (req) => {
     const userId = req.user?.user_id;
-    const ip = req.ip || 'unknown';
-    return userId != null ? `user:${userId}` : ip;
+    if (userId != null) return `user:${userId}`;
+    return ipKeyGenerator(req.ip || 'unknown');
   },
 });
 
@@ -46,8 +46,8 @@ router.get('/:id/with-ai', authMiddleware, checkOwnership('user_id'), incidentCo
 // Dispatcher and admin only
 router.post('/:id/verify', authMiddleware, authorize([ROLES.DISPATCHER, ROLES.ADMIN]), incidentController.verifyIncident);
 
-// Guarded incident status transitions (dispatcher/admin only)
-router.patch('/:id/status', authMiddleware, authorize([ROLES.DISPATCHER, ROLES.ADMIN]), incidentController.updateStatus);
+// Guarded incident status transitions (dispatcher/admin/department-admin; dept admin only for assigned incidents)
+router.patch('/:id/status', authMiddleware, authorize([ROLES.DISPATCHER, ROLES.ADMIN, ROLES.DEPARTMENT_ADMIN]), incidentController.updateStatus);
 
 // Reporter confirms resolution (owner-only is enforced in controller)
 router.post('/:id/confirm-resolution', authMiddleware, authorize([ROLES.USER]), incidentController.confirmResolution);

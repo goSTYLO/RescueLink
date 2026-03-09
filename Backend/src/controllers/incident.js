@@ -1,4 +1,8 @@
 const Incident = require('../models/incident');
+const User = require('../models/user');
+const Department = require('../models/department');
+const Dispatch = require('../models/dispatch');
+const Responder = require('../models/responder');
 const pool = require('../config/db');
 const { validateLatitude, validateLongitude, validateInteger, validatePagination, validateOptionalString, validateAllowedValue } = require('../utils/validation');
 const { getBarangayFromCoordinates } = require('../utils/geolocation');
@@ -27,6 +31,43 @@ async function logIncidentAction(req, action, resourceId, details) {
   } catch (err) {
     console.error('Audit logging error:', err.message);
   }
+}
+
+/**
+ * Attach assigned_department, assigned_department_code, and assigned_team_name from dispatches for the report.
+ * Mutates incident in place; returns incident for chaining.
+ * Resolves department name from departments table when dispatch has department_code but no department_name.
+ * assigned_team_name comes from the first dispatch (by dispatched_at) that has team_name set (the assigned team).
+ */
+async function attachAssignedDepartment(incident, reportId) {
+  if (!incident || reportId == null) return incident;
+  try {
+    const dispatches = await Dispatch.findAll({ report_id: reportId, limit: 20 });
+    if (dispatches && dispatches.length > 0) {
+      const d = dispatches[0];
+      const code = d.department_code ?? d.department_Code ?? null;
+      let name = d.department_name ?? d.department_Name ?? null;
+      if ((!name || String(name).trim() === '') && code) {
+        const dept = await Department.findByCode(code);
+        name = dept?.name ?? null;
+      }
+      incident.assigned_department = name && String(name).trim() !== '' ? String(name).trim() : null;
+      incident.assigned_department_code = code && String(code).trim() !== '' ? String(code).trim() : null;
+      const withTeam = dispatches.find((row) => row.team_name && String(row.team_name).trim() !== '');
+      if (withTeam) {
+        incident.assigned_team_name = String(withTeam.team_name).trim();
+        incident.assigned_team_department_code = (withTeam.department_code ?? withTeam.department_Code) && String(withTeam.department_code || withTeam.department_Code).trim() !== ''
+          ? String(withTeam.department_code || withTeam.department_Code).trim()
+          : incident.assigned_department_code;
+      } else {
+        incident.assigned_team_name = null;
+        incident.assigned_team_department_code = null;
+      }
+    }
+  } catch (err) {
+    console.error('Error attaching assigned department:', err.message);
+  }
+  return incident;
 }
 
 const incidentController = {
@@ -96,11 +137,26 @@ const incidentController = {
         return res.status(404).json({ error: 'Incident not found' });
       }
 
-      // Check ownership for regular users (dispatchers/admins can see all)
+      // Check ownership: dispatchers/admins see all; department-head/department-admin see if assigned to their department; users see own only
+      const deptRole = req.user.role === ROLES.DEPARTMENT_HEAD || req.user.role === ROLES.DEPARTMENT_ADMIN;
+      if (deptRole && req.user.user_id) {
+        const fullUser = await User.findById(req.user.user_id);
+        if (fullUser && fullUser.department_id) {
+          const dept = await Department.findById(fullUser.department_id);
+          if (dept && dept.code) {
+            const dispatches = await Dispatch.findAll({ report_id: validatedId, department_code: dept.code, limit: 1 });
+            if (dispatches && dispatches.length > 0) {
+              await attachAssignedDepartment(incident, validatedId);
+              return res.json(incident);
+            }
+          }
+        }
+      }
       if (!isResourceOwner(req.user, incident.user_id)) {
         return res.status(403).json({ error: 'Forbidden. You can only access your own incidents.' });
       }
 
+      await attachAssignedDepartment(incident, validatedId);
       res.json(incident);
     } catch (error) {
       console.error('Error fetching incident:', error);
@@ -126,10 +182,20 @@ const incidentController = {
       const validatedIncidentType = validateAllowedValue(incident_type, ['fire', 'medical', 'police', 'disaster'], 'incident_type');
       const validatedBarangay = validateOptionalString(barangay, 'barangay', 150);
 
-      // Regular users only see their own incidents; dispatcher/admin see all
+      // Regular users only see their own incidents; dispatcher/admin see all; department-head/admin/personnel see only incidents assigned to their department
       let incidents;
       let totalCount;
-      if (user.role === ROLES.USER) {
+      let departmentCode = null;
+      const roleNeedsDeptFilter = user.role === ROLES.DEPARTMENT_HEAD || user.role === ROLES.DEPARTMENT_ADMIN || user.role === ROLES.USER;
+      if (user.user_id && roleNeedsDeptFilter) {
+        const fullUser = await User.findById(user.user_id);
+        if (fullUser && fullUser.department_id) {
+          const dept = await Department.findById(fullUser.department_id);
+          if (dept && dept.code) departmentCode = dept.code;
+        }
+      }
+
+      if (user.role === ROLES.USER && !departmentCode) {
         incidents = await Incident.findByUserId(user.user_id, {
           limit: validatedLimit,
           offset: validatedOffset,
@@ -153,12 +219,14 @@ const incidentController = {
           status: validatedStatus,
           incident_type: validatedIncidentType,
           barangay: validatedBarangay,
+          department_code: departmentCode,
         });
         totalCount = await Incident.countAll({
           severity_level: validatedSeverityLevel,
           status: validatedStatus,
           incident_type: validatedIncidentType,
           barangay: validatedBarangay,
+          department_code: departmentCode,
         });
       }
 
@@ -183,12 +251,16 @@ const incidentController = {
         return res.status(401).json({ error: 'Authentication required' });
       }
 
-      const { limit, offset } = req.query;
+      const { limit, offset, status, incident_type } = req.query;
       const { limit: validatedLimit, offset: validatedOffset } = validatePagination(limit, offset);
+      const validatedStatus = validateAllowedValue(status, ['pending', 'verified', 'in_progress', 'resolved'], 'status');
+      const validatedIncidentType = validateAllowedValue(incident_type, ['fire', 'medical', 'police', 'disaster'], 'incident_type');
 
       const incidents = await Incident.findByUserId(user_id, {
         limit: validatedLimit,
-        offset: validatedOffset
+        offset: validatedOffset,
+        status: validatedStatus,
+        incident_type: validatedIncidentType
       });
 
       res.json(incidents);
@@ -611,6 +683,21 @@ const incidentController = {
         return res.status(400).json({ error: 'status is required' });
       }
 
+      if (req.user.role === ROLES.DEPARTMENT_ADMIN && nextStatus === 'resolved' && req.user.user_id) {
+        const fullUser = await User.findById(req.user.user_id);
+        if (!fullUser || fullUser.department_id == null) {
+          return res.status(403).json({ error: 'You can only mark incidents as resolved when they are assigned to your department.' });
+        }
+        const dept = await Department.findById(fullUser.department_id);
+        if (!dept || !dept.code) {
+          return res.status(403).json({ error: 'You can only mark incidents as resolved when they are assigned to your department.' });
+        }
+        const dispatches = await Dispatch.findAll({ report_id: validatedId, department_code: dept.code, limit: 1 });
+        if (!dispatches || dispatches.length === 0) {
+          return res.status(403).json({ error: 'You can only mark incidents as resolved when they are assigned to your department.' });
+        }
+      }
+
       const updatedIncident = await Incident.transitionStatus(validatedId, {
         next_status: nextStatus,
         actor_user_id: req.user?.user_id || null,
@@ -619,6 +706,44 @@ const incidentController = {
 
       if (!updatedIncident) {
         return res.status(404).json({ error: 'Incident not found' });
+      }
+
+      if (nextStatus === 'resolved') {
+        try {
+          const dispatches = await Dispatch.findAll({ report_id: validatedId, limit: 100 });
+          const seenTeams = new Set();
+          for (const d of dispatches || []) {
+            const dc = d.department_code;
+            const tn = d.team_name;
+            if (dc && tn) {
+              const key = `${String(dc).toLowerCase()}::${String(tn).toLowerCase()}`;
+              if (seenTeams.has(key)) continue;
+              seenTeams.add(key);
+              try {
+                const team = await Responder.findTeamByDepartmentAndName(dc, tn);
+                if (team && team.team_id) {
+                  await Responder.updateTeamStatus(team.team_id, 'available');
+                }
+              } catch (err) {
+                console.error('Failed to release team status on resolve:', err.message);
+              }
+            }
+            if (d.responder_id) {
+              try {
+                await Responder.updateStatus(d.responder_id, 'available');
+              } catch (err) {
+                console.error('Failed to release responder status on resolve:', err.message);
+              }
+            }
+          }
+          try {
+            await Department.releaseUnitsFromReport(validatedId);
+          } catch (err) {
+            console.error('Failed to release units on resolve:', err.message);
+          }
+        } catch (err) {
+          console.error('Error releasing assigned team/vehicle on resolve:', err.message);
+        }
       }
 
       await logIncidentAction(req, 'incident_status_update', validatedId, {
@@ -751,7 +876,28 @@ const incidentController = {
         return res.status(404).json({ error: 'Incident not found' });
       }
 
+      // Same access rules as getById: department-head/department-admin can see if assigned to their department
+      const deptRoleWithAi = req.user.role === ROLES.DEPARTMENT_HEAD || req.user.role === ROLES.DEPARTMENT_ADMIN;
+      if (deptRoleWithAi && req.user.user_id) {
+        const fullUser = await User.findById(req.user.user_id);
+        if (fullUser && fullUser.department_id) {
+          const dept = await Department.findById(fullUser.department_id);
+          if (dept && dept.code) {
+            const dispatches = await Dispatch.findAll({ report_id: validatedId, department_code: dept.code, limit: 1 });
+            if (dispatches && dispatches.length > 0) {
+              await attachAssignedDepartment(incident, validatedId);
+              const classification = await Incident.getClassificationByReportId(validatedId);
+              return res.json({ incident, ai_classification: classification || null });
+            }
+          }
+        }
+      }
+      if (!isResourceOwner(req.user, incident.user_id)) {
+        return res.status(403).json({ error: 'Forbidden. You can only access your own incidents.' });
+      }
+
       // Get AI classification if exists
+      await attachAssignedDepartment(incident, validatedId);
       const classification = await Incident.getClassificationByReportId(validatedId);
 
       res.json({

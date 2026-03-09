@@ -196,16 +196,21 @@ class IncidentService {
         statusCode: response.statusCode);
   }
 
-  /// Get current user's incidents. Optional [limit] and [offset] for pagination.
-  /// Backend returns a JSON array directly.
-  Future<List<dynamic>> getMyIncidents({int? limit, int? offset}) async {
+  /// Get current user's incidents. Optional [limit], [offset] for pagination;
+  /// [status] and [incidentType] for filtering. Backend returns a JSON array.
+  Future<List<dynamic>> getMyIncidents({
+    int? limit,
+    int? offset,
+    String? status,
+    String? incidentType,
+  }) async {
     var path = '/api/incidents/user/my';
-    if (limit != null || offset != null) {
-      final params = <String>[];
-      if (limit != null) params.add('limit=$limit');
-      if (offset != null) params.add('offset=$offset');
-      path = '$path?${params.join('&')}';
-    }
+    final params = <String>[];
+    if (limit != null) params.add('limit=$limit');
+    if (offset != null) params.add('offset=$offset');
+    if (status != null && status.isNotEmpty) params.add('status=${Uri.encodeComponent(status)}');
+    if (incidentType != null && incidentType.isNotEmpty) params.add('incident_type=${Uri.encodeComponent(incidentType)}');
+    if (params.isNotEmpty) path = '$path?${params.join('&')}';
     final uri = Uri.parse('${AppConfig.apiBaseUrl}$path');
     final response = await _client.get(uri, headers: _authHeaders());
 

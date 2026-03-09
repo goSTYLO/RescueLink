@@ -27,3 +27,15 @@ dist-ssr
 .env
 .env.local
 .env.*.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Test / coverage
+coverage
+*.lcov
+.nyc_output
+
+# Build
+*.tsbuildinfo
+.cache

@@ -217,6 +217,23 @@ String departmentFromIncidentType(String? incidentType) {
   }
 }
 
+/// Display name for assigned department: uses API assigned_department when present,
+/// otherwise type-based fallback or "Not assigned".
+String assignedDepartmentDisplayName(Map<String, dynamic>? incident) {
+  if (incident == null) return 'Not assigned';
+  // Prefer snake_case from API; support camelCase from some clients
+  final assigned = incident['assigned_department'] ?? incident['assignedDepartment'];
+  if (assigned != null) {
+    final s = assigned.toString().trim();
+    if (s.isNotEmpty) return s;
+  }
+  final type = incident['incident_type'] as String?;
+  if (type != null && type.toString().trim().isNotEmpty) {
+    return departmentFromIncidentType(type);
+  }
+  return 'Not assigned';
+}
+
 String? safeString(dynamic value) {
   if (value == null) return null;
   final text = value.toString().trim();

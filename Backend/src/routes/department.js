@@ -7,24 +7,26 @@ const { authorize } = require('../middleware/rbac');
 const { ROLES } = require('../config/roles');
 
 router.use(authMiddleware);
-router.use(authorize([ROLES.ADMIN]));
 
-router.get('/', departmentController.getAll);
-router.get('/:id', departmentController.getById);
-router.post('/', departmentController.create);
-router.put('/:id', departmentController.update);
-router.delete('/:id', departmentController.remove);
+// List all and create/update/delete: admin only
+router.get('/', authorize([ROLES.ADMIN]), departmentController.getAll);
+router.post('/', authorize([ROLES.ADMIN]), departmentController.create);
+router.put('/:id', authorize([ROLES.ADMIN]), departmentController.update);
+router.delete('/:id', authorize([ROLES.ADMIN]), departmentController.remove);
 
-router.get('/:id/metrics', departmentController.metrics);
+// Get by ID: admin, department-admin, and department-head (controller restricts dept admin/head to own department)
+router.get('/:id', authorize([ROLES.ADMIN, ROLES.DEPARTMENT_ADMIN, ROLES.DEPARTMENT_HEAD]), departmentController.getById);
 
-router.get('/:id/units', departmentController.listUnits);
-router.post('/:id/units', departmentController.createUnit);
-router.put('/:id/units/:unitId', departmentController.updateUnit);
-router.delete('/:id/units/:unitId', departmentController.deleteUnit);
-
-router.get('/:id/personnel', departmentController.listPersonnel);
-router.post('/:id/personnel', departmentController.createPersonnel);
-router.put('/:id/personnel/:personnelId', departmentController.updatePersonnel);
-router.delete('/:id/personnel/:personnelId', departmentController.deletePersonnel);
+// Nested routes: admin only (units: dept admin/head can list; dept admin can create)
+router.get('/:id/metrics', authorize([ROLES.ADMIN]), departmentController.metrics);
+router.get('/:id/units', authorize([ROLES.ADMIN, ROLES.DEPARTMENT_ADMIN, ROLES.DEPARTMENT_HEAD]), departmentController.listUnits);
+router.post('/:id/units', authorize([ROLES.ADMIN, ROLES.DEPARTMENT_ADMIN]), departmentController.createUnit);
+router.put('/:id/units/:unitId', authorize([ROLES.ADMIN]), departmentController.updateUnit);
+router.post('/:id/units/:unitId/assign', authorize([ROLES.ADMIN, ROLES.DEPARTMENT_ADMIN]), departmentController.assignUnit);
+router.delete('/:id/units/:unitId', authorize([ROLES.ADMIN]), departmentController.deleteUnit);
+router.get('/:id/personnel', authorize([ROLES.ADMIN]), departmentController.listPersonnel);
+router.post('/:id/personnel', authorize([ROLES.ADMIN]), departmentController.createPersonnel);
+router.put('/:id/personnel/:personnelId', authorize([ROLES.ADMIN]), departmentController.updatePersonnel);
+router.delete('/:id/personnel/:personnelId', authorize([ROLES.ADMIN]), departmentController.deletePersonnel);
 
 module.exports = router;

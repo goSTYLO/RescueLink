@@ -245,6 +245,15 @@ const Responder = {
     return res.rows[0];
   },
 
+  async findTeamByDepartmentAndName(department_code, team_name) {
+    if (!department_code || !team_name) return null;
+    const res = await pool.query(
+      'SELECT * FROM responder_teams WHERE LOWER(department_code) = LOWER($1) AND LOWER(team_name) = LOWER($2) LIMIT 1',
+      [String(department_code).trim(), String(team_name).trim()]
+    );
+    return res.rows[0] || null;
+  },
+
   async listTeams({ department_code = null, limit = 100, offset = 0 } = {}) {
     const cappedLimit = Math.min(Number(limit) || 100, 200);
     let query = 'SELECT * FROM responder_teams WHERE 1=1';

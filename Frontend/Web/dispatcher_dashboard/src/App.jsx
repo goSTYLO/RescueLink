@@ -18,6 +18,7 @@ import { SettingsPage } from '@/presentation/pages/SettingsPage';
 import { HelpSupportPage } from '@/presentation/pages/HelpSupportPage';
 import { TeamPage } from '@/presentation/pages/TeamPage';
 import { DepartmentDashboardPage } from '@/presentation/pages/DepartmentDashboardPage';
+import { AssignedIncidentsPage } from '@/presentation/pages/AssignedIncidentsPage';
 import { DepartmentTasksPage } from '@/presentation/pages/DepartmentTasksPage';
 import { DepartmentPersonnelPage } from '@/presentation/pages/DepartmentPersonnelPage';
 import { DepartmentVehiclesPage } from '@/presentation/pages/DepartmentVehiclesPage';
@@ -32,7 +33,7 @@ import { logout as logoutDispatcher } from '@/data/api/auth.api';
 const SUPER_ADMIN_ONLY = [ROLES.SUPER_ADMIN];
 const DASHBOARD_OPERATIONS_ROLES = [ROLES.SUPER_ADMIN, ROLES.DISPATCHER];
 const DEPARTMENT_AND_UP = [ROLES.SUPER_ADMIN, ROLES.DEPARTMENT_ADMIN];
-const ANY_AUTH_ROLE = [ROLES.SUPER_ADMIN, ROLES.DISPATCHER, ROLES.DEPARTMENT_ADMIN, ROLES.PERSONNEL];
+const ANY_AUTH_ROLE = [ROLES.SUPER_ADMIN, ROLES.DISPATCHER, ROLES.DEPARTMENT_ADMIN, ROLES.DEPARTMENT_HEAD, ROLES.PERSONNEL];
 
 // Protected Route Component
 function ProtectedRoute({ children, allowedRoles = [] }) {
@@ -95,9 +96,11 @@ function ProtectedRoute({ children, allowedRoles = [] }) {
   if (!hasRoleAccess(userRole, allowedRoles)) {
     const redirectPath = userRole === ROLES.DEPARTMENT_ADMIN
       ? '/department/dashboard'
-      : userRole === ROLES.PERSONNEL
-        ? '/department/tasks'
-        : '/dashboard';
+      : userRole === ROLES.DEPARTMENT_HEAD
+        ? '/department/assigned-incidents'
+        : userRole === ROLES.PERSONNEL
+          ? '/department/tasks'
+          : '/dashboard';
     return (
       <AccessDeniedNotice
         message="Your role does not allow access to this route."
@@ -130,7 +133,7 @@ export default function App() {
       data.user?.phone_number || data.user?.phoneNumber || data.user?.phone || data.user?.email || 'user';
     const apiRole = data.user?.role || 'Operator';
     const role = normalizeRole(apiRole);
-    const department = data.user?.department || (role === ROLES.SUPER_ADMIN ? 'All' : '');
+    const department = data.user?.department ?? (role === ROLES.SUPER_ADMIN ? 'All' : '');
     const departmentId = data.user?.departmentId ?? data.user?.department_id ?? null;
     localStorage.setItem('user', JSON.stringify({
       username: displayName,
@@ -140,7 +143,7 @@ export default function App() {
       lastName: data.user?.lastName,
       role,
       department,
-      departmentId
+      departmentId,
     }));
     setPage('dashboard');
   };
@@ -227,6 +230,11 @@ export default function App() {
               <DepartmentDashboardPage />
             </ProtectedRoute>
           } />
+          <Route path="/department/assigned-incidents" element={
+            <ProtectedRoute allowedRoles={[ROLES.DEPARTMENT_HEAD]}>
+              <AssignedIncidentsPage />
+            </ProtectedRoute>
+          } />
           <Route path="/department/tasks" element={
             <ProtectedRoute allowedRoles={ANY_AUTH_ROLE}>
               <DepartmentTasksPage />
@@ -268,6 +276,7 @@ export default function App() {
               try {
                 const u = JSON.parse(localStorage.getItem('user') || '{}');
                 const r = normalizeRole(u.role);
+                if (r === ROLES.DEPARTMENT_HEAD) return <Navigate to="/department/assigned-incidents" replace />;
                 if (r === ROLES.DEPARTMENT_ADMIN) return <Navigate to="/department/dashboard" replace />;
                 if (r === ROLES.PERSONNEL) return <Navigate to="/department/tasks" replace />;
               } catch (_) {}

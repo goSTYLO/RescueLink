@@ -158,6 +158,7 @@ const Incident = {
     status = null,
     incident_type = null,
     barangay = null,
+    department_code = null,
   } = {}) {
     // Cap limit at 100
     const cappedLimit = Math.min(limit, 100);
@@ -168,6 +169,12 @@ const Incident = {
       WHERE 1=1`;
     const params = [];
     let paramCount = 0;
+
+    if (department_code) {
+      paramCount++;
+      query += ` AND ir.report_id IN (SELECT report_id FROM dispatches WHERE department_code = $${paramCount})`;
+      params.push(department_code);
+    }
 
     if (user_id) {
       paramCount++;
@@ -245,10 +252,16 @@ const Incident = {
     return res.rows.map(decodeReporterFields);
   },
 
-  async countAll({ user_id = null, severity_level = null, status = null, incident_type = null, barangay = null } = {}) {
+  async countAll({ user_id = null, severity_level = null, status = null, incident_type = null, barangay = null, department_code = null } = {}) {
     let query = 'SELECT COUNT(*)::int AS total FROM incident_reports WHERE 1=1';
     const params = [];
     let paramCount = 0;
+
+    if (department_code) {
+      paramCount++;
+      query += ` AND report_id IN (SELECT report_id FROM dispatches WHERE department_code = $${paramCount})`;
+      params.push(department_code);
+    }
 
     if (user_id) {
       paramCount++;
@@ -607,11 +620,11 @@ const Incident = {
 
     const resolvedByUserId = normalizedNext === 'resolved' ? actor_user_id : null;
     const actorRole = normalizeActorRole(actor_role);
-    const isDispatcherOrAdmin = [ROLES.DISPATCHER, ROLES.ADMIN].includes(actorRole);
-    if (normalizedNext === 'resolved' && (!actor_user_id || !isDispatcherOrAdmin)) {
+    const canResolve = [ROLES.DISPATCHER, ROLES.ADMIN, ROLES.DEPARTMENT_ADMIN].includes(actorRole);
+    if (normalizedNext === 'resolved' && (!actor_user_id || !canResolve)) {
       throw createIncidentStateError(
         'INCIDENT_RESOLVE_ROLE_REQUIRED',
-        'Only dispatcher/admin can mark incident as resolved.',
+        'Only dispatcher, admin, or department admin can mark incident as resolved.',
         403
       );
     }

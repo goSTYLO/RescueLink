@@ -28,6 +28,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { getIncidentById, getIncidentAudioUrl, getIncidentWithAi, reclassifyIncident, updateIncidentStatus, verifyIncident } from '@/data/api/incidents.api';
 import { getResponders, getResponderTeams, updateResponderStatus, updateResponderTeamStatus, getTeamMembers } from '@/data/api/responders.api';
 import { createDispatch } from '@/data/api/dispatches.api';
+import { getDepartments } from '@/data/api/departments.api';
 import { DEV_MODE } from '@/core/config/app.config';
 import { ROLES, normalizeRole } from '@/core/constants';
 import { normalizeIncidentTaskType, doesTeamSupportIncidentType } from '@/core/utils/incidentClassification';
@@ -114,6 +115,11 @@ function mapApiToIncidentDetails(api, aiClassification = null) {
     possibleDuplicates: [],
     closureData: null,
     timeReported,
+    assignedDepartment: api.assigned_department || null,
+    assignedDepartmentId: api.assigned_department_code || null,
+    assignedDepartments: api.assigned_department ? [api.assigned_department] : [],
+    assignedTeamName: api.assigned_team_name || null,
+    assignedTeamDepartmentCode: api.assigned_team_department_code || api.assigned_department_code || null,
   };
 }
 
@@ -221,14 +227,19 @@ export function IncidentDetailsPage() {
     || normalizedRole === ROLES.DISPATCHER
     || normalizedRole === ROLES.DEPARTMENT_ADMIN
   );
-  const canNotifyResponders = (
+  const canNotifyDepartment = (
     normalizedRole === ROLES.SUPER_ADMIN
     || normalizedRole === ROLES.DISPATCHER
-    || normalizedRole === ROLES.DEPARTMENT_ADMIN
   );
+  const isAssignedToDepartment = Boolean(
+    incident?.assignedDepartment
+    || incident?.assignedDepartmentId
+    || (Array.isArray(incident?.assignedDepartments) && incident.assignedDepartments.length > 0)
+  );
+  const showNotifyDepartmentButton = canNotifyDepartment && !isAssignedToDepartment;
   const canUpdateResponderStatuses = (
-    normalizedRole === ROLES.SUPER_ADMIN
-    || normalizedRole === ROLES.DISPATCHER
+    normalizedRole === ROLES.DEPARTMENT_ADMIN
+    || normalizedRole === ROLES.DEPARTMENT_HEAD
   );
   const canManualReclassify = (
     normalizedRole === ROLES.SUPER_ADMIN
@@ -238,6 +249,10 @@ export function IncidentDetailsPage() {
     normalizedRole === ROLES.SUPER_ADMIN
     || normalizedRole === ROLES.DISPATCHER
     || normalizedRole === ROLES.DEPARTMENT_ADMIN
+  );
+  const canMarkFalseReport = (
+    normalizedRole === ROLES.SUPER_ADMIN
+    || normalizedRole === ROLES.DISPATCHER
   );
 
   const getConfidencePercent = (score) => {
@@ -292,6 +307,7 @@ export function IncidentDetailsPage() {
   const [teamMembersByTeamId, setTeamMembersByTeamId] = useState({});
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [statusBusy, setStatusBusy] = useState(false);
+  const [departmentList, setDepartmentList] = useState([]);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -316,6 +332,20 @@ export function IncidentDetailsPage() {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    getDepartments()
+      .then((rows) => {
+        if (cancelled) return;
+        setDepartmentList(Array.isArray(rows) ? rows : []);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setDepartmentList([]);
+      });
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
@@ -461,42 +491,40 @@ export function IncidentDetailsPage() {
       };
     });
 
-  const tryCreateDispatchAssignment = async (sectorId, teamName) => {
+  const tryCreateDepartmentOnlyAssignment = async (departmentCode) => {
     const numericId = /^\d+$/.test(String(id));
-    if (!numericId || !sectorId) return null;
+    if (!numericId || !departmentCode) return null;
     const token = localStorage.getItem('token');
     if (!token) return null;
 
-    const departmentMeta = activeSectors.find((d) => d.id === sectorId);
+    const departmentMeta = departmentList.find((d) => String(d.code || '').toLowerCase() === String(departmentCode || '').toLowerCase());
     return createDispatch({
       report_id: Number(id),
-      department_code: sectorId,
+      department_code: departmentCode,
       department_name: departmentMeta?.name || null,
-      team_name: teamName || null,
       default_department_code: getDefaultSectorByIncidentType(incident?.emergencyType),
-      was_default_department: getDefaultSectorByIncidentType(incident?.emergencyType) === sectorId,
+      was_default_department: getDefaultSectorByIncidentType(incident?.emergencyType) === departmentCode,
       response_status: 'assigned',
     });
   };
 
-  const openNotifyRespondersDialog = () => {
-    const defaultSectorId = getDefaultSectorByIncidentType(incident?.emergencyType);
-    setNotifyDepartment(defaultSectorId);
-    const nextTeam = responderTeams.find((team) => String(team.department_code || '').toLowerCase() === defaultSectorId);
-    setNotifyTeamName(nextTeam?.team_name || '');
+  const openNotifyDepartmentDialog = () => {
+    const defaultCode = getDefaultSectorByIncidentType(incident?.emergencyType);
+    const inList = departmentList.some((d) => String(d.code || '').toLowerCase() === String(defaultCode || '').toLowerCase());
+    setNotifyDepartment(inList ? defaultCode : (departmentList[0]?.code ?? ''));
     setNotifyDialogOpen(true);
   };
 
-  const handleNotifyResponders = async () => {
-    const selectedSectorId = notifyDepartment;
-    const selectedSector = activeSectors.find((dept) => dept.id === selectedSectorId);
-    const selectedDepartment = selectedSector?.name || null;
+  const handleNotifyDepartment = async () => {
+    const selectedCode = notifyDepartment;
+    const selectedDept = departmentList.find((d) => String(d.code || '').toLowerCase() === String(selectedCode || '').toLowerCase());
+    const selectedDepartment = selectedDept?.name || null;
 
-    if (!selectedSectorId || !selectedDepartment || !notifyTeamName) {
+    if (!selectedCode || !selectedDepartment) {
       await Swal.fire({
         icon: 'warning',
-        title: 'Select response team',
-        text: 'Please choose a sector and team before notifying responders.',
+        title: 'Select department',
+        text: 'Please choose a sector before notifying the department.',
         confirmButtonColor: '#134178',
       });
       return;
@@ -510,8 +538,7 @@ export function IncidentDetailsPage() {
       return {
         ...prev,
         assignedDepartment: selectedDepartment,
-        assignedDepartmentId: selectedSectorId,
-        assignedTeamName: notifyTeamName,
+        assignedDepartmentId: selectedCode,
         assignedDepartments: [...new Set([...existingDepartments, selectedDepartment])],
       };
     });
@@ -519,23 +546,12 @@ export function IncidentDetailsPage() {
     setNotifyDialogOpen(false);
 
     try {
-      const assignmentResult = await tryCreateDispatchAssignment(selectedSectorId, notifyTeamName);
-      const assignedCount = Number(assignmentResult?.assignment_summary?.assigned_count || 0);
-      if (assignedCount === 0) {
-        const reason = assignmentResult?.assignment_summary?.unassigned_reason || 'no_eligible_members';
-        await Swal.fire({
-          icon: 'warning',
-          title: 'No team members available',
-          text: `No eligible responders were found for this team (${reason}).`,
-          confirmButtonColor: '#134178',
-        });
-        return;
-      }
+      await tryCreateDepartmentOnlyAssignment(selectedCode);
     } catch (dispatchError) {
       await Swal.fire({
         icon: 'warning',
-        title: 'Assignment partially saved',
-        text: dispatchError.message || 'Team was selected, but dispatch assignment could not be recorded.',
+        title: 'Assignment failed',
+        text: dispatchError.message || 'Could not notify department.',
         confirmButtonColor: '#134178',
       });
       return;
@@ -543,8 +559,8 @@ export function IncidentDetailsPage() {
 
     await Swal.fire({
       icon: 'success',
-      title: 'Response team assigned',
-      text: `${selectedDepartment} (${notifyTeamName}) has been assigned via backend auto-team selection.`,
+      title: 'Department notified',
+      text: `${selectedDepartment} has been notified. They will select the response team.`,
       timer: 2200,
       showConfirmButton: false,
       timerProgressBar: true,
@@ -565,20 +581,23 @@ export function IncidentDetailsPage() {
   })();
 
   const openStatusDialog = async () => {
-    if (!notifyDepartment) {
-      const defaultSectorId = getDefaultSectorByIncidentType(incident?.emergencyType);
-      setNotifyDepartment(defaultSectorId);
-      const defaultTeam = responderTeams.find((team) => String(team.department_code || '').toLowerCase() === defaultSectorId);
-      setNotifyTeamName(defaultTeam?.team_name || '');
-    }
+    const deptCode = incident?.assignedTeamDepartmentCode || incident?.assignedDepartmentId || '';
+    const teamName = incident?.assignedTeamName || '';
+    setNotifyDepartment(deptCode);
+    setNotifyTeamName(teamName);
     setStatusDialogOpen(true);
-    if (!selectedTeamMeta?.team_id) return;
-    if (teamMembersByTeamId[selectedTeamMeta.team_id]) return;
-    try {
-      const members = await getTeamMembers(selectedTeamMeta.team_id);
-      setTeamMembersByTeamId((prev) => ({ ...prev, [selectedTeamMeta.team_id]: Array.isArray(members) ? members : [] }));
-    } catch {
-      setTeamMembersByTeamId((prev) => ({ ...prev, [selectedTeamMeta.team_id]: [] }));
+    const teamMeta = responderTeams.find(
+      (t) =>
+        String(t.department_code || '').toLowerCase() === String(deptCode || '').toLowerCase()
+        && String(t.team_name || '') === String(teamName || '')
+    );
+    if (teamMeta?.team_id && !teamMembersByTeamId[teamMeta.team_id]) {
+      try {
+        const members = await getTeamMembers(teamMeta.team_id);
+        setTeamMembersByTeamId((prev) => ({ ...prev, [teamMeta.team_id]: Array.isArray(members) ? members : [] }));
+      } catch {
+        setTeamMembersByTeamId((prev) => ({ ...prev, [teamMeta.team_id]: [] }));
+      }
     }
   };
 
@@ -798,17 +817,17 @@ export function IncidentDetailsPage() {
           Verify Incident
         </Button>
       )}
-      {canNotifyResponders && (
+      {showNotifyDepartmentButton && (
         <Button
           variant="outline"
           className={`gap-2 rounded-xl ${compact ? 'h-8 px-3 text-xs rounded-lg' : ''}`}
-          onClick={openNotifyRespondersDialog}
+          onClick={openNotifyDepartmentDialog}
         >
           <Bell className="w-4 h-4" />
-          Notify Responders
+          Notify Department
         </Button>
       )}
-      {canUpdateResponderStatuses && (
+      {canUpdateResponderStatuses && incident?.assignedTeamName && (
         <Button
           variant="outline"
           className={`gap-2 rounded-xl ${compact ? 'h-8 px-3 text-xs rounded-lg' : ''}`}
@@ -838,14 +857,16 @@ export function IncidentDetailsPage() {
           Review Duplicates ({possibleDuplicates.length})
         </Button>
       )}
-      <Button
-        variant="outline"
-        className={`gap-2 rounded-xl ${isLight ? 'text-primary border-primary/40 hover:bg-primary/10' : 'text-primary border-primary/50 hover:bg-primary/20'} ${compact ? 'h-8 px-3 text-xs rounded-lg' : ''}`}
-        onClick={handleMarkFalse}
-      >
-        <XCircle className="w-4 h-4" />
-        Mark as False Report
-      </Button>
+      {canMarkFalseReport && (
+        <Button
+          variant="outline"
+          className={`gap-2 rounded-xl ${isLight ? 'text-primary border-primary/40 hover:bg-primary/10' : 'text-primary border-primary/50 hover:bg-primary/20'} ${compact ? 'h-8 px-3 text-xs rounded-lg' : ''}`}
+          onClick={handleMarkFalse}
+        >
+          <XCircle className="w-4 h-4" />
+          Mark as False Report
+        </Button>
+      )}
       {isSupervisor && incident.status === 'Resolved' && !incident.closureData && (
         <Button
           className={`bg-green-600 hover:bg-green-700 gap-2 ${compact ? 'h-8 px-3 text-xs rounded-lg' : ''}`}
@@ -1408,65 +1429,30 @@ export function IncidentDetailsPage() {
           <Dialog open={notifyDialogOpen} onOpenChange={setNotifyDialogOpen}>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Notify Response Team</DialogTitle>
+                <DialogTitle>Notify Department</DialogTitle>
                 <DialogDescription>
-                  Assign and notify the selected response team for this incident.
+                  Assign this incident to a department. The department admin will select the response team.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div>
-                  <Label>Sector</Label>
+                  <Label>Department</Label>
                   <Select value={notifyDepartment} onValueChange={setNotifyDepartment} open={notifyDeptSelectOpen} onOpenChange={setNotifyDeptSelectOpen}>
                     {({ value, onValueChange, dropdownRect }) => (
                       <>
                         <SelectTrigger isOpen={notifyDeptSelectOpen} onClick={() => setNotifyDeptSelectOpen(o => !o)}>
-                          <SelectValue value={value} options={activeSectors.map((d) => ({ value: d.id, label: d.name }))} placeholder="Choose sector" />
+                          <SelectValue value={value} options={departmentList.map((d) => ({ value: d.code || '', label: d.name || d.code || '—' }))} placeholder="Choose department" />
                         </SelectTrigger>
                         <SelectContent isOpen={notifyDeptSelectOpen} dropdownRect={dropdownRect}>
-                          {activeSectors.map((dept) => (
-                            <SelectItem key={dept.id} value={dept.id} onSelect={(v) => { onValueChange(v); setNotifyDeptSelectOpen(false); }}>
-                              {dept.name}
+                          {departmentList.map((dept) => (
+                            <SelectItem key={dept.department_id ?? dept.code} value={dept.code || ''} onSelect={(v) => { onValueChange(v); setNotifyDeptSelectOpen(false); }}>
+                              {dept.name || dept.code || '—'}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </>
                     )}
                   </Select>
-                </div>
-                <div>
-                  <Label>Team</Label>
-                  <Select value={notifyTeamName} onValueChange={setNotifyTeamName} open={notifyTeamSelectOpen} onOpenChange={setNotifyTeamSelectOpen}>
-                    {({ value }) => (
-                      <>
-                        <SelectTrigger isOpen={notifyTeamSelectOpen} onClick={() => setNotifyTeamSelectOpen((o) => !o)}>
-                          <SelectValue value={value} options={[{ value: '', label: 'Choose team' }, ...selectedNotifyTeamOptions]} placeholder="Choose team" />
-                        </SelectTrigger>
-                        <SelectContent isOpen={notifyTeamSelectOpen}>
-                          <SelectItem value="" onSelect={() => { setNotifyTeamName(''); setNotifyTeamSelectOpen(false); }}>Choose team</SelectItem>
-                          {selectedNotifyTeamOptions.map((team) => (
-                            <SelectItem key={team.value} value={team.value} onSelect={(v) => { setNotifyTeamName(v); setNotifyTeamSelectOpen(false); }}>
-                              {team.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </>
-                    )}
-                  </Select>
-                </div>
-                <p className="text-xs text-muted">
-                  Manual responder selection has been removed. Available/standby team members are auto-assigned by backend.
-                </p>
-                <div className={`rounded-lg border px-3 py-2 text-xs ${
-                  selectedTeamSupportsTask === false
-                    ? 'border-amber-500/40 bg-amber-500/10 text-amber-500'
-                    : 'border-border bg-muted/20 text-muted'
-                }`}>
-                  Incident task type: <strong>{selectedIncidentTaskType || 'n/a'}</strong>.{' '}
-                  {selectedIncidentTypeIsWildcard
-                    ? 'Other incidents are wildcard-assignable, so any team can be selected.'
-                    : selectedTeamSupportsTask === false
-                    ? 'Selected team does not explicitly list this task type; assignment may return no eligible members.'
-                    : 'Selected team is task-aligned or has open specialization.'}
                 </div>
               </div>
               <DialogFooter>
@@ -1475,10 +1461,10 @@ export function IncidentDetailsPage() {
                 </Button>
                 <Button
                   className="bg-[#134178] hover:bg-[#0f3256]"
-                  onClick={handleNotifyResponders}
-                  disabled={!notifyDepartment || !notifyTeamName}
+                  onClick={handleNotifyDepartment}
+                  disabled={!notifyDepartment}
                 >
-                  Assign & Notify
+                  Notify Department
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -1489,46 +1475,24 @@ export function IncidentDetailsPage() {
               <DialogHeader>
                 <DialogTitle>Team and Responder Status</DialogTitle>
                 <DialogDescription>
-                  Dispatchers can update availability statuses. Team and member status affect assignment eligibility.
+                  Update availability for the team assigned to this incident. Team and member status affect assignment eligibility.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-2">
                 <div>
-                  <Label>Team</Label>
+                  <Label>Assigned team</Label>
                   <p className="text-sm text-muted mt-1">
-                    {selectedTeamMeta?.team_name || 'No team selected'} ({notifyDepartment || 'n/a'})
+                    {selectedTeamMeta?.team_name || incident?.assignedTeamName || 'No team assigned'} ({notifyDepartment || incident?.assignedDepartmentId || 'n/a'})
                   </p>
                 </div>
-                <div>
-                  <Label>Team Status</Label>
-                  <select
-                    className="w-full mt-2 px-3 py-2 border border-border rounded-lg bg-card text-foreground text-sm"
-                    value={String(selectedTeamMeta?.team_status || 'available').toLowerCase()}
-                    onChange={(event) => handleUpdateTeamStatus(event.target.value)}
-                    disabled={!selectedTeamMeta?.team_id || statusBusy}
-                  >
-                    <option value="available">available</option>
-                    <option value="standby">standby</option>
-                    <option value="busy">busy</option>
-                    <option value="off-duty">off-duty</option>
-                  </select>
-                </div>
-                <div className="space-y-2 max-h-52 overflow-auto">
-                  <Label>Team Members</Label>
-                  {(teamMembersByTeamId[selectedTeamMeta?.team_id] || []).map((member) => (
-                    <div key={member.responder_id} className="grid grid-cols-[1fr_auto] items-center gap-2 p-2 rounded-lg border border-border/60">
-                      <div>
-                        <p className="text-sm font-medium text-foreground">{member.name || `Responder ${member.responder_id}`}</p>
-                        <p className="text-xs text-muted">
-                          Supported: {Array.isArray(member.supported_incident_types) && member.supported_incident_types.length
-                            ? member.supported_incident_types.join(', ')
-                            : 'all'}
-                        </p>
-                      </div>
+                {selectedTeamMeta?.team_id ? (
+                  <>
+                    <div>
+                      <Label>Team Status</Label>
                       <select
-                        className="px-2 py-1 border border-border rounded bg-card text-foreground text-xs"
-                        value={String(member.availability_status || 'available').toLowerCase()}
-                        onChange={(event) => handleUpdateResponderStatus(member.responder_id, event.target.value)}
+                        className="w-full mt-2 px-3 py-2 border border-border rounded-lg bg-card text-foreground text-sm"
+                        value={String(selectedTeamMeta?.team_status || 'available').toLowerCase()}
+                        onChange={(event) => handleUpdateTeamStatus(event.target.value)}
                         disabled={statusBusy}
                       >
                         <option value="available">available</option>
@@ -1537,11 +1501,39 @@ export function IncidentDetailsPage() {
                         <option value="off-duty">off-duty</option>
                       </select>
                     </div>
-                  ))}
-                  {(teamMembersByTeamId[selectedTeamMeta?.team_id] || []).length === 0 && (
-                    <p className="text-xs text-muted">No team members found for this team.</p>
-                  )}
-                </div>
+                    <div className="space-y-2 max-h-52 overflow-auto">
+                      <Label>Team Members</Label>
+                      {(teamMembersByTeamId[selectedTeamMeta.team_id] || []).map((member) => (
+                        <div key={member.responder_id} className="grid grid-cols-[1fr_auto] items-center gap-2 p-2 rounded-lg border border-border/60">
+                          <div>
+                            <p className="text-sm font-medium text-foreground">{member.name || `Responder ${member.responder_id}`}</p>
+                            <p className="text-xs text-muted">
+                              Supported: {Array.isArray(member.supported_incident_types) && member.supported_incident_types.length
+                                ? member.supported_incident_types.join(', ')
+                                : 'all'}
+                            </p>
+                          </div>
+                          <select
+                            className="px-2 py-1 border border-border rounded bg-card text-foreground text-xs"
+                            value={String(member.availability_status || 'available').toLowerCase()}
+                            onChange={(event) => handleUpdateResponderStatus(member.responder_id, event.target.value)}
+                            disabled={statusBusy}
+                          >
+                            <option value="available">available</option>
+                            <option value="standby">standby</option>
+                            <option value="busy">busy</option>
+                            <option value="off-duty">off-duty</option>
+                          </select>
+                        </div>
+                      ))}
+                      {(teamMembersByTeamId[selectedTeamMeta.team_id] || []).length === 0 && (
+                        <p className="text-xs text-muted">No team members found for this team.</p>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-sm text-muted">No team assigned to this incident yet. Assign a team from the department dashboard first.</p>
+                )}
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setStatusDialogOpen(false)}>Close</Button>
@@ -1807,18 +1799,20 @@ export function IncidentDetailsPage() {
               ))}
             </div>
             <DialogFooter>
-              <Button 
-                variant="outline"
-                className="text-red-600 border-red-200 hover:bg-red-50"
-                onClick={() => {
-                  if (confirm('Mark this incident as a false report?')) {
-                    alert('Incident marked as false report');
-                    setDuplicateDialogOpen(false);
-                  }
-                }}
-              >
-                Mark as False Report
-              </Button>
+              {canMarkFalseReport && (
+                <Button 
+                  variant="outline"
+                  className="text-red-600 border-red-200 hover:bg-red-50"
+                  onClick={() => {
+                    if (confirm('Mark this incident as a false report?')) {
+                      alert('Incident marked as false report');
+                      setDuplicateDialogOpen(false);
+                    }
+                  }}
+                >
+                  Mark as False Report
+                </Button>
+              )}
               <Button variant="outline" onClick={() => setDuplicateDialogOpen(false)}>
                 Not a Duplicate
               </Button>

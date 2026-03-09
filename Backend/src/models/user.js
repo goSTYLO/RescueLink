@@ -33,13 +33,14 @@ function decodeUserFields(row) {
     phone_number: tryDecryptValue(row.phone_number),
     address: tryDecryptValue(row.address),
     role: tryDecryptValue(row.role),
+    department_id: row.department_id != null ? row.department_id : undefined,
   };
 }
 
 const User = {
   async findByEmail(email) {
     const directMatch = await pool.query(
-      'SELECT user_id, email, phone_number, address, password, phone_verified, first_name, last_name, role, created_at FROM users WHERE LOWER(email) = LOWER($1)',
+      'SELECT user_id, email, phone_number, address, password, phone_verified, first_name, last_name, role, department_id, created_at FROM users WHERE LOWER(email) = LOWER($1)',
       [email]
     );
 
@@ -48,7 +49,7 @@ const User = {
     }
 
     const allUsers = await pool.query(
-      'SELECT user_id, email, phone_number, address, password, phone_verified, first_name, last_name, role, created_at FROM users'
+      'SELECT user_id, email, phone_number, address, password, phone_verified, first_name, last_name, role, department_id, created_at FROM users'
     );
 
     const normalizedEmail = String(email).trim().toLowerCase();
@@ -64,7 +65,7 @@ const User = {
 
   async findByPhone(phone) {
     const directMatch = await pool.query(
-      'SELECT user_id, email, phone_number, address, password, phone_verified, first_name, last_name, role, created_at FROM users WHERE phone_number = $1',
+      'SELECT user_id, email, phone_number, address, password, phone_verified, first_name, last_name, role, department_id, created_at FROM users WHERE phone_number = $1',
       [phone]
     );
 
@@ -73,7 +74,7 @@ const User = {
     }
 
     const allUsers = await pool.query(
-      'SELECT user_id, email, phone_number, address, password, phone_verified, first_name, last_name, role, created_at FROM users'
+      'SELECT user_id, email, phone_number, address, password, phone_verified, first_name, last_name, role, department_id, created_at FROM users'
     );
 
     const normalizedPhone = String(phone).trim();
@@ -89,16 +90,18 @@ const User = {
 
   async findById(user_id) {
     const res = await pool.query(
-      'SELECT user_id, email, phone_number, address, password, phone_verified, first_name, last_name, role, created_at FROM users WHERE user_id = $1',
+      'SELECT user_id, email, phone_number, address, password, phone_verified, first_name, last_name, role, department_id, created_at FROM users WHERE user_id = $1',
       [user_id]
     );
     return decodeUserFields(res.rows[0]);
   },
 
-  async create({ email = null, phone_number = null, address = null, password = null, phone_verified = false, first_name = null, last_name = null, role = 'user' }) {
+  async create({ email = null, phone_number = null, address = null, password = null, phone_verified = false, first_name = null, last_name = null, role = 'user', department_id = null }) {
     const res = await pool.query(
-      'INSERT INTO users(email, phone_number, address, password, phone_verified, first_name, last_name, role) VALUES($1, $2, $3, $4, $5, $6, $7, $8) RETURNING user_id, email, phone_number, address, phone_verified, first_name, last_name, role, created_at',
-      [email, phone_number, address, password, phone_verified, first_name, last_name, role]
+      `INSERT INTO users(email, phone_number, address, password, phone_verified, first_name, last_name, role, department_id)
+       VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       RETURNING user_id, email, phone_number, address, phone_verified, first_name, last_name, role, department_id, created_at`,
+      [email, phone_number, address, password, phone_verified, first_name, last_name, role, department_id]
     );
     return decodeUserFields(res.rows[0]);
   },
@@ -120,23 +123,25 @@ const User = {
   },
 
   /**
-   * Get paginated list of all active users
+   * Get paginated list of all users (active and inactive), with department name when department_id set
    * @param {number} offset - Pagination offset
    * @param {number} limit - Number of users per page
    * @returns {object} { users: [], total: number }
    */
   async getPaginated(offset, limit) {
-    const countRes = await pool.query(
-      'SELECT COUNT(*) as total FROM users WHERE is_active = true'
-    );
+    const countRes = await pool.query('SELECT COUNT(*) as total FROM users');
     const total = parseInt(countRes.rows[0].total, 10);
 
     const usersRes = await pool.query(
-      'SELECT user_id, email, phone_number, address, phone_verified, first_name, last_name, role, is_active, created_at FROM users WHERE is_active = true ORDER BY created_at DESC LIMIT $1 OFFSET $2',
+      `SELECT u.user_id, u.email, u.phone_number, u.address, u.phone_verified, u.first_name, u.last_name, u.role, u.department_id, u.is_active, u.created_at, d.name AS department_name
+       FROM users u
+       LEFT JOIN departments d ON d.department_id = u.department_id
+       ORDER BY u.created_at DESC
+       LIMIT $1 OFFSET $2`,
       [limit, offset]
     );
 
-    return { users: usersRes.rows.map(decodeUserFields), total };
+    return { users: usersRes.rows.map((row) => ({ ...decodeUserFields(row), department_name: row.department_name || null })), total };
   },
 
   /**
@@ -160,8 +165,23 @@ const User = {
    */
   async updateRole(user_id, role) {
     const res = await pool.query(
-      'UPDATE users SET role = $1 WHERE user_id = $2 RETURNING user_id, email, phone_number, address, phone_verified, first_name, last_name, role, is_active, created_at',
+      'UPDATE users SET role = $1 WHERE user_id = $2 RETURNING user_id, email, phone_number, address, phone_verified, first_name, last_name, role, department_id, is_active, created_at',
       [role, user_id]
+    );
+    return decodeUserFields(res.rows[0]);
+  },
+
+  /**
+   * Update user role and department_id
+   * @param {number} user_id - User ID
+   * @param {string} role - New role value
+   * @param {number|null} department_id - Department ID (null to clear)
+   * @returns {object} Updated user
+   */
+  async updateRoleAndDepartment(user_id, role, department_id) {
+    const res = await pool.query(
+      'UPDATE users SET role = $1, department_id = $2 WHERE user_id = $3 RETURNING user_id, email, phone_number, address, phone_verified, first_name, last_name, role, department_id, is_active, created_at',
+      [role, department_id, user_id]
     );
     return decodeUserFields(res.rows[0]);
   },

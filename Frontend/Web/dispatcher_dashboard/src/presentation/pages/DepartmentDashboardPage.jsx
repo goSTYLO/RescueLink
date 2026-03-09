@@ -5,11 +5,41 @@ import { Card } from '@/presentation/components/ui/Card';
 import { Button } from '@/presentation/components/ui/Button';
 import { Badge } from '@/presentation/components/ui/Badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/presentation/components/ui/Dialog';
-import { Eye, Truck, MapPin, CheckCircle, AlertCircle, LayoutDashboard, UserPlus, X, UserCheck, Clock } from 'lucide-react';
-import { incidents as mockIncidents, personnel as mockPersonnel, units as mockUnits } from '@/data/mock/mockData';
+import { Eye, Truck, MapPin, CheckCircle, AlertCircle, LayoutDashboard, UserPlus, X, Clock, Shield } from 'lucide-react';
+import { getIncidents, normalizeIncidentStatus } from '@/data/api/incidents.api';
+import { getDepartmentById, getDepartmentUnits, assignDepartmentUnit } from '@/data/api/departments.api';
+import { getResponderTeams } from '@/data/api/responders.api';
+import { createDispatch } from '@/data/api/dispatches.api';
+import { inferDepartmentSectorCode, normalizeSectorCode } from '@/core/utils/departmentSector';
 import { ROLES } from '@/core/constants';
 import { useTheme } from '@/presentation/context/ThemeContext';
 import Swal from 'sweetalert2';
+
+function mapApiIncidentToRow(api) {
+  const typeMap = { fire: 'Fire', medical: 'Medical', police: 'Police', disaster: 'Disaster', other: 'Other' };
+  const emergencyType = typeMap[api.incident_type?.toLowerCase()] || (api.incident_type ? String(api.incident_type).charAt(0).toUpperCase() + String(api.incident_type).slice(1) : '—');
+  const severityMap = { high: 'Critical', medium: 'Warning', low: 'Low' };
+  const severity = severityMap[api.severity_level?.toLowerCase()] || (api.severity_level || '—');
+  const statusMap = { pending: 'Pending', resolved: 'Resolved', verified: 'Verified', in_progress: 'In Progress' };
+  const canonicalStatus = normalizeIncidentStatus(api.status);
+  const status = statusMap[canonicalStatus];
+  let timeReported = '—';
+  if (api.created_at) {
+    const d = new Date(api.created_at);
+    timeReported = d.toLocaleString('en-US', {
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: 'numeric', minute: '2-digit', hour12: true
+    });
+  }
+  return {
+    id: api.report_id,
+    barangay: api.barangay || '—',
+    emergencyType,
+    severity,
+    status,
+    timeReported,
+  };
+}
 
 const ASSIGNMENTS_STORAGE_KEY = 'rescuelink_incident_personnel_assignments';
 const VEHICLE_ASSIGNMENTS_STORAGE_KEY = 'rescuelink_incident_vehicle_assignments';
@@ -39,18 +69,104 @@ export function DepartmentDashboardPage() {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const departmentId = user.departmentId || user.department_id;
 
+  const [incidents, setIncidents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [assignments, setAssignments] = useState(getStoredAssignments);
   const [vehicleAssignments, setVehicleAssignments] = useState(getStoredVehicleAssignments);
   const [assignModalOpen, setAssignModalOpen] = useState(false);
   const [assigningIncidentId, setAssigningIncidentId] = useState(null);
   const [vehicleModalOpen, setVehicleModalOpen] = useState(false);
   const [assigningIncidentIdVehicle, setAssigningIncidentIdVehicle] = useState(null);
+  const [department, setDepartment] = useState(null);
+  const [departmentSectorCode, setDepartmentSectorCode] = useState('');
+  const [teams, setTeams] = useState([]);
+  const [teamsLoading, setTeamsLoading] = useState(false);
+  const [unitsList, setUnitsList] = useState([]);
+
+  const fetchIncidents = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await getIncidents({ limit: 100, offset: 0, withMeta: false });
+      const list = Array.isArray(result) ? result : (result?.items || []);
+      setIncidents(list.map(mapApiIncidentToRow));
+    } catch (err) {
+      setError(err.message || 'Failed to load incidents');
+      setIncidents([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (user.role !== ROLES.DEPARTMENT_ADMIN && user.role !== ROLES.PERSONNEL) {
       navigate('/dashboard', { replace: true });
     }
   }, [user.role, navigate]);
+
+  useEffect(() => {
+    if (user.role !== ROLES.DEPARTMENT_ADMIN && user.role !== ROLES.PERSONNEL) return;
+    fetchIncidents();
+    const intervalId = setInterval(fetchIncidents, 15000);
+    const handleUpdated = () => fetchIncidents();
+    window.addEventListener('incident:updated', handleUpdated);
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener('incident:updated', handleUpdated);
+    };
+  }, [user.role, fetchIncidents]);
+
+  useEffect(() => {
+    if (!departmentId || (user.role !== ROLES.DEPARTMENT_ADMIN && user.role !== ROLES.PERSONNEL)) return;
+    let cancelled = false;
+    getDepartmentById(departmentId)
+      .then((dept) => {
+        if (!cancelled && dept) {
+          setDepartment(dept);
+          setDepartmentSectorCode(inferDepartmentSectorCode(dept));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setDepartment(null);
+      });
+    return () => { cancelled = true; };
+  }, [departmentId, user.role]);
+
+  useEffect(() => {
+    if (user.role !== ROLES.DEPARTMENT_ADMIN && user.role !== ROLES.PERSONNEL) return;
+    setTeamsLoading(true);
+    getResponderTeams({ limit: 200 })
+      .then((list) => {
+        const arr = Array.isArray(list) ? list : [];
+        if (departmentSectorCode) {
+          const filtered = arr.filter((t) => normalizeSectorCode(t.department_code) === departmentSectorCode);
+          setTeams(filtered);
+        } else {
+          setTeams([]);
+        }
+      })
+      .catch(() => setTeams([]))
+      .finally(() => setTeamsLoading(false));
+  }, [user.role, departmentSectorCode]);
+
+  useEffect(() => {
+    if (!departmentId || (user.role !== ROLES.DEPARTMENT_ADMIN && user.role !== ROLES.PERSONNEL)) return;
+    let cancelled = false;
+    getDepartmentUnits(departmentId)
+      .then((rows) => {
+        if (cancelled) return;
+        const list = (Array.isArray(rows) ? rows : []).map((u) => ({
+          id: u.unit_id,
+          name: u.name,
+          type: u.type,
+          status: u.status || 'Available',
+        }));
+        setUnitsList(list);
+      })
+      .catch(() => { if (!cancelled) setUnitsList([]); });
+    return () => { cancelled = true; };
+  }, [departmentId, user.role]);
 
   useEffect(() => {
     try {
@@ -64,41 +180,83 @@ export function DepartmentDashboardPage() {
     } catch (_) {}
   }, [vehicleAssignments]);
 
-  const departmentIncidents = (mockIncidents || []).filter((inc) => inc.assignedDepartmentId === departmentId);
+  const departmentIncidents = incidents;
   const activeIncidents = departmentIncidents.filter((i) => i.status !== 'Resolved' && i.status !== 'resolved');
 
-  const personnelList = (departmentId && mockPersonnel && mockPersonnel[departmentId]) ? mockPersonnel[departmentId] : [];
-  const unitsList = (departmentId && mockUnits && mockUnits[departmentId]) ? mockUnits[departmentId] : [];
   const getAssignment = useCallback((incidentId) => assignments[incidentId] || null, [assignments]);
   const getVehicleAssignment = useCallback((incidentId) => vehicleAssignments[incidentId] || null, [vehicleAssignments]);
-  const setVehicleAssignment = useCallback((incidentId, vehicleId, vehicleName) => {
-    setVehicleAssignments((prev) => ({ ...prev, [incidentId]: { vehicleId, name: vehicleName } }));
-    setVehicleModalOpen(false);
-    setAssigningIncidentIdVehicle(null);
-    Swal.fire({
-      icon: 'success',
-      title: 'Vehicle assigned',
-      html: `<strong>${vehicleName}</strong> has been assigned to incident <strong>${incidentId}</strong>.`,
-      timer: 2500,
-      showConfirmButton: false,
-      timerProgressBar: true,
-      customClass: { popup: 'rounded-2xl shadow-xl' },
-    });
-  }, []);
-  const setAssignment = useCallback((incidentId, personnelKey, name) => {
-    setAssignments((prev) => ({ ...prev, [incidentId]: { personnelKey, name } }));
-    setAssignModalOpen(false);
-    setAssigningIncidentId(null);
-    Swal.fire({
-      icon: 'success',
-      title: 'Personnel assigned',
-      html: `<strong>${name}</strong> has been assigned to incident <strong>${incidentId}</strong>.`,
-      timer: 2500,
-      showConfirmButton: false,
-      timerProgressBar: true,
-      customClass: { popup: 'rounded-2xl shadow-xl' },
-    });
-  }, []);
+  const [assigningVehicleId, setAssigningVehicleId] = useState(null);
+  const assignVehicleToIncident = useCallback(async (incidentId, unitId, unitName) => {
+    if (!departmentId || !incidentId || !unitId) return;
+    setAssigningVehicleId(unitId);
+    try {
+      await assignDepartmentUnit(departmentId, unitId, Number(incidentId));
+      const list = await getDepartmentUnits(departmentId);
+      setUnitsList((Array.isArray(list) ? list : []).map((u) => ({
+        id: u.unit_id,
+        name: u.name,
+        type: u.type,
+        status: u.status || 'Available',
+      })));
+      setVehicleAssignments((prev) => ({ ...prev, [incidentId]: { vehicleId: unitId, name: unitName } }));
+      setVehicleModalOpen(false);
+      setAssigningIncidentIdVehicle(null);
+      Swal.fire({
+        icon: 'success',
+        title: 'Vehicle assigned',
+        html: `<strong>${unitName}</strong> has been assigned to incident <strong>${incidentId}</strong>. Status set to On Dispatch.`,
+        timer: 2500,
+        showConfirmButton: false,
+        timerProgressBar: true,
+        customClass: { popup: 'rounded-2xl shadow-xl' },
+      });
+    } catch (e) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Assign failed',
+        text: e?.message || 'Failed to assign vehicle',
+        customClass: { popup: 'rounded-2xl shadow-xl' },
+      });
+    } finally {
+      setAssigningVehicleId(null);
+    }
+  }, [departmentId]);
+
+  const assignTeamToIncident = useCallback(async (incidentId, team) => {
+    if (!department?.code || !department?.name || !team?.team_name) return;
+    const reportId = Number(incidentId);
+    if (!Number.isFinite(reportId)) return;
+    try {
+      await createDispatch({
+        report_id: reportId,
+        department_code: department.code,
+        department_name: department.name,
+        team_name: team.team_name,
+        response_status: 'assigned',
+      });
+      setAssignments((prev) => ({ ...prev, [incidentId]: { teamName: team.team_name, departmentName: department.name } }));
+      setAssignModalOpen(false);
+      setAssigningIncidentId(null);
+      await fetchIncidents();
+      window.dispatchEvent(new CustomEvent('incident:updated', { detail: { incidentId } }));
+      Swal.fire({
+        icon: 'success',
+        title: 'Team assigned',
+        html: `Team <strong>${team.team_name}</strong> has been assigned to incident <strong>${incidentId}</strong>. Available members are assigned by the system.`,
+        timer: 2500,
+        showConfirmButton: false,
+        timerProgressBar: true,
+        customClass: { popup: 'rounded-2xl shadow-xl' },
+      });
+    } catch (err) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Assignment failed',
+        text: err.message || 'Could not assign team. Try again.',
+        customClass: { popup: 'rounded-2xl shadow-xl' },
+      });
+    }
+  }, [department, fetchIncidents]);
 
   const openAssignModal = (incidentId) => {
     setAssigningIncidentId(incidentId);
@@ -165,7 +323,16 @@ export function DepartmentDashboardPage() {
           </div>
         </div>
 
-        {activeIncidents.length > 0 && (
+        {loading && (
+          <p className="text-muted text-center py-4">Loading incidents…</p>
+        )}
+        {error && (
+          <Card className="p-4 rounded-2xl border border-amber-500/30 bg-amber-500/10">
+            <p className="text-foreground mb-2">{error}</p>
+            <Button variant="outline" size="sm" onClick={() => fetchIncidents()}>Retry</Button>
+          </Card>
+        )}
+        {activeIncidents.length > 0 && !loading && (
           <Card className="bg-amber-500/10 border-amber-500/30 p-4 rounded-2xl">
             <div className="flex items-start gap-3">
               <AlertCircle className="w-5 h-5 text-amber-500 mt-0.5" />
@@ -246,7 +413,12 @@ export function DepartmentDashboardPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {departmentIncidents.map((incident) => (
+                {loading ? (
+                  <tr>
+                    <td colSpan={9} className="px-4 py-8 text-center text-muted">Loading incidents…</td>
+                  </tr>
+                ) : (
+                departmentIncidents.map((incident) => (
                   <tr key={incident.id} className="hover:bg-muted/20 transition-colors">
                     <td className="px-4 py-3">
                       <button type="button" onClick={() => navigate(`/incidents/${incident.id}`)} className="text-sm font-medium text-primary hover:underline">
@@ -270,7 +442,7 @@ export function DepartmentDashboardPage() {
                     </td>
                     <td className="px-4 py-3">{getStatusBadge(incident.status)}</td>
                     <td className="px-4 py-3 text-sm text-muted">
-                      {getAssignment(incident.id) ? getAssignment(incident.id).name : '—'}
+                      {getAssignment(incident.id) ? (getAssignment(incident.id).teamName || getAssignment(incident.id).name) : '—'}
                     </td>
                     <td className="px-4 py-3 text-sm text-muted">
                       {getVehicleAssignment(incident.id) ? getVehicleAssignment(incident.id).name : '—'}
@@ -294,13 +466,14 @@ export function DepartmentDashboardPage() {
                       </div>
                     </td>
                   </tr>
-                ))}
+                ))
+                )}
               </tbody>
             </table>
           </div>
         </Card>
 
-        {departmentIncidents.length === 0 && (
+        {!loading && !error && departmentIncidents.length === 0 && (
           <div className="text-center py-12 text-muted">
             <p className="text-lg">No incidents assigned to your department yet</p>
           </div>
@@ -315,14 +488,14 @@ export function DepartmentDashboardPage() {
           </ul>
         </Card>
 
-        {/* Assign Personnel Modal — Dept Admin only */}
+        {/* Assign Personnel Modal — Dept Admin only: assign a response team (uses API teams) */}
         <Dialog open={assignModalOpen} onOpenChange={(open) => !open && closeAssignModal()} className="max-w-md">
           <DialogContent className={`max-w-md rounded-2xl overflow-hidden ${isLight ? 'glass neumorphic-light bg-white/95 border-gray-200/80' : 'glass neumorphic-dark bg-card/95 border-white/10'}`}>
             <div className={`flex items-center justify-between border-b ${isLight ? 'border-gray-200/80 pb-4' : 'border-white/10 pb-4'}`}>
               <DialogHeader>
                 <DialogTitle className="text-xl font-bold text-foreground">Assign personnel</DialogTitle>
                 <p className="text-sm text-muted mt-1">
-                  {assigningIncidentId ? `Select an available team member for ${assigningIncidentId}` : 'Select a team member'}
+                  {assigningIncidentId ? `Assign a response team to incident ${assigningIncidentId}. The selected team's available members will be assigned by the system.` : 'Assign a response team to this incident.'}
                 </p>
               </DialogHeader>
               <button
@@ -335,45 +508,34 @@ export function DepartmentDashboardPage() {
               </button>
             </div>
             <div className="mt-4 space-y-3 max-h-[280px] overflow-y-auto pr-1">
-              {personnelList.map((p, idx) => {
-                const personnelKey = `${departmentId}-${idx}`;
-                const isAvailable = String(p.status || '').toLowerCase() === 'available';
-                const Wrapper = isAvailable ? 'button' : 'div';
-                const wrapperProps = isAvailable
-                  ? { type: 'button', onClick: () => setAssignment(assigningIncidentId, personnelKey, p.name) }
-                  : {};
-                return (
-                  <Wrapper
-                    key={personnelKey}
-                    {...wrapperProps}
-                    className={`w-full text-left flex items-center gap-4 px-4 py-3.5 rounded-xl border transition-all duration-200 ${
-                      isAvailable
-                        ? isLight
-                          ? 'border-gray-200/80 bg-white hover:bg-primary/5 hover:border-primary/30 cursor-pointer shadow-sm'
-                          : 'border-white/10 bg-white/5 hover:bg-primary/10 hover:border-primary/30 cursor-pointer'
-                        : isLight
-                          ? 'border-gray-200/60 bg-gray-50/50 opacity-60 cursor-not-allowed'
-                          : 'border-white/5 bg-white/5 opacity-60 cursor-not-allowed'
-                    }`}
-                  >
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isAvailable ? (isLight ? 'bg-green-500/15 text-green-600' : 'bg-green-500/20 text-green-400') : (isLight ? 'bg-amber-500/15 text-amber-600' : 'bg-amber-500/20 text-amber-400')}`}>
-                      {isAvailable ? <UserCheck className="w-5 h-5" strokeWidth={2} /> : <Clock className="w-5 h-5" strokeWidth={2} />}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-foreground">{p.name}</p>
-                      <p className="text-sm text-muted">{p.role} · {p.unit}</p>
-                    </div>
-                    <span className={`flex-shrink-0 px-2.5 py-1 rounded-lg text-xs font-medium ${isAvailable ? 'bg-green-500/20 text-green-600' : 'bg-amber-500/20 text-amber-600'}`}>
-                      {p.status}
+              {teamsLoading && <p className="text-sm text-muted py-4 text-center">Loading teams…</p>}
+              {!teamsLoading && teams.map((team) => (
+                <button
+                  key={team.team_id}
+                  type="button"
+                  onClick={() => assignTeamToIncident(assigningIncidentId, team)}
+                  className={`w-full text-left flex items-center gap-4 px-4 py-3.5 rounded-xl border transition-all duration-200 ${
+                    isLight
+                      ? 'border-gray-200/80 bg-white hover:bg-primary/5 hover:border-primary/30 cursor-pointer shadow-sm'
+                      : 'border-white/10 bg-white/5 hover:bg-primary/10 hover:border-primary/30 cursor-pointer'
+                  }`}
+                >
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isLight ? 'bg-primary/15 text-primary' : 'bg-primary/20 text-primary'}`}>
+                    <Shield className="w-5 h-5" strokeWidth={2} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-foreground">{team.team_name}</p>
+                    <p className="text-sm text-muted">{String(team.department_code || '').toUpperCase()} · {String(team.team_status || 'available').toLowerCase()}</p>
+                  </div>
+                  {Array.isArray(team.supported_incident_types) && team.supported_incident_types.length > 0 && (
+                    <span className="flex-shrink-0 px-2.5 py-1 rounded-lg text-xs font-medium bg-muted/50 text-muted-foreground">
+                      {team.supported_incident_types.slice(0, 2).join(', ')}
                     </span>
-                  </Wrapper>
-                );
-              })}
+                  )}
+                </button>
+              ))}
             </div>
-            {personnelList.length === 0 && <p className="text-sm text-muted py-6 text-center">No personnel in this department</p>}
-            {personnelList.length > 0 && personnelList.every((p) => String(p.status || '').toLowerCase() !== 'available') && (
-              <p className="text-sm text-amber-600 dark:text-amber-400 mt-3 text-center">No available personnel. Only &quot;Available&quot; can be assigned.</p>
-            )}
+            {!teamsLoading && teams.length === 0 && <p className="text-sm text-muted py-6 text-center">No teams in this department. Create teams in the Personnel page first.</p>}
           </DialogContent>
         </Dialog>
 
@@ -384,7 +546,7 @@ export function DepartmentDashboardPage() {
               <DialogHeader>
                 <DialogTitle className="text-xl font-bold text-foreground">Assign vehicle</DialogTitle>
                 <p className="text-sm text-muted mt-1">
-                  {assigningIncidentIdVehicle ? `Select an available vehicle for ${assigningIncidentIdVehicle}` : 'Select a vehicle'}
+                  {assigningIncidentIdVehicle ? `Select a vehicle for ${assigningIncidentIdVehicle}` : 'Select a vehicle'}
                 </p>
               </DialogHeader>
               <button type="button" onClick={closeVehicleAssignModal} className={`p-2 rounded-xl transition-colors ${isLight ? 'hover:bg-gray-100 text-gray-500' : 'hover:bg-white/10 text-muted'}`} aria-label="Close">
@@ -394,17 +556,14 @@ export function DepartmentDashboardPage() {
             <div className="mt-4 space-y-3 max-h-[280px] overflow-y-auto pr-1">
               {unitsList.map((u) => {
                 const isAvailable = String(u.status || '').toLowerCase() === 'available';
-                const Wrapper = isAvailable ? 'button' : 'div';
-                const wrapperProps = isAvailable ? { type: 'button', onClick: () => setVehicleAssignment(assigningIncidentIdVehicle, u.id, u.name) } : {};
+                const isAssigning = assigningVehicleId === u.id;
                 return (
-                  <Wrapper
+                  <button
                     key={u.id}
-                    {...wrapperProps}
-                    className={`w-full text-left flex items-center gap-4 px-4 py-3.5 rounded-xl border transition-all duration-200 ${
-                      isAvailable
-                        ? isLight ? 'border-gray-200/80 bg-white hover:bg-primary/5 hover:border-primary/30 cursor-pointer shadow-sm' : 'border-white/10 bg-white/5 hover:bg-primary/10 hover:border-primary/30 cursor-pointer'
-                        : isLight ? 'border-gray-200/60 bg-gray-50/50 opacity-60 cursor-not-allowed' : 'border-white/5 bg-white/5 opacity-60 cursor-not-allowed'
-                    }`}
+                    type="button"
+                    onClick={() => assignVehicleToIncident(assigningIncidentIdVehicle, u.id, u.name)}
+                    disabled={isAssigning}
+                    className={`w-full text-left flex items-center gap-4 px-4 py-3.5 rounded-xl border transition-all duration-200 ${isLight ? 'border-gray-200/80 bg-white hover:bg-primary/5 hover:border-primary/30 cursor-pointer shadow-sm' : 'border-white/10 bg-white/5 hover:bg-primary/10 hover:border-primary/30 cursor-pointer'}`}
                   >
                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isAvailable ? (isLight ? 'bg-green-500/15 text-green-600' : 'bg-green-500/20 text-green-400') : (isLight ? 'bg-amber-500/15 text-amber-600' : 'bg-amber-500/20 text-amber-400')}`}>
                       {isAvailable ? <Truck className="w-5 h-5" strokeWidth={2} /> : <Clock className="w-5 h-5" strokeWidth={2} />}
@@ -413,15 +572,12 @@ export function DepartmentDashboardPage() {
                       <p className="font-semibold text-foreground">{u.name}</p>
                       <p className="text-sm text-muted">{u.type} · {u.id}</p>
                     </div>
-                    <span className={`flex-shrink-0 px-2.5 py-1 rounded-lg text-xs font-medium ${isAvailable ? 'bg-green-500/20 text-green-600' : 'bg-amber-500/20 text-amber-600'}`}>{u.status}</span>
-                  </Wrapper>
+                    <span className={`flex-shrink-0 px-2.5 py-1 rounded-lg text-xs font-medium ${isAvailable ? 'bg-green-500/20 text-green-600' : 'bg-amber-500/20 text-amber-600'}`}>{isAssigning ? 'Assigning…' : u.status}</span>
+                  </button>
                 );
               })}
             </div>
             {unitsList.length === 0 && <p className="text-sm text-muted py-6 text-center">No vehicles in this department</p>}
-            {unitsList.length > 0 && unitsList.every((u) => String(u.status || '').toLowerCase() !== 'available') && (
-              <p className="text-sm text-amber-600 dark:text-amber-400 mt-3 text-center">No available vehicles. Only &quot;Available&quot; can be assigned.</p>
-            )}
           </DialogContent>
         </Dialog>
       </div>
