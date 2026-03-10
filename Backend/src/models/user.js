@@ -126,20 +126,39 @@ const User = {
    * Get paginated list of all users (active and inactive), with department name when department_id set
    * @param {number} offset - Pagination offset
    * @param {number} limit - Number of users per page
+   * @param {object} options - Optional parameters
+   * @param {string|string[]} options.excludeRole - Role(s) to exclude (e.g. 'user' or ['user', 'responder'])
    * @returns {object} { users: [], total: number }
    */
-  async getPaginated(offset, limit) {
-    const countRes = await pool.query('SELECT COUNT(*) as total FROM users');
+  async getPaginated(offset, limit, options = {}) {
+    const { excludeRole } = options;
+    const excludeRoles = Array.isArray(excludeRole)
+      ? excludeRole.filter((r) => typeof r === 'string' && r.trim() !== '')
+      : (typeof excludeRole === 'string' && excludeRole.trim() !== '' ? [excludeRole.trim()] : []);
+    const hasExclude = excludeRoles.length > 0;
+
+    const countQuery = hasExclude
+      ? `SELECT COUNT(*) as total FROM users WHERE role NOT IN (${excludeRoles.map((_, i) => `$${i + 1}`).join(', ')})`
+      : 'SELECT COUNT(*) as total FROM users';
+    const countParams = hasExclude ? excludeRoles : [];
+    const countRes = await pool.query(countQuery, countParams);
     const total = parseInt(countRes.rows[0].total, 10);
 
-    const usersRes = await pool.query(
-      `SELECT u.user_id, u.email, u.phone_number, u.address, u.phone_verified, u.first_name, u.last_name, u.role, u.department_id, u.is_active, u.created_at, d.name AS department_name
-       FROM users u
-       LEFT JOIN departments d ON d.department_id = u.department_id
-       ORDER BY u.created_at DESC
-       LIMIT $1 OFFSET $2`,
-      [limit, offset]
-    );
+    const placeholders = hasExclude ? excludeRoles.map((_, i) => `$${i + 1}`).join(', ') : '';
+    const usersQuery = hasExclude
+      ? `SELECT u.user_id, u.email, u.phone_number, u.address, u.phone_verified, u.first_name, u.last_name, u.role, u.department_id, u.is_active, u.created_at, d.name AS department_name
+         FROM users u
+         LEFT JOIN departments d ON d.department_id = u.department_id
+         WHERE u.role NOT IN (${placeholders})
+         ORDER BY u.created_at DESC
+         LIMIT $${excludeRoles.length + 1} OFFSET $${excludeRoles.length + 2}`
+      : `SELECT u.user_id, u.email, u.phone_number, u.address, u.phone_verified, u.first_name, u.last_name, u.role, u.department_id, u.is_active, u.created_at, d.name AS department_name
+         FROM users u
+         LEFT JOIN departments d ON d.department_id = u.department_id
+         ORDER BY u.created_at DESC
+         LIMIT $1 OFFSET $2`;
+    const usersParams = hasExclude ? [...excludeRoles, limit, offset] : [limit, offset];
+    const usersRes = await pool.query(usersQuery, usersParams);
 
     return { users: usersRes.rows.map((row) => ({ ...decodeUserFields(row), department_name: row.department_name || null })), total };
   },
@@ -182,6 +201,23 @@ const User = {
     const res = await pool.query(
       'UPDATE users SET role = $1, department_id = $2 WHERE user_id = $3 RETURNING user_id, email, phone_number, address, phone_verified, first_name, last_name, role, department_id, is_active, created_at',
       [role, department_id, user_id]
+    );
+    return decodeUserFields(res.rows[0]);
+  },
+
+  /**
+   * Update user role, department_id, first_name, and last_name
+   * @param {number} user_id - User ID
+   * @param {string} role - New role value
+   * @param {number|null} department_id - Department ID (null to clear)
+   * @param {string|null} first_name - First name
+   * @param {string|null} last_name - Last name
+   * @returns {object} Updated user
+   */
+  async updateRoleDepartmentAndName(user_id, role, department_id, first_name, last_name) {
+    const res = await pool.query(
+      'UPDATE users SET role = $1, department_id = $2, first_name = $3, last_name = $4 WHERE user_id = $5 RETURNING user_id, email, phone_number, address, phone_verified, first_name, last_name, role, department_id, is_active, created_at',
+      [role, department_id, first_name, last_name, user_id]
     );
     return decodeUserFields(res.rows[0]);
   },

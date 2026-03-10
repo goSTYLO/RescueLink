@@ -3,12 +3,15 @@ import { createRequestId, getAuthHeaders, parseErrorMessage, parseJsonOrEmpty } 
 
 /**
  * List users with pagination (admin)
- * @param {{ page?: number, limit?: number }} opts
+ * @param {{ page?: number, limit?: number, exclude_role?: string }} opts
  * @returns {Promise<{ users: Array, pagination: { page, limit, total, pages } }>}
  */
-export async function listUsers({ page = 1, limit = 20 } = {}) {
+export async function listUsers({ page = 1, limit = 20, exclude_role } = {}) {
   const requestId = createRequestId('web-admin-users-list');
   const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  if (typeof exclude_role === 'string' && exclude_role.trim() !== '') {
+    params.set('exclude_role', exclude_role.trim());
+  }
   const response = await fetch(`${API_URL}/api/admin/users?${params}`, {
     method: 'GET',
     headers: getAuthHeaders({ requestId }),
@@ -41,9 +44,9 @@ export async function createUser(payload) {
 }
 
 /**
- * Update user role (and optional department_id) (admin)
+ * Update user role (and optional department_id, first_name, last_name) (admin)
  * @param {number} userId
- * @param {{ role: string, department_id?: number | null }} payload
+ * @param {{ role: string, department_id?: number | null, first_name?: string, last_name?: string }} payload
  */
 export async function updateUserRole(userId, payload) {
   const requestId = createRequestId('web-admin-users-role');

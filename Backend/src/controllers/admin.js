@@ -28,11 +28,19 @@ const adminController = {
    */
   async listUsers(req, res) {
     try {
-      const { page = 1, limit = 20 } = req.query;
-      const { offset, validatedLimit } = validatePagination(page, limit);
+      const { page = 1, limit = 20, exclude_role } = req.query;
+      const safePage = Math.max(1, parseInt(page, 10) || 1);
+      const rawLimit = parseInt(limit, 10) || 20;
+      const computedOffset = (safePage - 1) * Math.min(rawLimit, 100);
+      const { limit: validatedLimit, offset: validatedOffset } = validatePagination(limit, computedOffset);
 
-      const result = await User.getPaginated(offset, validatedLimit);
-      
+      const options = {};
+      if (typeof exclude_role === 'string' && exclude_role.trim() !== '') {
+        options.excludeRole = exclude_role.split(',').map((r) => r.trim()).filter(Boolean);
+      }
+
+      const result = await User.getPaginated(validatedOffset, validatedLimit, options);
+
       // Remove password hashes from response
       const users = result.users.map(user => ({
         ...user,
@@ -42,7 +50,8 @@ const adminController = {
       await logAdminAction(req, 'users_list', 'user', null, {
         page,
         limit: validatedLimit,
-        total: result.total
+        total: result.total,
+        exclude_role: options.excludeRole || null
       });
 
       res.json({
@@ -185,14 +194,14 @@ const adminController = {
   },
 
   /**
-   * Update user role (and department_id when role is department-head or department-admin)
+   * Update user role (and department_id when role is department-head or department-admin), and optional first_name, last_name
    * PUT /api/admin/users/:id/role
-   * Body: { role, department_id (required when role is department-head or department-admin) }
+   * Body: { role, department_id (required when role is department-head or department-admin), first_name?, last_name? }
    */
   async updateUserRole(req, res) {
     try {
       const { id } = req.params;
-      const { role: roleParam, department_id } = req.body;
+      const { role: roleParam, department_id, first_name: first_nameParam, last_name: last_nameParam } = req.body;
 
       // Validate ID format
       if (!id || isNaN(parseInt(id, 10))) {
@@ -235,7 +244,16 @@ const adminController = {
         ? parseInt(department_id, 10)
         : null;
 
-      const updatedUser = await User.updateRoleAndDepartment(userId, role, departmentIdValue);
+      const first_nameValidated = (first_nameParam !== undefined && first_nameParam !== null && String(first_nameParam).trim() !== '')
+        ? validateOptionalString(first_nameParam, 'first_name', 100)
+        : null;
+      const first_name = first_nameValidated !== null ? first_nameValidated : (user.first_name ?? null);
+      const last_nameValidated = (last_nameParam !== undefined && last_nameParam !== null && String(last_nameParam).trim() !== '')
+        ? validateOptionalString(last_nameParam, 'last_name', 100)
+        : null;
+      const last_name = last_nameValidated !== null ? last_nameValidated : (user.last_name ?? null);
+
+      const updatedUser = await User.updateRoleDepartmentAndName(userId, role, departmentIdValue, first_name, last_name);
       updatedUser.password = undefined;
 
       await logAdminAction(req, 'user_role_update', 'user', user.user_id, {

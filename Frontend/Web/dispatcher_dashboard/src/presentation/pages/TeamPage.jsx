@@ -80,11 +80,13 @@ export function TeamPage() {
   });
   const [deptSelectOpen, setDeptSelectOpen] = useState(false);
   const [roleSelectOpen, setRoleSelectOpen] = useState(false);
+  const [savingUser, setSavingUser] = useState(false);
+  const [deactivatingUserId, setDeactivatingUserId] = useState(null);
 
   const fetchUsers = useCallback(async (page = pagination.page) => {
     setLoadingUsers(true);
     try {
-      const res = await listUsers({ page, limit: ROWS_PER_PAGE });
+      const res = await listUsers({ page, limit: ROWS_PER_PAGE, exclude_role: 'user,responder' });
       setUsers(res.users || []);
       setPagination((prev) => ({
         ...prev,
@@ -176,13 +178,16 @@ export function TeamPage() {
     const backendRole = roleToBackend(frontendRole);
     const deptId = requiresDepartment(frontendRole) && department_id ? parseInt(department_id, 10) : null;
 
+    setSavingUser(true);
     try {
       if (editingUser) {
         await updateUserRole(editingUser.user_id, {
           role: backendRole,
           department_id: deptId,
+          first_name: first_name.trim(),
+          last_name: last_name.trim(),
         });
-        Swal.fire({ icon: 'success', title: 'User updated', text: 'User role and department have been saved.', timer: 2000, showConfirmButton: false, timerProgressBar: true });
+        Swal.fire({ icon: 'success', title: 'User updated', text: 'User role, department, and name have been saved.', timer: 2000, showConfirmButton: false, timerProgressBar: true });
       } else {
         await createUser({
           first_name: first_name.trim(),
@@ -198,6 +203,8 @@ export function TeamPage() {
       await fetchUsers(currentPage);
     } catch (err) {
       Swal.fire({ icon: 'error', title: editingUser ? 'Update failed' : 'Create failed', text: err.message || 'Please try again.', confirmButtonColor: SWAL_PRIMARY });
+    } finally {
+      setSavingUser(false);
     }
   };
 
@@ -213,6 +220,7 @@ export function TeamPage() {
       cancelButtonText: 'Cancel',
     }).then((result) => {
       if (result.isConfirmed) {
+        setDeactivatingUserId(u.user_id);
         deactivateUser(u.user_id)
           .then(() => {
             Swal.fire({ icon: 'success', title: 'User deactivated', timer: 2000, showConfirmButton: false, timerProgressBar: true });
@@ -220,6 +228,9 @@ export function TeamPage() {
           })
           .catch((err) => {
             Swal.fire({ icon: 'error', title: 'Deactivate failed', text: err.message || 'Please try again.', confirmButtonColor: SWAL_PRIMARY });
+          })
+          .finally(() => {
+            setDeactivatingUserId(null);
           });
       }
     });
@@ -315,13 +326,19 @@ export function TeamPage() {
                         </td>
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-2">
-                            <button onClick={() => openEditUser(u)} className={btnActionClass(true)} title="Edit">
-                              <Edit className="w-4 h-4" />
-                            </button>
-                            {u.is_active !== false && (
-                              <button onClick={() => requestDeactivateUser(u)} className={btnActionClass(false)} title="Deactivate">
-                                <Ban className="w-4 h-4" />
-                              </button>
+                            {deactivatingUserId === u.user_id ? (
+                              <span className="text-sm text-muted">Deactivating…</span>
+                            ) : (
+                              <>
+                                <button type="button" onClick={() => openEditUser(u)} className={btnActionClass(true)} title="Edit">
+                                  <Edit className="w-4 h-4" />
+                                </button>
+                                {u.is_active !== false && (
+                                  <button type="button" onClick={() => requestDeactivateUser(u)} className={btnActionClass(false)} title="Deactivate">
+                                    <Ban className="w-4 h-4" />
+                                  </button>
+                                )}
+                              </>
                             )}
                           </div>
                         </td>
@@ -475,10 +492,10 @@ export function TeamPage() {
                 </div>
               )}
               <div className="flex justify-between gap-3 pt-2">
-                <Button onClick={saveUser} className="flex-1 bg-primary hover:bg-primary-hover text-white">
-                  {editingUser ? 'Save' : 'Create'} User
+                <Button onClick={saveUser} disabled={savingUser} className="flex-1 bg-primary hover:bg-primary-hover text-white">
+                  {savingUser ? 'Saving…' : editingUser ? 'Save' : 'Create'} User
                 </Button>
-                <Button variant="outline" onClick={() => setUserModalOpen(false)} className="flex-1">
+                <Button variant="outline" onClick={() => setUserModalOpen(false)} disabled={savingUser} className="flex-1">
                   Cancel
                 </Button>
               </div>
