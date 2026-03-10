@@ -1264,6 +1264,88 @@ Create an emergency incident report with only coordinates. This endpoint is opti
 - `user_id` is automatically extracted from JWT authentication token
 - Does NOT trigger AI classification (skips ai_classifications table)
 - Designed for fast reporting in time-critical situations
+
+### Incident Lifecycle and Closure
+
+Canonical lifecycle:
+
+`pending -> verified -> in_progress -> resolved -> closed`
+
+- `resolved` is set by dispatcher/admin/department-admin through status endpoint.
+- `closed` is set automatically when the reporting user confirms resolution.
+
+Lifecycle metadata fields returned in incident payloads:
+
+- `reporter_confirmed_at`
+- `reporter_confirmed_by_user_id`
+- `resolved_by_user_id`
+- `closed_at`
+- `closed_by_user_id`
+- `closure_method`
+- `closure_notes`
+
+### Update Incident Status
+
+**PATCH** `/api/incidents/:id/status`
+
+Update incident lifecycle status (guarded transitions only).
+
+**Required Role:** `dispatcher`, `admin`, `department_admin`
+
+**Request Body:**
+
+```json
+{
+  "status": "verified" // allowed: verified, in_progress, resolved
+}
+```
+
+**Response:** `200 OK`
+
+```json
+{
+  "success": true,
+  "incident": {
+    "report_id": 1,
+    "status": "resolved",
+    "resolved_by_user_id": 25
+  }
+}
+```
+
+**Notes:**
+
+- Invalid transitions are rejected (for example `pending -> resolved`).
+- When incident becomes `resolved`, backend reconciles assigned team/responder/unit availability.
+
+### Confirm Incident Resolution (Reporter)
+
+**POST** `/api/incidents/:id/confirm-resolution`
+
+Reporter confirms that the incident is resolved on their side.
+
+**Required Role:** `user` (must be owner of incident)
+
+**Response:** `200 OK`
+
+```json
+{
+  "success": true,
+  "incident": {
+    "report_id": 1,
+    "status": "closed",
+    "reporter_confirmed_at": "2026-03-11T10:30:00.000Z",
+    "closed_at": "2026-03-11T10:30:00.000Z",
+    "closure_method": "auto_from_reporter_confirmation"
+  }
+}
+```
+
+**Notes:**
+
+- Only allowed when incident is already `resolved`.
+- On successful confirmation, incident auto-transitions to `closed`.
+- Backend re-runs responder/team/unit release reconciliation on close.
 ---
 
 ### Get Incident by ID
@@ -1326,7 +1408,7 @@ Retrieve a paginated list of all incident reports with optional filtering. Requi
 - `limit` (integer, optional) - Number of records to return (default: 20, max: 100)
 - `offset` (integer, optional) - Number of records to skip (default: 0)
 - `severity_level` (string, optional) - Filter by severity level (e.g., "high", "medium", "low")
-- `status` (string, optional) - Filter by status (e.g., "pending", "resolved")
+- `status` (string, optional) - Filter by status (e.g., "pending", "verified", "in_progress", "resolved", "closed")
 
 **Example:**
 

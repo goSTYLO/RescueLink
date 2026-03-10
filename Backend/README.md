@@ -34,7 +34,7 @@ Recent cross-stack updates completed for dispatcher web integration:
 
 - **Request correlation parity**: web clients now consistently send `x-request-id`; backend already echoes/uses this for logs.
 - **Incident contract hardening**: web incident client contract tests now cover list/detail/with-ai/verify/reclassify.
-- **Lifecycle consistency**: web side now enforces canonical lifecycle values (`pending`, `verified`, `resolved`) to match backend expectations.
+- **Lifecycle consistency**: web side now enforces canonical lifecycle values (`pending`, `verified`, `in_progress`, `resolved`, `closed`) to match backend expectations.
 - **Post-action convergence**: verify/reclassify flows trigger cross-page refresh events in web (dashboard/map/details).
 - **Live API test script resilience**: `tests/integration.test.js` setup now handles "already registered" account messages more safely.
 
@@ -89,7 +89,7 @@ Backend endpoints continue to support the updated web department operations flow
 Implemented end-to-end lifecycle flow updates:
 
 - **Canonical status flow**:
-  - `pending -> verified -> in_progress -> resolved`
+  - `pending -> verified -> in_progress -> resolved -> closed`
   - guarded transitions enforced in backend model/controller path.
 - **Dispatcher/admin status endpoint**:
   - `PATCH /api/incidents/:id/status`
@@ -97,9 +97,12 @@ Implemented end-to-end lifecycle flow updates:
 - **Reporter confirmation endpoint**:
   - `POST /api/incidents/:id/confirm-resolution`
   - owner-only confirmation after incident is already `resolved`.
-  - persists `reporter_confirmed_at` + `reporter_confirmed_by_user_id`.
+  - auto-transitions incident from `resolved -> closed` on successful confirmation.
+  - persists `reporter_confirmed_at` + `reporter_confirmed_by_user_id` and closure metadata (`closed_at`, `closed_by_user_id`, `closure_method`).
 - **Resolve actor audit field**:
   - `resolved_by_user_id` is persisted when dispatcher/admin marks resolved.
+- **Closure reconciliation**:
+  - on `resolved` and `closed`, assigned responder/team statuses and department units are reconciled back to available state.
 - **Auto-start lifecycle hook**:
   - first successful dispatch assignment now attempts `verified -> in_progress`.
 

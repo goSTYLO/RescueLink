@@ -72,7 +72,7 @@ function mapApiToIncidentDetails(api, aiClassification = null) {
   const normalizedSeverity = normalizeSeverityToDbLevel(api.severity_level);
   const severity = mapSeverityToDisplay(api.severity_level);
 
-  const statusMap = { pending: 'Pending', resolved: 'Resolved', verified: 'Verified', in_progress: 'In Progress' };
+  const statusMap = { pending: 'Pending', resolved: 'Resolved', closed: 'Closed', verified: 'Verified', in_progress: 'In Progress' };
   const status = statusMap[api.status?.toLowerCase()] || (api.status || 'Pending');
 
   let timeReported = '—';
@@ -111,9 +111,19 @@ function mapApiToIncidentDetails(api, aiClassification = null) {
     reporterConfirmedAt: api.reporter_confirmed_at || null,
     reporterConfirmedByUserId: api.reporter_confirmed_by_user_id ?? null,
     resolvedByUserId: api.resolved_by_user_id ?? null,
+    closedAt: api.closed_at || null,
+    closedByUserId: api.closed_by_user_id ?? null,
+    closureMethod: api.closure_method || null,
+    closureNotes: api.closure_notes || null,
     highPriority: normalizedSeverity === 'high',
     possibleDuplicates: [],
-    closureData: null,
+    closureData: api.closed_at
+      ? {
+        closedBy: api.closed_by_user_id ? `User #${api.closed_by_user_id}` : 'System',
+        closedAt: api.closed_at,
+        outcome: api.closure_method || 'closed',
+      }
+      : null,
     timeReported,
     assignedDepartment: api.assigned_department || null,
     assignedDepartmentId: api.assigned_department_code || null,
@@ -460,6 +470,8 @@ export function IncidentDetailsPage() {
         return 'bg-amber-500/20 text-amber-400 border-amber-500/40';
       case 'Resolved':
         return 'bg-severity-resolved/20 text-severity-resolved border-emerald-500/40';
+      case 'Closed':
+        return 'bg-emerald-700/20 text-emerald-300 border-emerald-500/60';
       case 'Duplicate':
         return 'bg-card text-muted border-border';
       default:
@@ -867,14 +879,10 @@ export function IncidentDetailsPage() {
           Mark as False Report
         </Button>
       )}
-      {isSupervisor && incident.status === 'Resolved' && !incident.closureData && (
-        <Button
-          className={`bg-green-600 hover:bg-green-700 gap-2 ${compact ? 'h-8 px-3 text-xs rounded-lg' : ''}`}
-          onClick={() => setClosureDialogOpen(true)}
-        >
-          <FileText className="w-4 h-4" />
-          Formally Close Incident
-        </Button>
+      {isSupervisor && incident.status === 'Resolved' && (
+        <Badge variant="outline" className="rounded-lg border-border">
+          Awaiting reporter confirmation before auto-close
+        </Badge>
       )}
     </>
   );
@@ -967,6 +975,11 @@ export function IncidentDetailsPage() {
                 {incident.status === 'Resolved' && (
                   <Badge variant="outline" className="rounded-lg border-border">
                     {incident.reporterConfirmedAt ? 'Reporter confirmed' : 'Awaiting reporter confirmation'}
+                  </Badge>
+                )}
+                {incident.status === 'Closed' && (
+                  <Badge variant="outline" className="rounded-lg border-border">
+                    Closed after reporter confirmation
                   </Badge>
                 )}
                 {incident.aiSecondaryPredictedType && (
@@ -1101,7 +1114,7 @@ export function IncidentDetailsPage() {
 
                   <div className={`p-3 rounded-xl border ${isLight ? 'bg-gray-50/70 border-gray-200/80' : 'bg-white/5 border-white/10'}`}>
                     <p className="text-xs uppercase tracking-wide text-muted font-semibold mb-1">Workflow Guide</p>
-                    <p className="text-xs text-muted">Pending → Verified → In Progress → Resolved</p>
+                    <p className="text-xs text-muted">Pending → Verified → In Progress → Resolved → Closed</p>
                   </div>
 
                   {isSupervisor && incident.status !== 'Resolved' && incident.status !== 'Duplicate' && (
@@ -1249,12 +1262,12 @@ export function IncidentDetailsPage() {
                     </div>
                   )}
 
-                  {incident.closureData && (
+                  {(incident.closureData || incident.status === 'Closed') && (
                     <div className={`p-3 rounded-xl border ${isLight ? 'border-severity-resolved/40 bg-severity-resolved/10' : 'border-severity-resolved/30 bg-severity-resolved/10'}`}>
                       <p className="text-xs uppercase tracking-wide text-muted font-semibold mb-2">Closure Information</p>
-                      <p className="text-sm text-foreground"><span className="text-muted">Closed By:</span> {incident.closureData.closedBy}</p>
-                      <p className="text-sm text-foreground"><span className="text-muted">Closed At:</span> {incident.closureData.closedAt}</p>
-                      <p className="text-sm text-foreground"><span className="text-muted">Outcome:</span> {incident.closureData.outcome}</p>
+                      <p className="text-sm text-foreground"><span className="text-muted">Closed By:</span> {incident.closureData?.closedBy || (incident.closedByUserId ? `User #${incident.closedByUserId}` : 'System')}</p>
+                      <p className="text-sm text-foreground"><span className="text-muted">Closed At:</span> {incident.closureData?.closedAt || incident.closedAt || '—'}</p>
+                      <p className="text-sm text-foreground"><span className="text-muted">Method:</span> {incident.closureData?.outcome || incident.closureMethod || 'auto_from_reporter_confirmation'}</p>
                     </div>
                   )}
                 </div>

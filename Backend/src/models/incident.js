@@ -52,12 +52,12 @@ const INCIDENT_STATUS_FLOW = {
   pending: new Set(['verified']),
   verified: new Set(['in_progress']),
   in_progress: new Set(['resolved']),
-  resolved: new Set([]),
+  resolved: new Set(['closed']),
+  closed: new Set([]),
 };
 
 function normalizeIncidentStatus(value) {
   const normalized = String(value || '').trim().toLowerCase();
-  if (normalized === 'closed') return 'resolved';
   if (normalized === 'in-progress') return 'in_progress';
   if (Object.hasOwn(INCIDENT_STATUS_FLOW, normalized)) return normalized;
   return 'pending';
@@ -629,28 +629,55 @@ const Incident = {
       );
     }
 
+    if (normalizedNext === 'closed' && !incident.reporter_confirmed_at) {
+      throw createIncidentStateError(
+        'INCIDENT_CLOSE_CONFIRMATION_REQUIRED',
+        'Incident can only be closed after reporter confirmation.',
+        400
+      );
+    }
+
     try {
       const updated = await pool.query(
         `UPDATE incident_reports
          SET status = $2,
-             verified = CASE WHEN $3 IN ('verified', 'in_progress', 'resolved') THEN TRUE ELSE verified END,
-             resolved_by_user_id = CASE WHEN $3 = 'resolved' THEN $4 ELSE NULL END
+             verified = CASE WHEN $3 IN ('verified', 'in_progress', 'resolved', 'closed') THEN TRUE ELSE verified END,
+             resolved_by_user_id = CASE WHEN $3 = 'resolved' THEN $4 ELSE resolved_by_user_id END,
+             closed_at = CASE WHEN $3 = 'closed' THEN COALESCE(closed_at, CURRENT_TIMESTAMP) ELSE closed_at END,
+             closed_by_user_id = CASE WHEN $3 = 'closed' THEN COALESCE($4, closed_by_user_id) ELSE closed_by_user_id END,
+             closure_method = CASE WHEN $3 = 'closed' THEN COALESCE(closure_method, 'manual') ELSE closure_method END
          WHERE report_id = $1
          RETURNING *`,
         [report_id, normalizedNext, normalizedNext, resolvedByUserId]
       );
       return updated.rows[0] || null;
     } catch (error) {
-      if (error.code === '42703' || /resolved_by_user_id/i.test(error.message)) {
-        const fallback = await pool.query(
-          `UPDATE incident_reports
-           SET status = $2,
-               verified = CASE WHEN $3 IN ('verified', 'in_progress', 'resolved') THEN TRUE ELSE verified END
-           WHERE report_id = $1
-           RETURNING *`,
-          [report_id, normalizedNext, normalizedNext]
-        );
-        return fallback.rows[0] || null;
+      if (error.code === '42703' || /resolved_by_user_id|closed_at|closed_by_user_id|closure_method/i.test(error.message)) {
+        try {
+          const fallbackWithResolvedBy = await pool.query(
+            `UPDATE incident_reports
+             SET status = $2,
+                 verified = CASE WHEN $3 IN ('verified', 'in_progress', 'resolved', 'closed') THEN TRUE ELSE verified END,
+                 resolved_by_user_id = CASE WHEN $3 = 'resolved' THEN $4 ELSE resolved_by_user_id END
+             WHERE report_id = $1
+             RETURNING *`,
+            [report_id, normalizedNext, normalizedNext, resolvedByUserId]
+          );
+          return fallbackWithResolvedBy.rows[0] || null;
+        } catch (fallbackError) {
+          if (fallbackError.code === '42703' || /resolved_by_user_id/i.test(fallbackError.message)) {
+            const fallbackWithoutResolvedBy = await pool.query(
+              `UPDATE incident_reports
+               SET status = $2,
+                   verified = CASE WHEN $3 IN ('verified', 'in_progress', 'resolved', 'closed') THEN TRUE ELSE verified END
+               WHERE report_id = $1
+               RETURNING *`,
+              [report_id, normalizedNext, normalizedNext]
+            );
+            return fallbackWithoutResolvedBy.rows[0] || null;
+          }
+          throw fallbackError;
+        }
       }
       throw error;
     }
@@ -690,7 +717,12 @@ const Incident = {
       );
     }
 
-    if (normalizeIncidentStatus(incident.status) !== 'resolved') {
+    const currentStatus = normalizeIncidentStatus(incident.status);
+    if (currentStatus === 'closed' && incident.reporter_confirmed_at) {
+      return incident;
+    }
+
+    if (currentStatus !== 'resolved') {
       throw createIncidentStateError(
         'INCIDENT_CONFIRMATION_INVALID_STATUS',
         'Incident can only be confirmed after it is resolved.',
@@ -699,30 +731,52 @@ const Incident = {
     }
 
     if (incident.reporter_confirmed_at) {
-      throw createIncidentStateError(
-        'INCIDENT_ALREADY_CONFIRMED',
-        'Incident resolution has already been confirmed.',
-        409
-      );
+      return incident;
     }
 
     try {
       const updated = await pool.query(
         `UPDATE incident_reports
          SET reporter_confirmed_at = CURRENT_TIMESTAMP,
-             reporter_confirmed_by_user_id = $2
+             reporter_confirmed_by_user_id = $2,
+             status = 'closed',
+             verified = TRUE,
+             closed_at = COALESCE(closed_at, CURRENT_TIMESTAMP),
+             closed_by_user_id = COALESCE(closed_by_user_id, $2),
+             closure_method = COALESCE(closure_method, 'auto_from_reporter_confirmation')
          WHERE report_id = $1
          RETURNING *`,
         [report_id, reporter_user_id]
       );
       return updated.rows[0] || null;
     } catch (error) {
-      if (error.code === '42703' || /reporter_confirmed/i.test(error.message)) {
-        const fallback = await pool.query(
-          'SELECT * FROM incident_reports WHERE report_id = $1',
-          [report_id]
-        );
-        return fallback.rows[0] || null;
+      if (error.code === '42703' || /reporter_confirmed|closed_at|closed_by_user_id|closure_method/i.test(error.message)) {
+        try {
+          const fallbackWithReporterFields = await pool.query(
+            `UPDATE incident_reports
+             SET reporter_confirmed_at = CURRENT_TIMESTAMP,
+                 reporter_confirmed_by_user_id = $2,
+                 status = 'closed',
+                 verified = TRUE
+             WHERE report_id = $1
+             RETURNING *`,
+            [report_id, reporter_user_id]
+          );
+          return fallbackWithReporterFields.rows[0] || null;
+        } catch (fallbackError) {
+          if (fallbackError.code === '42703' || /reporter_confirmed_at|reporter_confirmed_by_user_id/i.test(fallbackError.message)) {
+            const fallbackStatusOnly = await pool.query(
+              `UPDATE incident_reports
+               SET status = 'closed',
+                   verified = TRUE
+               WHERE report_id = $1
+               RETURNING *`,
+              [report_id]
+            );
+            return fallbackStatusOnly.rows[0] || null;
+          }
+          throw fallbackError;
+        }
       }
       throw error;
     }

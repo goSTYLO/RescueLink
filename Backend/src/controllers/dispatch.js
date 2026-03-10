@@ -258,6 +258,22 @@ const dispatchController = {
         assigned_by_user_id: assignedByUserId,
       });
 
+      try {
+        await Responder.updateStatus(validatedResponderId, 'busy');
+      } catch (err) {
+        console.error('Failed to update responder status to busy:', err.message);
+      }
+      if (validatedDepartmentCode && validatedTeamName) {
+        try {
+          const team = await Responder.findTeamByDepartmentAndName(validatedDepartmentCode, validatedTeamName);
+          if (team && team.team_id) {
+            await Responder.updateTeamStatus(team.team_id, 'busy');
+          }
+        } catch (err) {
+          console.error('Failed to update team status to busy:', err.message);
+        }
+      }
+
       await logDispatcherAction(req, 'dispatch_create', 'dispatch', dispatch.dispatch_id, {
         report_id: validatedReportId,
         responder_id: validatedResponderId,

@@ -70,6 +70,48 @@ async function attachAssignedDepartment(incident, reportId) {
   return incident;
 }
 
+async function releaseIncidentResources(reportId) {
+  try {
+    const dispatches = await Dispatch.findAll({ report_id: reportId, limit: 100 });
+    const seenTeams = new Set();
+
+    for (const d of dispatches || []) {
+      const dc = d.department_code;
+      const tn = d.team_name;
+      if (dc && tn) {
+        const key = `${String(dc).toLowerCase()}::${String(tn).toLowerCase()}`;
+        if (!seenTeams.has(key)) {
+          seenTeams.add(key);
+          try {
+            const team = await Responder.findTeamByDepartmentAndName(dc, tn);
+            if (team && team.team_id) {
+              await Responder.updateTeamStatus(team.team_id, 'available');
+            }
+          } catch (err) {
+            console.error('Failed to release team status:', err.message);
+          }
+        }
+      }
+
+      if (d.responder_id) {
+        try {
+          await Responder.updateStatus(d.responder_id, 'available');
+        } catch (err) {
+          console.error('Failed to release responder status:', err.message);
+        }
+      }
+    }
+
+    try {
+      await Department.releaseUnitsFromReport(reportId);
+    } catch (err) {
+      console.error('Failed to release units:', err.message);
+    }
+  } catch (err) {
+    console.error('Error releasing incident resources:', err.message);
+  }
+}
+
 const incidentController = {
   // Create emergency incident report (fast endpoint, no AI classification)
   async createEmergency(req, res) {
@@ -178,7 +220,7 @@ const incidentController = {
       const { limit, offset, severity_level, status, incident_type, barangay } = req.query;
       const { limit: validatedLimit, offset: validatedOffset } = validatePagination(limit, offset);
       const validatedSeverityLevel = validateAllowedValue(severity_level, ['low', 'medium', 'high'], 'severity_level');
-      const validatedStatus = validateAllowedValue(status, ['pending', 'verified', 'in_progress', 'resolved'], 'status');
+      const validatedStatus = validateAllowedValue(status, ['pending', 'verified', 'in_progress', 'resolved', 'closed'], 'status');
       const validatedIncidentType = validateAllowedValue(incident_type, ['fire', 'medical', 'police', 'disaster'], 'incident_type');
       const validatedBarangay = validateOptionalString(barangay, 'barangay', 150);
 
@@ -253,7 +295,7 @@ const incidentController = {
 
       const { limit, offset, status, incident_type } = req.query;
       const { limit: validatedLimit, offset: validatedOffset } = validatePagination(limit, offset);
-      const validatedStatus = validateAllowedValue(status, ['pending', 'verified', 'in_progress', 'resolved'], 'status');
+      const validatedStatus = validateAllowedValue(status, ['pending', 'verified', 'in_progress', 'resolved', 'closed'], 'status');
       const validatedIncidentType = validateAllowedValue(incident_type, ['fire', 'medical', 'police', 'disaster'], 'incident_type');
 
       const incidents = await Incident.findByUserId(user_id, {
@@ -708,42 +750,8 @@ const incidentController = {
         return res.status(404).json({ error: 'Incident not found' });
       }
 
-      if (nextStatus === 'resolved') {
-        try {
-          const dispatches = await Dispatch.findAll({ report_id: validatedId, limit: 100 });
-          const seenTeams = new Set();
-          for (const d of dispatches || []) {
-            const dc = d.department_code;
-            const tn = d.team_name;
-            if (dc && tn) {
-              const key = `${String(dc).toLowerCase()}::${String(tn).toLowerCase()}`;
-              if (seenTeams.has(key)) continue;
-              seenTeams.add(key);
-              try {
-                const team = await Responder.findTeamByDepartmentAndName(dc, tn);
-                if (team && team.team_id) {
-                  await Responder.updateTeamStatus(team.team_id, 'available');
-                }
-              } catch (err) {
-                console.error('Failed to release team status on resolve:', err.message);
-              }
-            }
-            if (d.responder_id) {
-              try {
-                await Responder.updateStatus(d.responder_id, 'available');
-              } catch (err) {
-                console.error('Failed to release responder status on resolve:', err.message);
-              }
-            }
-          }
-          try {
-            await Department.releaseUnitsFromReport(validatedId);
-          } catch (err) {
-            console.error('Failed to release units on resolve:', err.message);
-          }
-        } catch (err) {
-          console.error('Error releasing assigned team/vehicle on resolve:', err.message);
-        }
+      if (nextStatus === 'resolved' || nextStatus === 'closed') {
+        await releaseIncidentResources(validatedId);
       }
 
       await logIncidentAction(req, 'incident_status_update', validatedId, {
@@ -777,6 +785,10 @@ const incidentController = {
       const updatedIncident = await Incident.confirmResolution(validatedId, userId);
       if (!updatedIncident) {
         return res.status(404).json({ error: 'Incident not found' });
+      }
+
+      if (updatedIncident.status === 'closed') {
+        await releaseIncidentResources(validatedId);
       }
 
       await logIncidentAction(req, 'incident_reporter_confirm_resolution', validatedId, {});

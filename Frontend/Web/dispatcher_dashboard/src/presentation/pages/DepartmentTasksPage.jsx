@@ -24,7 +24,8 @@ export function DepartmentTasksPage() {
   }, [user.role, navigate]);
 
   const activeIncidents = (mockIncidents || []).filter(
-    (inc) => inc.assignedDepartmentId === departmentId && inc.status !== 'Resolved' && inc.status !== 'resolved'
+    (inc) => inc.assignedDepartmentId === departmentId
+      && !['resolved', 'closed'].includes(String(inc.status || '').toLowerCase())
   );
 
   const getSeverityColor = (severity) => {
@@ -42,6 +43,7 @@ export function DepartmentTasksPage() {
       verified: 'bg-purple-500/20 text-purple-400',
       'in progress': 'bg-indigo-500/20 text-indigo-400',
       resolved: 'bg-green-500/20 text-green-400',
+      closed: 'bg-emerald-700/20 text-emerald-300',
     };
     const cls = map[s] || 'bg-muted text-muted-foreground';
     return <Badge className={cls}>{status || '—'}</Badge>;
@@ -195,7 +197,7 @@ export function DepartmentTasksPage() {
         <Card className="p-4 bg-primary/5 border-primary/20 rounded-2xl">
           <h3 className="font-semibold text-foreground mb-2">Task View</h3>
           <ul className="text-sm text-muted space-y-1 list-disc list-inside">
-            <li>This page shows all incidents assigned to your department that are not yet resolved</li>
+            <li>This page shows all incidents assigned to your department that are not yet resolved or closed</li>
             <li>Click &quot;View Details&quot; to see full incident information</li>
             <li>Coordinate with your team and department admin for task assignments</li>
           </ul>

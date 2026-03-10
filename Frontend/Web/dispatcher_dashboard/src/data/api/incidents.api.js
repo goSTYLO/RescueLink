@@ -9,7 +9,7 @@ import {
   parseJsonOrEmpty,
 } from '@/data/api/http';
 
-const CANONICAL_INCIDENT_STATUSES = new Set(['pending', 'verified', 'in_progress', 'resolved']);
+const CANONICAL_INCIDENT_STATUSES = new Set(['pending', 'verified', 'in_progress', 'resolved', 'closed']);
 const INCIDENT_LIST_CACHE_MS = 8000;
 const incidentsCache = new Map();
 const inflightRequests = new Map();
@@ -28,7 +28,7 @@ export function normalizeIncidentStatus(value) {
  * @param {number} [params.limit=100] - Number of records to return
  * @param {number} [params.offset=0] - Number of records to skip
  * @param {string} [params.severity_level] - Filter by severity (high, medium, low)
- * @param {string} [params.status] - Filter by status (pending, verified, resolved)
+ * @param {string} [params.status] - Filter by status (pending, verified, in_progress, resolved, closed)
  * @param {string} [params.incident_type] - Filter by incident type (fire, medical, police, disaster)
  * @param {string} [params.barangay] - Filter by barangay
  * @param {boolean} [params.withMeta=false] - Include backend pagination metadata

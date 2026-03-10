@@ -869,13 +869,13 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
                               Container(
                                 padding: const EdgeInsets.all(16),
                                 decoration: BoxDecoration(
-                                  color: ReportStatusUi.isResolved(
+                                  color: ReportStatusUi.isResolvedOrClosed(
                                           _incident?['status'] as String?)
                                       ? const Color(0xFFDCFCE7)
                                       : const Color(0xFFEFF6FF),
                                   borderRadius: BorderRadius.circular(12),
                                   border: Border.all(
-                                    color: ReportStatusUi.isResolved(
+                                    color: ReportStatusUi.isResolvedOrClosed(
                                             _incident?['status'] as String?)
                                         ? const Color(0xFF86EFAC)
                                         : const Color(0xFFBFDBFE),
@@ -885,11 +885,11 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Icon(
-                                      ReportStatusUi.isResolved(
+                                      ReportStatusUi.isResolvedOrClosed(
                                               _incident?['status'] as String?)
                                           ? Icons.check_circle
                                           : Icons.info,
-                                      color: ReportStatusUi.isResolved(
+                                      color: ReportStatusUi.isResolvedOrClosed(
                                               _incident?['status'] as String?)
                                           ? const Color(0xFF22C55E)
                                           : const Color(0xFF2563EB),
@@ -902,33 +902,35 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
                                             CrossAxisAlignment.start,
                                         children: [
                                           Text(
-                                            ReportStatusUi.isResolved(
-                                                    _incident?['status']
-                                                        as String?)
+                                              ReportStatusUi.isClosed(
+                                                _incident?['status'] as String?)
+                                            ? 'Incident Closed'
+                                            : (ReportStatusUi.isResolved(
+                                              _incident?['status'] as String?)
                                                 ? 'Emergency Resolved'
-                                                : 'Emergency In Progress',
+                                                : 'Emergency In Progress'),
                                             style: TextStyle(
                                               fontSize: 15,
                                               fontWeight: FontWeight.bold,
-                                              color: ReportStatusUi.isResolved(
-                                                      _incident?['status']
-                                                          as String?)
+                                                color: ReportStatusUi.isResolvedOrClosed(
+                                                  _incident?['status'] as String?)
                                                   ? const Color(0xFF166534)
                                                   : const Color(0xFF1E40AF),
                                             ),
                                           ),
                                           const SizedBox(height: 4),
                                           Text(
-                                            ReportStatusUi.isResolved(
-                                                    _incident?['status']
-                                                        as String?)
+                                              ReportStatusUi.isClosed(
+                                                _incident?['status'] as String?)
+                                            ? 'Closed on ${formatReportDateTime((_incident?['closed_at'] ?? _incident?['updated_at']) as String?)}.'
+                                            : (ReportStatusUi.isResolved(
+                                              _incident?['status'] as String?)
                                                 ? 'Resolved on ${formatReportDateTime(_incident?['updated_at'] as String?)}.'
-                                                : 'Latest status: ${ReportStatusUi.label(_incident?['status'] as String?)}.',
+                                                : 'Latest status: ${ReportStatusUi.label(_incident?['status'] as String?)}.'),
                                             style: TextStyle(
                                               fontSize: 13,
-                                              color: ReportStatusUi.isResolved(
-                                                      _incident?['status']
-                                                          as String?)
+                                                color: ReportStatusUi.isResolvedOrClosed(
+                                                  _incident?['status'] as String?)
                                                   ? const Color(0xFF15803D)
                                                   : const Color(0xFF1E40AF),
                                             ),
@@ -957,16 +959,20 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
                                       : 'Confirm Resolution'),
                                 ),
                               ],
-                              if (ReportStatusUi.isResolved(
+                              if (ReportStatusUi.isResolvedOrClosed(
                                       _incident?['status'] as String?) &&
                                   _reporterConfirmed) ...[
                                 const SizedBox(height: 12),
-                                const Row(
+                                Row(
                                   children: [
-                                    Icon(Icons.check_circle, color: Color(0xFF22C55E), size: 20),
-                                    SizedBox(width: 8),
-                                    Text('You confirmed this resolution.',
-                                        style: TextStyle(fontSize: 13, color: Color(0xFF15803D))),
+                                    const Icon(Icons.check_circle, color: Color(0xFF22C55E), size: 20),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      ReportStatusUi.isClosed(_incident?['status'] as String?)
+                                          ? 'You confirmed this resolution. Incident is now closed.'
+                                          : 'You confirmed this resolution.',
+                                      style: const TextStyle(fontSize: 13, color: Color(0xFF15803D)),
+                                    ),
                                   ],
                                 ),
                               ],
@@ -985,6 +991,8 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
   Widget _buildStatusCard() {
     final status = _status;
     final isResolved = ReportStatusUi.isResolved(status);
+    final isClosed = ReportStatusUi.isClosed(status);
+    final isFinalized = ReportStatusUi.isResolvedOrClosed(status);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       decoration: BoxDecoration(
@@ -1001,7 +1009,9 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
           ),
           const SizedBox(height: 12),
           Text(
-            isResolved ? 'Successfully Resolved' : ReportStatusUi.label(status),
+            isClosed
+                ? 'Incident Closed'
+                : (isResolved ? 'Successfully Resolved' : ReportStatusUi.label(status)),
             style: TextStyle(
               fontSize: 17,
               fontWeight: FontWeight.bold,
@@ -1010,9 +1020,12 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
           ),
           const SizedBox(height: 4),
           Text(
-            isResolved
-                ? 'Incident is resolved.'
+            isClosed
+                ? 'Incident is fully closed after your confirmation.'
+                : (isResolved
+                ? 'Incident is resolved and waiting for reporter confirmation.'
                 : 'Status is synced from the latest report record.',
+                ),
             style: TextStyle(
               fontSize: 13,
               color: ReportStatusUi.badgeText(status),
@@ -1035,6 +1048,7 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
       hasAiClassification: _aiClassification != null,
       createdAt: _incident?['created_at'] as String?,
       updatedAt: _incident?['updated_at'] as String?,
+      closedAt: _incident?['closed_at'] as String?,
     );
 
     return _whiteCard(

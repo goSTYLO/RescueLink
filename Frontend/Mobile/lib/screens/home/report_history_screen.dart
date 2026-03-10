@@ -18,7 +18,7 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
   bool _loadingMore = false;
   bool _hasMore = true;
   String? _error;
-  String? _filterStatus; // null = All; pending, verified, in_progress, resolved
+  String? _filterStatus; // null = All; pending, verified, in_progress, resolved, closed
   String? _filterType;   // null = All; fire, medical, police, disaster
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
@@ -352,6 +352,7 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                 _filterChip('Verified', _filterStatus == 'verified', () => setState(() { _filterStatus = 'verified'; _loadIncidents(); })),
                 _filterChip('In progress', _filterStatus == 'in_progress', () => setState(() { _filterStatus = 'in_progress'; _loadIncidents(); })),
                 _filterChip('Resolved', _filterStatus == 'resolved', () => setState(() { _filterStatus = 'resolved'; _loadIncidents(); })),
+                _filterChip('Closed', _filterStatus == 'closed', () => setState(() { _filterStatus = 'closed'; _loadIncidents(); })),
               ],
             ),
           ),
@@ -403,17 +404,17 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: _summaryCard(
-                    value: '${_filteredIncidents.where((e) => _status(e)?.toLowerCase() == 'resolved' || _status(e)?.toLowerCase() == 'closed').length}',
+                    value: '${_filteredIncidents.where((e) => _status(e)?.toLowerCase() == 'resolved').length}',
                     label: 'Resolved',
-                    valueColor: const Color(0xFF22C55E),
+                    valueColor: const Color(0xFFF59E0B),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: _summaryCard(
-                    value: '${_filteredIncidents.where((e) => _status(e)?.toLowerCase() != 'resolved' && _status(e)?.toLowerCase() != 'closed').length}',
-                    label: 'Active',
-                    valueColor: const Color(0xFF2563EB),
+                    value: '${_filteredIncidents.where((e) => _status(e)?.toLowerCase() == 'closed').length}',
+                    label: 'Closed',
+                    valueColor: const Color(0xFF22C55E),
                   ),
                 ),
               ],

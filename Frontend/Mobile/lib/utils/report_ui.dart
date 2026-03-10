@@ -21,7 +21,6 @@ class ReportTimelineStep {
 class ReportStatusUi {
   static String normalize(String? status) {
     final value = (status ?? '').trim().toLowerCase();
-    if (value == 'closed') return 'resolved';
     if (value == 'in-progress') return 'in_progress';
     if (value.isEmpty) return 'pending';
     return value;
@@ -29,6 +28,8 @@ class ReportStatusUi {
 
   static String label(String? status) {
     switch (normalize(status)) {
+      case 'closed':
+        return 'Closed';
       case 'resolved':
         return 'Resolved';
       case 'verified':
@@ -42,9 +43,13 @@ class ReportStatusUi {
   }
 
   static bool isResolved(String? status) => normalize(status) == 'resolved';
+  static bool isClosed(String? status) => normalize(status) == 'closed';
+  static bool isResolvedOrClosed(String? status) => isResolved(status) || isClosed(status);
 
   static Color badgeBackground(String? status) {
     switch (normalize(status)) {
+      case 'closed':
+        return const Color(0xFFD1FAE5);
       case 'resolved':
         return const Color(0xFFDCFCE7);
       case 'verified':
@@ -59,6 +64,8 @@ class ReportStatusUi {
 
   static Color badgeBorder(String? status) {
     switch (normalize(status)) {
+      case 'closed':
+        return const Color(0xFF34D399);
       case 'resolved':
         return const Color(0xFF86EFAC);
       case 'verified':
@@ -73,6 +80,8 @@ class ReportStatusUi {
 
   static Color badgeText(String? status) {
     switch (normalize(status)) {
+      case 'closed':
+        return const Color(0xFF065F46);
       case 'resolved':
         return const Color(0xFF15803D);
       case 'verified':
@@ -87,6 +96,8 @@ class ReportStatusUi {
 
   static IconData badgeIcon(String? status) {
     switch (normalize(status)) {
+      case 'closed':
+        return Icons.task_alt;
       case 'resolved':
         return Icons.check_circle;
       case 'verified':
@@ -104,11 +115,13 @@ class ReportStatusUi {
     required bool hasAiClassification,
     String? createdAt,
     String? updatedAt,
+    String? closedAt,
   }) {
     final normalized = normalize(status);
-    final isVerified = normalized == 'verified' || normalized == 'in_progress' || normalized == 'resolved';
-    final isInProgress = normalized == 'in_progress' || normalized == 'resolved';
-    final isResolvedStatus = normalized == 'resolved';
+    final isVerified = normalized == 'verified' || normalized == 'in_progress' || normalized == 'resolved' || normalized == 'closed';
+    final isInProgress = normalized == 'in_progress' || normalized == 'resolved' || normalized == 'closed';
+    final isResolvedStatus = normalized == 'resolved' || normalized == 'closed';
+    final isClosedStatus = normalized == 'closed';
 
     return [
       ReportTimelineStep(
@@ -159,6 +172,17 @@ class ReportStatusUi {
                 : 'Resolved')
             : 'Pending',
         isCompleted: isResolvedStatus,
+      ),
+      ReportTimelineStep(
+        icon: Icons.task_alt,
+        iconColor: const Color(0xFF065F46),
+        title: 'Closed',
+        subtitle: isClosedStatus
+            ? (closedAt != null
+                ? 'Closed at ${formatReportDateTime(closedAt)}'
+                : 'Closed after reporter confirmation')
+            : 'Waiting for reporter confirmation',
+        isCompleted: isClosedStatus,
       ),
     ];
   }

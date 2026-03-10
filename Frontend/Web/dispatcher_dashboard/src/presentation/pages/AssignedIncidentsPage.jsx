@@ -19,7 +19,7 @@ function mapApiIncidentToRow(api) {
   const emergencyType = typeMap[api.incident_type?.toLowerCase()] || (api.incident_type ? String(api.incident_type).charAt(0).toUpperCase() + String(api.incident_type).slice(1) : '—');
   const severityMap = { high: 'Critical', medium: 'Warning', low: 'Low' };
   const severity = severityMap[api.severity_level?.toLowerCase()] || (api.severity_level || '—');
-  const statusMap = { pending: 'Pending', resolved: 'Resolved', verified: 'Verified', in_progress: 'In Progress' };
+  const statusMap = { pending: 'Pending', resolved: 'Resolved', closed: 'Closed', verified: 'Verified', in_progress: 'In Progress' };
   const canonicalStatus = normalizeIncidentStatus(api.status);
   const status = statusMap[canonicalStatus];
   let timeReported = '—';
@@ -101,6 +101,7 @@ export function AssignedIncidentsPage() {
       'in progress': 'bg-indigo-500/20 text-indigo-400',
       assigned: 'bg-indigo-500/20 text-indigo-400',
       resolved: 'bg-green-500/20 text-green-400',
+      closed: 'bg-emerald-700/20 text-emerald-300',
     };
     const cls = map[s] || 'bg-muted text-muted-foreground';
     return <Badge className={cls}>{status || '—'}</Badge>;
