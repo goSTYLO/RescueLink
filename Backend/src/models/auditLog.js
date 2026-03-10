@@ -32,7 +32,8 @@ function decodeAuditUserFields(row) {
     user_last_name: tryDecryptValue(row.user_last_name)
   };
 }
-const { tryDecryptValue, recursivelyDecrypt } = require('../utils/encryption');
+
+const { recursivelyDecrypt } = require('../utils/encryption');
 
 function decodeAuditRow(row) {
   if (!row || typeof row !== 'object') return row;

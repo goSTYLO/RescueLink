@@ -2,6 +2,70 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "label": "Backend: dev",
+      "type": "shell",
+      "command": "npm run dev",
+      "options": {
+        "cwd": "${workspaceFolder}/Backend",
+        "env": {}
+      },
+      "problemMatcher": {
+        "owner": "rescue",
+        "pattern": { "regexp": "^.*$" },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".",
+          "endsPattern": "listening|Listening|started|EADDRINUSE"
+        }
+      },
+      "presentation": { "reveal": "always", "panel": "dedicated", "focus": false },
+      "isBackground": true
+    },
+    {
+      "label": "RescueLink AI: dev",
+      "type": "shell",
+      "command": "${workspaceFolder}/venv/Scripts/python.exe",
+      "args": ["-m", "uvicorn", "api.main:app", "--reload", "--port", "8000"],
+      "options": {
+        "cwd": "${workspaceFolder}/RescueLink AI"
+      },
+      "problemMatcher": {
+        "owner": "rescue",
+        "pattern": { "regexp": "^.*$" },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".",
+          "endsPattern": "Uvicorn running|Application startup complete"
+        }
+      },
+      "presentation": { "reveal": "always", "panel": "dedicated", "focus": false },
+      "isBackground": true
+    },
+    {
+      "label": "Blockchain: dev",
+      "type": "shell",
+      "command": "python -m uvicorn main:app --host 0.0.0.0 --port 8001",
+      "options": {
+        "cwd": "${workspaceFolder}/Blockchain"
+      },
+      "problemMatcher": {
+        "owner": "rescue",
+        "pattern": { "regexp": "^.*$" },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".",
+          "endsPattern": "Uvicorn running|Application startup complete"
+        }
+      },
+      "presentation": { "reveal": "always", "panel": "dedicated", "focus": false },
+      "isBackground": true
+    },
+    {
+      "label": "Run All Services",
+      "dependsOn": ["Backend: dev", "RescueLink AI: dev", "Blockchain: dev"],
+      "dependsOrder": "parallel"
+    },
+    {
       "label": "Flutter: Pub Get",
       "type": "shell",
       "command": "flutter",
