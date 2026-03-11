@@ -92,6 +92,7 @@ CREATE TABLE IF NOT EXISTS incident_reports (
   reporter_confirmed_at TIMESTAMP,
   reporter_confirmed_by_user_id INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
   resolved_by_user_id INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
+  resolved_at TIMESTAMP,
   closed_at TIMESTAMP,
   closed_by_user_id INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
   closure_method VARCHAR(80),
@@ -130,6 +131,7 @@ ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS quarantine_reason TEXT;
 ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS reporter_confirmed_at TIMESTAMP;
 ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS reporter_confirmed_by_user_id INTEGER REFERENCES users(user_id) ON DELETE SET NULL;
 ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS resolved_by_user_id INTEGER REFERENCES users(user_id) ON DELETE SET NULL;
+ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMP;
 ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS closed_at TIMESTAMP;
 ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS closed_by_user_id INTEGER REFERENCES users(user_id) ON DELETE SET NULL;
 ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS closure_method VARCHAR(80);
@@ -137,6 +139,7 @@ ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS closure_notes TEXT;
 CREATE INDEX IF NOT EXISTS idx_incident_reports_scan_status ON incident_reports(scan_status);
 CREATE INDEX IF NOT EXISTS idx_incident_reports_reporter_confirmed_at ON incident_reports(reporter_confirmed_at);
 CREATE INDEX IF NOT EXISTS idx_incident_reports_resolved_by_user_id ON incident_reports(resolved_by_user_id);
+CREATE INDEX IF NOT EXISTS idx_incident_reports_resolved_at ON incident_reports(resolved_at);
 CREATE INDEX IF NOT EXISTS idx_incident_reports_closed_at ON incident_reports(closed_at);
 CREATE INDEX IF NOT EXISTS idx_incident_reports_closed_by_user_id ON incident_reports(closed_by_user_id);
 

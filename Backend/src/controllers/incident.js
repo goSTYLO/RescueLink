@@ -3,6 +3,7 @@ const User = require('../models/user');
 const Department = require('../models/department');
 const Dispatch = require('../models/dispatch');
 const Responder = require('../models/responder');
+const IncidentCoordinationNote = require('../models/incidentCoordinationNote');
 const pool = require('../config/db');
 const { validateLatitude, validateLongitude, validateInteger, validatePagination, validateOptionalString, validateAllowedValue } = require('../utils/validation');
 const { getBarangayFromCoordinates } = require('../utils/geolocation');
@@ -66,6 +67,88 @@ async function attachAssignedDepartment(incident, reportId) {
     }
   } catch (err) {
     console.error('Error attaching assigned department:', err.message);
+  }
+  return incident;
+}
+
+/**
+ * Build incident timeline from created_at, dispatches, resolved_at, and closed_at.
+ * Returns array of events sorted chronologically by timestamp.
+ */
+async function buildIncidentTimeline(incident, reportId) {
+  if (!incident || reportId == null) return incident;
+  try {
+    const events = [];
+
+    // 1. Created event
+    if (incident.created_at) {
+      events.push({
+        type: 'created',
+        timestamp: incident.created_at,
+        label: 'Incident created',
+        detail: incident.reporter_name || incident.reporterName || null,
+      });
+    }
+
+    // 2. Assignment events from dispatches
+    const dispatches = await Dispatch.findAll({ report_id: reportId, limit: 50 });
+    if (dispatches && dispatches.length > 0) {
+      // Sort by dispatched_at ascending
+      const sortedDispatches = dispatches
+        .filter(d => d.dispatched_at)
+        .sort((a, b) => new Date(a.dispatched_at) - new Date(b.dispatched_at));
+
+      for (const d of sortedDispatches) {
+        const deptName = d.department_name || d.department_code || 'Department';
+        const teamPart = d.team_name ? ` (${d.team_name})` : '';
+        events.push({
+          type: 'assigned',
+          timestamp: d.dispatched_at,
+          label: `Assigned to ${deptName}${teamPart}`,
+          detail: {
+            department_name: d.department_name || null,
+            department_code: d.department_code || null,
+            team_name: d.team_name || null,
+            assigned_by_user_id: d.assigned_by_user_id || null,
+          },
+        });
+      }
+    }
+
+    // 3. Resolved event
+    if (incident.resolved_at || (incident.status === 'resolved' && incident.resolved_by_user_id)) {
+      events.push({
+        type: 'resolved',
+        timestamp: incident.resolved_at || incident.updated_at || null,
+        label: 'Marked as done',
+        detail: incident.resolved_by_user_id ? { resolved_by_user_id: incident.resolved_by_user_id } : null,
+      });
+    }
+
+    // 4. Closed event
+    if (incident.closed_at || incident.status === 'closed') {
+      events.push({
+        type: 'closed',
+        timestamp: incident.closed_at || incident.updated_at || null,
+        label: 'Closed',
+        detail: {
+          closed_by_user_id: incident.closed_by_user_id || null,
+          closure_method: incident.closure_method || null,
+        },
+      });
+    }
+
+    // Sort all events by timestamp ascending
+    events.sort((a, b) => {
+      if (!a.timestamp) return 1;
+      if (!b.timestamp) return -1;
+      return new Date(a.timestamp) - new Date(b.timestamp);
+    });
+
+    incident.timeline = events;
+  } catch (err) {
+    console.error('Error building incident timeline:', err.message);
+    incident.timeline = [];
   }
   return incident;
 }
@@ -189,6 +272,7 @@ const incidentController = {
             const dispatches = await Dispatch.findAll({ report_id: validatedId, department_code: dept.code, limit: 1 });
             if (dispatches && dispatches.length > 0) {
               await attachAssignedDepartment(incident, validatedId);
+              await buildIncidentTimeline(incident, validatedId);
               return res.json(incident);
             }
           }
@@ -199,6 +283,7 @@ const incidentController = {
       }
 
       await attachAssignedDepartment(incident, validatedId);
+      await buildIncidentTimeline(incident, validatedId);
       res.json(incident);
     } catch (error) {
       console.error('Error fetching incident:', error);
@@ -877,6 +962,169 @@ const incidentController = {
     }
   },
 
+  // Get coordination notes for an incident
+  async getCoordinationNotes(req, res) {
+    try {
+      const { id } = req.params;
+      const validatedId = validateInteger(id, 'report_id');
+
+      const incident = await Incident.findById(validatedId);
+      if (!incident) {
+        return res.status(404).json({ error: 'Incident not found' });
+      }
+
+      // Same access check as getById: dispatchers/admins see all; department-head/department-admin see if assigned to their department; users see own only
+      const deptRole = req.user.role === ROLES.DEPARTMENT_HEAD || req.user.role === ROLES.DEPARTMENT_ADMIN;
+      if (deptRole && req.user.user_id) {
+        const fullUser = await User.findById(req.user.user_id);
+        if (fullUser && fullUser.department_id) {
+          const dept = await Department.findById(fullUser.department_id);
+          if (dept && dept.code) {
+            const dispatches = await Dispatch.findAll({ report_id: validatedId, department_code: dept.code, limit: 1 });
+            if (dispatches && dispatches.length > 0) {
+              // Allowed - fall through to fetch notes
+            } else {
+              return res.status(403).json({ error: 'Forbidden. You can only access incidents assigned to your department.' });
+            }
+          } else {
+            return res.status(403).json({ error: 'Forbidden. Department not found.' });
+          }
+        } else {
+          return res.status(403).json({ error: 'Forbidden. User department not set.' });
+        }
+      } else if (!isResourceOwner(req.user, incident.user_id)) {
+        return res.status(403).json({ error: 'Forbidden. You can only access your own incidents.' });
+      }
+
+      const notes = await IncidentCoordinationNote.findByReportId(validatedId);
+
+      // Format notes for frontend compatibility
+      const formattedNotes = notes.map((n) => ({
+        id: n.id,
+        report_id: n.report_id,
+        user_id: n.user_id,
+        author: n.author_name,
+        role: n.author_role,
+        department: n.department,
+        note: n.note,
+        source: n.source,
+        timestamp: new Date(n.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }),
+        created_at: n.created_at,
+      }));
+
+      res.json(formattedNotes);
+    } catch (error) {
+      console.error('Error fetching coordination notes:', error);
+      if (error.message.includes('must be') || error.message.includes('must not')) {
+        return res.status(400).json({ error: error.message });
+      }
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+
+  // Add a coordination note to an incident
+  async addCoordinationNote(req, res) {
+    try {
+      const { id } = req.params;
+      const { note } = req.body;
+      const validatedId = validateInteger(id, 'report_id');
+
+      // Validate note content
+      if (!note || typeof note !== 'string' || note.trim().length === 0) {
+        return res.status(400).json({ error: 'Note is required and must be a non-empty string.' });
+      }
+      const trimmedNote = note.trim();
+      if (trimmedNote.length > 2000) {
+        return res.status(400).json({ error: 'Note must not exceed 2000 characters.' });
+      }
+
+      const incident = await Incident.findById(validatedId);
+      if (!incident) {
+        return res.status(404).json({ error: 'Incident not found' });
+      }
+
+      // Same access check as getById
+      const deptRole = req.user.role === ROLES.DEPARTMENT_HEAD || req.user.role === ROLES.DEPARTMENT_ADMIN;
+      if (deptRole && req.user.user_id) {
+        const fullUser = await User.findById(req.user.user_id);
+        if (fullUser && fullUser.department_id) {
+          const dept = await Department.findById(fullUser.department_id);
+          if (dept && dept.code) {
+            const dispatches = await Dispatch.findAll({ report_id: validatedId, department_code: dept.code, limit: 1 });
+            if (dispatches && dispatches.length === 0) {
+              return res.status(403).json({ error: 'Forbidden. You can only add notes to incidents assigned to your department.' });
+            }
+          } else {
+            return res.status(403).json({ error: 'Forbidden. Department not found.' });
+          }
+        } else {
+          return res.status(403).json({ error: 'Forbidden. User department not set.' });
+        }
+      } else if (!isResourceOwner(req.user, incident.user_id)) {
+        return res.status(403).json({ error: 'Forbidden. You can only add notes to your own incidents.' });
+      }
+
+      // Build author info
+      const authorName = req.user.first_name && req.user.last_name
+        ? `${req.user.first_name} ${req.user.last_name}`.trim()
+        : (req.user.email || req.user.username || 'Dispatcher');
+
+      // Determine department for the note
+      let noteDepartment = 'Operations';
+      if (deptRole && req.user.user_id) {
+        const fullUser = await User.findById(req.user.user_id);
+        if (fullUser && fullUser.department_id) {
+          const dept = await Department.findById(fullUser.department_id);
+          if (dept && dept.name) {
+            noteDepartment = dept.name;
+          }
+        }
+      } else {
+        // Try to get from incident's assigned department
+        noteDepartment = incident.assigned_department || incident.assignedDepartment || 'Operations';
+      }
+
+      const createdNote = await IncidentCoordinationNote.create({
+        report_id: validatedId,
+        user_id: req.user.user_id,
+        author_name: authorName,
+        author_role: req.user.role || 'dispatcher',
+        department: noteDepartment,
+        note: trimmedNote,
+        source: 'Dispatcher UI',
+      });
+
+      // Log the action for audit trail
+      await logIncidentAction(req, 'add_coordination_note', validatedId, {
+        note_id: createdNote.id,
+        author: authorName,
+        role: req.user.role,
+      });
+
+      // Return formatted note for frontend compatibility
+      const formattedNote = {
+        id: createdNote.id,
+        report_id: createdNote.report_id,
+        user_id: createdNote.user_id,
+        author: createdNote.author_name,
+        role: createdNote.author_role,
+        department: createdNote.department,
+        note: createdNote.note,
+        source: createdNote.source,
+        timestamp: new Date(createdNote.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }),
+        created_at: createdNote.created_at,
+      };
+
+      res.status(201).json(formattedNote);
+    } catch (error) {
+      console.error('Error adding coordination note:', error);
+      if (error.message.includes('must be') || error.message.includes('must not')) {
+        return res.status(400).json({ error: error.message });
+      }
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+
   // Get incident with AI classification
   async getByIdWithAi(req, res) {
     try {
@@ -898,6 +1146,7 @@ const incidentController = {
             const dispatches = await Dispatch.findAll({ report_id: validatedId, department_code: dept.code, limit: 1 });
             if (dispatches && dispatches.length > 0) {
               await attachAssignedDepartment(incident, validatedId);
+              await buildIncidentTimeline(incident, validatedId);
               const classification = await Incident.getClassificationByReportId(validatedId);
               return res.json({ incident, ai_classification: classification || null });
             }
@@ -910,6 +1159,7 @@ const incidentController = {
 
       // Get AI classification if exists
       await attachAssignedDepartment(incident, validatedId);
+      await buildIncidentTimeline(incident, validatedId);
       const classification = await Incident.getClassificationByReportId(validatedId);
 
       res.json({

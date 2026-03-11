@@ -25,6 +25,8 @@ const MIGRATION_ORDER = [
   'add_incident_verified.sql',
   'add_ai_fields.sql',
   'add_upload_scan_fields.sql',
+  'add_incident_coordination_notes.sql',
+  'add_incident_resolved_at.sql',
 ];
 
 console.log('🔧 Setting up database...');

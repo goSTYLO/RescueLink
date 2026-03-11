@@ -116,13 +116,17 @@ export const coordinationNotes = {
       timestamp: "2026-01-20 08:52:00",
       department: "BFP Dagupan",
       author: "SFO3 Ramon Cruz",
-      note: "Need medical standby for potential casualties"
+      note: "Need medical standby for potential casualties",
+      role: "department-admin",
+      roleLabel: "Dept Admin"
     },
     {
       timestamp: "2026-01-20 08:53:15",
       department: "City Health Office",
       author: "Dr. Elena Gomez",
-      note: "AMB-02 on standby at scene perimeter"
+      note: "AMB-02 on standby at scene perimeter",
+      role: "personnel",
+      roleLabel: "Personnel"
     }
   ]
 };

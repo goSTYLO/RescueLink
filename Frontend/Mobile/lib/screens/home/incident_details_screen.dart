@@ -1024,8 +1024,7 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
                 ? 'Incident is fully closed after your confirmation.'
                 : (isResolved
                 ? 'Incident is resolved and waiting for reporter confirmation.'
-                : 'Status is synced from the latest report record.',
-                ),
+                : 'Status is synced from the latest report record.'),
             style: TextStyle(
               fontSize: 13,
               color: ReportStatusUi.badgeText(status),

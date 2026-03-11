@@ -643,6 +643,7 @@ const Incident = {
          SET status = $2,
              verified = CASE WHEN $3 IN ('verified', 'in_progress', 'resolved', 'closed') THEN TRUE ELSE verified END,
              resolved_by_user_id = CASE WHEN $3 = 'resolved' THEN $4 ELSE resolved_by_user_id END,
+             resolved_at = CASE WHEN $3 = 'resolved' THEN COALESCE(resolved_at, CURRENT_TIMESTAMP) ELSE resolved_at END,
              closed_at = CASE WHEN $3 = 'closed' THEN COALESCE(closed_at, CURRENT_TIMESTAMP) ELSE closed_at END,
              closed_by_user_id = CASE WHEN $3 = 'closed' THEN COALESCE($4, closed_by_user_id) ELSE closed_by_user_id END,
              closure_method = CASE WHEN $3 = 'closed' THEN COALESCE(closure_method, 'manual') ELSE closure_method END
@@ -652,20 +653,21 @@ const Incident = {
       );
       return updated.rows[0] || null;
     } catch (error) {
-      if (error.code === '42703' || /resolved_by_user_id|closed_at|closed_by_user_id|closure_method/i.test(error.message)) {
+      if (error.code === '42703' || /resolved_by_user_id|resolved_at|closed_at|closed_by_user_id|closure_method/i.test(error.message)) {
         try {
           const fallbackWithResolvedBy = await pool.query(
             `UPDATE incident_reports
              SET status = $2,
                  verified = CASE WHEN $3 IN ('verified', 'in_progress', 'resolved', 'closed') THEN TRUE ELSE verified END,
-                 resolved_by_user_id = CASE WHEN $3 = 'resolved' THEN $4 ELSE resolved_by_user_id END
+                 resolved_by_user_id = CASE WHEN $3 = 'resolved' THEN $4 ELSE resolved_by_user_id END,
+                 resolved_at = CASE WHEN $3 = 'resolved' THEN COALESCE(resolved_at, CURRENT_TIMESTAMP) ELSE resolved_at END
              WHERE report_id = $1
              RETURNING *`,
             [report_id, normalizedNext, normalizedNext, resolvedByUserId]
           );
           return fallbackWithResolvedBy.rows[0] || null;
         } catch (fallbackError) {
-          if (fallbackError.code === '42703' || /resolved_by_user_id/i.test(fallbackError.message)) {
+          if (fallbackError.code === '42703' || /resolved_by_user_id|resolved_at/i.test(fallbackError.message)) {
             const fallbackWithoutResolvedBy = await pool.query(
               `UPDATE incident_reports
                SET status = $2,

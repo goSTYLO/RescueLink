@@ -30,3 +30,16 @@ export function isDepartmentAdmin(role) {
 export function isPersonnel(role) {
   return normalizeRole(role) === ROLES.PERSONNEL;
 }
+
+// Map normalized role to a human-readable display label
+export function getRoleDisplayLabel(role) {
+  const normalized = normalizeRole(role);
+  const labels = {
+    [ROLES.SUPER_ADMIN]: 'Super Admin',
+    [ROLES.DISPATCHER]: 'Dispatcher',
+    [ROLES.DEPARTMENT_ADMIN]: 'Dept Admin',
+    [ROLES.DEPARTMENT_HEAD]: 'Dept Head',
+    [ROLES.PERSONNEL]: 'Personnel',
+  };
+  return labels[normalized] || 'Operator';
+}

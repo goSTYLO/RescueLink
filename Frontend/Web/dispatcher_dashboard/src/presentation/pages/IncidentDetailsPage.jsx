@@ -25,12 +25,12 @@ import {
   units
 } from '@/data/mock/mockData';
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { getIncidentById, getIncidentAudioUrl, getIncidentWithAi, reclassifyIncident, updateIncidentStatus, verifyIncident } from '@/data/api/incidents.api';
+import { getIncidentById, getIncidentAudioUrl, getIncidentWithAi, reclassifyIncident, updateIncidentStatus, verifyIncident, getCoordinationNotes, addCoordinationNote } from '@/data/api/incidents.api';
 import { getResponders, getResponderTeams, updateResponderStatus, updateResponderTeamStatus, getTeamMembers } from '@/data/api/responders.api';
 import { createDispatch } from '@/data/api/dispatches.api';
 import { getDepartments } from '@/data/api/departments.api';
 import { DEV_MODE } from '@/core/config/app.config';
-import { ROLES, normalizeRole } from '@/core/constants';
+import { ROLES, normalizeRole, getRoleDisplayLabel } from '@/core/constants';
 import { normalizeIncidentTaskType, doesTeamSupportIncidentType } from '@/core/utils/incidentClassification';
 import { Loader2 } from 'lucide-react';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
@@ -130,6 +130,7 @@ function mapApiToIncidentDetails(api, aiClassification = null) {
     assignedDepartments: api.assigned_department ? [api.assigned_department] : [],
     assignedTeamName: api.assigned_team_name || null,
     assignedTeamDepartmentCode: api.assigned_team_department_code || api.assigned_department_code || null,
+    timeline: api.timeline || [],
   };
 }
 
@@ -219,7 +220,11 @@ export function IncidentDetailsPage() {
     };
   }, [id, incident?.audioPath, incident?.id]);
 
-  const timeline = incidentTimelines[id || ''] || [];
+  // Use API timeline for numeric IDs, mock for non-numeric IDs
+  const isNumericId = /^\d+$/.test(String(id));
+  const timeline = isNumericId
+    ? (incident?.timeline || [])
+    : (incidentTimelines[id || ''] || []);
   const escalations = escalationHistory[id || ''] || [];
   const [coordination, setCoordination] = useState([]);
   const review = postIncidentReviews[id || ''];
@@ -358,8 +363,35 @@ export function IncidentDetailsPage() {
     return () => { cancelled = true; };
   }, []);
 
+  // Load coordination notes: use API for numeric IDs, sessionStorage for mock IDs
   useEffect(() => {
+    const isNumericId = /^\d+$/.test(String(id));
     const fallbackNotes = coordinationNotes[id || ''] || [];
+
+    if (isNumericId) {
+      // For real incidents (numeric IDs), fetch from API
+      let cancelled = false;
+      getCoordinationNotes(id)
+        .then((notes) => {
+          if (cancelled) return;
+          // Map API response to expected shape if needed
+          const mappedNotes = notes.map((n) => ({
+            ...n,
+            author: n.author || n.author_name,
+            roleLabel: n.roleLabel || getRoleDisplayLabel(n.role || n.author_role),
+          }));
+          setCoordination(mappedNotes);
+        })
+        .catch((err) => {
+          if (cancelled) return;
+          console.error('Failed to load coordination notes:', err);
+          // Fallback to empty on error
+          setCoordination([]);
+        });
+      return () => { cancelled = true; };
+    }
+
+    // For mock incidents (non-numeric IDs), use sessionStorage
     try {
       const stored = JSON.parse(sessionStorage.getItem(coordinationStorageKey) || '[]');
       if (Array.isArray(stored) && stored.length > 0) {
@@ -372,9 +404,13 @@ export function IncidentDetailsPage() {
     setCoordination(fallbackNotes);
   }, [coordinationStorageKey, id]);
 
+  // Persist coordination notes to sessionStorage only for mock IDs
   useEffect(() => {
-    sessionStorage.setItem(coordinationStorageKey, JSON.stringify(coordination));
-  }, [coordination, coordinationStorageKey]);
+    const isNumericId = /^\d+$/.test(String(id));
+    if (!isNumericId) {
+      sessionStorage.setItem(coordinationStorageKey, JSON.stringify(coordination));
+    }
+  }, [coordination, coordinationStorageKey, id]);
 
   useEffect(() => {
     const teams = responderTeams
@@ -795,12 +831,44 @@ export function IncidentDetailsPage() {
     }
   };
 
-  const handleAddCoordinationNote = () => {
+  const handleAddCoordinationNote = async () => {
     const trimmed = coordinationNote.trim();
     if (!trimmed) return;
+
+    const isNumericId = /^\d+$/.test(String(id));
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     const author = user?.name || user?.username || user?.email || 'Dispatcher';
     const department = incident?.assignedDepartment || user?.department || 'Operations';
+    const role = user?.role || 'dispatcher';
+    const roleLabel = getRoleDisplayLabel(role);
+
+    if (isNumericId) {
+      // For real incidents, call the API
+      try {
+        const newNote = await addCoordinationNote(id, { note: trimmed });
+        // Map the response to the expected shape
+        const mappedNote = {
+          ...newNote,
+          author: newNote.author || newNote.author_name || author,
+          role: newNote.role || newNote.author_role || role,
+          roleLabel: newNote.roleLabel || roleLabel,
+          department: newNote.department || department,
+          timestamp: newNote.timestamp || new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }),
+        };
+        setCoordination((prev) => [mappedNote, ...prev]);
+        setCoordinationNote('');
+      } catch (err) {
+        console.error('Failed to add coordination note:', err);
+        Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: err.message || 'Failed to add coordination note. Please try again.',
+        });
+      }
+      return;
+    }
+
+    // For mock incidents, use local state only
     const now = new Date();
     setCoordination((prev) => ([
       {
@@ -808,6 +876,8 @@ export function IncidentDetailsPage() {
         timestamp: now.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }),
         note: trimmed,
         author,
+        role,
+        roleLabel,
         source: 'Dispatcher UI',
       },
       ...prev,
@@ -1562,36 +1632,115 @@ export function IncidentDetailsPage() {
                 <h2 className="text-base font-semibold text-foreground">Incident Timeline</h2>
               </div>
               <div className="p-4">
-                <div className="space-y-4">
-                  {timeline.map((event, idx) => (
-                    <div key={idx} className="flex gap-4">
-                      <div className="flex flex-col items-center">
-                        <div className="w-3 h-3 rounded-full bg-primary" />
-                        {idx < timeline.length - 1 && (
-                          <div className={`w-0.5 h-full min-h-[40px] ${isLight ? 'bg-gray-300' : 'bg-white/20'}`} />
-                        )}
-                      </div>
-                      <div className="flex-1 pb-4">
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <p className="font-medium text-foreground">{event.action}</p>
-                            <p className="text-sm text-muted">
-                              {event.actor} ({event.actorRole})
-                            </p>
-                            {event.notes && (
-                              <p className="text-sm text-muted mt-1 italic">{event.notes}</p>
-                            )}
-                          </div>
-                          <span className="text-xs text-muted whitespace-nowrap">
-                            {event.timestamp}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                  {timeline.length === 0 && (
-                    <p className="text-center text-muted py-8">No timeline events yet</p>
+                <div className="relative">
+                  {/* Vertical timeline line */}
+                  {timeline.length > 1 && (
+                    <div className={`absolute left-6 top-8 bottom-8 w-0.5 ${isLight ? 'bg-gray-200' : 'bg-white/10'}`} />
                   )}
+                  <div className="space-y-6">
+                    {timeline.map((event, idx) => {
+                      // Format timestamp
+                      let formattedTime = '—';
+                      if (event.timestamp) {
+                        const d = new Date(event.timestamp);
+                        formattedTime = d.toLocaleString('en-US', {
+                          year: 'numeric', month: 'short', day: 'numeric',
+                          hour: 'numeric', minute: '2-digit', hour12: true
+                        });
+                      }
+
+                      // Get icon and color based on event type
+                      let IconComponent = AlertCircle;
+                      let iconBgClass = isLight ? 'bg-blue-100 text-blue-600' : 'bg-blue-500/20 text-blue-400';
+                      let label = event.label || event.action || 'Event';
+                      let detailText = null;
+
+                      switch (event.type) {
+                        case 'created':
+                          IconComponent = AlertCircle;
+                          iconBgClass = isLight ? 'bg-blue-100 text-blue-600' : 'bg-blue-500/20 text-blue-400';
+                          detailText = event.detail || (event.actor ? `Reported by ${event.actor}` : null);
+                          break;
+                        case 'assigned':
+                          IconComponent = Users;
+                          iconBgClass = isLight ? 'bg-amber-100 text-amber-600' : 'bg-amber-500/20 text-amber-400';
+                          // For mock data compatibility, build label from action/actor if needed
+                          if (!event.label && event.action) {
+                            label = event.action;
+                          }
+                          // Show team info from detail if available
+                          if (event.detail && typeof event.detail === 'object') {
+                            const dept = event.detail.department_name || event.detail.department_code || '';
+                            const team = event.detail.team_name || '';
+                            detailText = team ? `${dept} (${team})` : dept;
+                          }
+                          break;
+                        case 'resolved':
+                          IconComponent = CheckCircle;
+                          iconBgClass = isLight ? 'bg-emerald-100 text-emerald-600' : 'bg-emerald-500/20 text-emerald-400';
+                          if (event.detail && typeof event.detail === 'object' && event.detail.resolved_by_user_id) {
+                            detailText = `By User #${event.detail.resolved_by_user_id}`;
+                          }
+                          break;
+                        case 'closed':
+                          IconComponent = XCircle;
+                          iconBgClass = isLight ? 'bg-gray-100 text-gray-600' : 'bg-gray-500/20 text-gray-400';
+                          if (event.detail && typeof event.detail === 'object') {
+                            const method = event.detail.closure_method;
+                            if (method) {
+                              detailText = `Method: ${method.replace(/_/g, ' ')}`;
+                            }
+                          }
+                          break;
+                        default:
+                          // Legacy mock data support - map old shape to new
+                          if (event.action && !event.type) {
+                            if (event.action.toLowerCase().includes('assign')) {
+                              IconComponent = Users;
+                              iconBgClass = isLight ? 'bg-amber-100 text-amber-600' : 'bg-amber-500/20 text-amber-400';
+                            } else if (event.action.toLowerCase().includes('verified')) {
+                              IconComponent = CheckCircle;
+                              iconBgClass = isLight ? 'bg-emerald-100 text-emerald-600' : 'bg-emerald-500/20 text-emerald-400';
+                            }
+                            detailText = event.actor ? `${event.actor}${event.actorRole ? ` (${event.actorRole})` : ''}` : null;
+                            if (event.notes) {
+                              detailText = detailText ? `${detailText} — ${event.notes}` : event.notes;
+                            }
+                          }
+                          break;
+                      }
+
+                      return (
+                        <div key={idx} className="flex gap-4 relative">
+                          {/* Icon node */}
+                          <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 z-10 ${iconBgClass}`}>
+                            <IconComponent className="w-5 h-5" />
+                          </div>
+                          {/* Event card */}
+                          <div className={`flex-1 p-4 rounded-xl border ${isLight ? 'bg-white border-gray-200' : 'bg-white/5 border-white/10'}`}>
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex-1">
+                                <p className="font-semibold text-foreground">{label}</p>
+                                {detailText && (
+                                  <p className="text-sm text-muted mt-1">{detailText}</p>
+                                )}
+                              </div>
+                              <span className="text-xs text-muted whitespace-nowrap">
+                                {formattedTime}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {timeline.length === 0 && (
+                      <div className="text-center py-12">
+                        <Clock className={`w-12 h-12 mx-auto mb-3 ${isLight ? 'text-gray-300' : 'text-gray-600'}`} />
+                        <p className="text-muted">No timeline events yet</p>
+                        <p className="text-sm text-muted mt-1">Timeline will be updated as the incident progresses</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -1615,8 +1764,17 @@ export function IncidentDetailsPage() {
                         </Badge>
                         <span className="text-xs text-muted">{note.timestamp}</span>
                       </div>
-                      <p className="text-sm text-foreground mb-1">{note.note}</p>
-                      <p className="text-xs text-muted">— {note.author}{note.source ? ` (${note.source})` : ''}</p>
+                      <p className="text-sm text-foreground mb-3">{note.note}</p>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold text-foreground">{note.author}</span>
+                        <span className="text-xs text-muted">·</span>
+                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5 rounded-md">
+                          {note.roleLabel || getRoleDisplayLabel(note.role) || 'Unknown'}
+                        </Badge>
+                        {note.source && (
+                          <span className="text-xs text-muted">({note.source})</span>
+                        )}
+                      </div>
                     </div>
                   ))}
                   {coordination.length === 0 && (

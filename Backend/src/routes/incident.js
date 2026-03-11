@@ -64,6 +64,13 @@ router.post('/:id/reclassify', authMiddleware, authorize([
   'Super Admin'
 ]), incidentController.reclassifyIncident);
 
+// Coordination notes endpoints (must be before generic /:id routes)
+// Get coordination notes for an incident
+router.get('/:id/coordination-notes', authMiddleware, incidentController.getCoordinationNotes);
+
+// Add a coordination note to an incident
+router.post('/:id/coordination-notes', authMiddleware, incidentController.addCoordinationNote);
+
 // Get current user's incidents (always filtered to own)
 router.get('/user/my', authMiddleware, incidentController.getMyIncidents);
 

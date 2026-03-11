@@ -265,3 +265,56 @@ export async function getIncidentAudioUrl(id) {
   logInfo(`[web][incidents][getIncidentAudioUrl] request_id=${requestId} report_id=${id} status=${response.status} latency_ms=${Math.round(performance.now() - start)}`);
   return URL.createObjectURL(blob);
 }
+
+/**
+ * Fetch coordination notes for an incident
+ * @param {number|string} id - Incident report ID
+ * @returns {Promise<Array>} Array of coordination note objects
+ */
+export async function getCoordinationNotes(id) {
+  const requestId = createRequestId('web-coordination-notes');
+  const start = performance.now();
+
+  const response = await fetch(`${API_URL}/api/incidents/${id}/coordination-notes`, {
+    method: 'GET',
+    headers: getAuthHeaders({ requestId }),
+  });
+
+  const data = await parseJsonOrEmpty(response);
+
+  if (!response.ok) {
+    logError(`[web][incidents][getCoordinationNotes] request_id=${requestId} report_id=${id} status=${response.status}`);
+    throw new Error(parseErrorMessage(data, 'Failed to fetch coordination notes'));
+  }
+
+  logInfo(`[web][incidents][getCoordinationNotes] request_id=${requestId} report_id=${id} status=${response.status} latency_ms=${Math.round(performance.now() - start)}`);
+  return Array.isArray(data) ? data : [];
+}
+
+/**
+ * Add a coordination note to an incident
+ * @param {number|string} id - Incident report ID
+ * @param {Object} payload - Note data
+ * @param {string} payload.note - The note content
+ * @returns {Promise<Object>} Created note object
+ */
+export async function addCoordinationNote(id, { note }) {
+  const requestId = createRequestId('web-add-coordination-note');
+  const start = performance.now();
+
+  const response = await fetch(`${API_URL}/api/incidents/${id}/coordination-notes`, {
+    method: 'POST',
+    headers: getAuthHeaders({ requestId }),
+    body: JSON.stringify({ note }),
+  });
+
+  const data = await parseJsonOrEmpty(response);
+
+  if (!response.ok) {
+    logError(`[web][incidents][addCoordinationNote] request_id=${requestId} report_id=${id} status=${response.status}`);
+    throw new Error(parseErrorMessage(data, 'Failed to add coordination note'));
+  }
+
+  logInfo(`[web][incidents][addCoordinationNote] request_id=${requestId} report_id=${id} status=${response.status} latency_ms=${Math.round(performance.now() - start)}`);
+  return data;
+}
