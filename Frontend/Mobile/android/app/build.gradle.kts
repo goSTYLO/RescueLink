@@ -27,7 +27,7 @@ android {
         applicationId = "com.example.rescuelink_mobile"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = 23  // Required for local_auth biometric
+        minSdk = flutter.minSdkVersion // Required for local_auth biometric
         targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName

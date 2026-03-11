@@ -31,7 +31,7 @@ import { AccessDeniedNotice } from '@/presentation/components/common/AccessDenie
 
 export function AdminActionsPage() {
   const navigate = useNavigate();
-  const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+  const currentUser = JSON.parse(sessionStorage.getItem('user') || '{}');
   const isAdmin = normalizeRole(currentUser.role) === ROLES.SUPER_ADMIN;
 
   const [disasterMode, setDisasterMode] = useState(disasterControlMode.active);

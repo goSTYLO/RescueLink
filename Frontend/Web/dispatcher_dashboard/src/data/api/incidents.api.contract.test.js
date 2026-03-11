@@ -16,8 +16,8 @@ jest.mock('@/core/config/app.config', () => ({
 
 describe('incidents.api contract', () => {
   beforeEach(() => {
-    localStorage.clear();
-    localStorage.setItem('token', 'test-token');
+    sessionStorage.clear();
+    sessionStorage.setItem('token', 'test-token');
     global.fetch = jest.fn();
   });
 

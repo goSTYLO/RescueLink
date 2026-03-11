@@ -2,7 +2,7 @@ import { normalizeRole, ROLES } from '@/core/constants';
 
 export function getStoredUser() {
   try {
-    return JSON.parse(localStorage.getItem('user') || '{}');
+    return JSON.parse(sessionStorage.getItem('user') || '{}');
   } catch {
     return {};
   }
@@ -20,10 +20,8 @@ export function hasRoleAccess(currentRole, allowedRoles = []) {
 }
 
 export function clearAuthSession() {
-  localStorage.removeItem('dispatcherMfaSessionToken');
-  localStorage.removeItem('dashboard:filters:v1');
-  localStorage.removeItem('map:filters:v1');
-  localStorage.removeItem('user');
-  localStorage.removeItem('token');
+  sessionStorage.removeItem('dispatcherMfaSessionToken');
+  sessionStorage.removeItem('user');
+  sessionStorage.removeItem('token');
   sessionStorage.clear();
 }

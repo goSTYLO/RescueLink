@@ -8,7 +8,7 @@ jest.mock('@/core/config/app.config', () => ({
 
 describe('auth.api contract', () => {
   beforeEach(() => {
-    localStorage.clear();
+    sessionStorage.clear();
     global.fetch = jest.fn();
   });
 
@@ -43,7 +43,7 @@ describe('auth.api contract', () => {
   });
 
   test('getMe sends bearer token from storage', async () => {
-    localStorage.setItem('token', 'secure-token');
+    sessionStorage.setItem('token', 'secure-token');
     fetch.mockResolvedValueOnce({
       ok: true,
       status: 200,

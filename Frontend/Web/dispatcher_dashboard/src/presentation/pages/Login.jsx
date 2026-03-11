@@ -43,7 +43,7 @@ export default function Login({ onSuccess, onForgotPasswordClick }) {
       setLoading(true);
       try {
         const data = await verifyDispatcherOtp(sessionToken, otp);
-        localStorage.setItem('token', data.token);
+        sessionStorage.setItem('token', data.token);
         Swal.fire({
           icon: 'success',
           title: 'Welcome back!',
@@ -53,7 +53,7 @@ export default function Login({ onSuccess, onForgotPasswordClick }) {
           timerProgressBar: true,
         }).then(() => {
           onSuccess(data);
-          const user = JSON.parse(localStorage.getItem('user') || '{}');
+          const user = JSON.parse(sessionStorage.getItem('user') || '{}');
           navigate(getRedirectPathByRole(user.role));
         });
       } catch (err) {
@@ -93,7 +93,7 @@ export default function Login({ onSuccess, onForgotPasswordClick }) {
           confirmButtonColor: '#134178',
         });
       } else {
-        localStorage.setItem('token', data.token);
+        sessionStorage.setItem('token', data.token);
         Swal.fire({
           icon: 'success',
           title: 'Welcome back!',
@@ -103,7 +103,7 @@ export default function Login({ onSuccess, onForgotPasswordClick }) {
           timerProgressBar: true,
         }).then(() => {
           onSuccess(data);
-          const user = JSON.parse(localStorage.getItem('user') || '{}');
+          const user = JSON.parse(sessionStorage.getItem('user') || '{}');
           navigate(getRedirectPathByRole(user.role));
         });
       }

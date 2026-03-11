@@ -3,22 +3,22 @@ import { clearAuthSession, getStoredRole, getStoredUser, hasRoleAccess } from '@
 
 describe('auth session utilities', () => {
   beforeEach(() => {
-    localStorage.clear();
+    sessionStorage.clear();
     sessionStorage.clear();
   });
 
   test('getStoredUser returns parsed user object', () => {
-    localStorage.setItem('user', JSON.stringify({ role: 'super-admin', email: 'admin@example.com' }));
+    sessionStorage.setItem('user', JSON.stringify({ role: 'super-admin', email: 'admin@example.com' }));
     expect(getStoredUser()).toEqual({ role: 'super-admin', email: 'admin@example.com' });
   });
 
   test('getStoredRole normalizes unknown values safely', () => {
-    localStorage.setItem('user', JSON.stringify({ role: 'Supervisor' }));
+    sessionStorage.setItem('user', JSON.stringify({ role: 'Supervisor' }));
     expect(getStoredRole()).toBe(ROLES.SUPER_ADMIN);
   });
 
   test('getStoredRole recognizes dispatcher role', () => {
-    localStorage.setItem('user', JSON.stringify({ role: 'dispatcher' }));
+    sessionStorage.setItem('user', JSON.stringify({ role: 'dispatcher' }));
     expect(getStoredRole()).toBe(ROLES.DISPATCHER);
   });
 
@@ -30,14 +30,14 @@ describe('auth session utilities', () => {
   });
 
   test('clearAuthSession removes local and session storage auth state', () => {
-    localStorage.setItem('token', 'abc');
-    localStorage.setItem('user', JSON.stringify({ role: 'personnel' }));
+    sessionStorage.setItem('token', 'abc');
+    sessionStorage.setItem('user', JSON.stringify({ role: 'personnel' }));
     sessionStorage.setItem('temp', '1');
 
     clearAuthSession();
 
-    expect(localStorage.getItem('token')).toBeNull();
-    expect(localStorage.getItem('user')).toBeNull();
+    expect(sessionStorage.getItem('token')).toBeNull();
+    expect(sessionStorage.getItem('user')).toBeNull();
     expect(sessionStorage.getItem('temp')).toBeNull();
   });
 });

@@ -48,7 +48,7 @@ const App = require('@/App').default;
 
 describe('App route guards', () => {
   beforeEach(() => {
-    localStorage.clear();
+    sessionStorage.clear();
   });
 
   test('redirects unauthenticated root route to login', async () => {
@@ -58,24 +58,24 @@ describe('App route guards', () => {
   });
 
   test('department admin lands on department dashboard path from root', async () => {
-    localStorage.setItem('token', 'jwt');
-    localStorage.setItem('user', JSON.stringify({ role: 'department-admin' }));
+    sessionStorage.setItem('token', 'jwt');
+    sessionStorage.setItem('user', JSON.stringify({ role: 'department-admin' }));
     window.history.pushState({}, '', '/');
     render(<App />);
     await waitFor(() => expect(screen.getByText('Department dashboard page')).toBeInTheDocument());
   });
 
   test('dispatcher lands on dashboard path from root', async () => {
-    localStorage.setItem('token', 'jwt');
-    localStorage.setItem('user', JSON.stringify({ role: 'dispatcher' }));
+    sessionStorage.setItem('token', 'jwt');
+    sessionStorage.setItem('user', JSON.stringify({ role: 'dispatcher' }));
     window.history.pushState({}, '', '/');
     render(<App />);
     await waitFor(() => expect(screen.getByText('Dashboard page')).toBeInTheDocument());
   });
 
   test('dispatcher is denied from admin-only departments route', async () => {
-    localStorage.setItem('token', 'jwt');
-    localStorage.setItem('user', JSON.stringify({ role: 'dispatcher' }));
+    sessionStorage.setItem('token', 'jwt');
+    sessionStorage.setItem('user', JSON.stringify({ role: 'dispatcher' }));
     window.history.pushState({}, '', '/departments');
     render(<App />);
     await waitFor(() => expect(screen.getByText('Your role does not allow access to this route.')).toBeInTheDocument());

@@ -194,23 +194,53 @@ const Dispatch = {
     assignment_group_id,
     assigned_by_user_id = null,
   }) {
-    const res = await pool.query(
-      `INSERT INTO dispatches(
-         report_id, responder_id, response_status, assignment_group_id, department_code, department_name,
-         team_name, default_department_code, was_default_department, responder_source, responder_name, assigned_by_user_id
-       ) VALUES($1, NULL, $2, $3, $4, $5, NULL, $6, $7, 'account', NULL, $8) RETURNING *`,
-      [
+    try {
+      const res = await pool.query(
+        `INSERT INTO dispatches(
+           report_id, responder_id, response_status, assignment_group_id, department_code, department_name,
+           team_name, default_department_code, was_default_department, responder_source, responder_name, assigned_by_user_id
+         ) VALUES($1, NULL, $2, $3, $4, $5, NULL, $6, $7, 'account', NULL, $8) RETURNING *`,
+        [
+          report_id,
+          response_status,
+          assignment_group_id,
+          department_code,
+          department_name,
+          default_department_code,
+          was_default_department,
+          assigned_by_user_id,
+        ]
+      );
+      return res.rows[0];
+    } catch (error) {
+      const responderIdIsRequired = error.code === '23502' && /responder_id/i.test(error.message || '');
+      if (!responderIdIsRequired) {
+        throw error;
+      }
+
+      // Legacy schema fallback: create a directory responder placeholder for department-only assignment.
+      const placeholder = await Responder.findOrCreateDirectory({
+        name: `${department_name || String(department_code || 'Department').toUpperCase()} Duty Desk`,
+        organization: department_name || String(department_code || 'Operations').toUpperCase(),
+        contact_number: null,
+        team_name: null,
+      });
+
+      return this.create({
         report_id,
+        responder_id: placeholder?.responder_id,
         response_status,
         assignment_group_id,
         department_code,
         department_name,
+        team_name: null,
         default_department_code,
         was_default_department,
+        responder_source: 'directory',
+        responder_name: placeholder?.name || null,
         assigned_by_user_id,
-      ]
-    );
-    return res.rows[0];
+      });
+    }
   },
 
   async createAutoAssignmentGroup({

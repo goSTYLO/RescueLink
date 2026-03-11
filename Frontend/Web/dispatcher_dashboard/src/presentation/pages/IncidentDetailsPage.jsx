@@ -231,7 +231,7 @@ export function IncidentDetailsPage() {
   const possibleDuplicates = mockIncidents.filter(i => incident?.possibleDuplicates?.includes(i.id));
 
   // Get current user role
-  const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+  const currentUser = JSON.parse(sessionStorage.getItem('user') || '{}');
   const isAdmin = normalizeRole(currentUser.role) === ROLES.SUPER_ADMIN;
   const isSupervisor = currentUser.role === 'Supervisor' || isAdmin;
 
@@ -325,7 +325,7 @@ export function IncidentDetailsPage() {
   const [departmentList, setDepartmentList] = useState([]);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
+    const token = sessionStorage.getItem('token');
     if (!token) return;
 
     let cancelled = false;
@@ -528,21 +528,10 @@ export function IncidentDetailsPage() {
   };
 
   const activeSectors = departments.filter((dept) => ACTIVE_SECTOR_IDS.has(dept.id));
-  const selectedNotifyTeamOptions = responderTeams
-    .filter((team) => String(team.department_code || '').toLowerCase() === String(notifyDepartment || '').toLowerCase())
-    .map((team) => {
-      const supported = Array.isArray(team.supported_incident_types) ? team.supported_incident_types : [];
-      const supportText = supported.length ? ` (${supported.join(', ')})` : '';
-      return {
-        value: team.team_name,
-        label: `${team.team_name}${supportText}`,
-      };
-    });
-
   const tryCreateDepartmentOnlyAssignment = async (departmentCode) => {
     const numericId = /^\d+$/.test(String(id));
     if (!numericId || !departmentCode) return null;
-    const token = localStorage.getItem('token');
+    const token = sessionStorage.getItem('token');
     if (!token) return null;
 
     const departmentMeta = departmentList.find((d) => String(d.code || '').toLowerCase() === String(departmentCode || '').toLowerCase());
@@ -572,7 +561,7 @@ export function IncidentDetailsPage() {
       await Swal.fire({
         icon: 'warning',
         title: 'Select department',
-        text: 'Please choose a sector before notifying the department.',
+        text: 'Please choose a sector before assigning the incident.',
         confirmButtonColor: '#134178',
       });
       return;
@@ -587,6 +576,8 @@ export function IncidentDetailsPage() {
         ...prev,
         assignedDepartment: selectedDepartment,
         assignedDepartmentId: selectedCode,
+        assignedTeamName: null,
+        assignedTeamDepartmentCode: null,
         assignedDepartments: [...new Set([...existingDepartments, selectedDepartment])],
       };
     });
@@ -599,16 +590,18 @@ export function IncidentDetailsPage() {
       await Swal.fire({
         icon: 'warning',
         title: 'Assignment failed',
-        text: dispatchError.message || 'Could not notify department.',
+        text: dispatchError.message || 'Could not assign incident.',
         confirmButtonColor: '#134178',
       });
       return;
     }
 
+    const successText = `${selectedDepartment} has been notified and will select the response team.`;
+
     await Swal.fire({
       icon: 'success',
-      title: 'Department notified',
-      text: `${selectedDepartment} has been notified. They will select the response team.`,
+      title: 'Assignment successful',
+      text: successText,
       timer: 2200,
       showConfirmButton: false,
       timerProgressBar: true,
@@ -620,13 +613,6 @@ export function IncidentDetailsPage() {
       String(team.department_code || '').toLowerCase() === String(notifyDepartment || '').toLowerCase()
       && String(team.team_name || '') === String(notifyTeamName || '')
   );
-
-  const selectedIncidentTaskType = normalizeTaskType(incident?.incidentTypeRaw || incident?.emergencyType);
-  const selectedIncidentTypeIsWildcard = selectedIncidentTaskType === 'other';
-  const selectedTeamSupportsTask = (() => {
-    if (!selectedTeamMeta) return null;
-    return doesTeamSupportIncidentType(selectedTeamMeta.supported_incident_types, selectedIncidentTaskType);
-  })();
 
   const openStatusDialog = async () => {
     const deptCode = incident?.assignedTeamDepartmentCode || incident?.assignedDepartmentId || '';
@@ -834,9 +820,8 @@ export function IncidentDetailsPage() {
   const handleAddCoordinationNote = async () => {
     const trimmed = coordinationNote.trim();
     if (!trimmed) return;
-
     const isNumericId = /^\d+$/.test(String(id));
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const user = JSON.parse(sessionStorage.getItem('user') || '{}');
     const author = user?.name || user?.username || user?.email || 'Dispatcher';
     const department = incident?.assignedDepartment || user?.department || 'Operations';
     const role = user?.role || 'dispatcher';
@@ -1187,6 +1172,78 @@ export function IncidentDetailsPage() {
                     <p className="text-xs text-muted">Pending → Verified → In Progress → Resolved → Closed</p>
                   </div>
 
+                  {/* TEAM & RESPONDER STATUS SECTION */}
+                  {(incident?.assignedDepartment || incident?.assignedTeamName) && (
+                    <div className={`p-4 rounded-xl border ${isLight ? 'bg-blue-50/70 border-blue-200/80' : 'bg-blue-500/10 border-blue-500/30'}`}>
+                      <div className="flex items-start gap-2 mb-3">
+                        <Users className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+                        <p className="text-xs uppercase tracking-wide text-muted font-semibold">Team Assignment & Status</p>
+                      </div>
+                      <div className="space-y-3">
+                        <div>
+                          <p className="text-xs text-muted mb-1">Department</p>
+                          <p className="text-sm font-medium text-foreground">{incident?.assignedDepartment || '—'}</p>
+                        </div>
+                        {incident?.assignedTeamName && (
+                          <div>
+                            <p className="text-xs text-muted mb-1">Assigned Team</p>
+                            <div className={`p-2 rounded-lg border ${isLight ? 'bg-white/50 border-blue-200/50' : 'bg-white/5 border-blue-500/20'}`}>
+                              <p className="text-sm font-medium text-foreground">{incident.assignedTeamName}</p>
+                            </div>
+                          </div>
+                        )}
+                        {canUpdateResponderStatuses && incident?.assignedTeamName && (
+                          <div>
+                            <div className="flex items-center justify-between gap-2 mb-2">
+                              <p className="text-xs text-muted">Team Members</p>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-6 px-2 text-xs rounded-lg"
+                                onClick={openStatusDialog}
+                              >
+                                <Users className="w-3 h-3 mr-1" />
+                                Update Status
+                              </Button>
+                            </div>
+                            {(teamMembersByTeamId[selectedTeamMeta?.team_id] || []).length > 0 ? (
+                              <div className="space-y-2">
+                                {(teamMembersByTeamId[selectedTeamMeta?.team_id] || []).map((member) => (
+                                  <div key={member.responder_id} className={`p-2 rounded-lg border text-sm ${
+                                    member.availability_status?.toLowerCase() === 'available'
+                                      ? isLight ? 'border-severity-resolved/40 bg-severity-resolved/10' : 'border-emerald-500/30 bg-emerald-500/10'
+                                      : isLight ? 'border-amber-200/50 bg-amber-50/50' : 'border-amber-500/20 bg-amber-500/10'
+                                  }`}>
+                                    <div className="flex items-center justify-between">
+                                      <span className="font-medium text-foreground">{member.name || `Responder ${member.responder_id}`}</span>
+                                      <Badge 
+                                        variant="outline" 
+                                        className={`text-xs ${
+                                          member.availability_status?.toLowerCase() === 'available'
+                                            ? 'border-severity-resolved/60 bg-severity-resolved/20 text-severity-resolved'
+                                            : 'border-amber-500/60 bg-amber-500/20 text-amber-300'
+                                        }`}
+                                      >
+                                        {member.availability_status || 'unknown'}
+                                      </Badge>
+                                    </div>
+                                    {Array.isArray(member.supported_incident_types) && member.supported_incident_types.length > 0 && (
+                                      <p className="text-xs text-muted mt-1">
+                                        Supports: {member.supported_incident_types.join(', ')}
+                                      </p>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-xs text-muted italic">No team members found</p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   {isSupervisor && incident.status !== 'Resolved' && incident.status !== 'Duplicate' && (
                     <div className="space-y-2">
                       <p className="text-xs uppercase tracking-wide text-muted font-semibold">Escalation Controls</p>
@@ -1514,7 +1571,7 @@ export function IncidentDetailsPage() {
               <DialogHeader>
                 <DialogTitle>Notify Department</DialogTitle>
                 <DialogDescription>
-                  Assign this incident to a department. The department admin will select the response team.
+                  Select department to notify about this incident. The department will assign the response team.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">

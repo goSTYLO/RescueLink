@@ -70,7 +70,7 @@ export function MapViewPage() {
     if (Date.now() < rateLimitUntilRef.current) {
       return;
     }
-    const token = localStorage.getItem('token');
+    const token = sessionStorage.getItem('token');
     if (DEV_MODE && !token) {
       setIncidents(mockIncidents);
       setError(null);

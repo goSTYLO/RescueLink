@@ -44,9 +44,9 @@ function ProtectedRoute({ children, allowedRoles = [] }) {
   useEffect(() => {
     // In dev mode, set a mock user and skip auth
     if (DEV_MODE) {
-      // Set mock user in localStorage for Layout component (Super Admin by default)
-      if (!localStorage.getItem('user')) {
-        localStorage.setItem('user', JSON.stringify({
+      // Set mock user in sessionStorage for Layout component (Super Admin by default)
+      if (!sessionStorage.getItem('user')) {
+        sessionStorage.setItem('user', JSON.stringify({
           username: 'Super Admin',
           name: 'Super Admin',
           email: 'admin@rescuelink.dagupan.gov.ph',
@@ -61,9 +61,9 @@ function ProtectedRoute({ children, allowedRoles = [] }) {
       return;
     }
 
-    // Production mode - check JWT token in localStorage
-    const token = localStorage.getItem('token');
-    const storedUser = localStorage.getItem('user');
+    // Production mode - check JWT token in sessionStorage
+    const token = sessionStorage.getItem('token');
+    const storedUser = sessionStorage.getItem('user');
     if (token && storedUser) {
       try {
         const parsedUser = JSON.parse(storedUser);
@@ -135,7 +135,7 @@ export default function App() {
     const role = normalizeRole(apiRole);
     const department = data.user?.department ?? (role === ROLES.SUPER_ADMIN ? 'All' : '');
     const departmentId = data.user?.departmentId ?? data.user?.department_id ?? null;
-    localStorage.setItem('user', JSON.stringify({
+    sessionStorage.setItem('user', JSON.stringify({
       username: displayName,
       name: displayName,
       email: data.user?.email || '',
@@ -272,9 +272,9 @@ export default function App() {
           } />
           <Route path="/" element={
             (() => {
-              if (!DEV_MODE && !localStorage.getItem('token')) return <Navigate to="/login" replace />;
+              if (!DEV_MODE && !sessionStorage.getItem('token')) return <Navigate to="/login" replace />;
               try {
-                const u = JSON.parse(localStorage.getItem('user') || '{}');
+                const u = JSON.parse(sessionStorage.getItem('user') || '{}');
                 const r = normalizeRole(u.role);
                 if (r === ROLES.DEPARTMENT_HEAD) return <Navigate to="/department/assigned-incidents" replace />;
                 if (r === ROLES.DEPARTMENT_ADMIN) return <Navigate to="/department/dashboard" replace />;

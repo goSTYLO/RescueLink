@@ -31,7 +31,7 @@ const medicalThresholdOptions = [
 ];
 
 export function SettingsPage() {
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const user = JSON.parse(sessionStorage.getItem('user') || '{}');
   const isAdmin = normalizeRole(user.role) === ROLES.SUPER_ADMIN;
 
   const [settings, setSettings] = useState(() => {

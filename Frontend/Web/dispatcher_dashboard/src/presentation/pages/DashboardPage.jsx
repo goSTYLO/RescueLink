@@ -41,6 +41,7 @@ function mapStatusFilterToApi(value) {
   if (value === 'Verified') return 'verified';
   if (value === 'In Progress') return 'in_progress';
   if (value === 'Resolved') return 'resolved';
+  if (value === 'Closed') return 'closed';
   return undefined;
 }
 
@@ -65,7 +66,7 @@ function mapApiIncidentToDashboard(api) {
   const severityMap = { high: 'Critical', medium: 'Warning', low: 'Low' };
   const severity = severityMap[api.severity_level?.toLowerCase()] || (api.severity_level || '—');
 
-  const statusMap = { pending: 'Pending', resolved: 'Resolved', verified: 'Verified', in_progress: 'In Progress' };
+  const statusMap = { pending: 'Pending', resolved: 'Resolved', closed: 'Closed', verified: 'Verified', in_progress: 'In Progress' };
   const canonicalStatus = normalizeIncidentStatus(api.status);
   const status = statusMap[canonicalStatus];
 
@@ -153,7 +154,7 @@ export function DashboardPage() {
     if (Date.now() < rateLimitUntilRef.current) {
       return;
     }
-    const token = localStorage.getItem('token');
+    const token = sessionStorage.getItem('token');
     if (DEV_MODE && !token) {
       const filteredMock = mockIncidents.filter((inc) => {
         if (filterType !== 'All' && inc.emergencyType !== filterType) return false;
@@ -232,7 +233,7 @@ export function DashboardPage() {
     if (!sortColumn) return 0;
 
     const severityRank = { Critical: 3, Warning: 2, Low: 1, Resolved: 0 };
-    const statusRank = { Pending: 3, Verified: 2, 'In Progress': 1, Resolved: 0 };
+    const statusRank = { Pending: 4, Verified: 3, 'In Progress': 2, Resolved: 1, Closed: 0 };
     
     let aValue, bValue;
     switch (sortColumn) {
@@ -329,6 +330,7 @@ export function DashboardPage() {
       case 'Verified': return 'bg-severity-resolved/20 text-severity-resolved border-emerald-500/40';
       case 'In Progress': return 'bg-amber-500/20 text-amber-400 border-amber-500/40';
       case 'Resolved': return 'bg-severity-resolved/20 text-severity-resolved border-emerald-500/40';
+      case 'Closed': return 'bg-emerald-700/20 text-emerald-300 border-emerald-500/60';
       case 'Duplicate': return 'bg-card text-muted border-[rgba(19,65,120,0.35)]';
       default: return 'bg-card text-muted border-[rgba(19,65,120,0.35)]';
     }
@@ -347,7 +349,7 @@ export function DashboardPage() {
 
   const departments = (departmentsList || []).filter((d) => ACTIVE_SECTOR_IDS.has(d.id));
   const selectedTeamOptions = TEAM_OPTIONS_BY_SECTOR[assignDepartmentId] || [];
-  const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+  const currentUser = JSON.parse(sessionStorage.getItem('user') || '{}');
   const normalizedRole = normalizeRole(currentUser.role);
   const canVerifyAndAssign = (
     normalizedRole === ROLES.SUPER_ADMIN
@@ -410,7 +412,7 @@ export function DashboardPage() {
         )
       );
       const numericId = /^\d+$/.test(String(verifyAssignIncident.id));
-      const token = localStorage.getItem('token');
+      const token = sessionStorage.getItem('token');
       if (numericId && token) {
         await verifyIncident(verifyAssignIncident.id);
         const assignmentResult = await createDispatch({
@@ -469,6 +471,7 @@ export function DashboardPage() {
     { value: 'Verified', label: 'Verified' },
     { value: 'In Progress', label: 'In Progress' },
     { value: 'Resolved', label: 'Resolved' },
+    { value: 'Closed', label: 'Closed' },
   ];
 
   const barangayOptions = [

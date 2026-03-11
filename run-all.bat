@@ -1,17 +1,28 @@
 @echo off
 set "ROOT=%~dp0"
 
-echo Starting RescueLink services...
-echo.
+where code >nul 2>&1
+if errorlevel 1 (
+	echo VS Code CLI not found on PATH.
+	echo Open this workspace in VS Code and run:
+	echo   Terminal ^> Run Task ^> Run All Services
+	pause
+	exit /b 1
+)
 
-start "RescueLink - Backend" cmd /k "cd /d "%ROOT%Backend" && npm run dev"
-start "RescueLink - AI" cmd /k "cd /d "%ROOT%RescueLink AI" && call "%ROOT%venv\Scripts\activate.bat" && python -m uvicorn api.main:app --reload --port 8000"
-start "RescueLink - Blockchain" cmd /k "cd /d "%ROOT%Blockchain" && python -m uvicorn main:app --host 0.0.0.0 --port 8001"
+echo Opening workspace and triggering Run All Services in VS Code...
+code --reuse-window "%ROOT%" --command workbench.action.tasks.build >nul 2>&1
 
-echo.
-echo All services started in separate windows.
-echo - Backend: http://localhost:3000
-echo - AI: http://localhost:8000
-echo - Blockchain: http://localhost:8001
-echo.
-pause
+if errorlevel 1 (
+	echo.
+	echo VS Code opened, but automatic task start did not complete.
+	echo Run one of these inside VS Code:
+	echo   Ctrl+Shift+B
+	echo   Terminal ^> Run Task ^> Run All Services
+	pause
+	exit /b 1
+)
+
+echo Services should start in integrated VS Code terminals.
+echo If they do not, run Ctrl+Shift+B inside VS Code.
+exit /b 0

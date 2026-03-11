@@ -53,7 +53,7 @@ function roleToLabel(backendRole) {
 export function TeamPage() {
   const { theme } = useTheme();
   const isLight = theme === 'light';
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const user = JSON.parse(sessionStorage.getItem('user') || '{}');
   const role = normalizeRole(user.role || '');
 
   const cardClass = `rounded-2xl border overflow-hidden transition-all duration-300 ${isLight ? 'glass neumorphic-light bg-white/80 border-gray-200/80' : 'glass neumorphic-dark bg-card/60 border-white/10'}`;

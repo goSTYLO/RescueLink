@@ -8,7 +8,7 @@ export function createRequestId(prefix = 'web') {
 }
 
 export function getAuthToken() {
-  return localStorage.getItem('token');
+  return sessionStorage.getItem('token');
 }
 
 export function getAuthHeaders({ requestId, includeContentType = true } = {}) {

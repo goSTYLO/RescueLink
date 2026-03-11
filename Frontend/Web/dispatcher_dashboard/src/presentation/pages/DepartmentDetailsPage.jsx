@@ -50,7 +50,7 @@ export function DepartmentDetailsPage() {
   const { theme } = useTheme();
   const isLight = theme === 'light';
 
-  const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+  const currentUser = JSON.parse(sessionStorage.getItem('user') || '{}');
   const normalizedRole = normalizeRole(currentUser?.role);
   const canManageMembership = normalizedRole === ROLES.SUPER_ADMIN;
   const canUpdateStatuses = (

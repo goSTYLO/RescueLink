@@ -49,13 +49,13 @@ export function ProfilePage() {
   const [passwordSubmitting, setPasswordSubmitting] = useState(false);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
+    const token = sessionStorage.getItem('token');
     if (!token && !DEV_MODE) {
       navigate('/login', { replace: true });
       return;
     }
     if (DEV_MODE && !token) {
-      const stored = localStorage.getItem('user');
+      const stored = sessionStorage.getItem('user');
       if (stored) {
         try {
           const user = JSON.parse(stored);

@@ -125,7 +125,7 @@ export function Layout({ children }) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const currentUser = JSON.parse(localStorage.getItem('user') || JSON.stringify({
+  const currentUser = JSON.parse(sessionStorage.getItem('user') || JSON.stringify({
     username: 'Super Admin',
     email: 'admin@rescuelink.dagupan.gov.ph',
     role: ROLES.SUPER_ADMIN,
@@ -155,7 +155,7 @@ export function Layout({ children }) {
     const value = e.target.value;
     const preset = DEV_ROLE_PRESETS.find((p) => p.value === value);
     if (!preset) return;
-    localStorage.setItem('user', JSON.stringify(preset.user));
+      sessionStorage.setItem('user', JSON.stringify(preset.user));
     navigate(getRedirectPathForRole(preset.value));
   };
 

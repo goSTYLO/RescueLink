@@ -32,6 +32,31 @@ const dispatchController = {
       const validatedWasDefaultDepartment = typeof was_default_department === 'boolean' ? was_default_department : null;
       const assignedByUserId = req.user?.user_id ? validateInteger(req.user.user_id, 'assigned_by_user_id') : null;
 
+      const ensureTeamAssignable = async (departmentCode, teamName) => {
+        if (!departmentCode || !teamName) return { ok: true };
+        const team = await Responder.findTeamByDepartmentAndName(departmentCode, teamName);
+        if (!team) {
+          return {
+            ok: false,
+            status: 404,
+            body: { error: 'Selected team not found in department' },
+          };
+        }
+        const normalizedStatus = String(team.team_status || 'available').toLowerCase();
+        const isAssignable = normalizedStatus.includes('available') || normalizedStatus.includes('standby');
+        if (!isAssignable) {
+          return {
+            ok: false,
+            status: 409,
+            body: {
+              error: 'Selected team is currently unavailable',
+              team_status: team.team_status,
+            },
+          };
+        }
+        return { ok: true, team };
+      };
+
       // Department admin may only create dispatches for their own department
       if (req.user.role === ROLES.DEPARTMENT_ADMIN && req.user.user_id && validatedDepartmentCode) {
         const fullUser = await User.findById(req.user.user_id);
@@ -51,6 +76,13 @@ const dispatchController = {
       }
       const existingDispatchCount = await Dispatch.countByReportId(validatedReportId);
       const incidentType = await Dispatch.getIncidentType(validatedReportId);
+
+      if (validatedDepartmentCode && validatedTeamName) {
+        const teamAvailability = await ensureTeamAssignable(validatedDepartmentCode, validatedTeamName);
+        if (!teamAvailability.ok) {
+          return res.status(teamAvailability.status).json(teamAvailability.body);
+        }
+      }
 
       const hasResponderArray = Array.isArray(responders) && responders.length > 0;
       if (hasResponderArray) {

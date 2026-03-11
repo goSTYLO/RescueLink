@@ -44,7 +44,7 @@ describe('Login page interactions', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Login' }));
 
     await waitFor(() => expect(loginDispatcher).toHaveBeenCalled());
-    expect(localStorage.getItem('token')).toBe('jwt-token');
+    expect(sessionStorage.getItem('token')).toBe('jwt-token');
     expect(onSuccess).toHaveBeenCalled();
   });
 
@@ -71,7 +71,7 @@ describe('Login page interactions', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Verify' }));
 
     await waitFor(() => expect(verifyDispatcherOtp).toHaveBeenCalledWith('session-otp-token', '123456'));
-    expect(localStorage.getItem('token')).toBe('verified-jwt');
+    expect(sessionStorage.getItem('token')).toBe('verified-jwt');
     expect(onSuccess).toHaveBeenCalled();
   });
 });
