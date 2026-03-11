@@ -11,6 +11,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<OtpVerified>(_onOtpVerified);
     on<ResendOtpRequested>(_onResendOtpRequested);
     on<LoginRequested>(_onLoginRequested);
+    on<BiometricLoginRequested>(_onBiometricLoginRequested);
     on<AuthReset>(_onAuthReset);
   }
 
@@ -155,6 +156,30 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       } else {
         final error = result['error'] as String? ?? 'Login failed';
         emit(LoginError(error));
+      }
+    } catch (e) {
+      emit(LoginError(e.toString()));
+    }
+  }
+
+  Future<void> _onBiometricLoginRequested(
+    BiometricLoginRequested event,
+    Emitter<AuthState> emit,
+  ) async {
+    emit(const AuthLoading());
+    try {
+      final token = await _authService.getTokenForBiometric();
+      if (token == null || token.isEmpty) {
+        emit(const LoginError('Biometric login not set up. Log in with phone and password first.'));
+        return;
+      }
+      await _authService.setToken(token);
+      final profile = await _authService.getProfile();
+      if (profile['success'] == true) {
+        final user = (profile['user'] as Map<String, dynamic>?) ?? {};
+        emit(LoginSuccess(user: user, token: token));
+      } else {
+        emit(LoginError(profile['error']?.toString() ?? 'Session expired. Please log in again.'));
       }
     } catch (e) {
       emit(LoginError(e.toString()));

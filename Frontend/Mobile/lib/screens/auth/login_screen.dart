@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:local_auth/local_auth.dart';
 import '../../bloc/auth/auth_bloc.dart';
 import '../../bloc/auth/auth_event.dart';
 import '../../bloc/auth/auth_state.dart';
+import '../../services/auth_service.dart';
 import '../../utils/responsive.dart';
 import '../../utils/validators.dart';
 
@@ -30,6 +32,60 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
   final bool _isLoading = false;
+  bool _showBiometricButton = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkBiometricAvailability();
+  }
+
+  Future<void> _checkBiometricAvailability() async {
+    try {
+      final authService = AuthService();
+      final enabled = await authService.isBiometricLoginEnabled();
+      if (!enabled) return;
+      final token = await authService.getTokenForBiometric();
+      if (token == null || token.isEmpty) return;
+      final localAuth = LocalAuthentication();
+      final canCheck = await localAuth.canCheckBiometrics;
+      final isAvailable = await localAuth.isDeviceSupported();
+      if (mounted && canCheck && isAvailable) {
+        setState(() => _showBiometricButton = true);
+      }
+    } catch (_) {
+      // Biometric not available or error; keep button hidden
+    }
+  }
+
+  Future<void> _handleBiometricLogin(BuildContext context) async {
+    try {
+      final localAuth = LocalAuthentication();
+      final authenticated = await localAuth.authenticate(
+        localizedReason: 'Authenticate to log in to RescueLink',
+      );
+      if (!mounted) return;
+      if (authenticated) {
+        context.read<AuthBloc>().add(const BiometricLoginRequested());
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Authentication cancelled'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Biometric error: ${e.toString()}'),
+          backgroundColor: const Color(0xFFEF4444),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
 
   @override
   void dispose() {
@@ -398,6 +454,30 @@ class _LoginScreenState extends State<LoginScreen> {
                             ],
                           ),
                           const SizedBox(height: 24),
+
+                          // Biometric login (show only when enabled and token stored)
+                          if (_showBiometricButton) ...[
+                            OutlinedButton.icon(
+                              onPressed: isLoading ? null : () => _handleBiometricLogin(context),
+                              icon: const Icon(Icons.fingerprint, size: 24, color: Color(0xFF2563EB)),
+                              label: const Text(
+                                'Use biometrics to log in',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF2563EB),
+                                ),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                side: const BorderSide(color: Color(0xFF2563EB)),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                          ],
 
                           // Sign Up Link
                           Center(
