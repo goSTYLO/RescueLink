@@ -14,6 +14,7 @@ const { saveAudioFile, saveMediaFiles, deleteIncidentFiles, fileExists, getAbsol
 const { logDispatcherAction, logUserAction } = require('../utils/auditLog');
 const { ROLES } = require('../config/roles');
 const { isResourceOwner, getOwnershipFilter } = require('../utils/ownership');
+const { broadcast } = require('../websocket/server');
 const path = require('path');
 const fs = require('fs').promises;
 
@@ -236,6 +237,16 @@ const incidentController = {
       });
 
       await logIncidentAction(req, 'incident_create', incident.report_id, { type: 'emergency', severity_level: 'high' });
+
+      // Broadcast incident created event
+      broadcast('incident:created', {
+        report_id: incident.report_id,
+        status: incident.status,
+        severity_level: incident.severity_level,
+        incident_type: incident.incident_type,
+        updated_at: new Date().toISOString(),
+        request_id: req.requestId || 'none'
+      });
 
       res.status(201).json({
         success: true,
@@ -551,6 +562,17 @@ const incidentController = {
 
         console.log(`[backend][incident][createWithAudio] request_id=${requestId} report_id=${reportId} status=success latency_ms=${Date.now() - startedAt} ai_pending=false`);
 
+        // Broadcast incident created event
+        broadcast('incident:created', {
+          report_id: reportId,
+          status: updatedIncident.status,
+          severity_level: updatedIncident.severity_level,
+          incident_type: updatedIncident.incident_type,
+          ai_classified: true,
+          updated_at: new Date().toISOString(),
+          request_id: requestId
+        });
+
         res.status(201).json({
           success: true,
           message: 'Incident reported successfully with AI classification',
@@ -775,6 +797,20 @@ const incidentController = {
         already_recorded: Boolean(blockchainResult.already_recorded)
       });
 
+      // Broadcast incident updated event
+      broadcast('incident:updated', {
+        report_id: validatedId,
+        status: 'verified',
+        verified: true,
+        updated_at: new Date().toISOString(),
+        request_id: requestId,
+        blockchain: {
+          tx_hash: blockchainResult.tx_hash,
+          block_number: blockchainResult.block_number,
+          hash_value: blockchainResult.hash_value
+        }
+      });
+
       res.json({
         success: true,
         verified: true,
@@ -842,6 +878,15 @@ const incidentController = {
       await logIncidentAction(req, 'incident_status_update', validatedId, {
         next_status: nextStatus,
       });
+
+      // Broadcast incident updated event
+      broadcast('incident:updated', {
+        report_id: validatedId,
+        status: nextStatus,
+        updated_at: new Date().toISOString(),
+        request_id: req.requestId || 'none'
+      });
+
       res.json({
         success: true,
         incident: updatedIncident,
@@ -877,6 +922,15 @@ const incidentController = {
       }
 
       await logIncidentAction(req, 'incident_reporter_confirm_resolution', validatedId, {});
+
+      // Broadcast incident updated event
+      broadcast('incident:updated', {
+        report_id: validatedId,
+        status: updatedIncident.status,
+        updated_at: new Date().toISOString(),
+        request_id: req.requestId || 'none'
+      });
+
       res.json({
         success: true,
         incident: updatedIncident,
@@ -945,6 +999,15 @@ const incidentController = {
         reason,
         previous_confidence_score: previousClassification?.confidence_score ?? null,
         was_low_confidence: Boolean(previousClassification?.low_confidence_flag),
+      });
+
+      // Broadcast incident updated event
+      broadcast('incident:updated', {
+        report_id: validatedId,
+        incident_type: validatedType,
+        severity_level: validatedSeverity,
+        updated_at: new Date().toISOString(),
+        request_id: req.requestId || 'none'
       });
 
       res.json({
@@ -1099,6 +1162,15 @@ const incidentController = {
         note_id: createdNote.id,
         author: authorName,
         role: req.user.role,
+      });
+
+      // Broadcast incident updated event
+      broadcast('incident:updated', {
+        report_id: validatedId,
+        event_type: 'coordination_note_added',
+        note_id: createdNote.id,
+        updated_at: new Date().toISOString(),
+        request_id: req.requestId || 'none'
       });
 
       // Return formatted note for frontend compatibility

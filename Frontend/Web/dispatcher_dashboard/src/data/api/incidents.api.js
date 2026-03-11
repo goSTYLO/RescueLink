@@ -14,6 +14,29 @@ const INCIDENT_LIST_CACHE_MS = 8000;
 const incidentsCache = new Map();
 const inflightRequests = new Map();
 
+/**
+ * Invalidate all incident cache entries
+ * Called when realtime events indicate data has changed
+ */
+export function invalidateIncidentCache() {
+  const cacheSize = incidentsCache.size;
+  incidentsCache.clear();
+  inflightRequests.clear();
+  if (cacheSize > 0) {
+    console.log(`[incidents] Cache invalidated (${cacheSize} entries cleared)`);
+  }
+}
+
+/**
+ * Invalidate cache for a specific incident by ID
+ * @param {string|number} reportId - The incident report ID
+ */
+export function invalidateIncidentById(reportId) {
+  // Clear any cache entries that might include this incident
+  // Since we can't easily know which cache entries contain it, we clear all for now
+  invalidateIncidentCache();
+}
+
 export function normalizeIncidentStatus(value) {
   const normalized = String(value || '').trim().toLowerCase();
   if (CANONICAL_INCIDENT_STATUSES.has(normalized)) {

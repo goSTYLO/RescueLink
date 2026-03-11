@@ -6,6 +6,7 @@ const Department = require('../models/department');
 const { validateInteger, validateOptionalString, validatePagination } = require('../utils/validation');
 const { logDispatcherAction } = require('../utils/auditLog');
 const { ROLES } = require('../config/roles');
+const { broadcast } = require('../websocket/server');
 
 const dispatchController = {
   // Create new dispatch
@@ -118,6 +119,17 @@ const dispatchController = {
           }
         }
 
+        // Broadcast dispatch created event
+        broadcast('dispatch:created', {
+          report_id: validatedReportId,
+          assignment_group_id: assignmentGroupId,
+          department_code: validatedDepartmentCode,
+          team_name: validatedTeamName,
+          responder_count: dispatches.length,
+          updated_at: new Date().toISOString(),
+          request_id: req.requestId || 'none'
+        });
+
         return res.status(201).json({
           assignment_group_id: assignmentGroupId,
           report_id: validatedReportId,
@@ -163,6 +175,16 @@ const dispatchController = {
             // Best-effort lifecycle hook; keep dispatch creation successful.
           }
         }
+
+        // Broadcast dispatch created event
+        broadcast('dispatch:created', {
+          report_id: validatedReportId,
+          assignment_group_id: assignmentGroupId,
+          department_code: validatedDepartmentCode,
+          department_only: true,
+          updated_at: new Date().toISOString(),
+          request_id: req.requestId || 'none'
+        });
 
         return res.status(201).json({
           assignment_group_id: assignmentGroupId,

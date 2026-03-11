@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:path_provider/path_provider.dart';
 import '../../services/incident_service.dart';
+import '../../services/realtime_service.dart';
 import '../../utils/report_ui.dart';
 
 class IncidentDetailsScreen extends StatefulWidget {
@@ -43,6 +44,14 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
   Duration _audioDuration = Duration.zero;
   String? _loadError;
 
+  // Realtime subscription
+  StreamSubscription<RealtimeEvent>? _realtimeSubscription;
+
+  /// Cooldown tracking to prevent request storms
+  DateTime? _lastRealtimeRefresh;
+  static const Duration _minRefreshInterval = Duration(seconds: 2);
+  Timer? _refreshDebounceTimer;
+
   @override
   void initState() {
     super.initState();
@@ -78,8 +87,65 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
 
     if (_resolvedReportId != null) {
       _loadIncident();
+      _connectRealtime();
     } else {
       setState(() => _loading = false);
+    }
+  }
+
+  /// Connect to realtime WebSocket for incident updates
+  void _connectRealtime() {
+    final reportId = _resolvedReportId;
+    if (reportId == null) return;
+
+    try {
+      realtimeService.connect().catchError((e) {
+        debugPrint('[IncidentDetails] Realtime connection failed: $e');
+      });
+
+      _realtimeSubscription = realtimeService.eventStream.listen((event) {
+        _handleRealtimeEvent(event, reportId);
+      });
+    } catch (e) {
+      debugPrint('[IncidentDetails] Error setting up realtime: $e');
+    }
+  }
+
+  /// Handle realtime events with debounce and cooldown
+  void _handleRealtimeEvent(RealtimeEvent event, int currentReportId) {
+    switch (event.type) {
+      case RealtimeEventType.incidentUpdated:
+      case RealtimeEventType.dispatchCreated:
+        // Check if this event is for the current incident
+        final eventReportId = event.payload['report_id'];
+        if (eventReportId != null && eventReportId == currentReportId) {
+          debugPrint('[IncidentDetails] Realtime update for current incident');
+
+          // Check cooldown
+          final now = DateTime.now();
+          if (_lastRealtimeRefresh != null) {
+            final timeSinceLastRefresh = now.difference(_lastRealtimeRefresh!);
+            if (timeSinceLastRefresh < _minRefreshInterval) {
+              debugPrint('[IncidentDetails] Skipping refresh, cooldown active (${timeSinceLastRefresh.inMilliseconds}ms)');
+              return;
+            }
+          }
+
+          // Debounce the refresh
+          _refreshDebounceTimer?.cancel();
+          _refreshDebounceTimer = Timer(const Duration(milliseconds: 800), () {
+            if (mounted) {
+              _lastRealtimeRefresh = DateTime.now();
+              _loadIncident();
+            }
+          });
+        }
+        break;
+      case RealtimeEventType.connectionEstablished:
+        debugPrint('[IncidentDetails] Realtime connection established');
+        break;
+      default:
+        break;
     }
   }
 
@@ -88,6 +154,8 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
     for (final subscription in _audioSubscriptions) {
       subscription.cancel();
     }
+    _realtimeSubscription?.cancel();
+    _refreshDebounceTimer?.cancel();
     _audioPlayer.dispose();
     _incidentService.close();
     super.dispose();

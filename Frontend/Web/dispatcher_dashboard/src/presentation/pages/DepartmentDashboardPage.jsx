@@ -6,13 +6,14 @@ import { Button } from '@/presentation/components/ui/Button';
 import { Badge } from '@/presentation/components/ui/Badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/presentation/components/ui/Dialog';
 import { Eye, Truck, MapPin, CheckCircle, AlertCircle, LayoutDashboard, UserPlus, X, Clock, Shield } from 'lucide-react';
-import { getIncidents, normalizeIncidentStatus } from '@/data/api/incidents.api';
+import { getIncidents, normalizeIncidentStatus, invalidateIncidentCache } from '@/data/api/incidents.api';
 import { getDepartmentById, getDepartmentUnits, assignDepartmentUnit } from '@/data/api/departments.api';
 import { getResponderTeams } from '@/data/api/responders.api';
 import { createDispatch } from '@/data/api/dispatches.api';
 import { inferDepartmentSectorCode, normalizeSectorCode } from '@/core/utils/departmentSector';
 import { ROLES } from '@/core/constants';
 import { useTheme } from '@/presentation/context/ThemeContext';
+import { useRealtimeEventDebounced } from '@/presentation/context/RealtimeContext.jsx';
 import Swal from 'sweetalert2';
 
 function mapApiIncidentToRow(api) {
@@ -116,6 +117,13 @@ export function DepartmentDashboardPage() {
       window.removeEventListener('incident:updated', handleUpdated);
     };
   }, [user.role, fetchIncidents]);
+
+  // Listen for realtime WebSocket events with debouncing (prevents request storms)
+  useRealtimeEventDebounced(['incident:created', 'incident:updated', 'dispatch:created'], (payload) => {
+    console.log('[DepartmentDashboard] Realtime event received (debounced):', payload);
+    invalidateIncidentCache();
+    fetchIncidents();
+  }, 2000, 'dept-dashboard');
 
   useEffect(() => {
     if (!departmentId || (user.role !== ROLES.DEPARTMENT_ADMIN && user.role !== ROLES.PERSONNEL)) return;

@@ -16,6 +16,7 @@ dependencies:
   
   # Networking
   http: ^1.1.0
+  web_socket_channel: ^2.4.5
   
   # Firebase
   firebase_core: ^2.25.0

@@ -5,9 +5,10 @@ import { Card } from '@/presentation/components/ui/Card';
 import { Button } from '@/presentation/components/ui/Button';
 import { Badge } from '@/presentation/components/ui/Badge';
 import { ClipboardList, Eye, MapPin } from 'lucide-react';
-import { getIncidents, normalizeIncidentStatus } from '@/data/api/incidents.api';
+import { getIncidents, normalizeIncidentStatus, invalidateIncidentCache } from '@/data/api/incidents.api';
 import { ROLES } from '@/core/constants';
 import { useTheme } from '@/presentation/context/ThemeContext';
+import { useRealtimeEventDebounced } from '@/presentation/context/RealtimeContext.jsx';
 
 function mapApiIncidentToRow(api) {
   const firstName = api.reporter_first_name || '';
@@ -82,6 +83,13 @@ export function AssignedIncidentsPage() {
       window.removeEventListener('incident:updated', handleUpdated);
     };
   }, [user.role, fetchIncidents]);
+
+  // Listen for realtime WebSocket events with debouncing (prevents request storms)
+  useRealtimeEventDebounced(['incident:created', 'incident:updated', 'dispatch:created'], (payload) => {
+    console.log('[AssignedIncidents] Realtime event received (debounced):', payload);
+    invalidateIncidentCache();
+    fetchIncidents();
+  }, 2000, 'assigned-incidents');
 
   const getSeverityColor = (severity) => {
     switch (String(severity).toLowerCase()) {

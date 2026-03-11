@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../services/incident_service.dart';
+import '../../services/realtime_service.dart';
+import 'dart:async';
 
 class ReportHistoryScreen extends StatefulWidget {
   final void Function(int reportId)? onReportTap;
@@ -24,6 +26,9 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
 
+  // Realtime subscription
+  StreamSubscription<RealtimeEvent>? _realtimeSubscription;
+
   @override
   void initState() {
     super.initState();
@@ -31,13 +36,77 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
     _searchController.addListener(() {
       if (mounted) setState(() => _searchQuery = _searchController.text.trim());
     });
+    _connectRealtime();
   }
 
   @override
   void dispose() {
     _searchController.dispose();
     _searchFocusNode.dispose();
+    _realtimeSubscription?.cancel();
     super.dispose();
+  }
+
+  /// Connect to realtime WebSocket and listen for events
+  void _connectRealtime() {
+    try {
+      // Connect to realtime service
+      realtimeService.connect().catchError((e) {
+        // Silently handle connection errors - polling will be the fallback
+        debugPrint('[ReportHistory] Realtime connection failed (using polling): $e');
+      });
+
+      // Subscribe to events
+      _realtimeSubscription = realtimeService.eventStream.listen((event) {
+        _handleRealtimeEvent(event);
+      });
+    } catch (e) {
+      debugPrint('[ReportHistory] Error setting up realtime: $e');
+    }
+  }
+
+  /// Handle realtime events
+  void _handleRealtimeEvent(RealtimeEvent event) {
+    switch (event.type) {
+      case RealtimeEventType.incidentCreated:
+      case RealtimeEventType.incidentUpdated:
+      case RealtimeEventType.dispatchCreated:
+        // Refresh the list when incidents change
+        debugPrint('[ReportHistory] Received ${event.type}, refreshing list');
+        _refreshOnRealtimeUpdate();
+        break;
+      case RealtimeEventType.connectionEstablished:
+        debugPrint('[ReportHistory] Realtime connection established');
+        break;
+      case RealtimeEventType.unknown:
+        break;
+    }
+  }
+
+  /// Cooldown tracking to prevent request storms
+  DateTime? _lastRealtimeRefresh;
+  static const Duration _minRefreshInterval = Duration(seconds: 3);
+
+  /// Refresh list with debounce and cooldown to prevent request storms
+  Timer? _refreshDebounceTimer;
+  void _refreshOnRealtimeUpdate() {
+    // Check cooldown
+    final now = DateTime.now();
+    if (_lastRealtimeRefresh != null) {
+      final timeSinceLastRefresh = now.difference(_lastRealtimeRefresh!);
+      if (timeSinceLastRefresh < _minRefreshInterval) {
+        debugPrint('[ReportHistory] Skipping refresh, cooldown active (${timeSinceLastRefresh.inMilliseconds}ms)');
+        return;
+      }
+    }
+
+    _refreshDebounceTimer?.cancel();
+    _refreshDebounceTimer = Timer(const Duration(milliseconds: 1500), () {
+      if (mounted && !_loading && !_loadingMore) {
+        _lastRealtimeRefresh = DateTime.now();
+        _loadIncidents();
+      }
+    });
   }
 
   Future<void> _loadIncidents() async {

@@ -7,7 +7,8 @@ import { incidents as mockIncidents, barangays } from '@/data/mock/mockData';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
-import { getIncidents, normalizeIncidentStatus } from '@/data/api/incidents.api';
+import { getIncidents, normalizeIncidentStatus, invalidateIncidentCache } from '@/data/api/incidents.api';
+import { useRealtimeEventDebounced } from '@/presentation/context/RealtimeContext.jsx';
 import { DEV_MODE } from '@/core/config/app.config';
 
 const POLLING_INTERVAL_MS = 30000;
@@ -108,6 +109,14 @@ export function MapViewPage() {
       window.removeEventListener('incident:updated', handleIncidentUpdated);
     };
   }, [fetchIncidents]);
+
+  // Listen for realtime WebSocket events with debouncing (prevents request storms)
+  useRealtimeEventDebounced(['incident:created', 'incident:updated', 'dispatch:created'], (payload) => {
+    console.log('[MapView] Realtime event received (debounced):', payload);
+    // Invalidate cache and refetch
+    invalidateIncidentCache();
+    fetchIncidents();
+  }, 2000, 'mapview-incidents');
 
   useEffect(() => {
     sessionStorage.setItem(MAP_FILTER_STATE_KEY, JSON.stringify({

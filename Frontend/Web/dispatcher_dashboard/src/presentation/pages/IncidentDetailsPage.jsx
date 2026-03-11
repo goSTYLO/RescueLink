@@ -34,6 +34,7 @@ import { ROLES, normalizeRole, getRoleDisplayLabel } from '@/core/constants';
 import { normalizeIncidentTaskType, doesTeamSupportIncidentType } from '@/core/utils/incidentClassification';
 import { Loader2 } from 'lucide-react';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
+import { useRealtimeEvent, shouldAllowRealtimeRefetch, markRealtimeRefetchStart, markRealtimeRefetchComplete } from '@/presentation/context/RealtimeContext.jsx';
 import Swal from 'sweetalert2';
 
 function normalizeSeverityToDbLevel(value) {
@@ -188,6 +189,27 @@ export function IncidentDetailsPage() {
   useEffect(() => {
     fetchIncident();
   }, [fetchIncident]);
+
+  // Listen for realtime WebSocket events for this specific incident
+  // Use cooldown tracking to prevent multiple rapid refetches
+  useRealtimeEvent(['incident:updated', 'dispatch:created'], (payload) => {
+    if (payload.report_id && String(payload.report_id) === String(id)) {
+      console.log('[IncidentDetails] Realtime update for current incident:', payload);
+
+      // Check cooldown to prevent rapid refetches
+      const requestKey = `incident-${id}`;
+      if (!shouldAllowRealtimeRefetch(requestKey)) {
+        console.log('[IncidentDetails] Skipping refetch, cooldown active');
+        return;
+      }
+
+      // Refetch the incident to get latest data
+      markRealtimeRefetchStart(requestKey);
+      fetchIncident().finally(() => {
+        markRealtimeRefetchComplete(requestKey);
+      });
+    }
+  });
 
   // Fetch audio when incident has audio and we're viewing API-sourced incident
   useEffect(() => {
