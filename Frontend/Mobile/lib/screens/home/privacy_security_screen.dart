@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../services/auth_service.dart';
 
 class PrivacySecurityScreen extends StatefulWidget {
   final VoidCallback? onBack;
@@ -15,6 +16,22 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
   bool _biometricLogin = false;
   String _locationOption = 'During Emergencies Only';
   String _autoLogoutOption = '30 minutes';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBiometricPreference();
+  }
+
+  Future<void> _loadBiometricPreference() async {
+    final enabled = await AuthService().isBiometricLoginEnabled();
+    if (mounted) setState(() => _biometricLogin = enabled);
+  }
+
+  Future<void> _onBiometricToggle(bool value) async {
+    await AuthService().setBiometricLoginEnabled(value);
+    if (mounted) setState(() => _biometricLogin = value);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -131,10 +148,10 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
                       icon: Icons.fingerprint,
                       iconBg: const Color(0xFF2563EB),
                       title: 'Biometric Login',
-                      subtitle: 'Use fingerprint or Face ID for quick, secure access',
+                      subtitle: 'Use biometrics for quick, secure access',
                       value: null,
                       toggleValue: _biometricLogin,
-                      onToggle: (v) => setState(() => _biometricLogin = v),
+                      onToggle: _onBiometricToggle,
                     ),
                     const SizedBox(height: 10),
                     _privacyCard(

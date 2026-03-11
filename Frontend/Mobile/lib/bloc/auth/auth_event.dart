@@ -89,6 +89,10 @@ class LoginRequested extends AuthEvent {
   List<Object?> get props => [phone, password];
 }
 
+class BiometricLoginRequested extends AuthEvent {
+  const BiometricLoginRequested();
+}
+
 class AuthReset extends AuthEvent {
   const AuthReset();
 }

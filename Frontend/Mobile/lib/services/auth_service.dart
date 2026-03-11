@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'api_service.dart';
@@ -17,6 +18,9 @@ class AuthService {
   final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
   final ApiService _apiService = ApiService();
   late SharedPreferences _prefs;
+  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
+  static const _keyBiometricEnabled = 'biometric_login_enabled';
+  static const _keyBiometricToken = 'biometric_token';
   String? _verificationId;
   int? _forceResendingToken;
 
@@ -38,7 +42,43 @@ class AuthService {
   // Clear token on logout
   Future<void> logout() async {
     await _prefs.remove('jwt_token');
+    await clearBiometricToken();
     await _firebaseAuth.signOut();
+  }
+
+  // --- Biometric login (after initial credential verification) ---
+
+  Future<bool> isBiometricLoginEnabled() async {
+    return _prefs.getBool(_keyBiometricEnabled) ?? false;
+  }
+
+  Future<void> setBiometricLoginEnabled(bool enabled) async {
+    await _prefs.setBool(_keyBiometricEnabled, enabled);
+    if (!enabled) await clearBiometricToken();
+  }
+
+  /// Saves token to secure storage for biometric login. Call after successful
+  /// phone+password login when biometric is enabled.
+  Future<void> saveTokenForBiometric(String token) async {
+    final enabled = await isBiometricLoginEnabled();
+    if (!enabled) return;
+    await _secureStorage.write(key: _keyBiometricToken, value: token);
+  }
+
+  /// Reads token from secure storage. Call only after user has passed
+  /// local_auth biometric prompt in the UI.
+  Future<String?> getTokenForBiometric() async {
+    return _secureStorage.read(key: _keyBiometricToken);
+  }
+
+  Future<void> clearBiometricToken() async {
+    await _secureStorage.delete(key: _keyBiometricToken);
+  }
+
+  /// Stores token in session (SharedPreferences). Used after biometric
+  /// login to restore session before fetching profile.
+  Future<void> setToken(String token) async {
+    await _storeToken(token);
   }
 
   // Clear token only (no Firebase sign-out)
@@ -205,6 +245,7 @@ class AuthService {
       // Store token on successful login
       if (response['token'] != null) {
         await _storeToken(response['token']);
+        await saveTokenForBiometric(response['token'] as String);
         print('✅ Login successful, token stored');
       }
 
