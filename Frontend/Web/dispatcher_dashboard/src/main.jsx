@@ -2,7 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
 import { ThemeProvider } from '@/presentation/context/ThemeContext.jsx'
-import 'mapbox-gl/dist/mapbox-gl.css'
+import 'leaflet/dist/leaflet.css'
 import './index.css'
 
 ReactDOM.createRoot(document.getElementById('root')).render(

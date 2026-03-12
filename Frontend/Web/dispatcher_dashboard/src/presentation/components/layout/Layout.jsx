@@ -9,7 +9,7 @@ import logoDark from '@/presentation/assets/logo-dark.svg';
 import Swal from 'sweetalert2';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
 import { ThemeToggle } from '@/presentation/components/common/ThemeToggle';
-import { ROLES, normalizeRole } from '@/core/constants';
+import { getDefaultRouteByRole, ROLES, normalizeRole } from '@/core/constants';
 import { DEV_MODE } from '@/core/config/app.config';
 import { clearAuthSession } from '@/core/auth/session';
 
@@ -37,7 +37,6 @@ const NAV_DEPARTMENT_ADMIN = [
     { icon: Home, label: 'Dashboard', path: '/department/dashboard' },
     { icon: Users, label: 'Personnel', path: '/department/personnel' },
     { icon: Truck, label: 'Vehicles', path: '/department/vehicles' },
-    { icon: ClipboardList, label: 'Active Tasks', path: '/department/tasks' },
   ]},
   { title: 'GENERAL', items: [
     { icon: Map, label: 'Map View', path: '/map' },
@@ -79,14 +78,6 @@ const DEV_ROLE_PRESETS = [
   { value: ROLES.DEPARTMENT_ADMIN, label: 'Dept Admin (Fire)', user: { name: 'Fire Chief Mendoza', username: 'Fire Chief Mendoza', email: 'mendoza@fire.dagupan.gov', role: ROLES.DEPARTMENT_ADMIN, department: 'Bureau of Fire Protection (BFP Dagupan)', departmentId: 'bfp' } },
   { value: ROLES.PERSONNEL, label: 'Personnel (Fire)', user: { name: 'Officer Pedro Ramos', username: 'Officer Pedro Ramos', email: 'pedro.ramos@pnp.dagupan.gov', role: ROLES.PERSONNEL, department: 'Bureau of Fire Protection (BFP Dagupan)', departmentId: 'bfp' } },
 ];
-
-function getRedirectPathForRole(r) {
-  if (r === ROLES.DISPATCHER) return '/dashboard';
-  if (r === ROLES.DEPARTMENT_HEAD) return '/department/assigned-incidents';
-  if (r === ROLES.DEPARTMENT_ADMIN) return '/department/dashboard';
-  if (r === ROLES.PERSONNEL) return '/department/tasks';
-  return '/dashboard';
-}
 
 export function Layout({ children }) {
   const { theme } = useTheme();
@@ -156,7 +147,7 @@ export function Layout({ children }) {
     const preset = DEV_ROLE_PRESETS.find((p) => p.value === value);
     if (!preset) return;
       sessionStorage.setItem('user', JSON.stringify(preset.user));
-    navigate(getRedirectPathForRole(preset.value));
+    navigate(getDefaultRouteByRole(preset.value));
   };
 
   const performLogout = async () => {

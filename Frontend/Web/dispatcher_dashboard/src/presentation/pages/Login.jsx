@@ -5,16 +5,10 @@ import { AtSign, Eye, EyeOff } from 'lucide-react';
 import logo from '@/presentation/assets/logo.svg';
 import illustration from '@/presentation/assets/illustration.svg';
 import { DEV_MODE } from '@/core/config/app.config';
-import { ROLES } from '@/core/constants';
+import { getDefaultRouteByRole } from '@/core/constants';
 import { loginDispatcher, verifyDispatcherOtp } from '@/data/api/auth.api';
 import { AuthCardLayout } from '@/presentation/components/layout/AuthCardLayout';
 import { AuthFloatingInput } from '@/presentation/components/ui/AuthFloatingInput';
-
-function getRedirectPathByRole(role) {
-  if (role === ROLES.DEPARTMENT_ADMIN) return '/department/dashboard';
-  if (role === ROLES.PERSONNEL) return '/department/tasks';
-  return '/dashboard';
-}
 
 export default function Login({ onSuccess, onForgotPasswordClick }) {
   const navigate = useNavigate();
@@ -54,7 +48,7 @@ export default function Login({ onSuccess, onForgotPasswordClick }) {
         }).then(() => {
           onSuccess(data);
           const user = JSON.parse(sessionStorage.getItem('user') || '{}');
-          navigate(getRedirectPathByRole(user.role));
+          navigate(getDefaultRouteByRole(user.role));
         });
       } catch (err) {
         Swal.fire({
@@ -104,7 +98,7 @@ export default function Login({ onSuccess, onForgotPasswordClick }) {
         }).then(() => {
           onSuccess(data);
           const user = JSON.parse(sessionStorage.getItem('user') || '{}');
-          navigate(getRedirectPathByRole(user.role));
+          navigate(getDefaultRouteByRole(user.role));
         });
       }
     } catch (err) {

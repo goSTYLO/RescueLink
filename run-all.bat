@@ -25,4 +25,8 @@ if errorlevel 1 (
 
 echo Services should start in integrated VS Code terminals.
 echo If they do not, run Ctrl+Shift+B inside VS Code.
+
+echo Opening Mobile terminal...
+start "RescueLink Mobile" powershell -NoProfile -NoExit -Command "& {Set-Location '%ROOT%Frontend\Mobile'; Write-Host 'Mobile terminal ready. Run: flutter run' -ForegroundColor Cyan}"
+
 exit /b 0

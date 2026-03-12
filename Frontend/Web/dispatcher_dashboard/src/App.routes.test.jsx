@@ -7,7 +7,6 @@ global.TextDecoder = TextDecoder;
 jest.mock('@/core/config/app.config', () => ({
   API_URL: 'http://localhost:3000',
   DEV_MODE: false,
-  MAPBOX_ACCESS_TOKEN: '',
 }));
 
 jest.mock('@/infrastructure/firebase', () => ({ auth: {} }));

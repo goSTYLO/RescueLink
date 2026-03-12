@@ -86,20 +86,32 @@ const TEAMS = [
 ];
 
 const USERS = [
+  // System Admins (full system access)
   { first_name: 'Ariel', last_name: 'Admin', email: 'admin@rescuelink.test', phone_number: '639001000001', password: 'admin123', role: ROLES.ADMIN, address: 'Arellano St, Dagupan City', department_code: null },
   { first_name: 'Bianca', last_name: 'Admin', email: 'admin2@rescuelink.test', phone_number: '639001000002', password: 'admin123', role: ROLES.ADMIN, address: 'Perez Blvd, Dagupan City', department_code: null },
+  // Department Admins (manage rosters, teams, and department resources)
+  { first_name: 'Paolo', last_name: 'DeptAdmin', email: 'deptadmin_pnp@rescuelink.test', phone_number: '639001000010', password: 'deptadmin123', role: ROLES.DEPARTMENT_ADMIN, address: 'PNP Headquarters, Dagupan City', department_code: 'pnp' },
+  { first_name: 'Rosa', last_name: 'DeptAdmin', email: 'deptadmin_drrmo@rescuelink.test', phone_number: '639001000011', password: 'deptadmin123', role: ROLES.DEPARTMENT_ADMIN, address: 'CDRRMO Office, Dagupan City', department_code: 'drrmo' },
+  // Dispatchers (manage dispatches and handle incidents)
   { first_name: 'Alice', last_name: 'Dispatcher', email: 'dispatcher@rescuelink.test', phone_number: '639002000001', password: 'dispatcher123', role: ROLES.DISPATCHER, address: 'Bonuan Boquig, Dagupan City', department_code: 'drrmo' },
   { first_name: 'Bob', last_name: 'Dispatcher', email: 'dispatcher2@rescuelink.test', phone_number: '639002000002', password: 'dispatcher123', role: ROLES.DISPATCHER, address: 'Pantal, Dagupan City', department_code: 'pnp' },
   { first_name: 'Carla', last_name: 'Dispatcher', email: 'dispatcher3@rescuelink.test', phone_number: '639002000003', password: 'dispatcher123', role: ROLES.DISPATCHER, address: 'Lucao, Dagupan City', department_code: 'drrmo' },
+  { first_name: 'Daniel', last_name: 'Dispatcher', email: 'dispatcher4@rescuelink.test', phone_number: '639002000004', password: 'dispatcher123', role: ROLES.DISPATCHER, address: 'Arellano St, Dagupan City', department_code: 'pnp' },
+  // Department Heads (operational leadership: view and assign responders/teams)
+  { first_name: 'Maria', last_name: 'DeptHead', email: 'depthead_pnp@rescuelink.test', phone_number: '639001000020', password: 'depthead123', role: ROLES.DEPARTMENT_HEAD, address: 'PNP Field Office, Dagupan City', department_code: 'pnp' },
+  { first_name: 'Lucia', last_name: 'DeptHead', email: 'depthead_drrmo@rescuelink.test', phone_number: '639001000021', password: 'depthead123', role: ROLES.DEPARTMENT_HEAD, address: 'CDRRMO Operations, Dagupan City', department_code: 'drrmo' },
+  // Supervisors (escalation management)
   { first_name: 'Evan', last_name: 'Supervisor', email: 'supervisor@rescuelink.test', phone_number: '639004000001', password: 'supervisor123', role: ROLES.SUPERVISOR, address: 'Lasip Chico, Dagupan City', department_code: 'drrmo' },
   { first_name: 'Fiona', last_name: 'Supervisor', email: 'supervisor2@rescuelink.test', phone_number: '639004000002', password: 'supervisor123', role: ROLES.SUPERVISOR, address: 'Malued, Dagupan City', department_code: 'pnp' },
+  // Mobile app reporters/users (incident reporting)
   { first_name: 'John', last_name: 'Reporter', email: 'user@rescuelink.test', phone_number: '639005000001', password: 'user123', role: ROLES.USER, address: 'Bonuan Binloc, Dagupan City', department_code: null },
   { first_name: 'Jane', last_name: 'Reporter', email: 'user2@rescuelink.test', phone_number: '639005000002', password: 'user123', role: ROLES.USER, address: 'Tapuac, Dagupan City', department_code: null },
   { first_name: 'Miguel', last_name: 'Reporter', email: 'user3@rescuelink.test', phone_number: '639005000003', password: 'user123', role: ROLES.USER, address: 'Mangin, Dagupan City', department_code: null },
-  { first_name: 'Paolo', last_name: 'Responder', email: 'responder@rescuelink.test', phone_number: '639003000001', password: 'responder123', role: ROLES.RESPONDER, address: 'Pob. Oeste, Dagupan City', department_code: 'pnp' },
-  { first_name: 'Diana', last_name: 'Responder', email: 'responder2@rescuelink.test', phone_number: '639003000002', password: 'responder123', role: ROLES.RESPONDER, address: 'Pob. Oeste, Dagupan City', department_code: 'pnp' },
-  { first_name: 'Noel', last_name: 'Responder', email: 'responder3@rescuelink.test', phone_number: '639003000003', password: 'responder123', role: ROLES.RESPONDER, address: 'Bonuan Gueset, Dagupan City', department_code: 'drrmo' },
-  { first_name: 'Trina', last_name: 'Responder', email: 'responder4@rescuelink.test', phone_number: '639003000004', password: 'responder123', role: ROLES.RESPONDER, address: 'Bonuan Gueset, Dagupan City', department_code: 'drrmo' },
+  // Responders (field personnel with accounts)
+  { first_name: 'SPO2', last_name: 'Reyes', email: 'responder@rescuelink.test', phone_number: '639003000001', password: 'responder123', role: ROLES.RESPONDER, address: 'Pob. Oeste, Dagupan City', department_code: 'pnp' },
+  { first_name: 'SPO1', last_name: 'Flores', email: 'responder2@rescuelink.test', phone_number: '639003000002', password: 'responder123', role: ROLES.RESPONDER, address: 'Pob. Oeste, Dagupan City', department_code: 'pnp' },
+  { first_name: 'Rescuer', last_name: 'Ramos', email: 'responder3@rescuelink.test', phone_number: '639003000003', password: 'responder123', role: ROLES.RESPONDER, address: 'Bonuan Gueset, Dagupan City', department_code: 'drrmo' },
+  { first_name: 'Medic', last_name: 'Santos', email: 'responder4@rescuelink.test', phone_number: '639003000004', password: 'responder123', role: ROLES.RESPONDER, address: 'Bonuan Gueset, Dagupan City', department_code: 'drrmo' },
 ];
 
 const RESPONDERS = [
@@ -269,23 +281,37 @@ async function seedDatabase() {
     console.log('🎉 Core data seeding completed successfully!');
     console.log('════════════════════════════════════════════════');
     console.log('\n📋 Summary:');
-    console.log(`   👤  Users: ${userIds.length}`);
+    console.log(`   👤  Users: ${userIds.length} (2 Admins, 2 Dept Admins, 4 Dispatchers, 2 Dept Heads, 2 Supervisors, 4 Responders, 3 Reporters)`);
     console.log(`   🏢 Departments: ${DEPARTMENTS.length}`);
     console.log(`   👥 Teams: ${TEAMS.length}`);
     console.log(`   🚨 Responders: ${responderIds.length}`);
     console.log(`   🔗 Team memberships: ${membershipCount}`);
+    console.log('\n🔑 Test Account Credentials:');
+    console.log('\n   System Admins (full access):');
+    console.log('   - admin@rescuelink.test / admin123');
+    console.log('   - admin2@rescuelink.test / admin123');
+    console.log('\n   Department Admins (manage rosters & teams):');
+    console.log('   - deptadmin_pnp@rescuelink.test / deptadmin123');
+    console.log('   - deptadmin_drrmo@rescuelink.test / deptadmin123');
+    console.log('\n   Dispatchers (manage incidents & dispatches):');
+    console.log('   - dispatcher@rescuelink.test / dispatcher123');
+    console.log('   - dispatcher2@rescuelink.test / dispatcher123');
+    console.log('   - dispatcher3@rescuelink.test / dispatcher123');
+    console.log('   - dispatcher4@rescuelink.test / dispatcher123');
+    console.log('\n   Department Heads (operational leadership: view responders/teams):');
+    console.log('   - depthead_pnp@rescuelink.test / depthead123');
+    console.log('   - depthead_drrmo@rescuelink.test / depthead123');
+    console.log('\n   Responders (field personnel):');
+    console.log('   - responder@rescuelink.test / responder123');
+    console.log('   - responder2@rescuelink.test / responder123');
+    console.log('   - responder3@rescuelink.test / responder123');
+    console.log('   - responder4@rescuelink.test / responder123');
+    console.log('\n   Reporters (mobile app users):');
+    console.log('   - user@rescuelink.test / user123');
+    console.log('   - user2@rescuelink.test / user123');
+    console.log('   - user3@rescuelink.test / user123');
     console.log('\nℹ️ Incident seeding moved to dedicated script for realistic audio-based samples.');
     console.log('   Run: npm run seed-incidents');
-    console.log('\n🔑 Test Credentials (by role):');
-    const seen = new Set();
-    for (const user of USERS) {
-      const key = `${user.role}:${user.password}`;
-      if (!seen.has(key)) {
-        seen.add(key);
-        console.log(`   ${toRoleLabel(user.role)} password: ${user.password}`);
-      }
-      console.log(`     - ${user.email}`);
-    }
     console.log('');
 
   } catch (err) {

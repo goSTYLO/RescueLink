@@ -31,6 +31,14 @@ export function isPersonnel(role) {
   return normalizeRole(role) === ROLES.PERSONNEL;
 }
 
+export function getDefaultRouteByRole(role) {
+  const normalized = normalizeRole(role);
+  if (normalized === ROLES.DEPARTMENT_HEAD) return '/department/assigned-incidents';
+  if (normalized === ROLES.DEPARTMENT_ADMIN) return '/department/dashboard';
+  if (normalized === ROLES.PERSONNEL) return '/department/tasks';
+  return '/dashboard';
+}
+
 // Map normalized role to a human-readable display label
 export function getRoleDisplayLabel(role) {
   const normalized = normalizeRole(role);

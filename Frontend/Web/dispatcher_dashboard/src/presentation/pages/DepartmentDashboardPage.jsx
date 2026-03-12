@@ -39,24 +39,15 @@ function mapApiIncidentToRow(api) {
     severity,
     status,
     timeReported,
+    reporterConfirmedAt: api.reporter_confirmed_at || null,
   };
 }
 
 const ASSIGNMENTS_STORAGE_KEY = 'rescuelink_incident_personnel_assignments';
-const VEHICLE_ASSIGNMENTS_STORAGE_KEY = 'rescuelink_incident_vehicle_assignments';
 
 function getStoredAssignments() {
   try {
     const raw = localStorage.getItem(ASSIGNMENTS_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
-}
-
-function getStoredVehicleAssignments() {
-  try {
-    const raw = localStorage.getItem(VEHICLE_ASSIGNMENTS_STORAGE_KEY);
     return raw ? JSON.parse(raw) : {};
   } catch {
     return {};
@@ -74,11 +65,8 @@ export function DepartmentDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [assignments, setAssignments] = useState(getStoredAssignments);
-  const [vehicleAssignments, setVehicleAssignments] = useState(getStoredVehicleAssignments);
   const [assignModalOpen, setAssignModalOpen] = useState(false);
   const [assigningIncidentId, setAssigningIncidentId] = useState(null);
-  const [vehicleModalOpen, setVehicleModalOpen] = useState(false);
-  const [assigningIncidentIdVehicle, setAssigningIncidentIdVehicle] = useState(null);
   const [department, setDepartment] = useState(null);
   const [departmentSectorCode, setDepartmentSectorCode] = useState('');
   const [teams, setTeams] = useState([]);
@@ -184,12 +172,6 @@ export function DepartmentDashboardPage() {
     } catch (_) {}
   }, [assignments]);
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(VEHICLE_ASSIGNMENTS_STORAGE_KEY, JSON.stringify(vehicleAssignments));
-    } catch (_) {}
-  }, [vehicleAssignments]);
-
   const departmentIncidents = incidents;
   const filteredIncidents = departmentIncidents.filter((incident) => {
     if (filterType !== 'All' && incident.emergencyType !== filterType) return false;
@@ -276,50 +258,19 @@ export function DepartmentDashboardPage() {
   });
 
   const getAssignment = useCallback((incidentId) => assignments[incidentId] || null, [assignments]);
-  const getVehicleAssignment = useCallback((incidentId) => vehicleAssignments[incidentId] || null, [vehicleAssignments]);
-  const [assigningVehicleId, setAssigningVehicleId] = useState(null);
   const isTeamAssignable = useCallback((team) => {
     const status = String(team?.team_status || 'available').trim().toLowerCase();
     return status.includes('available') || status.includes('standby');
   }, []);
 
-  const assignVehicleToIncident = useCallback(async (incidentId, unitId, unitName) => {
-    if (!departmentId || !incidentId || !unitId) return;
-    setAssigningVehicleId(unitId);
-    try {
-      await assignDepartmentUnit(departmentId, unitId, Number(incidentId));
-      const list = await getDepartmentUnits(departmentId);
-      setUnitsList((Array.isArray(list) ? list : []).map((u) => ({
-        id: u.unit_id,
-        name: u.name,
-        type: u.type,
-        status: u.status || 'Available',
-      })));
-      setVehicleAssignments((prev) => ({ ...prev, [incidentId]: { vehicleId: unitId, name: unitName } }));
-      setVehicleModalOpen(false);
-      setAssigningIncidentIdVehicle(null);
-      Swal.fire({
-        icon: 'success',
-        title: 'Vehicle assigned',
-        html: `<strong>${unitName}</strong> has been assigned to incident <strong>${incidentId}</strong>. Status set to On Dispatch.`,
-        timer: 2500,
-        showConfirmButton: false,
-        timerProgressBar: true,
-        customClass: { popup: 'rounded-2xl shadow-xl' },
-      });
-    } catch (e) {
-      Swal.fire({
-        icon: 'error',
-        title: 'Assign failed',
-        text: e?.message || 'Failed to assign vehicle',
-        customClass: { popup: 'rounded-2xl shadow-xl' },
-      });
-    } finally {
-      setAssigningVehicleId(null);
-    }
-  }, [departmentId]);
-
-  const assignTeamToIncident = useCallback(async (incidentId, team) => {
+  const openAssignModal = (incidentId) => {
+    setAssigningIncidentId(incidentId);
+    setAssignModalOpen(true);
+  };
+  const closeAssignModal = () => {
+    setAssignModalOpen(false);
+    setAssigningIncidentId(null);
+  };
     if (!department?.code || !department?.name || !team?.team_name) return;
     if (!isTeamAssignable(team)) {
       Swal.fire({
@@ -372,14 +323,7 @@ export function DepartmentDashboardPage() {
     setAssignModalOpen(false);
     setAssigningIncidentId(null);
   };
-  const openVehicleAssignModal = (incidentId) => {
-    setAssigningIncidentIdVehicle(incidentId);
-    setVehicleModalOpen(true);
-  };
-  const closeVehicleAssignModal = () => {
-    setVehicleModalOpen(false);
-    setAssigningIncidentIdVehicle(null);
-  };
+
 
   const getSeverityColor = (severity) => {
     switch (String(severity).toLowerCase()) {
@@ -478,52 +422,46 @@ export function DepartmentDashboardPage() {
           </Card>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card className="p-4 rounded-2xl border border-border">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted">Total Assigned</p>
-                <p className="text-2xl font-bold text-foreground">{departmentIncidents.length}</p>
+        <Card className="p-4 rounded-2xl border border-border">
+          <div className="flex flex-wrap items-center gap-6">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center flex-shrink-0">
+                <Truck className="w-5 h-5 text-primary" />
               </div>
-              <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center">
-                <Truck className="w-6 h-6 text-primary" />
+              <div>
+                <p className="text-xs text-muted uppercase font-semibold">Total Assigned</p>
+                <p className="text-lg font-bold text-foreground">{departmentIncidents.length}</p>
               </div>
             </div>
-          </Card>
-          <Card className="p-4 rounded-2xl border border-border">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted">Awaiting Action</p>
-                <p className="text-2xl font-bold text-foreground">{departmentIncidents.filter((i) => i.status === 'Verified' || i.status === 'verified' || i.status === 'New').length}</p>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-indigo-500/20 flex items-center justify-center flex-shrink-0">
+                <AlertCircle className="w-5 h-5 text-indigo-400" />
               </div>
-              <div className="w-12 h-12 rounded-xl bg-indigo-500/20 flex items-center justify-center">
-                <AlertCircle className="w-6 h-6 text-indigo-400" />
+              <div>
+                <p className="text-xs text-muted uppercase font-semibold">Awaiting Action</p>
+                <p className="text-lg font-bold text-foreground">{departmentIncidents.filter((i) => i.status === 'Verified' || i.status === 'verified' || i.status === 'New').length}</p>
               </div>
             </div>
-          </Card>
-          <Card className="p-4 rounded-2xl border border-border">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted">In Progress</p>
-                <p className="text-2xl font-bold text-foreground">{departmentIncidents.filter((i) => i.status === 'In Progress' || i.status === 'in-progress').length}</p>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-amber-500/20 flex items-center justify-center flex-shrink-0">
+                <Activity className="w-5 h-5 text-amber-400" />
               </div>
-              <div className="w-12 h-12 rounded-xl bg-amber-500/20 flex items-center justify-center">
-                <Truck className="w-6 h-6 text-amber-400" />
+              <div>
+                <p className="text-xs text-muted uppercase font-semibold">In Progress</p>
+                <p className="text-lg font-bold text-foreground">{departmentIncidents.filter((i) => i.status === 'In Progress' || i.status === 'in-progress').length}</p>
               </div>
             </div>
-          </Card>
-          <Card className="p-4 rounded-2xl border border-border">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted">Resolved</p>
-                <p className="text-2xl font-bold text-foreground">{departmentIncidents.filter((i) => i.status === 'Resolved' || i.status === 'resolved').length}</p>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-green-500/20 flex items-center justify-center flex-shrink-0">
+                <CheckCircle className="w-5 h-5 text-green-400" />
               </div>
-              <div className="w-12 h-12 rounded-xl bg-green-500/20 flex items-center justify-center">
-                <CheckCircle className="w-6 h-6 text-green-400" />
+              <div>
+                <p className="text-xs text-muted uppercase font-semibold">Resolved</p>
+                <p className="text-lg font-bold text-foreground">{departmentIncidents.filter((i) => i.status === 'Resolved' || i.status === 'resolved').length}</p>
               </div>
             </div>
-          </Card>
-        </div>
+          </div>
+        </Card>
 
         <div className={`relative z-0 rounded-2xl overflow-hidden border transition-all duration-300 ${
           isLight ? 'glass neumorphic-light bg-white/80' : 'glass neumorphic-dark bg-card/60'
@@ -658,64 +596,62 @@ export function DepartmentDashboardPage() {
             <table className="w-full">
               <thead className={isLight ? 'bg-gray-50 border-b border-gray-200' : 'bg-muted/30 border-b border-border'}>
                 <tr>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-foreground cursor-pointer" onClick={() => handleSort('id')}><div className="flex items-center gap-1">Incident ID{getSortIcon('id')}</div></th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-foreground cursor-pointer" onClick={() => handleSort('type')}><div className="flex items-center gap-1">Type{getSortIcon('type')}</div></th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-foreground cursor-pointer" onClick={() => handleSort('location')}><div className="flex items-center gap-1">Location{getSortIcon('location')}</div></th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-foreground cursor-pointer" onClick={() => handleSort('severity')}><div className="flex items-center gap-1">Severity{getSortIcon('severity')}</div></th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-foreground cursor-pointer" onClick={() => handleSort('status')}><div className="flex items-center gap-1">Status{getSortIcon('status')}</div></th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-foreground">Assigned To</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-foreground">Vehicle</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-foreground cursor-pointer" onClick={() => handleSort('reported')}><div className="flex items-center gap-1">Reported{getSortIcon('reported')}</div></th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-foreground">Actions</th>
+                  <th className="px-2.5 py-2 text-left text-xs font-semibold text-foreground cursor-pointer" onClick={() => handleSort('id')}><div className="flex items-center gap-1">Incident ID{getSortIcon('id')}</div></th>
+                  <th className="px-2.5 py-2 text-left text-xs font-semibold text-foreground cursor-pointer" onClick={() => handleSort('type')}><div className="flex items-center gap-1">Type{getSortIcon('type')}</div></th>
+                  <th className="px-2.5 py-2 text-left text-xs font-semibold text-foreground cursor-pointer" onClick={() => handleSort('location')}><div className="flex items-center gap-1">Location{getSortIcon('location')}</div></th>
+                  <th className="px-2.5 py-2 text-left text-xs font-semibold text-foreground cursor-pointer" onClick={() => handleSort('severity')}><div className="flex items-center gap-1">Severity{getSortIcon('severity')}</div></th>
+                  <th className="px-2.5 py-2 text-left text-xs font-semibold text-foreground cursor-pointer" onClick={() => handleSort('status')}><div className="flex items-center gap-1">Status{getSortIcon('status')}</div></th>
+                  <th className="px-2.5 py-2 text-left text-xs font-semibold text-foreground">Assigned To</th>
+                  <th className="px-2.5 py-2 text-left text-xs font-semibold text-foreground cursor-pointer" onClick={() => handleSort('reported')}><div className="flex items-center gap-1">Reported{getSortIcon('reported')}</div></th>
+                  <th className="px-2.5 py-2 text-left text-xs font-semibold text-foreground">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {loading ? (
                   <tr>
-                    <td colSpan={9} className="px-4 py-8 text-center text-muted">Loading incidents…</td>
+                    <td colSpan={8} className="px-4 py-8 text-center text-muted">Loading incidents…</td>
                   </tr>
                 ) : (
                   paginatedIncidents.map((incident) => (
                     <tr key={incident.id} className="hover:bg-muted/20 transition-colors">
-                      <td className="px-4 py-3">
-                        <button type="button" onClick={() => navigate(`/incidents/${incident.id}`)} className="text-sm font-medium text-primary hover:underline">
+                      <td className="px-2.5 py-2">
+                        <button type="button" onClick={() => navigate(`/incidents/${incident.id}`)} className="text-xs font-medium text-primary hover:underline">
                           {incident.id}
                         </button>
                       </td>
-                      <td className="px-4 py-3 text-sm">
+                      <td className="px-2.5 py-2 text-xs">
                         <span className="inline-flex items-center gap-1">
                           {getTypeIcon(incident.emergencyType)}
                           <span className="capitalize text-foreground">{incident.emergencyType}</span>
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-sm text-muted">
+                      <td className="px-2.5 py-2 text-xs text-muted">
                         <div className="flex items-center gap-1">
                           <MapPin className="w-4 h-4 text-muted" />
                           {incident.barangay}
                         </div>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-2.5 py-2">
                         <Badge className={getSeverityColor(incident.severity)}>{String(incident.severity || '—')}</Badge>
                       </td>
-                      <td className="px-4 py-3">{getStatusBadge(incident.status)}</td>
-                      <td className="px-4 py-3 text-sm text-muted">
+                      <td className="px-2.5 py-2">
+                        <div className="flex flex-col gap-1">
+                          {getStatusBadge(incident.status)}
+                          {(incident.status === 'Resolved' || incident.status === 'resolved') && !incident.reporterConfirmedAt && (
+                            <span className="text-xs text-amber-500 font-medium">Awaiting confirmation</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-2.5 py-2 text-xs text-muted">
                         {getAssignment(incident.id) ? (getAssignment(incident.id).teamName || getAssignment(incident.id).name) : '—'}
                       </td>
-                      <td className="px-4 py-3 text-sm text-muted">
-                        {getVehicleAssignment(incident.id) ? getVehicleAssignment(incident.id).name : '—'}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-muted">{incident.timeReported || '—'}</td>
-                      <td className="px-4 py-3">
+                      <td className="px-2.5 py-2 text-xs text-muted">{incident.timeReported || '—'}</td>
+                      <td className="px-2.5 py-2">
                         <div className="flex items-center gap-1">
                           {user.role === ROLES.DEPARTMENT_ADMIN && (
-                            <>
-                              <Button size="sm" variant="ghost" onClick={() => openAssignModal(incident.id)} className="text-primary" title="Assign personnel">
-                                <UserPlus className="w-4 h-4" />
-                              </Button>
-                              <Button size="sm" variant="ghost" onClick={() => openVehicleAssignModal(incident.id)} className="text-primary" title="Assign vehicle">
-                                <Truck className="w-4 h-4" />
-                              </Button>
-                            </>
+                            <Button size="sm" variant="ghost" onClick={() => openAssignModal(incident.id)} className="text-primary" title="Assign personnel">
+                              <UserPlus className="w-4 h-4" />
+                            </Button>
                           )}
                           <Button size="sm" variant="ghost" onClick={() => navigate(`/incidents/${incident.id}`)} className="text-primary" title="View details">
                             <Eye className="w-4 h-4" />
@@ -727,7 +663,7 @@ export function DepartmentDashboardPage() {
                 )}
                 {!loading && paginatedIncidents.length === 0 && (
                   <tr>
-                    <td colSpan={9} className="px-4 py-8 text-center text-muted">No incidents match the current filters.</td>
+                    <td colSpan={8} className="px-4 py-8 text-center text-muted">No incidents match the current filters.</td>
                   </tr>
                 )}
               </tbody>
@@ -745,7 +681,7 @@ export function DepartmentDashboardPage() {
           <h3 className="font-semibold text-foreground mb-2">Notes</h3>
           <ul className="text-sm text-muted space-y-1 list-disc list-inside">
             <li>Click an incident ID to view details and update status</li>
-            <li>Use the assign icons to assign personnel or a vehicle to an incident (Dept Admin)</li>
+            <li>Use the assign icon to assign personnel to an incident (Dept Admin)</li>
             <li>Status updates are visible to the Super Admin control center</li>
           </ul>
         </Card>
@@ -810,47 +746,7 @@ export function DepartmentDashboardPage() {
           </DialogContent>
         </Dialog>
 
-        {/* Assign Vehicle Modal — Dept Admin only */}
-        <Dialog open={vehicleModalOpen} onOpenChange={(open) => !open && closeVehicleAssignModal()} className="max-w-md">
-          <DialogContent className={`max-w-md rounded-2xl overflow-hidden ${isLight ? 'glass neumorphic-light bg-white/95 border-gray-200/80' : 'glass neumorphic-dark bg-card/95 border-white/10'}`}>
-            <div className={`flex items-center justify-between border-b ${isLight ? 'border-gray-200/80 pb-4' : 'border-white/10 pb-4'}`}>
-              <DialogHeader>
-                <DialogTitle className="text-xl font-bold text-foreground">Assign vehicle</DialogTitle>
-                <p className="text-sm text-muted mt-1">
-                  {assigningIncidentIdVehicle ? `Select a vehicle for ${assigningIncidentIdVehicle}` : 'Select a vehicle'}
-                </p>
-              </DialogHeader>
-              <button type="button" onClick={closeVehicleAssignModal} className={`p-2 rounded-xl transition-colors ${isLight ? 'hover:bg-gray-100 text-gray-500' : 'hover:bg-white/10 text-muted'}`} aria-label="Close">
-                <X className="w-5 h-5" strokeWidth={2} />
-              </button>
-            </div>
-            <div className="mt-4 space-y-3 max-h-[280px] overflow-y-auto pr-1">
-              {unitsList.map((u) => {
-                const isAvailable = String(u.status || '').toLowerCase() === 'available';
-                const isAssigning = assigningVehicleId === u.id;
-                return (
-                  <button
-                    key={u.id}
-                    type="button"
-                    onClick={() => assignVehicleToIncident(assigningIncidentIdVehicle, u.id, u.name)}
-                    disabled={isAssigning}
-                    className={`w-full text-left flex items-center gap-4 px-4 py-3.5 rounded-xl border transition-all duration-200 ${isLight ? 'border-gray-200/80 bg-white hover:bg-primary/5 hover:border-primary/30 cursor-pointer shadow-sm' : 'border-white/10 bg-white/5 hover:bg-primary/10 hover:border-primary/30 cursor-pointer'}`}
-                  >
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isAvailable ? (isLight ? 'bg-green-500/15 text-green-600' : 'bg-green-500/20 text-green-400') : (isLight ? 'bg-amber-500/15 text-amber-600' : 'bg-amber-500/20 text-amber-400')}`}>
-                      {isAvailable ? <Truck className="w-5 h-5" strokeWidth={2} /> : <Clock className="w-5 h-5" strokeWidth={2} />}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-foreground">{u.name}</p>
-                      <p className="text-sm text-muted">{u.type} · {u.id}</p>
-                    </div>
-                    <span className={`flex-shrink-0 px-2.5 py-1 rounded-lg text-xs font-medium ${isAvailable ? 'bg-green-500/20 text-green-600' : 'bg-amber-500/20 text-amber-600'}`}>{isAssigning ? 'Assigning…' : u.status}</span>
-                  </button>
-                );
-              })}
-            </div>
-            {unitsList.length === 0 && <p className="text-sm text-muted py-6 text-center">No vehicles in this department</p>}
-          </DialogContent>
-        </Dialog>
+
       </div>
     </Layout>
   );

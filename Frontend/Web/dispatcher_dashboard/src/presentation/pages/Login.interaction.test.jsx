@@ -9,7 +9,6 @@ jest.mock('@/presentation/components/layout/AuthCardLayout', () => ({
 jest.mock('@/core/config/app.config', () => ({
   API_URL: 'http://localhost:3000',
   DEV_MODE: false,
-  MAPBOX_ACCESS_TOKEN: '',
 }));
 jest.mock('sweetalert2', () => ({ fire: jest.fn(() => Promise.resolve()) }));
 jest.mock('@/data/api/auth.api', () => ({
