@@ -271,6 +271,7 @@ export function DepartmentDashboardPage() {
     setAssignModalOpen(false);
     setAssigningIncidentId(null);
   };
+  const assignTeamToIncident = useCallback(async (incidentId, team) => {
     if (!department?.code || !department?.name || !team?.team_name) return;
     if (!isTeamAssignable(team)) {
       Swal.fire({
@@ -314,15 +315,6 @@ export function DepartmentDashboardPage() {
       });
     }
   }, [department, fetchIncidents, isTeamAssignable]);
-
-  const openAssignModal = (incidentId) => {
-    setAssigningIncidentId(incidentId);
-    setAssignModalOpen(true);
-  };
-  const closeAssignModal = () => {
-    setAssignModalOpen(false);
-    setAssigningIncidentId(null);
-  };
 
 
   const getSeverityColor = (severity) => {
