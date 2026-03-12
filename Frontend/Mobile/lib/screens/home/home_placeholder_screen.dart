@@ -275,10 +275,10 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
       children: [
         Material(
           color: Colors.transparent,
-          child: InkWell(
+          child: GestureDetector(
             onTap: onTap,
             onLongPress: onLongPress,
-            customBorder: const CircleBorder(),
+            behavior: HitTestBehavior.opaque,
             child: Container(
               width: size,
               height: size,
@@ -480,11 +480,11 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
                       label: 'SOS',
                       subtitle: _sosCountdown > 0
                           ? 'Cancelling in $_sosCountdown...'
-                          : 'Tap to send now. Long-press for 5s countdown.',
+                          : 'Tap for 5s countdown. Tap Cancel to abort.',
                       size: sosCircleSize,
                       iconSize: sosIconSize,
                       subtitleMaxLines: compact ? 3 : 2,
-                      onTap: _sosCountdown > 0 ? null : () => widget.onEmergencyNoAiPressed?.call(),
+                      onTap: _sosCountdown > 0 ? null : _startSosCountdown,
                       onLongPress: _sosCountdown > 0 ? null : _startSosCountdown,
                     ),
                   ),

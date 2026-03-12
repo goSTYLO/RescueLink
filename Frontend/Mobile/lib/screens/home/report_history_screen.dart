@@ -341,35 +341,85 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          // Filters: Status
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                const Text('Status: ', style: TextStyle(fontSize: 13, color: Color(0xFF6B7280))),
-                _filterChip('All', _filterStatus == null, () => setState(() { _filterStatus = null; _loadIncidents(); })),
-                _filterChip('Pending', _filterStatus == 'pending', () => setState(() { _filterStatus = 'pending'; _loadIncidents(); })),
-                _filterChip('Verified', _filterStatus == 'verified', () => setState(() { _filterStatus = 'verified'; _loadIncidents(); })),
-                _filterChip('In progress', _filterStatus == 'in_progress', () => setState(() { _filterStatus = 'in_progress'; _loadIncidents(); })),
-                _filterChip('Resolved', _filterStatus == 'resolved', () => setState(() { _filterStatus = 'resolved'; _loadIncidents(); })),
-                _filterChip('Closed', _filterStatus == 'closed', () => setState(() { _filterStatus = 'closed'; _loadIncidents(); })),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
-          // Filters: Type
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                const Text('Type: ', style: TextStyle(fontSize: 13, color: Color(0xFF6B7280))),
-                _filterChip('All', _filterType == null, () => setState(() { _filterType = null; _loadIncidents(); })),
-                _filterChip('Fire', _filterType == 'fire', () => setState(() { _filterType = 'fire'; _loadIncidents(); })),
-                _filterChip('Medical', _filterType == 'medical', () => setState(() { _filterType = 'medical'; _loadIncidents(); })),
-                _filterChip('Police', _filterType == 'police', () => setState(() { _filterType = 'police'; _loadIncidents(); })),
-                _filterChip('Disaster', _filterType == 'disaster', () => setState(() { _filterType = 'disaster'; _loadIncidents(); })),
-              ],
-            ),
+          // Filters: Status and Type dropdowns
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('Status', style: TextStyle(fontSize: 13, color: Color(0xFF6B7280))),
+                    const SizedBox(height: 6),
+                    DropdownButtonFormField<String?>(
+                      value: _filterStatus,
+                      decoration: InputDecoration(
+                        filled: true,
+                        fillColor: Colors.white,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      ),
+                      hint: const Text('All'),
+                      items: const [
+                        DropdownMenuItem<String?>(value: null, child: Text('All')),
+                        DropdownMenuItem<String?>(value: 'pending', child: Text('Pending')),
+                        DropdownMenuItem<String?>(value: 'verified', child: Text('Verified')),
+                        DropdownMenuItem<String?>(value: 'in_progress', child: Text('In progress')),
+                        DropdownMenuItem<String?>(value: 'resolved', child: Text('Resolved')),
+                        DropdownMenuItem<String?>(value: 'closed', child: Text('Closed')),
+                      ],
+                      onChanged: (String? value) {
+                        setState(() {
+                          _filterStatus = value;
+                          _loadIncidents();
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('Type', style: TextStyle(fontSize: 13, color: Color(0xFF6B7280))),
+                    const SizedBox(height: 6),
+                    DropdownButtonFormField<String?>(
+                      value: _filterType,
+                      decoration: InputDecoration(
+                        filled: true,
+                        fillColor: Colors.white,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      ),
+                      hint: const Text('All'),
+                      items: const [
+                        DropdownMenuItem<String?>(value: null, child: Text('All')),
+                        DropdownMenuItem<String?>(value: 'fire', child: Text('Fire')),
+                        DropdownMenuItem<String?>(value: 'medical', child: Text('Medical')),
+                        DropdownMenuItem<String?>(value: 'police', child: Text('Police')),
+                        DropdownMenuItem<String?>(value: 'disaster', child: Text('Disaster')),
+                      ],
+                      onChanged: (String? value) {
+                        setState(() {
+                          _filterType = value;
+                          _loadIncidents();
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 16),
           if (_loading && _incidents.isEmpty)
@@ -483,19 +533,6 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
     } catch (_) {
       return null;
     }
-  }
-
-  Widget _filterChip(String label, bool selected, VoidCallback onTap) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: FilterChip(
-        label: Text(label),
-        selected: selected,
-        onSelected: (_) => onTap(),
-        selectedColor: const Color(0xFFEF4444).withValues(alpha: 0.25),
-        checkmarkColor: const Color(0xFFEF4444),
-      ),
-    );
   }
 
   Widget _summaryCard({
