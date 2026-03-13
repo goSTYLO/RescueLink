@@ -1,20 +1,51 @@
 const pool = require('../config/db');
 
+let locationColumnsEnsured = false;
+
+async function ensureDepartmentLocationColumns() {
+  if (locationColumnsEnsured) return;
+  await pool.query(
+    `ALTER TABLE departments
+       ADD COLUMN IF NOT EXISTS address VARCHAR(255),
+       ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION,
+       ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION`
+  );
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_departments_location ON departments(latitude, longitude)');
+  locationColumnsEnsured = true;
+}
+
 const Department = {
   async findAll() {
     try {
-      const res = await pool.query(
-        `SELECT d.department_id, d.code, d.name, d.type, d.color, d.status, d.created_at,
-                COUNT(DISTINCT u.unit_id) AS units_count,
-                COUNT(DISTINCT p.personnel_id) AS personnel_count,
-                COALESCE(SUM(u.active_task_count), 0) AS active_task_count
-         FROM departments d
-         LEFT JOIN department_units u ON u.department_id = d.department_id
-         LEFT JOIN department_personnel p ON p.department_id = d.department_id
-         GROUP BY d.department_id
-         ORDER BY d.name ASC`
-      );
-      return res.rows;
+      try {
+        const res = await pool.query(
+          `SELECT d.department_id, d.code, d.name, d.type, d.color, d.address, d.latitude, d.longitude, d.status, d.created_at,
+                  COUNT(DISTINCT u.unit_id) AS units_count,
+                  COUNT(DISTINCT p.personnel_id) AS personnel_count,
+                  COALESCE(SUM(u.active_task_count), 0) AS active_task_count
+           FROM departments d
+           LEFT JOIN department_units u ON u.department_id = d.department_id
+           LEFT JOIN department_personnel p ON p.department_id = d.department_id
+           GROUP BY d.department_id
+           ORDER BY d.name ASC`
+        );
+        return res.rows;
+      } catch (error) {
+        if (error.code !== '42703') throw error;
+        await ensureDepartmentLocationColumns();
+        const retry = await pool.query(
+          `SELECT d.department_id, d.code, d.name, d.type, d.color, d.address, d.latitude, d.longitude, d.status, d.created_at,
+                  COUNT(DISTINCT u.unit_id) AS units_count,
+                  COUNT(DISTINCT p.personnel_id) AS personnel_count,
+                  COALESCE(SUM(u.active_task_count), 0) AS active_task_count
+           FROM departments d
+           LEFT JOIN department_units u ON u.department_id = d.department_id
+           LEFT JOIN department_personnel p ON p.department_id = d.department_id
+           GROUP BY d.department_id
+           ORDER BY d.name ASC`
+        );
+        return retry.rows;
+      }
     } catch (error) {
       if (error.code === '42P01' || /departments|department_units|department_personnel/i.test(error.message)) {
         return [];
@@ -24,45 +55,94 @@ const Department = {
   },
 
   async findById(departmentId) {
-    const res = await pool.query(
-      `SELECT department_id, code, name, type, color, status, created_at
-       FROM departments
-       WHERE department_id = $1`,
-      [departmentId]
-    );
-    return res.rows[0] || null;
+    try {
+      const res = await pool.query(
+        `SELECT department_id, code, name, type, color, address, latitude, longitude, status, created_at
+         FROM departments
+         WHERE department_id = $1`,
+        [departmentId]
+      );
+      return res.rows[0] || null;
+    } catch (error) {
+      if (error.code !== '42703') throw error;
+      await ensureDepartmentLocationColumns();
+      const res = await pool.query(
+        `SELECT department_id, code, name, type, color, address, latitude, longitude, status, created_at
+         FROM departments
+         WHERE department_id = $1`,
+        [departmentId]
+      );
+      return res.rows[0] || null;
+    }
   },
 
   async findByCode(code) {
     if (!code || String(code).trim() === '') return null;
-    const res = await pool.query(
-      `SELECT department_id, code, name, type, color, status, created_at
-       FROM departments
-       WHERE LOWER(TRIM(code)) = LOWER(TRIM($1))`,
-      [String(code).trim()]
-    );
-    return res.rows[0] || null;
+    try {
+      const res = await pool.query(
+        `SELECT department_id, code, name, type, color, address, latitude, longitude, status, created_at
+         FROM departments
+         WHERE LOWER(TRIM(code)) = LOWER(TRIM($1))`,
+        [String(code).trim()]
+      );
+      return res.rows[0] || null;
+    } catch (error) {
+      if (error.code !== '42703') throw error;
+      await ensureDepartmentLocationColumns();
+      const res = await pool.query(
+        `SELECT department_id, code, name, type, color, address, latitude, longitude, status, created_at
+         FROM departments
+         WHERE LOWER(TRIM(code)) = LOWER(TRIM($1))`,
+        [String(code).trim()]
+      );
+      return res.rows[0] || null;
+    }
   },
 
-  async create({ code, name, type, color = 'gray', status = 'active' }) {
-    const res = await pool.query(
-      `INSERT INTO departments(code, name, type, color, status)
-       VALUES($1, $2, $3, $4, $5)
-       RETURNING department_id, code, name, type, color, status, created_at`,
-      [code, name, type, color, status]
-    );
-    return res.rows[0];
+  async create({ code, name, type, color = 'gray', address = null, latitude = null, longitude = null, status = 'active' }) {
+    try {
+      const res = await pool.query(
+        `INSERT INTO departments(code, name, type, color, address, latitude, longitude, status)
+         VALUES($1, $2, $3, $4, $5, $6, $7, $8)
+         RETURNING department_id, code, name, type, color, address, latitude, longitude, status, created_at`,
+        [code, name, type, color, address, latitude, longitude, status]
+      );
+      return res.rows[0];
+    } catch (error) {
+      if (error.code !== '42703') throw error;
+      await ensureDepartmentLocationColumns();
+      const res = await pool.query(
+        `INSERT INTO departments(code, name, type, color, address, latitude, longitude, status)
+         VALUES($1, $2, $3, $4, $5, $6, $7, $8)
+         RETURNING department_id, code, name, type, color, address, latitude, longitude, status, created_at`,
+        [code, name, type, color, address, latitude, longitude, status]
+      );
+      return res.rows[0];
+    }
   },
 
-  async update(departmentId, { name, type, color, status }) {
-    const res = await pool.query(
-      `UPDATE departments
-       SET name = $1, type = $2, color = $3, status = $4
-       WHERE department_id = $5
-       RETURNING department_id, code, name, type, color, status, created_at`,
-      [name, type, color, status, departmentId]
-    );
-    return res.rows[0] || null;
+  async update(departmentId, { name, type, color, address, latitude, longitude, status }) {
+    try {
+      const res = await pool.query(
+        `UPDATE departments
+         SET name = $1, type = $2, color = $3, address = $4, latitude = $5, longitude = $6, status = $7
+         WHERE department_id = $8
+         RETURNING department_id, code, name, type, color, address, latitude, longitude, status, created_at`,
+        [name, type, color, address, latitude, longitude, status, departmentId]
+      );
+      return res.rows[0] || null;
+    } catch (error) {
+      if (error.code !== '42703') throw error;
+      await ensureDepartmentLocationColumns();
+      const res = await pool.query(
+        `UPDATE departments
+         SET name = $1, type = $2, color = $3, address = $4, latitude = $5, longitude = $6, status = $7
+         WHERE department_id = $8
+         RETURNING department_id, code, name, type, color, address, latitude, longitude, status, created_at`,
+        [name, type, color, address, latitude, longitude, status, departmentId]
+      );
+      return res.rows[0] || null;
+    }
   },
 
   async delete(departmentId) {
@@ -76,12 +156,24 @@ const Department = {
   },
 
   async getMetrics(departmentId) {
-    const department = await pool.query(
-      `SELECT department_id, code, name, type, color, status, created_at
-       FROM departments
-       WHERE department_id = $1`,
-      [departmentId]
-    );
+    let department;
+    try {
+      department = await pool.query(
+        `SELECT department_id, code, name, type, color, address, latitude, longitude, status, created_at
+         FROM departments
+         WHERE department_id = $1`,
+        [departmentId]
+      );
+    } catch (error) {
+      if (error.code !== '42703') throw error;
+      await ensureDepartmentLocationColumns();
+      department = await pool.query(
+        `SELECT department_id, code, name, type, color, address, latitude, longitude, status, created_at
+         FROM departments
+         WHERE department_id = $1`,
+        [departmentId]
+      );
+    }
     if (!department.rows[0]) return null;
 
     const unitsRes = await pool.query(

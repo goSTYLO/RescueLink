@@ -15,13 +15,17 @@ const Dispatch = {
     responder_source = 'account',
     responder_name = null,
     assigned_by_user_id = null,
+    estimated_eta_minutes = null,
+    estimated_arrival_at = null,
+    actual_arrival_at = null,
   }) {
     try {
       const res = await pool.query(
         `INSERT INTO dispatches(
            report_id, responder_id, response_status, assignment_group_id, department_code, department_name,
-           team_name, default_department_code, was_default_department, responder_source, responder_name, assigned_by_user_id
-         ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
+           team_name, default_department_code, was_default_department, responder_source, responder_name, assigned_by_user_id,
+           estimated_eta_minutes, estimated_arrival_at, actual_arrival_at
+         ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING *`,
         [
           report_id,
           responder_id,
@@ -35,11 +39,14 @@ const Dispatch = {
           responder_source,
           responder_name,
           assigned_by_user_id,
+          estimated_eta_minutes,
+          estimated_arrival_at,
+          actual_arrival_at,
         ]
       );
       return res.rows[0];
     } catch (error) {
-      if (error.code === '42703' || /assignment_group_id|department_code|responder_source|assigned_by_user_id/i.test(error.message)) {
+      if (error.code === '42703' || /assignment_group_id|department_code|responder_source|assigned_by_user_id|estimated_eta_minutes|estimated_arrival_at|actual_arrival_at/i.test(error.message)) {
         const fallback = await pool.query(
           'INSERT INTO dispatches(report_id, responder_id, response_status) VALUES($1, $2, $3) RETURNING *',
           [report_id, responder_id, response_status]
@@ -321,10 +328,17 @@ const Dispatch = {
     };
   },
 
-  async update(dispatch_id, { report_id, responder_id, response_status }) {
+  async update(dispatch_id, {
+    report_id,
+    responder_id,
+    response_status,
+    estimated_eta_minutes = null,
+    estimated_arrival_at = null,
+    actual_arrival_at = null,
+  }) {
     const res = await pool.query(
-      'UPDATE dispatches SET report_id = $1, responder_id = $2, response_status = $3 WHERE dispatch_id = $4 RETURNING *',
-      [report_id, responder_id, response_status, dispatch_id]
+      'UPDATE dispatches SET report_id = $1, responder_id = $2, response_status = $3, estimated_eta_minutes = $4, estimated_arrival_at = $5, actual_arrival_at = $6 WHERE dispatch_id = $7 RETURNING *',
+      [report_id, responder_id, response_status, estimated_eta_minutes, estimated_arrival_at, actual_arrival_at, dispatch_id]
     );
     return res.rows[0];
   },

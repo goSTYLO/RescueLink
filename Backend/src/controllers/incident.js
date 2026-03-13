@@ -6,7 +6,7 @@ const Responder = require('../models/responder');
 const IncidentCoordinationNote = require('../models/incidentCoordinationNote');
 const pool = require('../config/db');
 const { validateLatitude, validateLongitude, validateInteger, validatePagination, validateOptionalString, validateAllowedValue } = require('../utils/validation');
-const { getBarangayFromCoordinates } = require('../utils/geolocation');
+const { getBarangayFromCoordinates, calculateDistance } = require('../utils/geolocation');
 const { processIncidentWithAudio } = require('../services/aiService');
 const { queueDeepScanJob, computeInitialScanStatus } = require('../services/fileScanService');
 const { verifyIncidentOnBlockchain } = require('../services/blockchainService');
@@ -16,6 +16,11 @@ const { ROLES } = require('../config/roles');
 const { isResourceOwner, getOwnershipFilter } = require('../utils/ownership');
 const path = require('path');
 const fs = require('fs').promises;
+
+function estimateEtaMinutes(distanceMeters, speedKmh = 35) {
+  const speedMetersPerMinute = (speedKmh * 1000) / 60;
+  return Math.max(1, Math.round(distanceMeters / speedMetersPerMinute));
+}
 
 /**
  * Helper function for role-appropriate audit logging
@@ -34,35 +39,78 @@ async function logIncidentAction(req, action, resourceId, details) {
   }
 }
 
+async function getDispatchesForReport(reportId, limit = 50) {
+  if (reportId == null) return [];
+  try {
+    const rows = await Dispatch.findAll({ report_id: reportId, limit });
+    return Array.isArray(rows) ? rows : [];
+  } catch (error) {
+    console.error('Error loading dispatches for report:', error.message);
+    return [];
+  }
+}
+
 /**
  * Attach assigned_department, assigned_department_code, and assigned_team_name from dispatches for the report.
  * Mutates incident in place; returns incident for chaining.
  * Resolves department name from departments table when dispatch has department_code but no department_name.
  * assigned_team_name comes from the first dispatch (by dispatched_at) that has team_name set (the assigned team).
  */
-async function attachAssignedDepartment(incident, reportId) {
+async function attachAssignedDepartment(incident, reportId, dispatches = null) {
   if (!incident || reportId == null) return incident;
   try {
-    const dispatches = await Dispatch.findAll({ report_id: reportId, limit: 20 });
-    if (dispatches && dispatches.length > 0) {
-      const d = dispatches[0];
-      const code = d.department_code ?? d.department_Code ?? null;
-      let name = d.department_name ?? d.department_Name ?? null;
-      if ((!name || String(name).trim() === '') && code) {
-        const dept = await Department.findByCode(code);
-        name = dept?.name ?? null;
+    const sourceDispatches = Array.isArray(dispatches) ? dispatches : await getDispatchesForReport(reportId, 20);
+    incident.assigned_department = null;
+    incident.assigned_department_code = null;
+    incident.assigned_team_name = null;
+    incident.assigned_team_department_code = null;
+    incident.assigned_departments = [];
+    incident.lead_department = null;
+
+    if (sourceDispatches.length > 0) {
+      const departmentNameByCode = new Map();
+      const departmentEntries = [];
+
+      for (const dispatch of sourceDispatches) {
+        const code = dispatch.department_code ?? dispatch.department_Code ?? null;
+        if (!code || String(code).trim() === '') continue;
+        const normalizedCode = String(code).trim();
+
+        let name = dispatch.department_name ?? dispatch.department_Name ?? null;
+        if ((!name || String(name).trim() === '') && !departmentNameByCode.has(normalizedCode)) {
+          const dept = await Department.findByCode(normalizedCode);
+          departmentNameByCode.set(normalizedCode, dept?.name ? String(dept.name).trim() : null);
+        }
+        if ((!name || String(name).trim() === '') && departmentNameByCode.has(normalizedCode)) {
+          name = departmentNameByCode.get(normalizedCode);
+        }
+
+        const normalizedName = name && String(name).trim() !== '' ? String(name).trim() : normalizedCode;
+        departmentEntries.push({ code: normalizedCode, name: normalizedName });
       }
-      incident.assigned_department = name && String(name).trim() !== '' ? String(name).trim() : null;
-      incident.assigned_department_code = code && String(code).trim() !== '' ? String(code).trim() : null;
-      const withTeam = dispatches.find((row) => row.team_name && String(row.team_name).trim() !== '');
+
+      const uniqueDepartments = [];
+      const seenDepartmentCodes = new Set();
+      for (const entry of departmentEntries) {
+        if (seenDepartmentCodes.has(entry.code)) continue;
+        seenDepartmentCodes.add(entry.code);
+        uniqueDepartments.push(entry);
+      }
+
+      const leadDepartmentEntry = uniqueDepartments[0] || null;
+      incident.assigned_department = leadDepartmentEntry?.name || null;
+      incident.assigned_department_code = leadDepartmentEntry?.code || null;
+      incident.assigned_departments = uniqueDepartments
+        .map((entry) => entry.name)
+        .filter((name) => name && String(name).trim() !== '');
+      incident.lead_department = leadDepartmentEntry?.name || null;
+
+      const withTeam = sourceDispatches.find((row) => row.team_name && String(row.team_name).trim() !== '');
       if (withTeam) {
         incident.assigned_team_name = String(withTeam.team_name).trim();
         incident.assigned_team_department_code = (withTeam.department_code ?? withTeam.department_Code) && String(withTeam.department_code || withTeam.department_Code).trim() !== ''
           ? String(withTeam.department_code || withTeam.department_Code).trim()
           : incident.assigned_department_code;
-      } else {
-        incident.assigned_team_name = null;
-        incident.assigned_team_department_code = null;
       }
     }
   } catch (err) {
@@ -75,7 +123,7 @@ async function attachAssignedDepartment(incident, reportId) {
  * Build incident timeline from created_at, dispatches, resolved_at, and closed_at.
  * Returns array of events sorted chronologically by timestamp.
  */
-async function buildIncidentTimeline(incident, reportId) {
+async function buildIncidentTimeline(incident, reportId, dispatches = null) {
   if (!incident || reportId == null) return incident;
   try {
     const events = [];
@@ -91,10 +139,10 @@ async function buildIncidentTimeline(incident, reportId) {
     }
 
     // 2. Assignment events from dispatches
-    const dispatches = await Dispatch.findAll({ report_id: reportId, limit: 50 });
-    if (dispatches && dispatches.length > 0) {
+    const sourceDispatches = Array.isArray(dispatches) ? dispatches : await getDispatchesForReport(reportId, 50);
+    if (sourceDispatches.length > 0) {
       // Sort by dispatched_at ascending
-      const sortedDispatches = dispatches
+      const sortedDispatches = sourceDispatches
         .filter(d => d.dispatched_at)
         .sort((a, b) => new Date(a.dispatched_at) - new Date(b.dispatched_at));
 
@@ -110,6 +158,9 @@ async function buildIncidentTimeline(incident, reportId) {
             department_code: d.department_code || null,
             team_name: d.team_name || null,
             assigned_by_user_id: d.assigned_by_user_id || null,
+            estimated_eta_minutes: Number.isFinite(Number(d.estimated_eta_minutes)) ? Number(d.estimated_eta_minutes) : null,
+            estimated_arrival_at: d.estimated_arrival_at || null,
+            actual_arrival_at: d.actual_arrival_at || null,
           },
         });
       }
@@ -149,6 +200,53 @@ async function buildIncidentTimeline(incident, reportId) {
   } catch (err) {
     console.error('Error building incident timeline:', err.message);
     incident.timeline = [];
+  }
+  return incident;
+}
+
+async function attachDispatchEta(incident, reportId, dispatches = null) {
+  if (!incident || reportId == null) return incident;
+  try {
+    const sourceDispatches = Array.isArray(dispatches) ? dispatches : await getDispatchesForReport(reportId, 20);
+    if (sourceDispatches.length === 0) {
+      incident.estimated_eta_minutes = null;
+      incident.estimated_arrival_at = null;
+      incident.actual_arrival_at = null;
+      return incident;
+    }
+
+    const earliest = [...sourceDispatches].sort((a, b) => {
+      const aTime = new Date(a.dispatched_at || 0).getTime();
+      const bTime = new Date(b.dispatched_at || 0).getTime();
+      return aTime - bTime;
+    })[0];
+
+    let etaMinutes = Number.isFinite(Number(earliest?.estimated_eta_minutes)) ? Number(earliest.estimated_eta_minutes) : null;
+    let etaArrivalAt = earliest?.estimated_arrival_at || null;
+
+    if (!etaMinutes && Number.isFinite(Number(incident.latitude)) && Number.isFinite(Number(incident.longitude))) {
+      const departmentCode = earliest?.department_code || null;
+      if (departmentCode) {
+        const dept = await Department.findByCode(departmentCode);
+        const deptLat = Number(dept?.latitude);
+        const deptLng = Number(dept?.longitude);
+        if (Number.isFinite(deptLat) && Number.isFinite(deptLng)) {
+          const distanceMeters = calculateDistance(Number(incident.latitude), Number(incident.longitude), deptLat, deptLng);
+          etaMinutes = estimateEtaMinutes(distanceMeters);
+          const dispatchedAt = earliest?.dispatched_at ? new Date(earliest.dispatched_at) : new Date();
+          etaArrivalAt = new Date(dispatchedAt.getTime() + (etaMinutes * 60 * 1000)).toISOString();
+        }
+      }
+    }
+
+    incident.estimated_eta_minutes = etaMinutes;
+    incident.estimated_arrival_at = etaArrivalAt;
+    incident.actual_arrival_at = earliest?.actual_arrival_at || null;
+  } catch (err) {
+    console.error('Error attaching dispatch ETA:', err.message);
+    incident.estimated_eta_minutes = null;
+    incident.estimated_arrival_at = null;
+    incident.actual_arrival_at = null;
   }
   return incident;
 }
@@ -193,6 +291,30 @@ async function releaseIncidentResources(reportId) {
   } catch (err) {
     console.error('Error releasing incident resources:', err.message);
   }
+}
+
+async function ensureIncidentBarangay(incident) {
+  if (!incident) return incident;
+  const currentBarangay = String(incident.barangay || '').trim();
+  if (currentBarangay) return incident;
+
+  const latitude = Number(incident.latitude);
+  const longitude = Number(incident.longitude);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return incident;
+
+  const derivedBarangay = getBarangayFromCoordinates(latitude, longitude);
+  if (!derivedBarangay) return incident;
+
+  incident.barangay = derivedBarangay;
+  try {
+    await pool.query(
+      `UPDATE incident_reports SET barangay = $1 WHERE report_id = $2`,
+      [derivedBarangay, incident.report_id]
+    );
+  } catch (error) {
+    console.error('Error persisting derived barangay:', error.message);
+  }
+  return incident;
 }
 
 const incidentController = {
@@ -271,8 +393,11 @@ const incidentController = {
           if (dept && dept.code) {
             const dispatches = await Dispatch.findAll({ report_id: validatedId, department_code: dept.code, limit: 1 });
             if (dispatches && dispatches.length > 0) {
-              await attachAssignedDepartment(incident, validatedId);
-              await buildIncidentTimeline(incident, validatedId);
+              const incidentDispatches = await getDispatchesForReport(validatedId, 50);
+              await attachAssignedDepartment(incident, validatedId, incidentDispatches);
+              await ensureIncidentBarangay(incident);
+              await attachDispatchEta(incident, validatedId, incidentDispatches);
+              await buildIncidentTimeline(incident, validatedId, incidentDispatches);
               return res.json(incident);
             }
           }
@@ -282,8 +407,11 @@ const incidentController = {
         return res.status(403).json({ error: 'Forbidden. You can only access your own incidents.' });
       }
 
-      await attachAssignedDepartment(incident, validatedId);
-      await buildIncidentTimeline(incident, validatedId);
+      const incidentDispatches = await getDispatchesForReport(validatedId, 50);
+      await attachAssignedDepartment(incident, validatedId, incidentDispatches);
+      await ensureIncidentBarangay(incident);
+      await attachDispatchEta(incident, validatedId, incidentDispatches);
+      await buildIncidentTimeline(incident, validatedId, incidentDispatches);
       res.json(incident);
     } catch (error) {
       console.error('Error fetching incident:', error);
@@ -1145,8 +1273,11 @@ const incidentController = {
           if (dept && dept.code) {
             const dispatches = await Dispatch.findAll({ report_id: validatedId, department_code: dept.code, limit: 1 });
             if (dispatches && dispatches.length > 0) {
-              await attachAssignedDepartment(incident, validatedId);
-              await buildIncidentTimeline(incident, validatedId);
+              const incidentDispatches = await getDispatchesForReport(validatedId, 50);
+              await attachAssignedDepartment(incident, validatedId, incidentDispatches);
+              await ensureIncidentBarangay(incident);
+              await attachDispatchEta(incident, validatedId, incidentDispatches);
+              await buildIncidentTimeline(incident, validatedId, incidentDispatches);
               const classification = await Incident.getClassificationByReportId(validatedId);
               return res.json({ incident, ai_classification: classification || null });
             }
@@ -1158,8 +1289,11 @@ const incidentController = {
       }
 
       // Get AI classification if exists
-      await attachAssignedDepartment(incident, validatedId);
-      await buildIncidentTimeline(incident, validatedId);
+      const incidentDispatches = await getDispatchesForReport(validatedId, 50);
+      await attachAssignedDepartment(incident, validatedId, incidentDispatches);
+      await ensureIncidentBarangay(incident);
+      await attachDispatchEta(incident, validatedId, incidentDispatches);
+      await buildIncidentTimeline(incident, validatedId, incidentDispatches);
       const classification = await Incident.getClassificationByReportId(validatedId);
 
       res.json({

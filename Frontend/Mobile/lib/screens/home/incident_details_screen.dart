@@ -123,6 +123,19 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
 
   String get _status => ReportStatusUi.normalize(_incident?['status'] as String?);
 
+  int? get _estimatedEtaMinutes {
+    final raw = _incident?['estimated_eta_minutes'];
+    if (raw is num) return raw.toInt();
+    if (raw is String) return int.tryParse(raw);
+    return null;
+  }
+
+  String get _estimatedArrivalLabel {
+    final raw = _incident?['estimated_arrival_at'] as String?;
+    if (raw == null || raw.isEmpty) return '-';
+    return formatReportDateTime(raw);
+  }
+
   Map<String, dynamic>? _mapOrNull(dynamic value) {
     if (value is Map) {
       return value.cast<String, dynamic>();
@@ -1031,9 +1044,11 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
             ),
           ),
           const SizedBox(height: 10),
-          const Text(
-            'Responder ETA is currently unavailable for user accounts. Status updates still sync in real time.',
-            style: TextStyle(fontSize: 12, color: Color(0xFF475569)),
+          Text(
+            _estimatedEtaMinutes != null
+                ? 'Estimated responder arrival: ${_estimatedEtaMinutes} min (around ${_estimatedArrivalLabel}).'
+                : 'Estimated responder arrival is not yet available. Status updates still sync in real time.',
+            style: const TextStyle(fontSize: 12, color: Color(0xFF475569)),
             textAlign: TextAlign.center,
           ),
         ],
@@ -1048,6 +1063,8 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
       createdAt: _incident?['created_at'] as String?,
       updatedAt: _incident?['updated_at'] as String?,
       closedAt: _incident?['closed_at'] as String?,
+      estimatedEtaMinutes: _estimatedEtaMinutes,
+      estimatedArrivalAt: _incident?['estimated_arrival_at'] as String?,
     );
 
     return _whiteCard(
@@ -1082,9 +1099,15 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
         children: [
           _simpleRow('Department', department),
           const SizedBox(height: 8),
-          const Text(
-            'Responder assignment details are not exposed to user endpoints yet.',
-            style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+          _simpleRow('Estimated Arrival', _estimatedEtaMinutes != null ? '${_estimatedEtaMinutes} min' : 'Pending'),
+          const SizedBox(height: 8),
+          _simpleRow('ETA Clock', _estimatedEtaMinutes != null ? _estimatedArrivalLabel : 'Pending'),
+          const SizedBox(height: 8),
+          Text(
+            _estimatedEtaMinutes != null
+                ? 'ETA is estimated from department dispatch origin and incident location.'
+                : 'ETA will appear after dispatch assignment is available.',
+            style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
           ),
         ],
       ),

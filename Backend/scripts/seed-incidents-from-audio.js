@@ -18,8 +18,9 @@ const pool = new Pool({ connectionString: DATABASE_URL });
 const args = new Set(process.argv.slice(2));
 const shouldReset = args.has('--reset');
 const requestedCountArg = process.argv.slice(2).find((arg) => arg.startsWith('--count='));
-const DEFAULT_INCIDENT_COUNT = 10;
-const MAX_INCIDENT_COUNT = 10;
+// Limit audio-based seeding to at most 15 incidents for demo runs
+const DEFAULT_INCIDENT_COUNT = 15;
+const MAX_INCIDENT_COUNT = 15;
 const requestedCount = requestedCountArg ? Number(requestedCountArg.split('=')[1]) : DEFAULT_INCIDENT_COUNT;
 const targetCount = Number.isFinite(requestedCount) && requestedCount > 0
   ? Math.min(requestedCount, MAX_INCIDENT_COUNT)
@@ -37,6 +38,24 @@ const BARANGAYS = [
   'Malued',
   'Bacayao Norte',
   'Bacayao Sur',
+];
+
+const DAGUPAN_LOCATION_FIXTURES = [
+  { barangay: 'Poblacion Oeste', latitude: 16.043037, longitude: 120.3323573, label: 'Dagupan City Police Station' },
+  { barangay: 'Poblacion Oeste', latitude: 16.043652, longitude: 120.333521, label: 'City Engineers Office (CDRRMC)' },
+  { barangay: 'Poblacion Oeste', latitude: 16.043259, longitude: 120.333036, label: 'Dagupan Post Office' },
+  { barangay: 'Pantal', latitude: 16.042901, longitude: 120.352587, label: 'Pantal Area' },
+  { barangay: 'Tapuac', latitude: 16.051945, longitude: 120.347309, label: 'Tapuac Area' },
+  { barangay: 'Lucao', latitude: 16.0561, longitude: 120.3519, label: 'Lucao District Center' },
+  { barangay: 'Bonuan Boquig', latitude: 16.0781, longitude: 120.334, label: 'Bonuan Boquig Barangay Hall' },
+  { barangay: 'Bonuan Gueset', latitude: 16.0736, longitude: 120.3332, label: 'Bonuan Gueset Barangay Hall' },
+  { barangay: 'Bonuan Binloc', latitude: 16.0708, longitude: 120.338, label: 'Bonuan Binloc Barangay Hall' },
+  { barangay: 'Bacayao Norte', latitude: 16.06322, longitude: 120.320998, label: 'Bacayao Norte Area' },
+  { barangay: 'Bacayao Sur', latitude: 16.0581, longitude: 120.3248, label: 'Bacayao Sur Area' },
+  { barangay: 'Lasip Chico', latitude: 16.0553, longitude: 120.3578, label: 'Lasip Chico District Center' },
+  { barangay: 'Malued', latitude: 16.0569, longitude: 120.346, label: 'Malued District Center' },
+  { barangay: 'Poblacion Norte', latitude: 16.0449, longitude: 120.333, label: 'Poblacion Norte Hall' },
+  { barangay: 'Poblacion Sur', latitude: 16.0429, longitude: 120.3336, label: 'Poblacion Sur Hall' },
 ];
 
 function estimateEncryptedHexLength(value) {
@@ -164,9 +183,9 @@ async function seedIncidents() {
     const reporterRows = await client.query(
       `SELECT user_id
        FROM users
-       WHERE role IN ($1, $2, $3)
+       WHERE role = $1
        ORDER BY user_id ASC`,
-      [ROLES.USER, ROLES.DISPATCHER, ROLES.SUPERVISOR]
+      [ROLES.USER]
     );
     const reporterIds = reporterRows.rows.map((row) => row.user_id);
     if (reporterIds.length === 0) {
@@ -215,10 +234,12 @@ async function seedIncidents() {
     for (let i = 0; i < audioFiles.length && createdCount < targetCount; i++) {
       const audio = audioFiles[i];
       const userId = reporterIds[i % reporterIds.length];
-      const barangay = BARANGAYS[i % BARANGAYS.length];
-      const latitude = 16.04 + ((i % 7) * 0.0017);
-      const longitude = 120.33 + ((i % 7) * 0.0013);
-      const status = i % 6 === 0 ? 'verified' : (i % 4 === 0 ? 'resolved' : 'pending');
+      const locationFixture = DAGUPAN_LOCATION_FIXTURES[i % DAGUPAN_LOCATION_FIXTURES.length];
+      const barangay = locationFixture?.barangay || BARANGAYS[i % BARANGAYS.length];
+      const latitude = Number(locationFixture?.latitude);
+      const longitude = Number(locationFixture?.longitude);
+      const statusCycle = ['pending', 'verified', 'in_progress', 'resolved', 'closed'];
+      const status = statusCycle[i % statusCycle.length];
       const requestId = `seed-incidents-${Date.now()}-${i}`;
       let aiResult;
       try {
@@ -246,7 +267,7 @@ async function seedIncidents() {
         console.warn(`⚠️ Skipping ${audio.originalName} (empty AI transcription).`);
         continue;
       }
-      const baseDescription = `Audio-reported ${incidentType} incident near ${barangay}. Source file: ${audio.originalName}`;
+      const baseDescription = `Audio-reported ${incidentType} incident near ${barangay}. Location: ${locationFixture?.label || barangay}. Source file: ${audio.originalName}`;
 
       const insertRes = await client.query(
         `INSERT INTO incident_reports(

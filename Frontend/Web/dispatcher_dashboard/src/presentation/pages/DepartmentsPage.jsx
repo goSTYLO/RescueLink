@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/presentation/components/ui/Tabs';
 import { Combobox } from '@/presentation/components/ui/Combobox';
 import { getDepartments, createDepartment, updateDepartment, deleteDepartment } from '@/data/api/departments.api';
+import { searchDagupanLocations, reverseDagupanLocation } from '@/data/api/location.api';
 import {
   getResponders,
   getResponderTeams,
@@ -27,7 +28,7 @@ import {
   updateResponderTeamStatus,
 } from '@/data/api/responders.api';
 import { useNavigate } from 'react-router-dom';
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Swal from 'sweetalert2';
 import {
   Flame,
@@ -104,6 +105,9 @@ export function DepartmentsPage() {
     personnelCount: Number(dept.personnel_count ?? 0),
     activeTaskCount: Number(dept.active_task_count ?? 0),
     activeIncidents: Number(dept.active_incidents ?? 0),
+    address: dept.address || '',
+    latitude: dept.latitude != null ? Number(dept.latitude) : null,
+    longitude: dept.longitude != null ? Number(dept.longitude) : null,
   });
 
   const loadDepartments = useCallback(async () => {
@@ -142,7 +146,7 @@ export function DepartmentsPage() {
   useEffect(() => {
     loadDepartments();
     loadResponderResources();
-    const intervalId = setInterval(loadDepartments, 30000);
+    const intervalId = setInterval(loadDepartments, 60000);
     const handleIncidentUpdated = () => loadDepartments();
     window.addEventListener('incident:updated', handleIncidentUpdated);
     return () => {
@@ -154,10 +158,15 @@ export function DepartmentsPage() {
     name: '',
     type: 'Fire',
     color: 'red',
-    unitsCount: 0,
-    personnelCount: 0,
-    activeTaskCount: 0,
+    address: '',
+    latitude: '',
+    longitude: '',
   });
+  const [locationSuggestions, setLocationSuggestions] = useState([]);
+  const [isSearchingLocation, setIsSearchingLocation] = useState(false);
+  const [isResolvingLocation, setIsResolvingLocation] = useState(false);
+  const [locationError, setLocationError] = useState('');
+  const suppressNextAddressSearchRef = useRef(false);
   const [responders, setResponders] = useState([]);
   const [teams, setTeams] = useState([]);
   const [teamForm, setTeamForm] = useState({ department_code: 'drrmo', team_name: '', team_status: 'available', supported_incident_types: [] });
@@ -291,7 +300,9 @@ export function DepartmentsPage() {
 
   const openAddDialog = () => {
     setEditingDept(null);
-    setForm({ name: '', type: 'Fire', color: 'red', unitsCount: 0, personnelCount: 0, activeTaskCount: 0 });
+    setForm({ name: '', type: 'Fire', color: 'red', address: '', latitude: '', longitude: '' });
+    setLocationSuggestions([]);
+    setLocationError('');
     setDialogOpen(true);
   };
 
@@ -302,11 +313,103 @@ export function DepartmentsPage() {
       name: dept.name,
       type: dept.type,
       color: dept.color || 'red',
-      unitsCount: dept.unitsCount ?? 0,
-      personnelCount: dept.personnelCount ?? 0,
-      activeTaskCount: dept.activeTaskCount ?? 0,
+      address: dept.address || '',
+      latitude: dept.latitude ?? '',
+      longitude: dept.longitude ?? '',
     });
+    setLocationSuggestions([]);
+    setLocationError('');
     setDialogOpen(true);
+  };
+
+  useEffect(() => {
+    if (!dialogOpen) return;
+    if (suppressNextAddressSearchRef.current) {
+      suppressNextAddressSearchRef.current = false;
+      return;
+    }
+    const query = String(form.address || '').trim();
+    if (query.length < 3) {
+      setLocationSuggestions([]);
+      return;
+    }
+
+    const handle = setTimeout(async () => {
+      setIsSearchingLocation(true);
+      setLocationError('');
+      try {
+        const response = await searchDagupanLocations(query, 5);
+        const apiResults = Array.isArray(response?.results) ? response.results : [];
+        const manualOption = {
+          label: `Use typed address: ${query}`,
+          latitude: null,
+          longitude: null,
+          osmType: 'manual',
+          osmId: `manual-${query}`,
+          rawInput: query,
+        };
+        setLocationSuggestions([manualOption, ...apiResults]);
+      } catch (error) {
+        setLocationSuggestions([
+          {
+            label: `Use typed address: ${query}`,
+            latitude: null,
+            longitude: null,
+            osmType: 'manual',
+            osmId: `manual-${query}`,
+            rawInput: query,
+          },
+        ]);
+        setLocationError(error.message || 'Failed to search address suggestions.');
+      } finally {
+        setIsSearchingLocation(false);
+      }
+    }, 350);
+
+    return () => clearTimeout(handle);
+  }, [dialogOpen, form.address]);
+
+  const applyLocationSuggestion = (suggestion) => {
+    suppressNextAddressSearchRef.current = true;
+    setForm((prev) => ({
+      ...prev,
+      address: suggestion?.rawInput || suggestion?.label || prev.address,
+      latitude: suggestion?.latitude ?? prev.latitude,
+      longitude: suggestion?.longitude ?? prev.longitude,
+    }));
+    setLocationSuggestions([]);
+  };
+
+  const useCurrentLocation = () => {
+    if (!navigator?.geolocation) {
+      setLocationError('Geolocation is not supported in this browser.');
+      return;
+    }
+
+    setIsResolvingLocation(true);
+    setLocationError('');
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const lat = Number(position.coords.latitude);
+        const lng = Number(position.coords.longitude);
+        setForm((prev) => ({ ...prev, latitude: lat, longitude: lng }));
+        try {
+          const response = await reverseDagupanLocation(lat, lng);
+          if (response?.result?.label) {
+            setForm((prev) => ({ ...prev, address: response.result.label }));
+          }
+        } catch (error) {
+          setLocationError(error.message || 'Could not reverse geocode your current location.');
+        } finally {
+          setIsResolvingLocation(false);
+        }
+      },
+      () => {
+        setIsResolvingLocation(false);
+        setLocationError('Unable to get current location. Please check browser permissions.');
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
   };
 
   const handleSave = async () => {
@@ -319,16 +422,38 @@ export function DepartmentsPage() {
         name: form.name.trim(),
         type: form.type,
         color: form.color,
+        address: String(form.address || '').trim() || null,
+        latitude: String(form.latitude).trim() !== '' ? Number(form.latitude) : null,
+        longitude: String(form.longitude).trim() !== '' ? Number(form.longitude) : null,
         status: 'active',
       };
 
+      let savedRow = null;
+
       if (editingDept) {
-        await updateDepartment(editingDept.departmentId, payload);
+        savedRow = await updateDepartment(editingDept.departmentId, payload);
         Swal.fire({ icon: 'success', title: 'Department updated', text: 'Department details have been saved.', timer: 2000, showConfirmButton: false, timerProgressBar: true });
       } else {
-        await createDepartment(payload);
+        savedRow = await createDepartment(payload);
         Swal.fire({ icon: 'success', title: 'Department added', text: 'The new department has been added.', timer: 2000, showConfirmButton: false, timerProgressBar: true, confirmButtonColor: '#134178' });
       }
+
+      const requestedLocation = Boolean(payload.address || Number.isFinite(payload.latitude) || Number.isFinite(payload.longitude));
+      const persistedLocation = Boolean(
+        String(savedRow?.address || '').trim()
+        || Number.isFinite(Number(savedRow?.latitude))
+        || Number.isFinite(Number(savedRow?.longitude))
+      );
+
+      if (requestedLocation && !persistedLocation) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'Location not persisted',
+          text: 'Department was saved, but its address/coordinates were not stored. Run the latest backend migration and retry.',
+          confirmButtonColor: '#134178',
+        });
+      }
+
       await loadDepartments();
       setDialogOpen(false);
     } catch (error) {
@@ -962,18 +1087,65 @@ export function DepartmentsPage() {
                 )}
               </Select>
             </div>
-            <div className="grid grid-cols-3 gap-4 w-full min-w-0">
+            <div className="w-full min-w-0">
+              <Label className="block text-sm font-medium text-foreground mb-2">Address</Label>
+              <div className="relative">
+                <Input
+                  value={form.address}
+                  onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
+                  placeholder="Search Dagupan address"
+                  className={`w-full rounded-xl border-2 py-2.5 transition-colors focus:ring-2 focus:ring-primary/30 focus:border-primary ${isLight ? 'border-gray-200 hover:border-gray-300' : 'border-border bg-white/5 hover:border-white/20'}`}
+                />
+                {String(form.address || '').trim().length >= 3 && !isSearchingLocation && locationSuggestions.length === 0 && !locationError && (
+                  <div className={`absolute z-30 mt-1 w-full rounded-lg border p-2 text-xs ${isLight ? 'bg-white border-gray-200 text-gray-600' : 'bg-card border-border text-muted'}`}>
+                    No map suggestion found. You can still save the typed address.
+                  </div>
+                )}
+                {locationSuggestions.length > 0 && (
+                  <div className={`absolute z-30 mt-1 w-full rounded-lg border p-1 max-h-40 overflow-auto ${isLight ? 'bg-white border-gray-200' : 'bg-card border-border'}`}>
+                    {locationSuggestions.map((suggestion) => (
+                      <button
+                        key={`${suggestion.osmType || 'osm'}-${suggestion.osmId || suggestion.label}`}
+                        type="button"
+                        className={`w-full text-left px-2 py-1.5 text-xs rounded-md ${isLight ? 'hover:bg-gray-100' : 'hover:bg-white/10'}`}
+                        onClick={() => applyLocationSuggestion(suggestion)}
+                      >
+                        {suggestion.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="mt-2 flex items-center gap-2">
+                <Button type="button" variant="outline" className="h-8 text-xs" onClick={useCurrentLocation} disabled={isResolvingLocation}>
+                  {isResolvingLocation ? 'Using location...' : 'Use Current Location'}
+                </Button>
+                {isSearchingLocation && <span className="text-xs text-muted">Searching...</span>}
+              </div>
+              {locationError && <p className="mt-2 text-xs text-primary">{locationError}</p>}
+            </div>
+            <div className="grid grid-cols-2 gap-4 w-full min-w-0">
               <div className="min-w-0 flex flex-col">
-                <Label className="block text-sm font-medium text-foreground mb-2">Units</Label>
-                <Input type="number" min={0} value={form.unitsCount} onChange={(e) => setForm((f) => ({ ...f, unitsCount: parseInt(e.target.value, 10) || 0 }))} placeholder="0" className={`w-full rounded-xl border-2 py-2.5 focus:ring-2 focus:ring-primary/30 focus:border-primary ${isLight ? 'border-gray-200' : 'border-border bg-white/5'}`} />
+                <Label className="block text-sm font-medium text-foreground mb-2">Latitude</Label>
+                <Input
+                  type="number"
+                  step="any"
+                  value={form.latitude}
+                  onChange={(e) => setForm((f) => ({ ...f, latitude: e.target.value }))}
+                  placeholder="16.04"
+                  className={`w-full rounded-xl border-2 py-2.5 focus:ring-2 focus:ring-primary/30 focus:border-primary ${isLight ? 'border-gray-200' : 'border-border bg-white/5'}`}
+                />
               </div>
               <div className="min-w-0 flex flex-col">
-                <Label className="block text-sm font-medium text-foreground mb-2">Personnel</Label>
-                <Input type="number" min={0} value={form.personnelCount} onChange={(e) => setForm((f) => ({ ...f, personnelCount: parseInt(e.target.value, 10) || 0 }))} placeholder="0" className={`w-full rounded-xl border-2 py-2.5 focus:ring-2 focus:ring-primary/30 focus:border-primary ${isLight ? 'border-gray-200' : 'border-border bg-white/5'}`} />
-              </div>
-              <div className="min-w-0 flex flex-col">
-                <Label className="block text-sm font-medium text-foreground mb-2">Active Tasks</Label>
-                <Input type="number" min={0} value={form.activeTaskCount} onChange={(e) => setForm((f) => ({ ...f, activeTaskCount: parseInt(e.target.value, 10) || 0 }))} placeholder="0" className={`w-full rounded-xl border-2 py-2.5 focus:ring-2 focus:ring-primary/30 focus:border-primary ${isLight ? 'border-gray-200' : 'border-border bg-white/5'}`} />
+                <Label className="block text-sm font-medium text-foreground mb-2">Longitude</Label>
+                <Input
+                  type="number"
+                  step="any"
+                  value={form.longitude}
+                  onChange={(e) => setForm((f) => ({ ...f, longitude: e.target.value }))}
+                  placeholder="120.33"
+                  className={`w-full rounded-xl border-2 py-2.5 focus:ring-2 focus:ring-primary/30 focus:border-primary ${isLight ? 'border-gray-200' : 'border-border bg-white/5'}`}
+                />
               </div>
             </div>
           </div>

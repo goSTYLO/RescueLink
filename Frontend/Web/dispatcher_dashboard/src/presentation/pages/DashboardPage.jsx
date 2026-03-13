@@ -9,14 +9,15 @@ import { incidents as mockIncidents, barangays, departments as departmentsList }
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
-import { getIncidents, normalizeIncidentStatus, verifyIncident } from '@/data/api/incidents.api';
+import { getIncidents, verifyIncident } from '@/data/api/incidents.api';
 import { createDispatch } from '@/data/api/dispatches.api';
 import { DEV_MODE } from '@/core/config/app.config';
 import { normalizeRole, ROLES } from '@/core/constants';
 import { mapIncidentTypeFilterToApi } from '@/core/utils/incidentClassification';
+import { mapApiIncidentToDisplay } from '@/core/utils/incidentDisplay';
 import Swal from 'sweetalert2';
 
-const POLLING_INTERVAL_MS = 30000;
+const POLLING_INTERVAL_MS = 60000;
 const ACTIVE_SECTOR_IDS = new Set(['pnp', 'drrmo']);
 
 const TEAM_OPTIONS_BY_SECTOR = {
@@ -52,48 +53,8 @@ function mapSeverityFilterToApi(value) {
   return undefined;
 }
 
-// Map API incident to dashboard shape
 function mapApiIncidentToDashboard(api) {
-  const firstName = api.reporter_first_name || '';
-  const lastName = api.reporter_last_name || '';
-  const reporterName = (firstName || lastName)
-    ? [firstName, lastName].filter(Boolean).join(' ').trim()
-    : `User #${api.user_id}`;
-
-  const typeMap = { fire: 'Fire', medical: 'Medical', police: 'Police', disaster: 'Disaster', other: 'Other' };
-  const emergencyType = typeMap[api.incident_type?.toLowerCase()] || (api.incident_type ? String(api.incident_type).charAt(0).toUpperCase() + String(api.incident_type).slice(1) : '—');
-
-  const severityMap = { high: 'Critical', medium: 'Warning', low: 'Low' };
-  const severity = severityMap[api.severity_level?.toLowerCase()] || (api.severity_level || '—');
-
-  const statusMap = { pending: 'Pending', resolved: 'Resolved', closed: 'Closed', verified: 'Verified', in_progress: 'In Progress' };
-  const canonicalStatus = normalizeIncidentStatus(api.status);
-  const status = statusMap[canonicalStatus];
-
-  let timeReported = '—';
-  let timeReportedTs = 0;
-  if (api.created_at) {
-    const d = new Date(api.created_at);
-    timeReportedTs = d.getTime();
-    timeReported = d.toLocaleString('en-US', {
-      year: 'numeric', month: '2-digit', day: '2-digit',
-      hour: 'numeric', minute: '2-digit', hour12: true
-    });
-  }
-
-  return {
-    id: api.report_id,
-    reporterName,
-    reporterPhone: api.reporter_phone || null,
-    barangay: '—',
-    emergencyType,
-    severity,
-    status,
-    timeReported,
-    timeReportedTs,
-    verified: api.verified ?? false,
-    reporterConfirmedAt: api.reporter_confirmed_at || null,
-  };
+  return mapApiIncidentToDisplay(api);
 }
 
 const DASHBOARD_FILTER_STATE_KEY = 'dashboard:filters:v1';

@@ -13,9 +13,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/presentation/components/ui/Dialog';
-import { ArrowLeft, Shield, Users, Link2 } from 'lucide-react';
+import { ArrowLeft, Shield, Users, Link2, MapPin } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { MapContainer, Marker, TileLayer } from 'react-leaflet';
+import L from 'leaflet';
 import Swal from 'sweetalert2';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
 import { normalizeRole, ROLES } from '@/core/constants';
@@ -87,6 +89,22 @@ export function DepartmentDetailsPage() {
   const departmentId = Number(id);
   const departmentCode = String(department?.code || '').trim().toLowerCase();
   const departmentName = String(department?.name || '').trim().toLowerCase();
+  const departmentLatitude = Number(department?.latitude);
+  const departmentLongitude = Number(department?.longitude);
+  const departmentAddress = String(department?.address || '').trim();
+  const hasDepartmentCoordinates = Number.isFinite(departmentLatitude) && Number.isFinite(departmentLongitude);
+  const mapOpenStreetUrl = hasDepartmentCoordinates
+    ? `https://www.openstreetmap.org/?mlat=${departmentLatitude}&mlon=${departmentLongitude}#map=15/${departmentLatitude}/${departmentLongitude}`
+    : null;
+  const mapAddressSearchUrl = !hasDepartmentCoordinates && departmentAddress
+    ? `https://www.openstreetmap.org/search?query=${encodeURIComponent(departmentAddress)}`
+    : null;
+  const departmentMarkerIcon = useMemo(() => L.divIcon({
+    className: 'department-marker',
+    html: '<svg viewBox="0 0 32 32" width="30" height="30" xmlns="http://www.w3.org/2000/svg"><path fill="#0f4c81" stroke="#ffffff" stroke-width="2" d="M16 2C9.4 2 4 7.4 4 14c0 8.3 9.1 15.6 11 16.9a2 2 0 0 0 2 0C18.9 29.6 28 22.3 28 14c0-6.6-5.4-12-12-12z"/><circle cx="16" cy="14" r="4" fill="#ffffff"/></svg>',
+    iconSize: [30, 30],
+    iconAnchor: [15, 30],
+  }), []);
 
   const panelClass = `rounded-2xl border overflow-hidden transition-all duration-300 ${isLight ? 'glass neumorphic-light bg-white/80' : 'glass neumorphic-dark bg-card/60'}`;
   const headerClass = `flex items-center gap-3 px-4 py-3 border-b ${isLight ? 'border-gray-200/80 bg-gray-50/50' : 'border-white/10 bg-white/5'}`;
@@ -419,6 +437,7 @@ export function DepartmentDetailsPage() {
           <TabsList className="w-full sm:w-auto sm:inline-flex gap-1">
             <TabsTrigger value="teams">Teams</TabsTrigger>
             <TabsTrigger value="responders">Responders</TabsTrigger>
+            <TabsTrigger value="map">Map</TabsTrigger>
           </TabsList>
 
           <TabsContent value="teams">
@@ -629,6 +648,49 @@ export function DepartmentDetailsPage() {
                     Next
                   </Button>
                 </div>
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="map">
+            <div className={panelClass}>
+              <div className={headerClass}>
+                <span className={`w-9 h-9 rounded-lg flex items-center justify-center ${isLight ? 'bg-gray-100 text-primary' : 'bg-white/10 text-primary'}`}>
+                  <MapPin className="w-4 h-4" />
+                </span>
+                <h3 className="text-sm font-semibold text-foreground flex-1">Department Location</h3>
+              </div>
+              <div className="p-3 space-y-2">
+                {hasDepartmentCoordinates ? (
+                  <>
+                    <div className="rounded-lg overflow-hidden border border-border/60 h-[300px] sm:h-[360px]">
+                      <MapContainer center={[departmentLatitude, departmentLongitude]} zoom={15} style={{ width: '100%', height: '100%' }}>
+                        <TileLayer
+                          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                        />
+                        <Marker position={[departmentLatitude, departmentLongitude]} icon={departmentMarkerIcon} />
+                      </MapContainer>
+                    </div>
+                    <div className="text-xs text-muted">
+                      <p>Address: {departmentAddress || 'Not provided'}</p>
+                      <p>Latitude: {departmentLatitude.toFixed(6)} | Longitude: {departmentLongitude.toFixed(6)}</p>
+                      <a href={mapOpenStreetUrl} target="_blank" rel="noreferrer" className="text-primary underline underline-offset-2">
+                        Open in OpenStreetMap
+                      </a>
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-xs text-muted border border-border/60 rounded-lg p-3 space-y-1.5">
+                    <p>Address: {departmentAddress || 'Not provided'}</p>
+                    <p>This department has no map coordinates yet. Update its address/location from the Departments page.</p>
+                    {mapAddressSearchUrl && (
+                      <a href={mapAddressSearchUrl} target="_blank" rel="noreferrer" className="text-primary underline underline-offset-2">
+                        Search this address in OpenStreetMap
+                      </a>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </TabsContent>

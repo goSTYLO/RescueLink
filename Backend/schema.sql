@@ -24,6 +24,9 @@ CREATE TABLE IF NOT EXISTS departments (
   name VARCHAR(150) UNIQUE NOT NULL,
   type VARCHAR(50) NOT NULL,
   color VARCHAR(30) DEFAULT 'gray',
+  address VARCHAR(255),
+  latitude DOUBLE PRECISION,
+  longitude DOUBLE PRECISION,
   status VARCHAR(30) NOT NULL DEFAULT 'active',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -58,9 +61,14 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS department_id INTEGER REFERENCES depa
 
 CREATE INDEX IF NOT EXISTS idx_departments_code ON departments(code);
 CREATE INDEX IF NOT EXISTS idx_departments_type ON departments(type);
+CREATE INDEX IF NOT EXISTS idx_departments_location ON departments(latitude, longitude);
 CREATE INDEX IF NOT EXISTS idx_department_units_department_id ON department_units(department_id);
 CREATE INDEX IF NOT EXISTS idx_department_personnel_department_id ON department_personnel(department_id);
 CREATE INDEX IF NOT EXISTS idx_users_department_id ON users(department_id);
+
+ALTER TABLE departments ADD COLUMN IF NOT EXISTS address VARCHAR(255);
+ALTER TABLE departments ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION;
+ALTER TABLE departments ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION;
 
 -- Create incident reports table
 CREATE TABLE IF NOT EXISTS incident_reports (
@@ -241,6 +249,9 @@ CREATE TABLE IF NOT EXISTS dispatches (
   responder_source VARCHAR(20) NOT NULL DEFAULT 'account',
   responder_name VARCHAR(150),
   assigned_by_user_id INTEGER REFERENCES users(user_id),
+  estimated_eta_minutes INTEGER,
+  estimated_arrival_at TIMESTAMP,
+  actual_arrival_at TIMESTAMP,
   dispatched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   response_status VARCHAR(50)
 );
@@ -249,6 +260,11 @@ CREATE TABLE IF NOT EXISTS dispatches (
 CREATE INDEX IF NOT EXISTS idx_dispatches_report_id ON dispatches(report_id);
 CREATE INDEX IF NOT EXISTS idx_dispatches_assignment_group_id ON dispatches(assignment_group_id);
 CREATE INDEX IF NOT EXISTS idx_dispatches_department_code ON dispatches(department_code);
+CREATE INDEX IF NOT EXISTS idx_dispatches_estimated_arrival_at ON dispatches(estimated_arrival_at);
+
+ALTER TABLE dispatches ADD COLUMN IF NOT EXISTS estimated_eta_minutes INTEGER;
+ALTER TABLE dispatches ADD COLUMN IF NOT EXISTS estimated_arrival_at TIMESTAMP;
+ALTER TABLE dispatches ADD COLUMN IF NOT EXISTS actual_arrival_at TIMESTAMP;
 
 -- Create notifications table
 CREATE TABLE IF NOT EXISTS notifications (

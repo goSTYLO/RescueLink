@@ -524,7 +524,14 @@ const Incident = {
        FROM incident_reports
        WHERE (scan_status = 'pending' OR scan_status = 'unscanned')
          AND quarantined = FALSE
-         AND (audio_path IS NOT NULL OR (media_paths IS NOT NULL AND jsonb_array_length(media_paths) > 0))
+         AND (
+           audio_path IS NOT NULL
+           OR (
+             media_paths IS NOT NULL
+             AND NULLIF(TRIM(media_paths::text), '') IS NOT NULL
+             AND TRIM(media_paths::text) NOT IN ('[]', '{}', 'null')
+           )
+         )
        ORDER BY created_at ASC
        LIMIT $1`,
       [limit]

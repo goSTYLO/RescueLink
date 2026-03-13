@@ -12,7 +12,7 @@ import {
   ArrowLeft, MapPin, CheckCircle, XCircle, Bell, 
   Clock, AlertTriangle, TrendingUp, Users, Shield, FileText,
   MessageSquare, Wrench, Award, Star, AlertCircle, Copy, Merge,
-  X, ThumbsUp
+  X, ThumbsUp, Link2
 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { 
@@ -84,11 +84,22 @@ function mapApiToIncidentDetails(api, aiClassification = null) {
     });
   }
 
+  const assignedDepartmentList = Array.isArray(api.assigned_departments)
+    ? api.assigned_departments
+      .map((item) => String(item || '').trim())
+      .filter(Boolean)
+    : [];
+  const singleAssignedDepartment = String(api.assigned_department || '').trim();
+  if (singleAssignedDepartment && !assignedDepartmentList.includes(singleAssignedDepartment)) {
+    assignedDepartmentList.unshift(singleAssignedDepartment);
+  }
+  const leadDepartment = String(api.lead_department || '').trim() || assignedDepartmentList[0] || null;
+
   return {
     id: api.report_id,
     reporterName,
     reporterPhone: api.reporter_phone || '—',
-    barangay: '—',
+    barangay: api.barangay || '—',
     emergencyType,
     severity,
     status,
@@ -125,9 +136,10 @@ function mapApiToIncidentDetails(api, aiClassification = null) {
       }
       : null,
     timeReported,
-    assignedDepartment: api.assigned_department || null,
+    assignedDepartment: singleAssignedDepartment || null,
     assignedDepartmentId: api.assigned_department_code || null,
-    assignedDepartments: api.assigned_department ? [api.assigned_department] : [],
+    assignedDepartments: assignedDepartmentList,
+    leadDepartment,
     assignedTeamName: api.assigned_team_name || null,
     assignedTeamDepartmentCode: api.assigned_team_department_code || api.assigned_department_code || null,
     timeline: api.timeline || [],
@@ -873,6 +885,15 @@ export function IncidentDetailsPage() {
   const panelClass = `rounded-2xl border overflow-hidden transition-all duration-300 ${isLight ? 'glass neumorphic-light bg-white/80' : 'glass neumorphic-dark bg-card/60'}`;
   const headerClass = `flex items-center gap-3 px-4 py-3 border-b ${isLight ? 'border-gray-200/80 bg-gray-50/50' : 'border-white/10 bg-white/5'}`;
   const iconBoxClass = `w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${isLight ? 'neumorphic-light-inset bg-gray-100 text-primary' : 'neumorphic-dark-inset bg-white/10 text-primary'}`;
+  const incidentLatitude = Number(incident?.location?.lat);
+  const incidentLongitude = Number(incident?.location?.lng);
+  const hasIncidentCoordinates = Number.isFinite(incidentLatitude) && Number.isFinite(incidentLongitude);
+  const incidentMapOpenStreetUrl = hasIncidentCoordinates
+    ? `https://www.openstreetmap.org/?mlat=${incidentLatitude}&mlon=${incidentLongitude}#map=16/${incidentLatitude}/${incidentLongitude}`
+    : null;
+  const incidentMapGoogleUrl = hasIncidentCoordinates
+    ? `https://www.google.com/maps?q=${incidentLatitude},${incidentLongitude}`
+    : null;
   const renderPrimaryActions = ({ compact = false } = {}) => (
     <>
       {!incident.verified && canVerifyIncident && (
@@ -1146,6 +1167,34 @@ export function IncidentDetailsPage() {
                       longitude={incident.location.lng}
                       className="w-full h-48 rounded-xl overflow-hidden border border-border"
                     />
+                    {(incidentMapOpenStreetUrl || incidentMapGoogleUrl) && (
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        {incidentMapOpenStreetUrl && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-8 px-3 text-xs rounded-lg"
+                            onClick={() => window.open(incidentMapOpenStreetUrl, '_blank', 'noopener,noreferrer')}
+                          >
+                            <MapPin className="w-3.5 h-3.5 mr-1.5" />
+                            Open in OpenStreetMap
+                          </Button>
+                        )}
+                        {incidentMapGoogleUrl && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-8 px-3 text-xs rounded-lg"
+                            onClick={() => window.open(incidentMapGoogleUrl, '_blank', 'noopener,noreferrer')}
+                          >
+                            <Link2 className="w-3.5 h-3.5 mr-1.5" />
+                            Open in Google Maps
+                          </Button>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div>

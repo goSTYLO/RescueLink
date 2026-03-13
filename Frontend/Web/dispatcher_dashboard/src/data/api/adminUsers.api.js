@@ -1,27 +1,51 @@
 import { API_URL } from '@/core/config/app.config';
 import { createRequestId, getAuthHeaders, parseErrorMessage, parseJsonOrEmpty } from '@/data/api/http';
 
+const USER_LIST_CACHE_TTL_MS = 20000;
+const userListCache = new Map();
+const inflightUserList = new Map();
+
 /**
  * List users with pagination (admin)
  * @param {{ page?: number, limit?: number, exclude_role?: string }} opts
  * @returns {Promise<{ users: Array, pagination: { page, limit, total, pages } }>}
  */
 export async function listUsers({ page = 1, limit = 20, exclude_role } = {}) {
+  const cacheKey = JSON.stringify({ page, limit, exclude_role: exclude_role || '' });
+  const cached = userListCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < USER_LIST_CACHE_TTL_MS) {
+    return cached.data;
+  }
+
+  if (inflightUserList.has(cacheKey)) {
+    return inflightUserList.get(cacheKey);
+  }
+
   const requestId = createRequestId('web-admin-users-list');
   const params = new URLSearchParams({ page: String(page), limit: String(limit) });
   if (typeof exclude_role === 'string' && exclude_role.trim() !== '') {
     params.set('exclude_role', exclude_role.trim());
   }
-  const response = await fetch(`${API_URL}/api/admin/users?${params}`, {
-    method: 'GET',
-    headers: getAuthHeaders({ requestId }),
-  });
+  const requestPromise = (async () => {
+    const response = await fetch(`${API_URL}/api/admin/users?${params}`, {
+      method: 'GET',
+      headers: getAuthHeaders({ requestId }),
+    });
 
-  const data = await parseJsonOrEmpty(response);
-  if (!response.ok) {
-    throw new Error(parseErrorMessage(data, 'Failed to fetch users'));
+    const data = await parseJsonOrEmpty(response);
+    if (!response.ok) {
+      throw new Error(parseErrorMessage(data, 'Failed to fetch users'));
+    }
+    userListCache.set(cacheKey, { data, timestamp: Date.now() });
+    return data;
+  })();
+
+  inflightUserList.set(cacheKey, requestPromise);
+  try {
+    return await requestPromise;
+  } finally {
+    inflightUserList.delete(cacheKey);
   }
-  return data;
 }
 
 /**
@@ -40,6 +64,7 @@ export async function createUser(payload) {
   if (!response.ok) {
     throw new Error(parseErrorMessage(data, 'Failed to create user'));
   }
+  userListCache.clear();
   return data;
 }
 
@@ -60,6 +85,7 @@ export async function updateUserRole(userId, payload) {
   if (!response.ok) {
     throw new Error(parseErrorMessage(data, 'Failed to update user role'));
   }
+  userListCache.clear();
   return data;
 }
 
@@ -79,5 +105,6 @@ export async function deactivateUser(userId) {
   if (!response.ok) {
     throw new Error(parseErrorMessage(data, 'Failed to deactivate user'));
   }
+  userListCache.clear();
   return data;
 }

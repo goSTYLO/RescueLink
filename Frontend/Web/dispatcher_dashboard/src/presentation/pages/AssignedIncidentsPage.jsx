@@ -5,40 +5,13 @@ import { Card } from '@/presentation/components/ui/Card';
 import { Button } from '@/presentation/components/ui/Button';
 import { Badge } from '@/presentation/components/ui/Badge';
 import { ClipboardList, Eye, MapPin } from 'lucide-react';
-import { getIncidents, normalizeIncidentStatus } from '@/data/api/incidents.api';
+import { getIncidents } from '@/data/api/incidents.api';
+import { mapApiIncidentToDisplay } from '@/core/utils/incidentDisplay';
 import { ROLES } from '@/core/constants';
 import { useTheme } from '@/presentation/context/ThemeContext';
 
 function mapApiIncidentToRow(api) {
-  const firstName = api.reporter_first_name || '';
-  const lastName = api.reporter_last_name || '';
-  const reporterName = (firstName || lastName)
-    ? [firstName, lastName].filter(Boolean).join(' ').trim()
-    : `User #${api.user_id}`;
-  const typeMap = { fire: 'Fire', medical: 'Medical', police: 'Police', disaster: 'Disaster', other: 'Other' };
-  const emergencyType = typeMap[api.incident_type?.toLowerCase()] || (api.incident_type ? String(api.incident_type).charAt(0).toUpperCase() + String(api.incident_type).slice(1) : '—');
-  const severityMap = { high: 'Critical', medium: 'Warning', low: 'Low' };
-  const severity = severityMap[api.severity_level?.toLowerCase()] || (api.severity_level || '—');
-  const statusMap = { pending: 'Pending', resolved: 'Resolved', closed: 'Closed', verified: 'Verified', in_progress: 'In Progress' };
-  const canonicalStatus = normalizeIncidentStatus(api.status);
-  const status = statusMap[canonicalStatus];
-  let timeReported = '—';
-  if (api.created_at) {
-    const d = new Date(api.created_at);
-    timeReported = d.toLocaleString('en-US', {
-      year: 'numeric', month: '2-digit', day: '2-digit',
-      hour: 'numeric', minute: '2-digit', hour12: true
-    });
-  }
-  return {
-    id: api.report_id,
-    reporterName,
-    barangay: api.barangay || '—',
-    emergencyType,
-    severity,
-    status,
-    timeReported,
-  };
+  return mapApiIncidentToDisplay(api);
 }
 
 export function AssignedIncidentsPage() {
@@ -74,7 +47,7 @@ export function AssignedIncidentsPage() {
   useEffect(() => {
     if (user.role !== ROLES.DEPARTMENT_HEAD) return;
     fetchIncidents();
-    const intervalId = setInterval(fetchIncidents, 15000);
+    const intervalId = setInterval(fetchIncidents, 30000);
     const handleUpdated = () => fetchIncidents();
     window.addEventListener('incident:updated', handleUpdated);
     return () => {

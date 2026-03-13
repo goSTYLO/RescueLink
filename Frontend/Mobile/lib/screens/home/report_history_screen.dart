@@ -353,7 +353,7 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                     const Text('Status', style: TextStyle(fontSize: 13, color: Color(0xFF6B7280))),
                     const SizedBox(height: 6),
                     DropdownButtonFormField<String?>(
-                      value: _filterStatus,
+                      initialValue: _filterStatus,
                       decoration: InputDecoration(
                         filled: true,
                         fillColor: Colors.white,
@@ -391,7 +391,7 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                     const Text('Type', style: TextStyle(fontSize: 13, color: Color(0xFF6B7280))),
                     const SizedBox(height: 6),
                     DropdownButtonFormField<String?>(
-                      value: _filterType,
+                      initialValue: _filterType,
                       decoration: InputDecoration(
                         filled: true,
                         fillColor: Colors.white,

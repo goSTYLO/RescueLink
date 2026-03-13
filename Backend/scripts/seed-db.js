@@ -5,6 +5,8 @@ const { Pool } = require('pg');
 const bcryptjs = require('bcryptjs');
 const { ROLES } = require('../src/config/roles');
 const { encrypt } = require('../src/utils/encryption');
+const fs = require('fs/promises');
+const path = require('path');
 
 const DATABASE_URL = process.env.DATABASE_URL;
 
@@ -72,9 +74,112 @@ function maybeEncrypt(value, columnMeta) {
 }
 
 const DEPARTMENTS = [
-  { code: 'pnp', name: 'Dagupan City Police Office', type: 'Police', color: 'blue', status: 'active' },
-  { code: 'drrmo', name: 'Dagupan CDRRMO', type: 'Disaster', color: 'orange', status: 'active' },
+  {
+    code: 'pnp',
+    name: 'Dagupan City Police Station',
+    type: 'Police',
+    color: 'blue',
+    address: 'Dagupan City Police Station, A.B. Fernandez Ave, Dagupan City, Pangasinan',
+    latitude: 16.043037,
+    longitude: 120.3323573,
+    status: 'active',
+  },
+  {
+    code: 'drrmo',
+    name: 'Dagupan CDRRMC',
+    type: 'Disaster',
+    color: 'orange',
+    address: 'City Engineers Office, A.B. Fernandez Ave, Dagupan City, Pangasinan',
+    latitude: 16.043652,
+    longitude: 120.333521,
+    status: 'active',
+  },
 ];
+
+const AUDIO_EXTENSIONS = new Set(['.wav', '.mp3', '.m4a', '.flac', '.ogg']);
+const INCIDENT_SEED_COUNT = 72;
+
+const DAGUPAN_LOCATION_FIXTURES = [
+  { barangay: 'Poblacion Oeste', latitude: 16.043037, longitude: 120.3323573, label: 'Dagupan City Police Station' },
+  { barangay: 'Poblacion Oeste', latitude: 16.043652, longitude: 120.333521, label: 'City Engineers Office (CDRRMC)' },
+  { barangay: 'Poblacion Oeste', latitude: 16.043259, longitude: 120.333036, label: 'Dagupan Post Office' },
+  { barangay: 'Pantal', latitude: 16.042901, longitude: 120.352587, label: 'Pantal Area' },
+  { barangay: 'Tapuac', latitude: 16.051945, longitude: 120.347309, label: 'Tapuac Area' },
+  { barangay: 'Lucao', latitude: 16.0561, longitude: 120.3519, label: 'Lucao District Center' },
+  { barangay: 'Bonuan Boquig', latitude: 16.0781, longitude: 120.334, label: 'Bonuan Boquig Barangay Hall' },
+  { barangay: 'Bonuan Gueset', latitude: 16.0736, longitude: 120.3332, label: 'Bonuan Gueset Barangay Hall' },
+  { barangay: 'Bonuan Binloc', latitude: 16.0708, longitude: 120.338, label: 'Bonuan Binloc Barangay Hall' },
+  { barangay: 'Bacayao Norte', latitude: 16.06322, longitude: 120.320998, label: 'Bacayao Norte Area' },
+  { barangay: 'Bacayao Sur', latitude: 16.0581, longitude: 120.3248, label: 'Bacayao Sur Area' },
+  { barangay: 'Lasip Chico', latitude: 16.0553, longitude: 120.3578, label: 'Lasip Chico District Center' },
+  { barangay: 'Malued', latitude: 16.0569, longitude: 120.346, label: 'Malued District Center' },
+  { barangay: 'Poblacion Norte', latitude: 16.0449, longitude: 120.333, label: 'Poblacion Norte Hall' },
+  { barangay: 'Poblacion Sur', latitude: 16.0429, longitude: 120.3336, label: 'Poblacion Sur Hall' },
+];
+
+const INCIDENT_TEMPLATES = [
+  { type: 'fire', severity: 'high', description: 'Residential fire with visible smoke and trapped occupants.' },
+  { type: 'fire', severity: 'medium', description: 'Electrical fire reported in a commercial establishment.' },
+  { type: 'fire', severity: 'low', description: 'Small outdoor fire near roadside vegetation.' },
+  { type: 'medical', severity: 'high', description: 'Unconscious patient requiring urgent life support.' },
+  { type: 'medical', severity: 'medium', description: 'Patient with breathing difficulty and chest discomfort.' },
+  { type: 'medical', severity: 'low', description: 'Minor injury requiring transport and first aid.' },
+  { type: 'police', severity: 'high', description: 'Armed disturbance reported with immediate threat to civilians.' },
+  { type: 'police', severity: 'medium', description: 'Road altercation escalating and blocking traffic flow.' },
+  { type: 'police', severity: 'low', description: 'Suspicious activity near a neighborhood entrance.' },
+  { type: 'disaster', severity: 'high', description: 'Flooding reported with stranded residents and rising water.' },
+  { type: 'disaster', severity: 'medium', description: 'Strong winds damaged structures and power lines.' },
+  { type: 'disaster', severity: 'low', description: 'Localized water accumulation affecting side streets.' },
+];
+
+function shuffleList(items) {
+  const arr = [...items];
+  for (let i = arr.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+async function walkAudioFiles(sourceDir) {
+  const entries = [];
+  async function walk(currentDir) {
+    const dirEntries = await fs.readdir(currentDir, { withFileTypes: true });
+    for (const entry of dirEntries) {
+      const absolutePath = path.join(currentDir, entry.name);
+      if (entry.isDirectory()) {
+        await walk(absolutePath);
+        continue;
+      }
+      if (!entry.isFile()) continue;
+      const ext = path.extname(entry.name).toLowerCase();
+      if (!AUDIO_EXTENSIONS.has(ext)) continue;
+      entries.push({ sourcePath: absolutePath, originalName: entry.name, ext });
+    }
+  }
+  await walk(sourceDir);
+  return entries;
+}
+
+async function collectAudioFiles() {
+  const repoRoot = path.resolve(__dirname, '..', '..');
+  const aiTestDir = path.join(repoRoot, 'RescueLink AI', 'test');
+  const backendUploadsDir = path.join(repoRoot, 'Backend', 'uploads', 'incidents');
+  const entries = [];
+
+  for (const sourceDir of [aiTestDir, backendUploadsDir]) {
+    try {
+      const files = await walkAudioFiles(sourceDir);
+      entries.push(...files);
+    } catch (_) {
+      // ignore missing directories
+    }
+  }
+
+  const unique = new Map();
+  entries.forEach((entry) => unique.set(entry.sourcePath, entry));
+  return shuffleList([...unique.values()]);
+}
 
 const TEAMS = [
   { department_code: 'pnp', team_name: 'Patrol Alpha', team_status: 'available', supported_incident_types: ['police'] },
@@ -104,9 +209,12 @@ const USERS = [
   { first_name: 'Evan', last_name: 'Supervisor', email: 'supervisor@rescuelink.test', phone_number: '639004000001', password: 'supervisor123', role: ROLES.SUPERVISOR, address: 'Lasip Chico, Dagupan City', department_code: 'drrmo' },
   { first_name: 'Fiona', last_name: 'Supervisor', email: 'supervisor2@rescuelink.test', phone_number: '639004000002', password: 'supervisor123', role: ROLES.SUPERVISOR, address: 'Malued, Dagupan City', department_code: 'pnp' },
   // Mobile app reporters/users (incident reporting)
-  { first_name: 'John', last_name: 'Reporter', email: 'user@rescuelink.test', phone_number: '639005000001', password: 'user123', role: ROLES.USER, address: 'Bonuan Binloc, Dagupan City', department_code: null },
-  { first_name: 'Jane', last_name: 'Reporter', email: 'user2@rescuelink.test', phone_number: '639005000002', password: 'user123', role: ROLES.USER, address: 'Tapuac, Dagupan City', department_code: null },
-  { first_name: 'Miguel', last_name: 'Reporter', email: 'user3@rescuelink.test', phone_number: '639005000003', password: 'user123', role: ROLES.USER, address: 'Mangin, Dagupan City', department_code: null },
+  { first_name: 'John', last_name: 'Cruz', email: 'user@rescuelink.test', phone_number: '639005000001', password: 'user123', role: ROLES.USER, address: 'Bonuan Binloc, Dagupan City', department_code: null },
+  { first_name: 'Jane', last_name: 'Sarmiento', email: 'user2@rescuelink.test', phone_number: '639005000002', password: 'user123', role: ROLES.USER, address: 'Tapuac, Dagupan City', department_code: null },
+  { first_name: 'Miguel', last_name: 'Domingo', email: 'user3@rescuelink.test', phone_number: '639005000003', password: 'user123', role: ROLES.USER, address: 'Mangin, Dagupan City', department_code: null },
+  { first_name: 'Alyssa', last_name: 'Reyes', email: 'user4@rescuelink.test', phone_number: '639005000004', password: 'user123', role: ROLES.USER, address: 'Pantal, Dagupan City', department_code: null },
+  { first_name: 'Ramon', last_name: 'Velasco', email: 'user5@rescuelink.test', phone_number: '639005000005', password: 'user123', role: ROLES.USER, address: 'Bonuan Boquig, Dagupan City', department_code: null },
+  { first_name: 'Katrina', last_name: 'Perez', email: 'user6@rescuelink.test', phone_number: '639005000006', password: 'user123', role: ROLES.USER, address: 'Lucao, Dagupan City', department_code: null },
   // Responders (field personnel with accounts)
   { first_name: 'SPO2', last_name: 'Reyes', email: 'responder@rescuelink.test', phone_number: '639003000001', password: 'responder123', role: ROLES.RESPONDER, address: 'Pob. Oeste, Dagupan City', department_code: 'pnp' },
   { first_name: 'SPO1', last_name: 'Flores', email: 'responder2@rescuelink.test', phone_number: '639003000002', password: 'responder123', role: ROLES.RESPONDER, address: 'Pob. Oeste, Dagupan City', department_code: 'pnp' },
@@ -171,10 +279,10 @@ async function seedDatabase() {
     const departmentIdByCode = {};
     for (const dept of DEPARTMENTS) {
       const result = await client.query(
-        `INSERT INTO departments(code, name, type, color, status)
-         VALUES ($1, $2, $3, $4, $5)
+        `INSERT INTO departments(code, name, type, color, address, latitude, longitude, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          RETURNING department_id, code`,
-        [dept.code, dept.name, dept.type, dept.color, dept.status]
+        [dept.code, dept.name, dept.type, dept.color, dept.address || null, dept.latitude || null, dept.longitude || null, dept.status]
       );
       departmentIdByCode[result.rows[0].code] = result.rows[0].department_id;
     }
@@ -229,6 +337,92 @@ async function seedDatabase() {
     }
     console.log(`✅ Seeded ${users.length} users\n`);
 
+    // Seed incidents (audio-backed, no AI/STT processing)
+    console.log('🆘 Seeding incident reports (Dagupan-only, broad status/type/severity mix)...');
+    const audioFiles = await collectAudioFiles();
+    const reporterIds = userIdsByRole[ROLES.USER] || [];
+    if (reporterIds.length === 0) {
+      throw new Error('No reporter users available for incident seeding.');
+    }
+    if (audioFiles.length === 0) {
+      throw new Error('No audio files found for incident seeding.');
+    }
+
+    const incidentColumnMeta = {
+      description: await getColumnMeta(client, 'incident_reports', 'description'),
+      latitude: await getColumnMeta(client, 'incident_reports', 'latitude'),
+      longitude: await getColumnMeta(client, 'incident_reports', 'longitude'),
+      barangay: await getColumnMeta(client, 'incident_reports', 'barangay'),
+      transcription: await getColumnMeta(client, 'incident_reports', 'transcription'),
+    };
+
+    const seedUploadsDir = path.join(process.cwd(), 'uploads', 'incidents');
+    await fs.mkdir(seedUploadsDir, { recursive: true });
+
+    const statuses = ['pending', 'verified', 'in_progress', 'resolved', 'closed'];
+    let incidentsSeeded = 0;
+
+    for (let i = 0; i < INCIDENT_SEED_COUNT; i += 1) {
+      const reporterId = reporterIds[i % reporterIds.length];
+      const locationFixture = DAGUPAN_LOCATION_FIXTURES[i % DAGUPAN_LOCATION_FIXTURES.length];
+      const template = INCIDENT_TEMPLATES[i % INCIDENT_TEMPLATES.length];
+      const status = statuses[i % statuses.length];
+      const sourceAudio = audioFiles[i % audioFiles.length];
+
+      const baseDescription = `${template.description} Location reference: ${locationFixture.label}, ${locationFixture.barangay}, Dagupan City.`;
+      const createdAt = new Date(Date.now() - (i * 45 * 60 * 1000));
+      const verified = status !== 'pending';
+
+      const inserted = await client.query(
+        `INSERT INTO incident_reports(
+          user_id,
+          incident_type,
+          severity_level,
+          description,
+          latitude,
+          longitude,
+          barangay,
+          status,
+          transcription,
+          verified,
+          ai_pending,
+          ai_attempted,
+          scan_status,
+          quarantined,
+          created_at
+        )
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,FALSE,FALSE,'clean',FALSE,$11)
+        RETURNING report_id`,
+        [
+          reporterId,
+          template.type,
+          template.severity,
+          maybeEncrypt(baseDescription, incidentColumnMeta.description),
+          maybeEncrypt(locationFixture.latitude, incidentColumnMeta.latitude),
+          maybeEncrypt(locationFixture.longitude, incidentColumnMeta.longitude),
+          maybeEncrypt(locationFixture.barangay, incidentColumnMeta.barangay),
+          status,
+          maybeEncrypt(null, incidentColumnMeta.transcription),
+          verified,
+          createdAt.toISOString(),
+        ]
+      );
+
+      const reportId = inserted.rows[0].report_id;
+      const copiedAudioName = `incident_${reportId}_audio${sourceAudio.ext}`;
+      const copiedAudioAbsolute = path.join(seedUploadsDir, copiedAudioName);
+      await fs.copyFile(sourceAudio.sourcePath, copiedAudioAbsolute);
+      const audioDbPath = path.join('uploads', 'incidents', copiedAudioName).replace(/\\/g, '/');
+
+      await client.query(
+        `UPDATE incident_reports SET audio_path = $1 WHERE report_id = $2`,
+        [audioDbPath, reportId]
+      );
+
+      incidentsSeeded += 1;
+    }
+    console.log(`✅ Seeded ${incidentsSeeded} incident reports\n`);
+
     // Seed responders
     console.log('🚨 Seeding responders...');
     const responders = RESPONDERS;
@@ -281,11 +475,12 @@ async function seedDatabase() {
     console.log('🎉 Core data seeding completed successfully!');
     console.log('════════════════════════════════════════════════');
     console.log('\n📋 Summary:');
-    console.log(`   👤  Users: ${userIds.length} (2 Admins, 2 Dept Admins, 4 Dispatchers, 2 Dept Heads, 2 Supervisors, 4 Responders, 3 Reporters)`);
+    console.log(`   👤  Users: ${userIds.length} (2 Admins, 2 Dept Admins, 4 Dispatchers, 2 Dept Heads, 2 Supervisors, 4 Responders, 6 Reporters)`);
     console.log(`   🏢 Departments: ${DEPARTMENTS.length}`);
     console.log(`   👥 Teams: ${TEAMS.length}`);
     console.log(`   🚨 Responders: ${responderIds.length}`);
     console.log(`   🔗 Team memberships: ${membershipCount}`);
+    console.log(`   🆘 Incident reports: ${INCIDENT_SEED_COUNT}`);
     console.log('\n🔑 Test Account Credentials:');
     console.log('\n   System Admins (full access):');
     console.log('   - admin@rescuelink.test / admin123');
@@ -310,8 +505,11 @@ async function seedDatabase() {
     console.log('   - user@rescuelink.test / user123');
     console.log('   - user2@rescuelink.test / user123');
     console.log('   - user3@rescuelink.test / user123');
-    console.log('\nℹ️ Incident seeding moved to dedicated script for realistic audio-based samples.');
-    console.log('   Run: npm run seed-incidents');
+    console.log('   - user4@rescuelink.test / user123');
+    console.log('   - user5@rescuelink.test / user123');
+    console.log('   - user6@rescuelink.test / user123');
+    console.log('\nℹ️ Incident reports are seeded in this script using audio files without AI/STT for broad test coverage.');
+    console.log('   Optional additional seeding: npm run seed-incidents');
     console.log('');
 
   } catch (err) {

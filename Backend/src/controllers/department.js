@@ -4,8 +4,11 @@ const {
   validateInteger,
   validateString,
   validateOptionalString,
+  validateLatitude,
+  validateLongitude,
   validateAllowedValue,
 } = require('../utils/validation');
+const { isPointInDagupan } = require('../utils/geolocation');
 const { ROLES } = require('../config/roles');
 
 function toDepartmentCode(name) {
@@ -18,12 +21,45 @@ function toDepartmentCode(name) {
 }
 
 function normalizeDepartmentPayload(body = {}) {
+  const hasLat = body.latitude !== undefined && body.latitude !== null && body.latitude !== '';
+  const hasLng = body.longitude !== undefined && body.longitude !== null && body.longitude !== '';
+  if (hasLat !== hasLng) {
+    throw new Error('latitude and longitude must both be provided when setting department location');
+  }
+
+  const latitude = hasLat ? validateLatitude(body.latitude) : null;
+  const longitude = hasLng ? validateLongitude(body.longitude) : null;
+
+  if (hasLat && !isPointInDagupan(latitude, longitude, 200)) {
+    throw new Error('Department coordinates must be within Dagupan City boundaries');
+  }
+
   return {
     name: validateString(body.name, 'name', 2, 150),
     type: validateString(body.type || 'Community', 'type', 2, 50),
     color: validateOptionalString(body.color, 'color', 30) || 'gray',
+    address: validateOptionalString(body.address, 'address', 255),
+    latitude,
+    longitude,
     status: validateAllowedValue(body.status, ['active', 'inactive'], 'status') || 'active',
   };
+}
+
+function locationPayloadRequested(payload) {
+  return Boolean(
+    (payload.address && String(payload.address).trim() !== '')
+    || Number.isFinite(Number(payload.latitude))
+    || Number.isFinite(Number(payload.longitude))
+  );
+}
+
+function locationPersisted(row) {
+  if (!row) return false;
+  return Boolean(
+    (row.address && String(row.address).trim() !== '')
+    || Number.isFinite(Number(row.latitude))
+    || Number.isFinite(Number(row.longitude))
+  );
 }
 
 function normalizeUnitPayload(body = {}) {
@@ -64,17 +100,18 @@ const departmentController = {
   async getAll(req, res) {
     try {
       const rows = await Department.findAll();
-      const withMetrics = await Promise.all(
-        rows.map(async (row) => {
-          const metrics = await Department.getMetrics(row.department_id);
-          return {
+      const normalizedRows = Array.isArray(rows)
+        ? rows.map((row) => ({
             ...row,
-            available_units: metrics?.available_units ?? 0,
-            active_incidents: metrics?.active_incidents ?? 0,
-          };
-        })
-      );
-      res.json(withMetrics);
+            available_units: Number.isFinite(Number(row.available_units))
+              ? Number(row.available_units)
+              : Number(row.units_count || 0),
+            active_incidents: Number.isFinite(Number(row.active_incidents))
+              ? Number(row.active_incidents)
+              : 0,
+          }))
+        : [];
+      res.json(normalizedRows);
     } catch (error) {
       console.error('Error fetching departments:', error);
       res.status(500).json({ error: 'Internal server error' });
@@ -115,6 +152,12 @@ const departmentController = {
         code: toDepartmentCode(payload.name),
       });
 
+      if (locationPayloadRequested(payload) && !locationPersisted(created)) {
+        return res.status(409).json({
+          error: 'Department location could not be saved. Please run the latest department location migration and retry.',
+        });
+      }
+
       res.status(201).json(created);
     } catch (error) {
       console.error('Error creating department:', error);
@@ -136,6 +179,12 @@ const departmentController = {
       const updated = await Department.update(departmentId, payload);
       if (!updated) {
         return res.status(404).json({ error: 'Department not found' });
+      }
+
+      if (locationPayloadRequested(payload) && !locationPersisted(updated)) {
+        return res.status(409).json({
+          error: 'Department location could not be saved. Please run the latest department location migration and retry.',
+        });
       }
 
       res.json(updated);

@@ -19,6 +19,30 @@ export async function getClosestUnits(payload) {
   return parseJsonResponse(response, 'Failed to fetch closest units');
 }
 
+export async function searchDagupanLocations(query, limit = 5) {
+  const requestId = createRequestId('web-location-search');
+  const params = new URLSearchParams();
+  params.set('q', query);
+  params.set('limit', String(limit));
+  const response = await fetch(`${API_URL}/api/location/search?${params.toString()}`, {
+    method: 'GET',
+    headers: getAuthHeaders({ requestId }),
+  });
+  return parseJsonResponse(response, 'Failed to search locations');
+}
+
+export async function reverseDagupanLocation(latitude, longitude) {
+  const requestId = createRequestId('web-location-reverse');
+  const params = new URLSearchParams();
+  params.set('latitude', String(latitude));
+  params.set('longitude', String(longitude));
+  const response = await fetch(`${API_URL}/api/location/reverse?${params.toString()}`, {
+    method: 'GET',
+    headers: getAuthHeaders({ requestId }),
+  });
+  return parseJsonResponse(response, 'Failed to reverse geocode location');
+}
+
 export async function getGeofenceAlerts(payload) {
   const requestId = createRequestId('web-location-geofence');
   const response = await fetch(`${API_URL}/api/location/geofence-alerts`, {

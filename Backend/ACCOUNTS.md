@@ -55,13 +55,16 @@ Mobile app users who can report emergency incidents.
 - **user@rescuelink.test** / `user123`
 - **user2@rescuelink.test** / `user123`
 - **user3@rescuelink.test** / `user123`
+- **user4@rescuelink.test** / `user123`
+- **user5@rescuelink.test** / `user123`
+- **user6@rescuelink.test** / `user123`
 
 ## Departments
 
 All accounts from the same department can see other department members.
 
-- **PNP** - Dagupan City Police Office (PNP admins, dispatchers, responders)
-- **DRRMO** - Dagupan CDRRMO (DRRMO admins, dispatchers, responders)
+- **PNP** - Dagupan City Police Station (PNP admins, dispatchers, responders)
+- **DRRMO** - Dagupan CDRRMC at City Engineers Office (DRRMO admins, dispatchers, responders)
 
 ## Testing Notes
 

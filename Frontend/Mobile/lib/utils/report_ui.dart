@@ -116,6 +116,8 @@ class ReportStatusUi {
     String? createdAt,
     String? updatedAt,
     String? closedAt,
+    int? estimatedEtaMinutes,
+    String? estimatedArrivalAt,
   }) {
     final normalized = normalize(status);
     final isVerified = normalized == 'verified' || normalized == 'in_progress' || normalized == 'resolved' || normalized == 'closed';
@@ -148,7 +150,9 @@ class ReportStatusUi {
         iconColor: const Color(0xFFF97316),
         title: 'Dispatch',
         subtitle: isVerified
-            ? 'Assignment estimated from status'
+            ? (estimatedEtaMinutes != null
+                ? 'ETA ${estimatedEtaMinutes} min${estimatedArrivalAt != null && estimatedArrivalAt.isNotEmpty ? ' (around ${formatReportDateTime(estimatedArrivalAt)})' : ''}'
+                : 'Assignment estimated from status')
             : 'Awaiting assignment',
         isCompleted: isVerified,
       ),
@@ -158,7 +162,9 @@ class ReportStatusUi {
         title: 'En Route',
         subtitle: isResolvedStatus
             ? 'Completed'
-            : (isInProgress ? 'Responders are handling this incident' : 'Pending'),
+            : (isInProgress
+                ? (estimatedEtaMinutes != null ? 'Responders are en route (~${estimatedEtaMinutes} min ETA)' : 'Responders are handling this incident')
+                : 'Pending'),
         isCompleted: isResolvedStatus,
         isInProgress: isInProgress && !isResolvedStatus,
       ),

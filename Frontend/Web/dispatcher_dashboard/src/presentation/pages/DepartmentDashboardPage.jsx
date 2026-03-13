@@ -7,40 +7,18 @@ import { Badge } from '@/presentation/components/ui/Badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/presentation/components/ui/Select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/presentation/components/ui/Dialog';
 import { Eye, Truck, MapPin, CheckCircle, AlertCircle, Activity, LayoutList, SlidersHorizontal, UserPlus, X, Clock, Shield, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight } from 'lucide-react';
-import { getIncidents, normalizeIncidentStatus } from '@/data/api/incidents.api';
+import { getIncidents } from '@/data/api/incidents.api';
 import { getDepartmentById, getDepartmentUnits, assignDepartmentUnit } from '@/data/api/departments.api';
 import { getResponderTeams } from '@/data/api/responders.api';
 import { createDispatch } from '@/data/api/dispatches.api';
 import { inferDepartmentSectorCode, normalizeSectorCode } from '@/core/utils/departmentSector';
+import { mapApiIncidentToDisplay } from '@/core/utils/incidentDisplay';
 import { ROLES } from '@/core/constants';
 import { useTheme } from '@/presentation/context/ThemeContext';
 import Swal from 'sweetalert2';
 
 function mapApiIncidentToRow(api) {
-  const typeMap = { fire: 'Fire', medical: 'Medical', police: 'Police', disaster: 'Disaster', other: 'Other' };
-  const emergencyType = typeMap[api.incident_type?.toLowerCase()] || (api.incident_type ? String(api.incident_type).charAt(0).toUpperCase() + String(api.incident_type).slice(1) : '—');
-  const severityMap = { high: 'Critical', medium: 'Warning', low: 'Low' };
-  const severity = severityMap[api.severity_level?.toLowerCase()] || (api.severity_level || '—');
-  const statusMap = { pending: 'Pending', resolved: 'Resolved', closed: 'Closed', verified: 'Verified', in_progress: 'In Progress' };
-  const canonicalStatus = normalizeIncidentStatus(api.status);
-  const status = statusMap[canonicalStatus];
-  let timeReported = '—';
-  if (api.created_at) {
-    const d = new Date(api.created_at);
-    timeReported = d.toLocaleString('en-US', {
-      year: 'numeric', month: '2-digit', day: '2-digit',
-      hour: 'numeric', minute: '2-digit', hour12: true
-    });
-  }
-  return {
-    id: api.report_id,
-    barangay: api.barangay || '—',
-    emergencyType,
-    severity,
-    status,
-    timeReported,
-    reporterConfirmedAt: api.reporter_confirmed_at || null,
-  };
+  return mapApiIncidentToDisplay(api);
 }
 
 const ASSIGNMENTS_STORAGE_KEY = 'rescuelink_incident_personnel_assignments';
@@ -106,7 +84,7 @@ export function DepartmentDashboardPage() {
   useEffect(() => {
     if (user.role !== ROLES.DEPARTMENT_ADMIN && user.role !== ROLES.PERSONNEL) return;
     fetchIncidents();
-    const intervalId = setInterval(fetchIncidents, 15000);
+    const intervalId = setInterval(fetchIncidents, 30000);
     const handleUpdated = () => fetchIncidents();
     window.addEventListener('incident:updated', handleUpdated);
     return () => {
