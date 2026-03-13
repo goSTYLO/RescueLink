@@ -12,6 +12,8 @@ const incidentRoutes = require('./routes/incident');
 const auditLogRoutes = require('./routes/auditLog');
 const adminRoutes = require('./routes/admin');
 const departmentRoutes = require('./routes/department');
+const metricsRoutes = require('./routes/metrics');
+const requestTimingMiddleware = require('./middleware/requestTiming');
 const { startRetryService } = require('./services/retryAiClassification');
 const { startFileScanRetryService } = require('./services/retryFileScan');
 
@@ -86,6 +88,8 @@ app.use((req, res, next) => {
   next();
 });
 
+app.use(requestTimingMiddleware);
+
 // General API rate limit: 200 requests per 15 minutes per IP
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -127,6 +131,7 @@ app.use('/api/incidents', incidentRoutes);
 app.use('/api/audit-logs', auditLogRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/departments', departmentRoutes);
+app.use('/api/metrics', metricsRoutes);
 
 // Basic health route
 app.get('/health', (req, res) => res.json({ status: 'ok' }));

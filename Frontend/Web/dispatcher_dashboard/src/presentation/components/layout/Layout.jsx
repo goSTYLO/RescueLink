@@ -36,7 +36,6 @@ const NAV_DEPARTMENT_ADMIN = [
   { title: 'DEPARTMENT', items: [
     { icon: Home, label: 'Dashboard', path: '/department/dashboard' },
     { icon: Users, label: 'Personnel', path: '/department/personnel' },
-    { icon: Truck, label: 'Vehicles', path: '/department/vehicles' },
   ]},
   { title: 'GENERAL', items: [
     { icon: Map, label: 'Map View', path: '/map' },

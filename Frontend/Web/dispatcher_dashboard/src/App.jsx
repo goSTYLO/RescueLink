@@ -20,7 +20,6 @@ import { TeamPage } from '@/presentation/pages/TeamPage';
 import { DepartmentDashboardPage } from '@/presentation/pages/DepartmentDashboardPage';
 import { AssignedIncidentsPage } from '@/presentation/pages/AssignedIncidentsPage';
 import { DepartmentPersonnelPage } from '@/presentation/pages/DepartmentPersonnelPage';
-import { DepartmentVehiclesPage } from '@/presentation/pages/DepartmentVehiclesPage';
 import ForgotPassword from '@/presentation/pages/ForgotPassword';
 import EnterCode from '@/presentation/pages/EnterCode';
 import CreateNewPassword from '@/presentation/pages/CreateNewPassword';
@@ -232,11 +231,6 @@ export default function App() {
           <Route path="/department/personnel" element={
             <ProtectedRoute allowedRoles={DEPARTMENT_AND_UP}>
               <DepartmentPersonnelPage />
-            </ProtectedRoute>
-          } />
-          <Route path="/department/vehicles" element={
-            <ProtectedRoute allowedRoles={DEPARTMENT_AND_UP}>
-              <DepartmentVehiclesPage />
             </ProtectedRoute>
           } />
           <Route path="/profile" element={

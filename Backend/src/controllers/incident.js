@@ -424,6 +424,8 @@ const incidentController = {
 
   // Get all incidents with pagination and filters
   async getAll(req, res) {
+    const startedAt = Date.now();
+    const requestId = req.requestId || 'none';
     try {
       const user = req.user;
       if (!user) {
@@ -437,20 +439,30 @@ const incidentController = {
       const validatedIncidentType = validateAllowedValue(incident_type, ['fire', 'medical', 'police', 'disaster'], 'incident_type');
       const validatedBarangay = validateOptionalString(barangay, 'barangay', 150);
 
-      // Regular users only see their own incidents; dispatcher/admin see all; department-head/admin/personnel see only incidents assigned to their department
-      let incidents;
-      let totalCount;
+      // Regular users only see their own incidents; dispatcher/admin see all; department-scoped roles see incidents assigned to their department
+      let incidents = [];
+      let totalCount = 0;
       let departmentCode = null;
-      const roleNeedsDeptFilter = user.role === ROLES.DEPARTMENT_HEAD || user.role === ROLES.DEPARTMENT_ADMIN || user.role === ROLES.USER;
+      const deptFilterStart = Date.now();
+      const roleNeedsDeptFilter =
+        user.role === ROLES.DEPARTMENT_HEAD
+        || user.role === ROLES.DEPARTMENT_ADMIN
+        || user.role === ROLES.PERSONNEL;
       if (user.user_id && roleNeedsDeptFilter) {
         const fullUser = await User.findById(user.user_id);
-        if (fullUser && fullUser.department_id) {
-          const dept = await Department.findById(fullUser.department_id);
-          if (dept && dept.code) departmentCode = dept.code;
+        if (!fullUser || !fullUser.department_id) {
+          return res.status(403).json({ error: 'You are not assigned to a department.' });
         }
+        const dept = await Department.findById(fullUser.department_id);
+        if (!dept || !dept.code) {
+          return res.status(400).json({ error: 'Department code is missing. Please contact system admin.' });
+        }
+        departmentCode = dept.code;
       }
+      const deptFilterLatencyMs = Date.now() - deptFilterStart;
 
-      if (user.role === ROLES.USER && !departmentCode) {
+      const dataFetchStart = Date.now();
+      if (user.role === ROLES.USER) {
         incidents = await Incident.findByUserId(user.user_id, {
           limit: validatedLimit,
           offset: validatedOffset,
@@ -484,10 +496,17 @@ const incidentController = {
           department_code: departmentCode,
         });
       }
+      const dataFetchLatencyMs = Date.now() - dataFetchStart;
 
       res.setHeader('x-total-count', String(totalCount));
       res.setHeader('x-limit', String(validatedLimit));
       res.setHeader('x-offset', String(validatedOffset));
+      const totalLatencyMs = Date.now() - startedAt;
+      if (totalLatencyMs >= 1000) {
+        console.warn(
+          `[backend][incident][getAll] request_id=${requestId} status=slow total_latency_ms=${totalLatencyMs} dept_filter_latency_ms=${deptFilterLatencyMs} data_fetch_latency_ms=${dataFetchLatencyMs} rows=${Array.isArray(incidents) ? incidents.length : 0} total_count=${Number(totalCount || 0)}`
+        );
+      }
       res.json(incidents);
     } catch (error) {
       console.error('Error fetching incidents:', error);

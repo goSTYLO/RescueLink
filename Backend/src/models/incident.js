@@ -21,10 +21,14 @@ function tryDecryptValue(value) {
   }
 }
 
-function decodeReporterFields(row) {
+function decodeReporterFields(row, options = {}) {
   if (!row || typeof row !== 'object') {
     return row;
   }
+
+  const includeDescription = options.includeDescription !== false;
+  const includeTranscription = options.includeTranscription !== false;
+  const includeReporterPhone = options.includeReporterPhone !== false;
 
   function safeParseNumber(value) {
     const v = tryDecryptValue(value);
@@ -39,9 +43,9 @@ function decodeReporterFields(row) {
     ...row,
     reporter_first_name: tryDecryptValue(row.reporter_first_name),
     reporter_last_name: tryDecryptValue(row.reporter_last_name),
-    reporter_phone: tryDecryptValue(row.reporter_phone),
-    description: tryDecryptValue(row.description),
-    transcription: tryDecryptValue(row.transcription),
+    reporter_phone: includeReporterPhone ? tryDecryptValue(row.reporter_phone) : row.reporter_phone,
+    description: includeDescription ? tryDecryptValue(row.description) : row.description,
+    transcription: includeTranscription ? tryDecryptValue(row.transcription) : row.transcription,
     barangay: tryDecryptValue(row.barangay),
     latitude: safeParseNumber(row.latitude),
     longitude: safeParseNumber(row.longitude),
@@ -160,10 +164,13 @@ const Incident = {
     barangay = null,
     department_code = null,
   } = {}) {
-    // Cap limit at 100
-    const cappedLimit = Math.min(limit, 100);
+    // Keep incident list payloads bounded to protect API latency under encrypted datasets.
+    const cappedLimit = Math.min(limit, 60);
 
-    let query = `SELECT ir.*, u.first_name AS reporter_first_name, u.last_name AS reporter_last_name, u.phone_number AS reporter_phone
+    let query = `SELECT ir.report_id, ir.user_id, ir.incident_type, ir.severity_level, ir.status,
+                        ir.description, ir.latitude, ir.longitude, ir.barangay, ir.created_at,
+                        ir.ai_pending, ir.ai_attempted,
+                        u.first_name AS reporter_first_name, u.last_name AS reporter_last_name, u.phone_number AS reporter_phone
       FROM incident_reports ir
       LEFT JOIN users u ON ir.user_id = u.user_id
       WHERE 1=1`;
@@ -210,7 +217,11 @@ const Incident = {
     params.push(cappedLimit, offset);
 
     const res = await pool.query(query, params);
-    return res.rows.map(decodeReporterFields);
+    return res.rows.map((row) => decodeReporterFields(row, {
+      includeDescription: false,
+      includeTranscription: false,
+      includeReporterPhone: false,
+    }));
   },
 
   async findByUserId(

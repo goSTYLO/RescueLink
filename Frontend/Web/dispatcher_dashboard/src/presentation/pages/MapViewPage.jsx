@@ -97,7 +97,7 @@ export function MapViewPage() {
     setLoading(true);
     setError(null);
     try {
-      const data = await getIncidents({ limit: 150, offset: 0 });
+      const data = await getIncidents({ limit: 60, offset: 0 });
       const mapped = Array.isArray(data) ? data.map(mapApiIncidentToMap) : [];
       setIncidents(mapped);
       setLastUpdated(new Date());

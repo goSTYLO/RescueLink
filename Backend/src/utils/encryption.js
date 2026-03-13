@@ -8,6 +8,31 @@ const SALT_LENGTH = 64;
 const TAG_LENGTH = 16;
 const TAG_POSITION = SALT_LENGTH + IV_LENGTH;
 const ENCRYPTED_POSITION = TAG_POSITION + TAG_LENGTH;
+const DECRYPT_CACHE_MAX_SIZE = 5000;
+
+const decryptCache = new Map();
+
+function readDecryptCache(ciphertext) {
+  if (!decryptCache.has(ciphertext)) {
+    return null;
+  }
+  const hit = decryptCache.get(ciphertext);
+  // Refresh insertion order for simple LRU behavior.
+  decryptCache.delete(ciphertext);
+  decryptCache.set(ciphertext, hit);
+  return hit;
+}
+
+function writeDecryptCache(ciphertext, plaintext) {
+  decryptCache.set(ciphertext, plaintext);
+  if (decryptCache.size <= DECRYPT_CACHE_MAX_SIZE) {
+    return;
+  }
+  const oldestKey = decryptCache.keys().next().value;
+  if (oldestKey) {
+    decryptCache.delete(oldestKey);
+  }
+}
 
 /**
  * Encrypts sensitive data using AES-256-GCM
@@ -62,6 +87,11 @@ function decrypt(encryptedData) {
     throw new Error('Encrypted data must be a string');
   }
 
+  const cached = readDecryptCache(encryptedData);
+  if (cached !== null) {
+    return cached;
+  }
+
   // Extract salt, IV, tag, and encrypted data
   const salt = Buffer.from(encryptedData.slice(0, SALT_LENGTH * 2), 'hex');
   const iv = Buffer.from(encryptedData.slice(SALT_LENGTH * 2, TAG_POSITION * 2), 'hex');
@@ -78,6 +108,8 @@ function decrypt(encryptedData) {
   // Decrypt the data
   let decrypted = decipher.update(encrypted, 'hex', 'utf8');
   decrypted += decipher.final('utf8');
+
+  writeDecryptCache(encryptedData, decrypted);
   
   return decrypted;
 }

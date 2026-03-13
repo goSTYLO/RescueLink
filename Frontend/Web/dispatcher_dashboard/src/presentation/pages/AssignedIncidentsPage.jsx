@@ -33,7 +33,7 @@ export function AssignedIncidentsPage() {
     setLoading(true);
     setError(null);
     try {
-      const result = await getIncidents({ limit: 100, offset: 0, withMeta: false });
+      const result = await getIncidents({ limit: 40, offset: 0, withMeta: false });
       const list = Array.isArray(result) ? result : (result?.items || []);
       setIncidents(list.map(mapApiIncidentToRow));
     } catch (err) {
