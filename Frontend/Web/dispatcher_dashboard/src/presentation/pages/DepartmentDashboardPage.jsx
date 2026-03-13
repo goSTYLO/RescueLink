@@ -358,13 +358,50 @@ export function DepartmentDashboardPage() {
     <Layout>
       <div className="p-6 space-y-6 max-w-7xl mx-auto">
         <div className={heroCardClass}>
-          <div className="p-8 flex flex-wrap items-center gap-6">
-            <div className={heroIconClass}>
-              <Activity className="w-5 h-5" strokeWidth={2} />
+          <div className="p-5 md:p-6 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className={heroIconClass}>
+                  <Activity className="w-5 h-5" strokeWidth={2} />
+                </div>
+                <div>
+                  <h1 className="text-2xl md:text-3xl font-bold text-foreground">Incident Overview</h1>
+                  <p className="text-muted mt-1">{user.department || 'Department'} — Assigned Incidents</p>
+                </div>
+              </div>
+              <span className={`rounded-full px-3 py-1 text-xs font-semibold ${isLight ? 'bg-primary/10 text-primary border border-primary/20' : 'bg-primary/20 text-primary border border-primary/30'}`}>
+                {departmentIncidents.length} total
+              </span>
             </div>
-            <div>
-              <h1 className="text-3xl font-bold text-foreground">Incident Overview</h1>
-              <p className="text-muted mt-1">{user.department || 'Department'} — Assigned Incidents</p>
+
+            {activeIncidents.length > 0 && !loading && (
+              <div className={`rounded-xl border px-3 py-2.5 ${isLight ? 'border-amber-300/70 bg-amber-50/80' : 'border-amber-500/40 bg-amber-500/10'}`}>
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-amber-500 mt-0.5" />
+                  <p className="text-sm text-foreground">
+                    <span className="font-semibold">{activeIncidents.length} active incident{activeIncidents.length !== 1 ? 's' : ''}</span> requiring response.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className={`rounded-xl border p-3 ${isLight ? 'bg-white/70 border-gray-200/80' : 'bg-white/5 border-white/10'}`}>
+                <p className="text-[11px] text-muted uppercase font-semibold">Total Assigned</p>
+                <p className="text-xl font-bold text-foreground mt-1">{departmentIncidents.length}</p>
+              </div>
+              <div className={`rounded-xl border p-3 ${isLight ? 'bg-white/70 border-gray-200/80' : 'bg-white/5 border-white/10'}`}>
+                <p className="text-[11px] text-muted uppercase font-semibold">Awaiting Action</p>
+                <p className="text-xl font-bold text-foreground mt-1">{departmentIncidents.filter((i) => i.status === 'Verified' || i.status === 'verified' || i.status === 'New').length}</p>
+              </div>
+              <div className={`rounded-xl border p-3 ${isLight ? 'bg-white/70 border-gray-200/80' : 'bg-white/5 border-white/10'}`}>
+                <p className="text-[11px] text-muted uppercase font-semibold">In Progress</p>
+                <p className="text-xl font-bold text-foreground mt-1">{departmentIncidents.filter((i) => i.status === 'In Progress' || i.status === 'in-progress').length}</p>
+              </div>
+              <div className={`rounded-xl border p-3 ${isLight ? 'bg-white/70 border-gray-200/80' : 'bg-white/5 border-white/10'}`}>
+                <p className="text-[11px] text-muted uppercase font-semibold">Resolved</p>
+                <p className="text-xl font-bold text-foreground mt-1">{departmentIncidents.filter((i) => i.status === 'Resolved' || i.status === 'resolved').length}</p>
+              </div>
             </div>
           </div>
         </div>
@@ -378,60 +415,6 @@ export function DepartmentDashboardPage() {
             <Button variant="outline" size="sm" onClick={() => fetchIncidents()}>Retry</Button>
           </Card>
         )}
-        {activeIncidents.length > 0 && !loading && (
-          <Card className="bg-amber-500/10 border-amber-500/30 p-4 rounded-2xl">
-            <div className="flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-amber-500 mt-0.5" />
-              <div>
-                <h3 className="font-semibold text-foreground">
-                  {activeIncidents.length} Active Incident{activeIncidents.length !== 1 ? 's' : ''} Requiring Response
-                </h3>
-                <p className="text-sm text-muted mt-1">Review and update incident statuses below</p>
-              </div>
-            </div>
-          </Card>
-        )}
-
-        <Card className="p-4 rounded-2xl border border-border">
-          <div className="flex flex-wrap items-center gap-6">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center flex-shrink-0">
-                <Truck className="w-5 h-5 text-primary" />
-              </div>
-              <div>
-                <p className="text-xs text-muted uppercase font-semibold">Total Assigned</p>
-                <p className="text-lg font-bold text-foreground">{departmentIncidents.length}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-indigo-500/20 flex items-center justify-center flex-shrink-0">
-                <AlertCircle className="w-5 h-5 text-indigo-400" />
-              </div>
-              <div>
-                <p className="text-xs text-muted uppercase font-semibold">Awaiting Action</p>
-                <p className="text-lg font-bold text-foreground">{departmentIncidents.filter((i) => i.status === 'Verified' || i.status === 'verified' || i.status === 'New').length}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-amber-500/20 flex items-center justify-center flex-shrink-0">
-                <Activity className="w-5 h-5 text-amber-400" />
-              </div>
-              <div>
-                <p className="text-xs text-muted uppercase font-semibold">In Progress</p>
-                <p className="text-lg font-bold text-foreground">{departmentIncidents.filter((i) => i.status === 'In Progress' || i.status === 'in-progress').length}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-green-500/20 flex items-center justify-center flex-shrink-0">
-                <CheckCircle className="w-5 h-5 text-green-400" />
-              </div>
-              <div>
-                <p className="text-xs text-muted uppercase font-semibold">Resolved</p>
-                <p className="text-lg font-bold text-foreground">{departmentIncidents.filter((i) => i.status === 'Resolved' || i.status === 'resolved').length}</p>
-              </div>
-            </div>
-          </div>
-        </Card>
 
         <div className={`relative z-0 rounded-2xl overflow-hidden border transition-all duration-300 ${
           isLight ? 'glass neumorphic-light bg-white/80' : 'glass neumorphic-dark bg-card/60'
@@ -646,15 +629,6 @@ export function DepartmentDashboardPage() {
             <p className="text-lg">No incidents assigned to your department yet</p>
           </div>
         )}
-
-        <Card className="p-4 bg-primary/5 border-primary/20 rounded-2xl">
-          <h3 className="font-semibold text-foreground mb-2">Notes</h3>
-          <ul className="text-sm text-muted space-y-1 list-disc list-inside">
-            <li>Click an incident ID to view details and update status</li>
-            <li>Use the assign icon to assign personnel to an incident (Dept Admin)</li>
-            <li>Status updates are visible to the Super Admin control center</li>
-          </ul>
-        </Card>
 
         {/* Assign Personnel Modal — Dept Admin only: assign a response team (uses API teams) */}
         <Dialog open={assignModalOpen} onOpenChange={(open) => !open && closeAssignModal()} className="max-w-md">

@@ -46,8 +46,8 @@ router.get('/:id/with-ai', authMiddleware, checkOwnership('user_id'), incidentCo
 // Dispatcher and admin only
 router.post('/:id/verify', authMiddleware, authorize([ROLES.DISPATCHER, ROLES.ADMIN]), incidentController.verifyIncident);
 
-// Guarded incident status transitions (dispatcher/admin/department-admin; dept admin only for assigned incidents)
-router.patch('/:id/status', authMiddleware, authorize([ROLES.DISPATCHER, ROLES.ADMIN, ROLES.DEPARTMENT_ADMIN]), incidentController.updateStatus);
+// Guarded incident status transitions (resolved is restricted in controller to department admin/head)
+router.patch('/:id/status', authMiddleware, authorize([ROLES.DISPATCHER, ROLES.ADMIN, ROLES.DEPARTMENT_ADMIN, ROLES.DEPARTMENT_HEAD]), incidentController.updateStatus);
 
 // Reporter confirms resolution (owner-only is enforced in controller)
 router.post('/:id/confirm-resolution', authMiddleware, authorize([ROLES.USER]), incidentController.confirmResolution);

@@ -15,3 +15,18 @@ export async function createDispatch(payload) {
   }
   return data;
 }
+
+export async function undoDepartmentNotification(payload) {
+  const requestId = createRequestId('web-dispatch-undo-department');
+  const response = await fetch(`${API_URL}/api/dispatches/undo-department`, {
+    method: 'POST',
+    headers: getAuthHeaders({ requestId }),
+    body: JSON.stringify(payload),
+  });
+
+  const data = await parseJsonOrEmpty(response);
+  if (!response.ok) {
+    throw new Error(parseErrorMessage(data, 'Failed to undo department notification'));
+  }
+  return data;
+}

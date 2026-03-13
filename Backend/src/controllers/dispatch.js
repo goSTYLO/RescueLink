@@ -74,6 +74,10 @@ const dispatchController = {
       if (!reportExists) {
         return res.status(404).json({ error: 'Incident report not found' });
       }
+      const incident = await Incident.findById(validatedReportId);
+      if (String(incident?.status || '').toLowerCase() === 'closed') {
+        return res.status(409).json({ error: 'Cannot assign responders to a closed incident' });
+      }
       const existingDispatchCount = await Dispatch.countByReportId(validatedReportId);
       const incidentType = await Dispatch.getIncidentType(validatedReportId);
 
@@ -483,6 +487,72 @@ const dispatchController = {
         return res.status(400).json({ error: error.message });
       }
       res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+
+  // Undo a previously notified department when no team has been assigned yet.
+  async undoDepartmentNotification(req, res) {
+    try {
+      const validatedReportId = validateInteger(req.body?.report_id, 'report_id');
+      const validatedDepartmentCode = validateOptionalString(req.body?.department_code, 'department_code', 40);
+
+      if (!validatedDepartmentCode) {
+        return res.status(400).json({ error: 'department_code is required' });
+      }
+
+      const reportExists = await Dispatch.reportExists(validatedReportId);
+      if (!reportExists) {
+        return res.status(404).json({ error: 'Incident report not found' });
+      }
+
+      const relatedDispatches = await Dispatch.findAll({
+        report_id: validatedReportId,
+        department_code: validatedDepartmentCode,
+        limit: 200,
+        offset: 0,
+      });
+
+      if (!Array.isArray(relatedDispatches) || relatedDispatches.length === 0) {
+        return res.status(404).json({ error: 'Department notification not found for this incident' });
+      }
+
+      const hasTeamAssignment = relatedDispatches.some((row) => String(row.team_name || '').trim() !== '');
+      if (hasTeamAssignment) {
+        return res.status(409).json({
+          error: 'Cannot undo department notification once a team is assigned',
+          code: 'TEAM_ALREADY_ASSIGNED',
+        });
+      }
+
+      const departmentOnlyRows = relatedDispatches.filter((row) => String(row.team_name || '').trim() === '');
+      if (departmentOnlyRows.length === 0) {
+        return res.status(409).json({ error: 'No undoable department notification found' });
+      }
+
+      const deletedDispatches = [];
+      for (const row of departmentOnlyRows) {
+        const deleted = await Dispatch.delete(row.dispatch_id);
+        if (deleted) deletedDispatches.push(deleted);
+      }
+
+      await logDispatcherAction(req, 'dispatch_undo_department_notification', 'dispatch', deletedDispatches[0]?.dispatch_id || null, {
+        report_id: validatedReportId,
+        department_code: validatedDepartmentCode,
+        deleted_count: deletedDispatches.length,
+      });
+
+      return res.json({
+        message: 'Department notification undone',
+        report_id: validatedReportId,
+        department_code: validatedDepartmentCode,
+        deleted_count: deletedDispatches.length,
+      });
+    } catch (error) {
+      console.error('Error undoing department notification:', error);
+      if (error.message.includes('must be') || error.message.includes('must not')) {
+        return res.status(400).json({ error: error.message });
+      }
+      return res.status(500).json({ error: 'Internal server error' });
     }
   }
 };

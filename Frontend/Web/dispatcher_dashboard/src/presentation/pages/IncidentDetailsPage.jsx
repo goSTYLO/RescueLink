@@ -27,7 +27,7 @@ import {
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { getIncidentById, getIncidentAudioUrl, getIncidentWithAi, reclassifyIncident, updateIncidentStatus, verifyIncident, getCoordinationNotes, addCoordinationNote } from '@/data/api/incidents.api';
 import { getResponders, getResponderTeams, updateResponderStatus, updateResponderTeamStatus, getTeamMembers } from '@/data/api/responders.api';
-import { createDispatch } from '@/data/api/dispatches.api';
+import { createDispatch, undoDepartmentNotification } from '@/data/api/dispatches.api';
 import { getDepartments } from '@/data/api/departments.api';
 import { DEV_MODE } from '@/core/config/app.config';
 import { ROLES, normalizeRole, getRoleDisplayLabel } from '@/core/constants';
@@ -258,24 +258,23 @@ export function IncidentDetailsPage() {
     normalizedRole === ROLES.SUPER_ADMIN
     || normalizedRole === ROLES.DISPATCHER
   );
-  const isAssignedToDepartment = Boolean(
-    incident?.assignedDepartment
-    || incident?.assignedDepartmentId
-    || (Array.isArray(incident?.assignedDepartments) && incident.assignedDepartments.length > 0)
-  );
-  const showNotifyDepartmentButton = canNotifyDepartment && !isAssignedToDepartment;
+  const isIncidentClosed = incident?.status === 'Closed';
   const canUpdateResponderStatuses = (
     normalizedRole === ROLES.DEPARTMENT_ADMIN
     || normalizedRole === ROLES.DEPARTMENT_HEAD
+  );
+  const canSelectTeamForDepartment = (
+    normalizedRole === ROLES.DEPARTMENT_ADMIN
+    || normalizedRole === ROLES.DEPARTMENT_HEAD
+    || normalizedRole === ROLES.PERSONNEL
   );
   const canManualReclassify = (
     normalizedRole === ROLES.SUPER_ADMIN
     || ['dispatcher', 'supervisor', 'admin', 'super-admin', 'superadmin'].includes(roleLower)
   );
   const canMarkResolved = (
-    normalizedRole === ROLES.SUPER_ADMIN
-    || normalizedRole === ROLES.DISPATCHER
-    || normalizedRole === ROLES.DEPARTMENT_ADMIN
+    normalizedRole === ROLES.DEPARTMENT_ADMIN
+    || normalizedRole === ROLES.DEPARTMENT_HEAD
   );
   const canMarkFalseReport = (
     normalizedRole === ROLES.SUPER_ADMIN
@@ -323,6 +322,11 @@ export function IncidentDetailsPage() {
   const [notifyDepartment, setNotifyDepartment] = useState('');
   const [notifyTeamName, setNotifyTeamName] = useState('');
   const [notifyTeamSelectOpen, setNotifyTeamSelectOpen] = useState(false);
+  const [undoNotifyDialogOpen, setUndoNotifyDialogOpen] = useState(false);
+  const [undoDepartmentCode, setUndoDepartmentCode] = useState('');
+  const [assignTeamDialogOpen, setAssignTeamDialogOpen] = useState(false);
+  const [assignTeamName, setAssignTeamName] = useState('');
+  const [assignTeamSelectOpen, setAssignTeamSelectOpen] = useState(false);
   const [closureOutcome, setClosureOutcome] = useState('');
   const [closureClassification, setClosureClassification] = useState('');
   const [coordinationNote, setCoordinationNote] = useState('');
@@ -335,6 +339,70 @@ export function IncidentDetailsPage() {
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [statusBusy, setStatusBusy] = useState(false);
   const [departmentList, setDepartmentList] = useState([]);
+
+  const departmentNameByCode = departmentList.reduce((acc, dept) => {
+    const code = String(dept?.code || '').trim();
+    if (code) {
+      acc[code.toLowerCase()] = dept?.name || code;
+    }
+    return acc;
+  }, {});
+
+  const teamSummaryByDepartment = responderTeams.reduce((acc, team) => {
+    const code = String(team?.department_code || '').trim().toLowerCase();
+    if (!code) return acc;
+    const status = String(team?.team_status || 'available').trim().toLowerCase();
+    if (!acc[code]) {
+      acc[code] = { available: 0, standby: 0, busy: 0, offDuty: 0, other: 0, total: 0 };
+    }
+    acc[code].total += 1;
+    if (status.includes('available')) acc[code].available += 1;
+    else if (status.includes('standby')) acc[code].standby += 1;
+    else if (status.includes('busy') || status.includes('deployed')) acc[code].busy += 1;
+    else if (status.includes('off')) acc[code].offDuty += 1;
+    else acc[code].other += 1;
+    return acc;
+  }, {});
+
+  const timelineDepartmentState = (incident?.timeline || []).reduce((acc, event) => {
+    if (event?.type !== 'assigned' || !event?.detail || typeof event.detail !== 'object') return acc;
+    const code = String(event.detail.department_code || '').trim();
+    if (!code) return acc;
+    const key = code.toLowerCase();
+    const name = String(event.detail.department_name || '').trim() || departmentNameByCode[key] || code;
+    const hasTeam = String(event.detail.team_name || '').trim() !== '';
+    const existing = acc[key] || {
+      code,
+      name,
+      notified: false,
+      hasTeamAssigned: false,
+    };
+    existing.notified = true;
+    existing.name = existing.name || name;
+    if (hasTeam) existing.hasTeamAssigned = true;
+    acc[key] = existing;
+    return acc;
+  }, {});
+
+  if (incident?.assignedDepartmentId) {
+    const fallbackCode = String(incident.assignedDepartmentId).trim();
+    const fallbackKey = fallbackCode.toLowerCase();
+    if (!timelineDepartmentState[fallbackKey]) {
+      timelineDepartmentState[fallbackKey] = {
+        code: fallbackCode,
+        name: incident?.assignedDepartment || departmentNameByCode[fallbackKey] || fallbackCode,
+        notified: true,
+        hasTeamAssigned: Boolean(incident?.assignedTeamName),
+      };
+    }
+  }
+
+  const notifiedDepartments = Object.values(timelineDepartmentState);
+  const notifiedDepartmentCodes = new Set(notifiedDepartments.map((dept) => String(dept.code || '').toLowerCase()));
+  const availableNotifyDepartments = departmentList.filter((dept) => !notifiedDepartmentCodes.has(String(dept.code || '').toLowerCase()));
+  const assignedDepartmentCodeForTeamActions = incident?.assignedDepartmentId || notifiedDepartments[0]?.code || incident?.assignedTeamDepartmentCode || '';
+  const showNotifyDepartmentButton = canNotifyDepartment && incident?.verified && !isIncidentClosed && notifiedDepartments.length === 0 && availableNotifyDepartments.length > 0;
+  const showUndoNotifyButton = canNotifyDepartment && incident?.verified && !isIncidentClosed && notifiedDepartments.length > 0;
 
   useEffect(() => {
     const token = sessionStorage.getItem('token');
@@ -540,6 +608,24 @@ export function IncidentDetailsPage() {
   };
 
   const activeSectors = departments.filter((dept) => ACTIVE_SECTOR_IDS.has(dept.id));
+  const tryCreateDispatchAssignment = async (departmentCode, teamName) => {
+    const numericId = /^\d+$/.test(String(id));
+    if (!numericId || !departmentCode || !teamName) return null;
+    const token = sessionStorage.getItem('token');
+    if (!token) return null;
+
+    const departmentMeta = departmentList.find((d) => String(d.code || '').toLowerCase() === String(departmentCode || '').toLowerCase());
+    return createDispatch({
+      report_id: Number(id),
+      department_code: departmentCode,
+      department_name: departmentMeta?.name || null,
+      team_name: teamName,
+      default_department_code: getDefaultSectorByIncidentType(incident?.emergencyType),
+      was_default_department: getDefaultSectorByIncidentType(incident?.emergencyType) === departmentCode,
+      response_status: 'assigned',
+    });
+  };
+
   const tryCreateDepartmentOnlyAssignment = async (departmentCode) => {
     const numericId = /^\d+$/.test(String(id));
     if (!numericId || !departmentCode) return null;
@@ -559,12 +645,27 @@ export function IncidentDetailsPage() {
 
   const openNotifyDepartmentDialog = () => {
     const defaultCode = getDefaultSectorByIncidentType(incident?.emergencyType);
-    const inList = departmentList.some((d) => String(d.code || '').toLowerCase() === String(defaultCode || '').toLowerCase());
-    setNotifyDepartment(inList ? defaultCode : (departmentList[0]?.code ?? ''));
+    const inList = availableNotifyDepartments.some((d) => String(d.code || '').toLowerCase() === String(defaultCode || '').toLowerCase());
+    setNotifyDepartment(inList ? defaultCode : (availableNotifyDepartments[0]?.code ?? ''));
     setNotifyDialogOpen(true);
   };
 
+  const openUndoNotifyDialog = () => {
+    setUndoDepartmentCode(notifiedDepartments[0]?.code || '');
+    setUndoNotifyDialogOpen(true);
+  };
+
   const handleNotifyDepartment = async () => {
+    if (!incident?.verified) {
+      await Swal.fire({
+        icon: 'warning',
+        title: 'Verification required',
+        text: 'Verify this incident before notifying a department.',
+        confirmButtonColor: '#134178',
+      });
+      return;
+    }
+
     const selectedCode = notifyDepartment;
     const selectedDept = departmentList.find((d) => String(d.code || '').toLowerCase() === String(selectedCode || '').toLowerCase());
     const selectedDepartment = selectedDept?.name || null;
@@ -574,6 +675,16 @@ export function IncidentDetailsPage() {
         icon: 'warning',
         title: 'Select department',
         text: 'Please choose a sector before assigning the incident.',
+        confirmButtonColor: '#134178',
+      });
+      return;
+    }
+
+    if (notifiedDepartmentCodes.has(String(selectedCode || '').toLowerCase())) {
+      await Swal.fire({
+        icon: 'info',
+        title: 'Already notified',
+        text: `${selectedDepartment} is already notified for this incident.`,
         confirmButtonColor: '#134178',
       });
       return;
@@ -598,6 +709,8 @@ export function IncidentDetailsPage() {
 
     try {
       await tryCreateDepartmentOnlyAssignment(selectedCode);
+      await fetchIncident();
+      window.dispatchEvent(new CustomEvent('incident:updated', { detail: { incidentId: id } }));
     } catch (dispatchError) {
       await Swal.fire({
         icon: 'warning',
@@ -618,6 +731,52 @@ export function IncidentDetailsPage() {
       showConfirmButton: false,
       timerProgressBar: true,
     });
+  };
+
+  const handleUndoDepartmentNotification = async () => {
+    const selectedCode = String(undoDepartmentCode || '').trim();
+    if (!selectedCode) {
+      await Swal.fire({
+        icon: 'warning',
+        title: 'Select department',
+        text: 'Please choose a notified department to undo.',
+        confirmButtonColor: '#134178',
+      });
+      return;
+    }
+
+    const selectedDepartment = notifiedDepartments.find((item) => String(item.code || '').toLowerCase() === selectedCode.toLowerCase());
+    if (selectedDepartment?.hasTeamAssigned) {
+      await Swal.fire({
+        icon: 'info',
+        title: 'Cannot undo',
+        text: 'You can no longer undo notification once a team is assigned by the department.',
+        confirmButtonColor: '#134178',
+      });
+      return;
+    }
+
+    try {
+      await undoDepartmentNotification({ report_id: Number(id), department_code: selectedCode });
+      setUndoNotifyDialogOpen(false);
+      await fetchIncident();
+      window.dispatchEvent(new CustomEvent('incident:updated', { detail: { incidentId: id } }));
+      await Swal.fire({
+        icon: 'success',
+        title: 'Notification undone',
+        text: `${selectedDepartment?.name || selectedCode} is no longer notified for this incident.`,
+        timer: 2200,
+        showConfirmButton: false,
+        timerProgressBar: true,
+      });
+    } catch (err) {
+      await Swal.fire({
+        icon: 'error',
+        title: 'Undo failed',
+        text: err.message || 'Could not undo department notification.',
+        confirmButtonColor: '#134178',
+      });
+    }
   };
 
   const selectedTeamMeta = responderTeams.find(
@@ -644,6 +803,40 @@ export function IncidentDetailsPage() {
       } catch {
         setTeamMembersByTeamId((prev) => ({ ...prev, [teamMeta.team_id]: [] }));
       }
+    }
+  };
+
+  const openAssignTeamDialog = () => {
+    const preferred = responderTeams.find(
+      (team) => String(team.department_code || '').toLowerCase() === String(assignedDepartmentCodeForTeamActions || '').toLowerCase()
+    );
+    setAssignTeamName(preferred?.team_name || '');
+    setAssignTeamDialogOpen(true);
+  };
+
+  const handleAssignTeamToIncident = async () => {
+    const departmentCode = assignedDepartmentCodeForTeamActions;
+    if (!departmentCode || !assignTeamName) return;
+    try {
+      await tryCreateDispatchAssignment(departmentCode, assignTeamName);
+      setAssignTeamDialogOpen(false);
+      await fetchIncident();
+      window.dispatchEvent(new CustomEvent('incident:updated', { detail: { incidentId: id } }));
+      await Swal.fire({
+        icon: 'success',
+        title: 'Team assigned',
+        text: `${assignTeamName} has been assigned to this incident.`,
+        timer: 2200,
+        showConfirmButton: false,
+        timerProgressBar: true,
+      });
+    } catch (err) {
+      await Swal.fire({
+        icon: 'error',
+        title: 'Assignment failed',
+        text: err.message || 'Could not assign team for this incident.',
+        confirmButtonColor: '#134178',
+      });
     }
   };
 
@@ -755,6 +948,15 @@ export function IncidentDetailsPage() {
   const handleMarkResolved = async () => {
     const numericId = /^\d+$/.test(String(id));
     if (!numericId || !incident) return;
+    if (!incident?.assignedTeamName) {
+      await Swal.fire({
+        icon: 'warning',
+        title: 'Assign team first',
+        text: 'You cannot mark this incident as done until a team is assigned.',
+        confirmButtonColor: '#134178',
+      });
+      return;
+    }
     setResolveLoading(true);
     try {
       await updateIncidentStatus(id, 'resolved');
@@ -915,7 +1117,27 @@ export function IncidentDetailsPage() {
           Notify Department
         </Button>
       )}
-      {canUpdateResponderStatuses && incident?.assignedTeamName && (
+      {showUndoNotifyButton && (
+        <Button
+          variant="outline"
+          className={`gap-2 rounded-xl ${compact ? 'h-8 px-3 text-xs rounded-lg' : ''}`}
+          onClick={openUndoNotifyDialog}
+        >
+          <X className="w-4 h-4" />
+          Undo Notified Department
+        </Button>
+      )}
+      {canSelectTeamForDepartment && !incident?.assignedTeamName && assignedDepartmentCodeForTeamActions && !isIncidentClosed && (
+        <Button
+          variant="outline"
+          className={`gap-2 rounded-xl ${compact ? 'h-8 px-3 text-xs rounded-lg' : ''}`}
+          onClick={openAssignTeamDialog}
+        >
+          <Users className="w-4 h-4" />
+          Select Team
+        </Button>
+      )}
+      {canUpdateResponderStatuses && incident?.assignedTeamName && !isIncidentClosed && (
         <Button
           variant="outline"
           className={`gap-2 rounded-xl ${compact ? 'h-8 px-3 text-xs rounded-lg' : ''}`}
@@ -925,7 +1147,7 @@ export function IncidentDetailsPage() {
           Update Team/Responder Status
         </Button>
       )}
-      {canMarkResolved && incident.status === 'In Progress' && (
+      {canMarkResolved && incident.status === 'In Progress' && Boolean(incident?.assignedTeamName) && (
         <Button
           className={`gap-2 bg-severity-resolved hover:bg-severity-resolved/90 ${compact ? 'h-8 px-3 text-xs rounded-lg' : ''}`}
           onClick={handleMarkResolved}
@@ -1222,7 +1444,7 @@ export function IncidentDetailsPage() {
                   </div>
 
                   {/* TEAM & RESPONDER STATUS SECTION */}
-                  {(incident?.assignedDepartment || incident?.assignedTeamName) && (
+                  {(incident?.assignedDepartment || incident?.assignedDepartmentId || incident?.assignedTeamName) && (
                     <div className={`p-4 rounded-xl border ${isLight ? 'bg-blue-50/70 border-blue-200/80' : 'bg-blue-500/10 border-blue-500/30'}`}>
                       <div className="flex items-start gap-2 mb-3">
                         <Users className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
@@ -1241,7 +1463,10 @@ export function IncidentDetailsPage() {
                             </div>
                           </div>
                         )}
-                        {canUpdateResponderStatuses && incident?.assignedTeamName && (
+                        {!incident?.assignedTeamName && assignedDepartmentCodeForTeamActions && !isIncidentClosed && (
+                          <p className="text-xs text-muted">No team assigned yet. Use the top action bar to select a team.</p>
+                        )}
+                        {canUpdateResponderStatuses && incident?.assignedTeamName && !isIncidentClosed && (
                           <div>
                             <div className="flex items-center justify-between gap-2 mb-2">
                               <p className="text-xs text-muted">Team Members</p>
@@ -1288,6 +1513,9 @@ export function IncidentDetailsPage() {
                               <p className="text-xs text-muted italic">No team members found</p>
                             )}
                           </div>
+                        )}
+                        {isIncidentClosed && (
+                          <p className="text-xs text-muted italic">Team assignment and status updates are disabled for closed incidents.</p>
                         )}
                       </div>
                     </div>
@@ -1620,7 +1848,7 @@ export function IncidentDetailsPage() {
               <DialogHeader>
                 <DialogTitle>Notify Department</DialogTitle>
                 <DialogDescription>
-                  Select department to notify about this incident. The department will assign the response team.
+                  Select a department to notify. Team availability is shown to help you choose the best department.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
@@ -1630,10 +1858,10 @@ export function IncidentDetailsPage() {
                     {({ value, onValueChange, dropdownRect }) => (
                       <>
                         <SelectTrigger isOpen={notifyDeptSelectOpen} onClick={() => setNotifyDeptSelectOpen(o => !o)}>
-                          <SelectValue value={value} options={departmentList.map((d) => ({ value: d.code || '', label: d.name || d.code || '—' }))} placeholder="Choose department" />
+                          <SelectValue value={value} options={availableNotifyDepartments.map((d) => ({ value: d.code || '', label: d.name || d.code || '—' }))} placeholder="Choose department" />
                         </SelectTrigger>
                         <SelectContent isOpen={notifyDeptSelectOpen} dropdownRect={dropdownRect}>
-                          {departmentList.map((dept) => (
+                          {availableNotifyDepartments.map((dept) => (
                             <SelectItem key={dept.department_id ?? dept.code} value={dept.code || ''} onSelect={(v) => { onValueChange(v); setNotifyDeptSelectOpen(false); }}>
                               {dept.name || dept.code || '—'}
                             </SelectItem>
@@ -1643,6 +1871,25 @@ export function IncidentDetailsPage() {
                     )}
                   </Select>
                 </div>
+                {notifyDepartment && (
+                  <div className={`rounded-xl border p-3 ${isLight ? 'border-blue-200/80 bg-blue-50/60' : 'border-blue-500/30 bg-blue-500/10'}`}>
+                    <p className="text-xs uppercase tracking-wide text-muted font-semibold mb-2">Department Team Status</p>
+                    {(() => {
+                      const summary = teamSummaryByDepartment[String(notifyDepartment || '').toLowerCase()];
+                      if (!summary) {
+                        return <p className="text-xs text-muted">No team data available for this department yet.</p>;
+                      }
+                      return (
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                          <span className="rounded-md border border-severity-resolved/40 bg-severity-resolved/10 px-2 py-1 text-severity-resolved">Available: {summary.available}</span>
+                          <span className="rounded-md border border-indigo-500/40 bg-indigo-500/10 px-2 py-1 text-indigo-300">Standby: {summary.standby}</span>
+                          <span className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-amber-400">Busy: {summary.busy}</span>
+                          <span className="rounded-md border border-gray-400/40 bg-muted/30 px-2 py-1 text-muted">Off-duty: {summary.offDuty}</span>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setNotifyDialogOpen(false)}>
@@ -1651,7 +1898,7 @@ export function IncidentDetailsPage() {
                 <Button
                   className="bg-[#134178] hover:bg-[#0f3256]"
                   onClick={handleNotifyDepartment}
-                  disabled={!notifyDepartment}
+                  disabled={!notifyDepartment || availableNotifyDepartments.length === 0}
                 >
                   Notify Department
                 </Button>
@@ -1726,6 +1973,121 @@ export function IncidentDetailsPage() {
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setStatusDialogOpen(false)}>Close</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={undoNotifyDialogOpen} onOpenChange={setUndoNotifyDialogOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Undo Notified Department</DialogTitle>
+                <DialogDescription>
+                  Choose a notified department to remove from this incident. Undo is blocked when that department already assigned a team.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-2">
+                <div>
+                  <Label>Notified Department</Label>
+                  <select
+                    className="w-full mt-2 px-3 py-2 border border-border rounded-lg bg-card text-foreground text-sm"
+                    value={undoDepartmentCode}
+                    onChange={(event) => setUndoDepartmentCode(event.target.value)}
+                  >
+                    {notifiedDepartments.map((dept) => (
+                      <option key={dept.code} value={dept.code}>
+                        {dept.name || dept.code}
+                        {dept.hasTeamAssigned ? ' (team already assigned)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {(() => {
+                  const selected = notifiedDepartments.find((dept) => String(dept.code || '').toLowerCase() === String(undoDepartmentCode || '').toLowerCase());
+                  if (!selected) return null;
+                  if (!selected.hasTeamAssigned) {
+                    return <p className="text-xs text-muted">This department is still in notified state and can be undone.</p>;
+                  }
+                  return <p className="text-xs text-amber-400">Undo disabled: this department already assigned a team.</p>;
+                })()}
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setUndoNotifyDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  className="bg-[#134178] hover:bg-[#0f3256]"
+                  onClick={handleUndoDepartmentNotification}
+                  disabled={(() => {
+                    const selected = notifiedDepartments.find((dept) => String(dept.code || '').toLowerCase() === String(undoDepartmentCode || '').toLowerCase());
+                    return !selected || selected.hasTeamAssigned;
+                  })()}
+                >
+                  Undo Notification
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={assignTeamDialogOpen} onOpenChange={setAssignTeamDialogOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Select Team</DialogTitle>
+                <DialogDescription>
+                  Assign a team for this department notification. Only available or standby teams can be assigned.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-2">
+                <div>
+                  <Label>Team</Label>
+                  <Select value={assignTeamName} onValueChange={setAssignTeamName} open={assignTeamSelectOpen} onOpenChange={setAssignTeamSelectOpen}>
+                    {({ value, onValueChange, dropdownRect }) => {
+                      const candidateTeams = responderTeams
+                        .filter((team) => String(team.department_code || '').toLowerCase() === String(assignedDepartmentCodeForTeamActions || '').toLowerCase())
+                        .filter((team) => {
+                          const incidentType = incident?.incidentTypeRaw || incident?.emergencyType;
+                          return !incidentType || doesTeamSupportIncidentType(team, incidentType);
+                        });
+                      return (
+                        <>
+                          <SelectTrigger isOpen={assignTeamSelectOpen} onClick={() => setAssignTeamSelectOpen((open) => !open)}>
+                            <SelectValue
+                              value={value}
+                              options={candidateTeams.map((team) => ({ value: team.team_name || '', label: `${team.team_name || '—'} (${team.team_status || 'unknown'})` }))}
+                              placeholder="Choose team"
+                            />
+                          </SelectTrigger>
+                          <SelectContent isOpen={assignTeamSelectOpen} dropdownRect={dropdownRect}>
+                            {candidateTeams.map((team) => {
+                              const status = String(team.team_status || 'available').toLowerCase();
+                              const assignable = status.includes('available') || status.includes('standby');
+                              return (
+                                <SelectItem
+                                  key={`${team.team_id || team.team_name}`}
+                                  value={team.team_name || ''}
+                                  onSelect={(val) => {
+                                    if (!assignable) return;
+                                    onValueChange(val);
+                                    setAssignTeamSelectOpen(false);
+                                  }}
+                                >
+                                  {team.team_name || '—'} ({team.team_status || 'unknown'}){assignable ? '' : ' - unavailable'}
+                                </SelectItem>
+                              );
+                            })}
+                          </SelectContent>
+                        </>
+                      );
+                    }}
+                  </Select>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setAssignTeamDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button className="bg-[#134178] hover:bg-[#0f3256]" onClick={handleAssignTeamToIncident} disabled={!assignTeamName}>
+                  Assign Team
+                </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>

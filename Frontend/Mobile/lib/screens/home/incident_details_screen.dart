@@ -1046,7 +1046,7 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
           const SizedBox(height: 10),
           Text(
             _estimatedEtaMinutes != null
-                ? 'Estimated responder arrival: ${_estimatedEtaMinutes} min (around ${_estimatedArrivalLabel}).'
+                ? 'Estimated responder arrival: $_estimatedEtaMinutes min (around $_estimatedArrivalLabel).'
                 : 'Estimated responder arrival is not yet available. Status updates still sync in real time.',
             style: const TextStyle(fontSize: 12, color: Color(0xFF475569)),
             textAlign: TextAlign.center,
@@ -1099,7 +1099,7 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
         children: [
           _simpleRow('Department', department),
           const SizedBox(height: 8),
-          _simpleRow('Estimated Arrival', _estimatedEtaMinutes != null ? '${_estimatedEtaMinutes} min' : 'Pending'),
+          _simpleRow('Estimated Arrival', _estimatedEtaMinutes != null ? '$_estimatedEtaMinutes min' : 'Pending'),
           const SizedBox(height: 8),
           _simpleRow('ETA Clock', _estimatedEtaMinutes != null ? _estimatedArrivalLabel : 'Pending'),
           const SizedBox(height: 8),

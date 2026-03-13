@@ -151,7 +151,7 @@ class ReportStatusUi {
         title: 'Dispatch',
         subtitle: isVerified
             ? (estimatedEtaMinutes != null
-                ? 'ETA ${estimatedEtaMinutes} min${estimatedArrivalAt != null && estimatedArrivalAt.isNotEmpty ? ' (around ${formatReportDateTime(estimatedArrivalAt)})' : ''}'
+                ? 'ETA $estimatedEtaMinutes min${estimatedArrivalAt != null && estimatedArrivalAt.isNotEmpty ? ' (around ${formatReportDateTime(estimatedArrivalAt)})' : ''}'
                 : 'Assignment estimated from status')
             : 'Awaiting assignment',
         isCompleted: isVerified,
@@ -163,7 +163,7 @@ class ReportStatusUi {
         subtitle: isResolvedStatus
             ? 'Completed'
             : (isInProgress
-                ? (estimatedEtaMinutes != null ? 'Responders are en route (~${estimatedEtaMinutes} min ETA)' : 'Responders are handling this incident')
+                ? (estimatedEtaMinutes != null ? 'Responders are en route (~$estimatedEtaMinutes min ETA)' : 'Responders are handling this incident')
                 : 'Pending'),
         isCompleted: isResolvedStatus,
         isInProgress: isInProgress && !isResolvedStatus,

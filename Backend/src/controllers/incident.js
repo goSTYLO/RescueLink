@@ -957,7 +957,15 @@ const incidentController = {
         return res.status(400).json({ error: 'status is required' });
       }
 
-      if (req.user.role === ROLES.DEPARTMENT_ADMIN && nextStatus === 'resolved' && req.user.user_id) {
+      if (nextStatus === 'resolved') {
+        const isDepartmentResolver = req.user.role === ROLES.DEPARTMENT_ADMIN || req.user.role === ROLES.DEPARTMENT_HEAD;
+        if (!isDepartmentResolver) {
+          return res.status(403).json({ error: 'Only department admin or department head can mark incidents as resolved.' });
+        }
+        if (!req.user.user_id) {
+          return res.status(403).json({ error: 'Department context is required to resolve incidents.' });
+        }
+
         const fullUser = await User.findById(req.user.user_id);
         if (!fullUser || fullUser.department_id == null) {
           return res.status(403).json({ error: 'You can only mark incidents as resolved when they are assigned to your department.' });
@@ -966,9 +974,13 @@ const incidentController = {
         if (!dept || !dept.code) {
           return res.status(403).json({ error: 'You can only mark incidents as resolved when they are assigned to your department.' });
         }
-        const dispatches = await Dispatch.findAll({ report_id: validatedId, department_code: dept.code, limit: 1 });
+        const dispatches = await Dispatch.findAll({ report_id: validatedId, department_code: dept.code, limit: 200 });
         if (!dispatches || dispatches.length === 0) {
           return res.status(403).json({ error: 'You can only mark incidents as resolved when they are assigned to your department.' });
+        }
+        const hasAssignedTeam = dispatches.some((row) => String(row.team_name || '').trim() !== '');
+        if (!hasAssignedTeam) {
+          return res.status(409).json({ error: 'Assign a team first before marking this incident as resolved.' });
         }
       }
 

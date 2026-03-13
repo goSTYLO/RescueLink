@@ -13,6 +13,9 @@ router.post('/', authMiddleware, authorize([ROLES.DISPATCHER, ROLES.ADMIN, ROLES
 // Get all dispatches with pagination and filters
 router.get('/', authMiddleware, authorize([ROLES.DISPATCHER, ROLES.ADMIN]), dispatchController.getAll);
 
+// Undo department notification when no team has been assigned yet
+router.post('/undo-department', authMiddleware, authorize([ROLES.DISPATCHER, ROLES.ADMIN]), dispatchController.undoDepartmentNotification);
+
 // Get dispatch by ID
 router.get('/:id', authMiddleware, authorize([ROLES.DISPATCHER, ROLES.ADMIN]), dispatchController.getById);
 
