@@ -64,6 +64,49 @@ Recent mobile updates:
    flutter run
    ```
 
+## Troubleshooting: Force Full Rebuild (Windows / PowerShell)
+
+If `flutter run` installs an older version of the app, use these steps to force a full clean rebuild and reinstall.
+
+1. Stop any running `flutter run` (Ctrl+C).
+2. Clean Flutter and Gradle artifacts and refresh packages:
+
+```powershell
+flutter clean
+Remove-Item -Recurse -Force .\build
+Remove-Item -Recurse -Force .\android\app\build
+cd android
+.\gradlew.bat clean
+cd ..
+flutter pub get
+```
+
+3. (Optional) Repair pub cache:
+
+```powershell
+flutter pub cache repair
+```
+
+4. Rebuild and run:
+
+```powershell
+flutter run
+```
+
+5. To explicitly build and reinstall the APK (physical device):
+
+```powershell
+flutter build apk --debug
+adb uninstall your.package.name
+adb install -r .\build\app\outputs\apk\debug\app-debug.apk
+```
+
+Replace `your.package.name` with the app package ID (see `android/app/src/main/AndroidManifest.xml`).
+
+Quick tips:
+- In an active `flutter run` session: press `r` for hot reload, `R` for full restart.
+- Android emulator uses `http://10.0.2.2:3000` for host machine APIs.
+
 ## Project Structure
 
 ```

@@ -166,6 +166,7 @@ export function DepartmentsPage() {
   const [isSearchingLocation, setIsSearchingLocation] = useState(false);
   const [isResolvingLocation, setIsResolvingLocation] = useState(false);
   const [locationError, setLocationError] = useState('');
+  const [noSuggestionForQuery, setNoSuggestionForQuery] = useState('');
   const suppressNextAddressSearchRef = useRef(false);
   const [responders, setResponders] = useState([]);
   const [teams, setTeams] = useState([]);
@@ -303,6 +304,7 @@ export function DepartmentsPage() {
     setForm({ name: '', type: 'Fire', color: 'red', address: '', latitude: '', longitude: '' });
     setLocationSuggestions([]);
     setLocationError('');
+    setNoSuggestionForQuery('');
     setDialogOpen(true);
   };
 
@@ -319,6 +321,7 @@ export function DepartmentsPage() {
     });
     setLocationSuggestions([]);
     setLocationError('');
+    setNoSuggestionForQuery('');
     setDialogOpen(true);
   };
 
@@ -331,6 +334,7 @@ export function DepartmentsPage() {
     const query = String(form.address || '').trim();
     if (query.length < 3) {
       setLocationSuggestions([]);
+      setNoSuggestionForQuery('');
       return;
     }
 
@@ -340,6 +344,7 @@ export function DepartmentsPage() {
       try {
         const response = await searchDagupanLocations(query, 5);
         const apiResults = Array.isArray(response?.results) ? response.results : [];
+        setNoSuggestionForQuery(apiResults.length === 0 ? query : '');
         const manualOption = {
           label: `Use typed address: ${query}`,
           latitude: null,
@@ -350,6 +355,7 @@ export function DepartmentsPage() {
         };
         setLocationSuggestions([manualOption, ...apiResults]);
       } catch (error) {
+        setNoSuggestionForQuery('');
         setLocationSuggestions([
           {
             label: `Use typed address: ${query}`,
@@ -378,6 +384,7 @@ export function DepartmentsPage() {
       longitude: suggestion?.longitude ?? prev.longitude,
     }));
     setLocationSuggestions([]);
+    setNoSuggestionForQuery('');
   };
 
   const useCurrentLocation = () => {
@@ -1092,11 +1099,18 @@ export function DepartmentsPage() {
               <div className="relative">
                 <Input
                   value={form.address}
-                  onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
+                  onChange={(e) => {
+                    setNoSuggestionForQuery('');
+                    setForm((f) => ({ ...f, address: e.target.value }));
+                  }}
                   placeholder="Search Dagupan address"
                   className={`w-full rounded-xl border-2 py-2.5 transition-colors focus:ring-2 focus:ring-primary/30 focus:border-primary ${isLight ? 'border-gray-200 hover:border-gray-300' : 'border-border bg-white/5 hover:border-white/20'}`}
                 />
-                {String(form.address || '').trim().length >= 3 && !isSearchingLocation && locationSuggestions.length === 0 && !locationError && (
+                {String(form.address || '').trim().length >= 3
+                  && !isSearchingLocation
+                  && locationSuggestions.length === 0
+                  && !locationError
+                  && noSuggestionForQuery === String(form.address || '').trim() && (
                   <div className={`absolute z-30 mt-1 w-full rounded-lg border p-2 text-xs ${isLight ? 'bg-white border-gray-200 text-gray-600' : 'bg-card border-border text-muted'}`}>
                     No map suggestion found. You can still save the typed address.
                   </div>
