@@ -105,6 +105,11 @@ CREATE TABLE IF NOT EXISTS incident_reports (
   closed_by_user_id INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
   closure_method VARCHAR(80),
   closure_notes TEXT,
+  parent_report_id INTEGER REFERENCES incident_reports(report_id) ON DELETE SET NULL,
+  duplicate_confidence_score DOUBLE PRECISION,
+  duplicate_detected_at TIMESTAMP WITH TIME ZONE,
+  duplicate_detection_method VARCHAR(50),
+  is_duplicate BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -144,12 +149,30 @@ ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS closed_at TIMESTAMP;
 ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS closed_by_user_id INTEGER REFERENCES users(user_id) ON DELETE SET NULL;
 ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS closure_method VARCHAR(80);
 ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS closure_notes TEXT;
+ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS parent_report_id INTEGER REFERENCES incident_reports(report_id) ON DELETE SET NULL;
+ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS duplicate_confidence_score DOUBLE PRECISION;
+ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS duplicate_detected_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS duplicate_detection_method VARCHAR(50);
+ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS is_duplicate BOOLEAN DEFAULT FALSE;
 CREATE INDEX IF NOT EXISTS idx_incident_reports_scan_status ON incident_reports(scan_status);
+CREATE INDEX IF NOT EXISTS idx_incident_reports_parent_id ON incident_reports(parent_report_id);
+CREATE INDEX IF NOT EXISTS idx_incident_reports_is_duplicate ON incident_reports(is_duplicate);
 CREATE INDEX IF NOT EXISTS idx_incident_reports_reporter_confirmed_at ON incident_reports(reporter_confirmed_at);
 CREATE INDEX IF NOT EXISTS idx_incident_reports_resolved_by_user_id ON incident_reports(resolved_by_user_id);
 CREATE INDEX IF NOT EXISTS idx_incident_reports_resolved_at ON incident_reports(resolved_at);
 CREATE INDEX IF NOT EXISTS idx_incident_reports_closed_at ON incident_reports(closed_at);
 CREATE INDEX IF NOT EXISTS idx_incident_reports_closed_by_user_id ON incident_reports(closed_by_user_id);
+
+-- Create duplicate_clusters table for grouping duplicate incident reports
+CREATE TABLE IF NOT EXISTS duplicate_clusters (
+    cluster_id SERIAL PRIMARY KEY,
+    primary_report_id INTEGER NOT NULL REFERENCES incident_reports(report_id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    cluster_size INTEGER DEFAULT 1,
+    confidence_score DOUBLE PRECISION DEFAULT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_duplicate_clusters_primary ON duplicate_clusters(primary_report_id);
 
 -- Create responders table
 CREATE TABLE IF NOT EXISTS responders (

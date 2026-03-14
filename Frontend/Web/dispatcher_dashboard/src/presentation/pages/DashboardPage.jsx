@@ -4,6 +4,7 @@ import { Button } from '@/presentation/components/ui/Button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/presentation/components/ui/Select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/presentation/components/ui/Dialog';
 import { Label } from '@/presentation/components/ui/Label';
+import { Switch } from '@/presentation/components/ui/Switch';
 import { Activity, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, Loader2, SlidersHorizontal, LayoutList, CircleCheck, ExternalLink } from 'lucide-react';
 import { incidents as mockIncidents, barangays, departments as departmentsList } from '@/data/mock/mockData';
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -91,6 +92,7 @@ export function DashboardPage() {
   const [filterStatus, setFilterStatus] = useState(persistedFilterState.filterStatus || 'All');
   const [filterSeverity, setFilterSeverity] = useState(persistedFilterState.filterSeverity || 'All');
   const [filterBarangay, setFilterBarangay] = useState(persistedFilterState.filterBarangay || 'All');
+  const [hideDuplicates, setHideDuplicates] = useState(persistedFilterState.hideDuplicates !== false);
   const [selectStates, setSelectStates] = useState({
     type: false,
     status: false,
@@ -147,6 +149,7 @@ export function DashboardPage() {
         severity_level: apiSeverity,
         incident_type: apiType,
         barangay: apiBarangay,
+        exclude_duplicates: hideDuplicates,
         withMeta: true,
       });
       const mapped = Array.isArray(result?.items) ? result.items.map(mapApiIncidentToDashboard) : [];
@@ -163,7 +166,7 @@ export function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, filterBarangay, filterSeverity, filterStatus, filterType, itemsPerPage]);
+  }, [currentPage, filterBarangay, filterSeverity, filterStatus, filterType, itemsPerPage, hideDuplicates]);
 
   useEffect(() => {
     fetchIncidents();
@@ -184,8 +187,9 @@ export function DashboardPage() {
       filterBarangay,
       currentPage,
       itemsPerPage,
+      hideDuplicates,
     }));
-  }, [filterType, filterStatus, filterSeverity, filterBarangay, currentPage, itemsPerPage]);
+  }, [filterType, filterStatus, filterSeverity, filterBarangay, currentPage, itemsPerPage, hideDuplicates]);
 
   const filteredIncidents = incidents;
 
@@ -655,6 +659,12 @@ export function DashboardPage() {
                     </>
                   )}
                 </Select>
+              </div>
+              <div className="min-w-0 flex items-end pb-1">
+                <div className="flex items-center gap-2">
+                  <Switch id="hide-duplicates" checked={hideDuplicates} onCheckedChange={setHideDuplicates} />
+                  <Label htmlFor="hide-duplicates" className="text-xs font-medium text-muted cursor-pointer">Hide duplicates</Label>
+                </div>
               </div>
             </div>
           </div>

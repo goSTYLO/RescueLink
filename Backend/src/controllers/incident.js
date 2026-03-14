@@ -10,6 +10,8 @@ const { getBarangayFromCoordinates, calculateDistance } = require('../utils/geol
 const { processIncidentWithAudio } = require('../services/aiService');
 const { queueDeepScanJob, computeInitialScanStatus } = require('../services/fileScanService');
 const { verifyIncidentOnBlockchain } = require('../services/blockchainService');
+const { findPotentialDuplicates, linkAsDuplicate, getDuplicateInfo } = require('../services/duplicateDetectionService');
+const duplicateConfig = require('../config/duplicateDetection');
 const { saveAudioFile, saveMediaFiles, deleteIncidentFiles, fileExists, getAbsolutePath } = require('../utils/fileValidation');
 const { logDispatcherAction, logUserAction } = require('../utils/auditLog');
 const { ROLES } = require('../config/roles');
@@ -20,6 +22,39 @@ const fs = require('fs').promises;
 function estimateEtaMinutes(distanceMeters, speedKmh = 35) {
   const speedMetersPerMinute = (speedKmh * 1000) / 60;
   return Math.max(1, Math.round(distanceMeters / speedMetersPerMinute));
+}
+
+/**
+ * Run real-time duplicate detection on a newly created incident.
+ * Auto-links if confidence > autoLinkThreshold; returns duplicate_info for API response.
+ */
+async function runRealtimeDuplicateCheck(incident) {
+  if (!duplicateConfig.enabled) return null;
+  try {
+    const duplicates = await findPotentialDuplicates(incident);
+    const best = duplicates[0];
+    if (best && best.confidence >= duplicateConfig.realTime.autoLinkThreshold) {
+      await linkAsDuplicate(incident.report_id, best.report_id, best.confidence, 'geospatial_time');
+      return {
+        is_duplicate: true,
+        parent_report_id: best.report_id,
+        confidence: best.confidence,
+        flagged_for_review: false,
+      };
+    }
+    if (best && best.confidence >= duplicateConfig.realTime.flagThreshold) {
+      return {
+        is_duplicate: false,
+        potential_duplicate: best.report_id,
+        confidence: best.confidence,
+        flagged_for_review: true,
+      };
+    }
+    return null;
+  } catch (err) {
+    console.error('Duplicate detection error:', err.message);
+    return null;
+  }
 }
 
 /**
@@ -359,10 +394,13 @@ const incidentController = {
 
       await logIncidentAction(req, 'incident_create', incident.report_id, { type: 'emergency', severity_level: 'high' });
 
+      const duplicateInfo = await runRealtimeDuplicateCheck(incident);
+
       res.status(201).json({
         success: true,
         message: 'Emergency incident reported successfully',
-        incident: incident
+        incident: incident,
+        ...(duplicateInfo && { duplicate_info: duplicateInfo }),
       });
     } catch (error) {
       console.error('Error creating emergency incident:', error);
@@ -393,12 +431,14 @@ const incidentController = {
           if (dept && dept.code) {
             const dispatches = await Dispatch.findAll({ report_id: validatedId, department_code: dept.code, limit: 1 });
             if (dispatches && dispatches.length > 0) {
-              const incidentDispatches = await getDispatchesForReport(validatedId, 50);
-              await attachAssignedDepartment(incident, validatedId, incidentDispatches);
-              await ensureIncidentBarangay(incident);
-              await attachDispatchEta(incident, validatedId, incidentDispatches);
-              await buildIncidentTimeline(incident, validatedId, incidentDispatches);
-              return res.json(incident);
+      const incidentDispatches = await getDispatchesForReport(validatedId, 50);
+      await attachAssignedDepartment(incident, validatedId, incidentDispatches);
+      await ensureIncidentBarangay(incident);
+      await attachDispatchEta(incident, validatedId, incidentDispatches);
+      await buildIncidentTimeline(incident, validatedId, incidentDispatches);
+      const duplicateInfo = await getDuplicateInfo(validatedId);
+      if (duplicateInfo) Object.assign(incident, { duplicate_cluster: duplicateInfo.cluster });
+      return res.json(incident);
             }
           }
         }
@@ -412,6 +452,8 @@ const incidentController = {
       await ensureIncidentBarangay(incident);
       await attachDispatchEta(incident, validatedId, incidentDispatches);
       await buildIncidentTimeline(incident, validatedId, incidentDispatches);
+      const duplicateInfo = await getDuplicateInfo(validatedId);
+      if (duplicateInfo) Object.assign(incident, { duplicate_cluster: duplicateInfo.cluster });
       res.json(incident);
     } catch (error) {
       console.error('Error fetching incident:', error);
@@ -432,7 +474,8 @@ const incidentController = {
         return res.status(401).json({ error: 'Authentication required' });
       }
 
-      const { limit, offset, severity_level, status, incident_type, barangay } = req.query;
+      const { limit, offset, severity_level, status, incident_type, barangay, exclude_duplicates } = req.query;
+      const excludeDuplicates = exclude_duplicates === 'true' || exclude_duplicates === '1';
       const { limit: validatedLimit, offset: validatedOffset } = validatePagination(limit, offset);
       const validatedSeverityLevel = validateAllowedValue(severity_level, ['low', 'medium', 'high'], 'severity_level');
       const validatedStatus = validateAllowedValue(status, ['pending', 'verified', 'in_progress', 'resolved', 'closed'], 'status');
@@ -487,6 +530,7 @@ const incidentController = {
           incident_type: validatedIncidentType,
           barangay: validatedBarangay,
           department_code: departmentCode,
+          exclude_duplicates: excludeDuplicates,
         });
         totalCount = await Incident.countAll({
           severity_level: validatedSeverityLevel,
@@ -494,6 +538,7 @@ const incidentController = {
           incident_type: validatedIncidentType,
           barangay: validatedBarangay,
           department_code: departmentCode,
+          exclude_duplicates: excludeDuplicates,
         });
       }
       const dataFetchLatencyMs = Date.now() - dataFetchStart;
@@ -696,6 +741,8 @@ const incidentController = {
           [audioPath, JSON.stringify(mediaPaths), reportId]
         );
 
+        const duplicateInfo = await runRealtimeDuplicateCheck(updatedIncident);
+
         console.log(`[backend][incident][createWithAudio] request_id=${requestId} report_id=${reportId} status=success latency_ms=${Date.now() - startedAt} ai_pending=false`);
 
         res.status(201).json({
@@ -706,6 +753,7 @@ const incidentController = {
             audio_path: audioPath,
             media_paths: mediaPaths
           },
+          ...(duplicateInfo && { duplicate_info: duplicateInfo }),
           ai_classification: {
             incident_types: aiResult.incidentTypes,
             primary_type: aiResult.primaryType,
@@ -738,6 +786,8 @@ const incidentController = {
           [audioPath, JSON.stringify(mediaPaths), reportId]
         );
 
+        const duplicateInfo = await runRealtimeDuplicateCheck({ ...incident, report_id: reportId });
+
         console.log(`[backend][incident][createWithAudio] request_id=${requestId} report_id=${reportId} status=pending_ai_retry latency_ms=${Date.now() - startedAt}`);
 
         res.status(201).json({
@@ -748,6 +798,7 @@ const incidentController = {
             audio_path: audioPath,
             media_paths: mediaPaths
           },
+          ...(duplicateInfo && { duplicate_info: duplicateInfo }),
           ai_status: 'pending',
           ai_error: 'AI classification will be retried automatically',
           security_scan: {
@@ -1310,6 +1361,8 @@ const incidentController = {
               await attachDispatchEta(incident, validatedId, incidentDispatches);
               await buildIncidentTimeline(incident, validatedId, incidentDispatches);
               const classification = await Incident.getClassificationByReportId(validatedId);
+              const duplicateInfo = await getDuplicateInfo(validatedId);
+              if (duplicateInfo) Object.assign(incident, { duplicate_cluster: duplicateInfo.cluster });
               return res.json({ incident, ai_classification: classification || null });
             }
           }
@@ -1326,6 +1379,8 @@ const incidentController = {
       await attachDispatchEta(incident, validatedId, incidentDispatches);
       await buildIncidentTimeline(incident, validatedId, incidentDispatches);
       const classification = await Incident.getClassificationByReportId(validatedId);
+      const duplicateInfo = await getDuplicateInfo(validatedId);
+      if (duplicateInfo) Object.assign(incident, { duplicate_cluster: duplicateInfo.cluster });
 
       res.json({
         incident,
@@ -1337,6 +1392,145 @@ const incidentController = {
       if (error.message.includes('must be')) {
         return res.status(400).json({ error: error.message });
       }
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+
+  // Get duplicate info for an incident
+  async getDuplicates(req, res) {
+    try {
+      const { id } = req.params;
+      const validatedId = validateInteger(id, 'report_id');
+
+      const incident = await Incident.findById(validatedId);
+      if (!incident) {
+        return res.status(404).json({ error: 'Incident not found' });
+      }
+
+      const canAccessAny = req.user.role === ROLES.DISPATCHER || req.user.role === ROLES.ADMIN;
+      const deptRole = req.user.role === ROLES.DEPARTMENT_HEAD || req.user.role === ROLES.DEPARTMENT_ADMIN;
+      if (canAccessAny) {
+        const info = await getDuplicateInfo(validatedId);
+        return res.json(info || { is_duplicate: false, parent_report_id: null, duplicate_confidence: null, cluster: [] });
+      }
+      if (deptRole && req.user.user_id) {
+        const fullUser = await User.findById(req.user.user_id);
+        if (fullUser?.department_id) {
+          const dept = await Department.findById(fullUser.department_id);
+          if (dept?.code) {
+            const dispatches = await Dispatch.findAll({ report_id: validatedId, department_code: dept.code, limit: 1 });
+            if (dispatches?.length > 0) {
+              const info = await getDuplicateInfo(validatedId);
+              return res.json(info || { is_duplicate: false, parent_report_id: null, duplicate_confidence: null, cluster: [] });
+            }
+          }
+        }
+      }
+      if (!isResourceOwner(req.user, incident.user_id) && req.user.role !== ROLES.DISPATCHER && req.user.role !== ROLES.ADMIN) {
+        return res.status(403).json({ error: 'Forbidden. You can only access your own incidents.' });
+      }
+
+      const info = await getDuplicateInfo(validatedId);
+      res.json(info || { is_duplicate: false, parent_report_id: null, duplicate_confidence: null, cluster: [] });
+    } catch (error) {
+      console.error('Error fetching duplicates:', error);
+      if (error.message?.includes('must be')) return res.status(400).json({ error: error.message });
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+
+  // Find potential duplicates for an incident (for UI "review duplicates" button)
+  async getPotentialDuplicates(req, res) {
+    try {
+      const { id } = req.params;
+      const validatedId = validateInteger(id, 'report_id');
+
+      const incident = await Incident.findById(validatedId);
+      if (!incident) {
+        return res.status(404).json({ error: 'Incident not found' });
+      }
+
+      const canAccessAny = req.user.role === ROLES.DISPATCHER || req.user.role === ROLES.ADMIN;
+      const deptRole = req.user.role === ROLES.DEPARTMENT_HEAD || req.user.role === ROLES.DEPARTMENT_ADMIN;
+      if (canAccessAny) {
+        const candidates = await findPotentialDuplicates(incident);
+        return res.json({ potential_duplicates: candidates });
+      }
+      if (deptRole && req.user.user_id) {
+        const fullUser = await User.findById(req.user.user_id);
+        if (fullUser?.department_id) {
+          const dept = await Department.findById(fullUser.department_id);
+          if (dept?.code) {
+            const dispatches = await Dispatch.findAll({ report_id: validatedId, department_code: dept.code, limit: 1 });
+            if (dispatches?.length > 0) {
+              const candidates = await findPotentialDuplicates(incident);
+              return res.json({ potential_duplicates: candidates });
+            }
+          }
+        }
+      }
+      if (!isResourceOwner(req.user, incident.user_id) && req.user.role !== ROLES.DISPATCHER && req.user.role !== ROLES.ADMIN) {
+        return res.status(403).json({ error: 'Forbidden. You can only access your own incidents.' });
+      }
+
+      const candidates = await findPotentialDuplicates(incident);
+      res.json({ potential_duplicates: candidates });
+    } catch (error) {
+      console.error('Error fetching potential duplicates:', error);
+      if (error.message?.includes('must be')) return res.status(400).json({ error: error.message });
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+
+  // Manually link incident as duplicate of another (dispatcher/admin only)
+  async linkDuplicate(req, res) {
+    try {
+      const { id } = req.params;
+      const { parent_report_id, reason } = req.body || {};
+      const validatedId = validateInteger(id, 'report_id');
+      const validatedParentId = validateInteger(parent_report_id, 'parent_report_id');
+
+      if (validatedId === validatedParentId) {
+        return res.status(400).json({ error: 'Cannot link incident to itself' });
+      }
+
+      const incident = await Incident.findById(validatedId);
+      if (!incident) return res.status(404).json({ error: 'Incident not found' });
+
+      const parentIncident = await Incident.findById(validatedParentId);
+      if (!parentIncident) return res.status(404).json({ error: 'Parent incident not found' });
+
+      const { linkAsDuplicate: linkDup } = require('../services/duplicateDetectionService');
+      await linkDup(validatedId, validatedParentId, 1.0, 'manual');
+
+      await logIncidentAction(req, 'incident_link_duplicate', validatedId, { parent_report_id: validatedParentId, reason: reason || null });
+
+      res.json({ success: true, is_duplicate: true, parent_report_id: validatedParentId });
+    } catch (error) {
+      console.error('Error linking duplicate:', error);
+      if (error.message?.includes('must be')) return res.status(400).json({ error: error.message });
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+
+  // Unlink incident from duplicate (dispatcher/admin only)
+  async unlinkDuplicate(req, res) {
+    try {
+      const { id } = req.params;
+      const validatedId = validateInteger(id, 'report_id');
+
+      const incident = await Incident.findById(validatedId);
+      if (!incident) return res.status(404).json({ error: 'Incident not found' });
+
+      const { unlinkDuplicate: unlinkDup } = require('../services/duplicateDetectionService');
+      await unlinkDup(validatedId);
+
+      await logIncidentAction(req, 'incident_unlink_duplicate', validatedId, {});
+
+      res.json({ success: true, is_duplicate: false });
+    } catch (error) {
+      console.error('Error unlinking duplicate:', error);
+      if (error.message?.includes('must be')) return res.status(400).json({ error: error.message });
       res.status(500).json({ error: 'Internal server error' });
     }
   }

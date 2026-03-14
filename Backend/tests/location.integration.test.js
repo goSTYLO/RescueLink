@@ -8,6 +8,9 @@ jest.mock('../src/services/retryAiClassification', () => ({
 jest.mock('../src/services/retryFileScan', () => ({
   startFileScanRetryService: () => ({ stop: jest.fn() }),
 }));
+jest.mock('../src/services/duplicateBackgroundAnalyzer', () => ({
+  startDuplicateAnalyzer: () => null,
+}));
 
 const app = require('../src/app');
 const { JWT_SECRET } = require('../src/config/jwt');

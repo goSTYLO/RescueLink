@@ -2,6 +2,10 @@ import {
   getIncidentById,
   getIncidents,
   getIncidentWithAi,
+  getIncidentDuplicates,
+  getPotentialDuplicates,
+  linkDuplicate,
+  unlinkDuplicate,
   normalizeIncidentStatus,
   reclassifyIncident,
   updateIncidentStatus,
@@ -144,5 +148,59 @@ describe('incidents.api contract', () => {
     expect(url).toContain('/api/incidents/1/status');
     expect(options.method).toBe('PATCH');
     expect(JSON.parse(options.body)).toEqual({ status: 'resolved' });
+  });
+
+  test('getIncidentDuplicates calls correct endpoint', async () => {
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ is_duplicate: false, cluster: [] }),
+    });
+
+    await getIncidentDuplicates(123);
+    const [url, options] = fetch.mock.calls[0];
+    expect(url).toContain('/api/incidents/123/duplicates');
+    expect(options.method).toBe('GET');
+  });
+
+  test('getPotentialDuplicates calls correct endpoint', async () => {
+    const { getPotentialDuplicates } = require('@/data/api/incidents.api');
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ potential_duplicates: [] }),
+    });
+
+    await getPotentialDuplicates(456);
+    const [url] = fetch.mock.calls[0];
+    expect(url).toContain('/api/incidents/456/potential-duplicates');
+  });
+
+  test('linkDuplicate sends POST with parent_report_id', async () => {
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ success: true }),
+    });
+
+    await linkDuplicate(123, 100, 'Same location');
+    const [url, options] = fetch.mock.calls[0];
+    expect(url).toContain('/api/incidents/123/link-duplicate');
+    expect(options.method).toBe('POST');
+    expect(JSON.parse(options.body)).toEqual({ parent_report_id: 100, reason: 'Same location' });
+  });
+
+  test('unlinkDuplicate sends POST with reason', async () => {
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ success: true }),
+    });
+
+    await unlinkDuplicate(123, 'False positive');
+    const [url, options] = fetch.mock.calls[0];
+    expect(url).toContain('/api/incidents/123/unlink-duplicate');
+    expect(options.method).toBe('POST');
+    expect(JSON.parse(options.body)).toEqual({ reason: 'False positive' });
   });
 });

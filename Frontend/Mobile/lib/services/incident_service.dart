@@ -20,6 +20,36 @@ class IncidentFileDownload {
   });
 }
 
+/// Duplicate detection info from API response (when report matches existing incident).  
+/// UI should show a confirmation dialog when [isDuplicate] or [flaggedForReview] is true.
+class DuplicateInfo {
+  final bool isDuplicate;
+  final int? parentReportId;
+  final double? confidence;
+  final bool flaggedForReview;
+
+  const DuplicateInfo({
+    required this.isDuplicate,
+    this.parentReportId,
+    this.confidence,
+    this.flaggedForReview = false,
+  });
+
+  static DuplicateInfo? fromResponse(Map<String, dynamic> response) {
+    final raw = response['duplicate_info'];
+    if (raw == null || raw is! Map) return null;
+    final m = raw as Map<String, dynamic>;
+    return DuplicateInfo(
+      isDuplicate: m['is_duplicate'] == true,
+      parentReportId: (m['parent_report_id'] as num?)?.toInt(),
+      confidence: (m['confidence'] as num?)?.toDouble(),
+      flaggedForReview: m['flagged_for_review'] == true,
+    );
+  }
+
+  bool get shouldShowDialog => isDuplicate || flaggedForReview;
+}
+
 class IncidentService {
   final ApiService _apiService = ApiService();
   final AuthService _authService = AuthService();

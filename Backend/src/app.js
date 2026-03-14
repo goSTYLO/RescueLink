@@ -16,6 +16,7 @@ const metricsRoutes = require('./routes/metrics');
 const requestTimingMiddleware = require('./middleware/requestTiming');
 const { startRetryService } = require('./services/retryAiClassification');
 const { startFileScanRetryService } = require('./services/retryFileScan');
+const { startDuplicateAnalyzer } = require('./services/duplicateBackgroundAnalyzer');
 
 const app = express();
 
@@ -146,9 +147,11 @@ app.use((err, req, res, next) => {
 console.log('\n🤖 Initializing AI services...');
 const retryTask = startRetryService();
 const scanRetryTask = startFileScanRetryService();
+const duplicateAnalyzerTask = startDuplicateAnalyzer();
 
 // Store retry task for graceful shutdown
 app.locals.retryTask = retryTask;
 app.locals.scanRetryTask = scanRetryTask;
+app.locals.duplicateAnalyzerTask = duplicateAnalyzerTask;
 
 module.exports = app;

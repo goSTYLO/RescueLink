@@ -8,6 +8,9 @@ jest.mock('../src/services/retryAiClassification', () => ({
 jest.mock('../src/services/retryFileScan', () => ({
   startFileScanRetryService: () => ({ stop: jest.fn() }),
 }));
+jest.mock('../src/services/duplicateBackgroundAnalyzer', () => ({
+  startDuplicateAnalyzer: () => null,
+}));
 
 const app = require('../src/app');
 const { JWT_SECRET } = require('../src/config/jwt');
@@ -29,11 +32,13 @@ const tokenFor = (userId, role) =>
 describe('Department management integration tests', () => {
   const adminToken = tokenFor(1, ROLES.ADMIN);
   const dispatcherToken = tokenFor(2, ROLES.DISPATCHER);
+  const userToken = tokenFor(3, ROLES.USER);
 
-  it('denies non-admin access to departments endpoint', async () => {
+  it('denies regular user access to departments endpoint', async () => {
+    // Dispatchers are allowed to list departments; only regular users are denied
     const res = await request(app)
       .get('/api/departments')
-      .set('Authorization', `Bearer ${dispatcherToken}`);
+      .set('Authorization', `Bearer ${userToken}`);
 
     expect(res.status).toBe(403);
   });

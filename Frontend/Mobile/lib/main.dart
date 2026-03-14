@@ -216,8 +216,29 @@ class _AuthNavigatorState extends State<AuthNavigator> {
               <String, dynamic>{};
       final reportId = (incident['report_id'] as num?)?.toInt();
       if (!mounted) return;
+      setState(() => _emergencyNoAiInProgress = false);
+      final dupInfo = DuplicateInfo.fromResponse(response);
+      if (dupInfo?.shouldShowDialog == true && context.mounted) {
+        await showDialog<void>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Possible Duplicate Detected'),
+            content: Text(
+              dupInfo!.isDuplicate
+                  ? 'This report was linked to an existing incident (same location/time).'
+                  : 'This appears related to an existing incident. Your report was submitted.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+      }
+      if (!mounted) return;
       setState(() {
-        _emergencyNoAiInProgress = false;
         _showIncidentDetails = true;
         _incidentDetailsFromHistory = false;
         _incidentDetailsReportId = reportId;

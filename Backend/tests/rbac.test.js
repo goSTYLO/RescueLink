@@ -17,6 +17,10 @@ jest.mock('../src/services/retryFileScan', () => ({
   startFileScanRetryService: () => ({ stop: jest.fn() }),
 }));
 
+jest.mock('../src/services/duplicateBackgroundAnalyzer', () => ({
+  startDuplicateAnalyzer: () => null,
+}));
+
 const app = require('../src/app');
 
 afterAll(() => {
@@ -203,10 +207,11 @@ describe('RBAC Integration Tests', () => {
     });
 
     it('should allow dispatcher to patch incident status', async () => {
+      // Use 'verified' or 'in_progress' - 'resolved' is restricted to department admin/head
       const res = await request(app)
         .patch('/api/incidents/1/status')
         .set('Authorization', `Bearer ${dispatcherToken}`)
-        .send({ status: 'resolved' });
+        .send({ status: 'verified' });
 
       expect([200, 400, 404, 409]).toContain(res.status);
     });

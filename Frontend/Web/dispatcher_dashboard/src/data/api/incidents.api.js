@@ -41,6 +41,7 @@ export async function getIncidents({
   status,
   incident_type,
   barangay,
+  exclude_duplicates = false,
   withMeta = false,
 } = {}) {
   const requestId = createRequestId('web-incidents');
@@ -52,6 +53,7 @@ export async function getIncidents({
   if (status) params.set('status', normalizeIncidentStatus(status));
   if (incident_type) params.set('incident_type', String(incident_type).toLowerCase());
   if (barangay) params.set('barangay', barangay);
+  if (exclude_duplicates) params.set('exclude_duplicates', 'true');
   params.set('meta', withMeta ? '1' : '0');
   const queryKey = params.toString();
   const cached = incidentsCache.get(queryKey);
@@ -316,5 +318,82 @@ export async function addCoordinationNote(id, { note }) {
   }
 
   logInfo(`[web][incidents][addCoordinationNote] request_id=${requestId} report_id=${id} status=${response.status} latency_ms=${Math.round(performance.now() - start)}`);
+  return data;
+}
+
+/**
+ * Get duplicate info for an incident
+ * @param {number|string} id - Incident report ID
+ * @returns {Promise<Object>} { is_duplicate, parent_report_id, duplicate_confidence, cluster }
+ */
+export async function getIncidentDuplicates(id) {
+  const requestId = createRequestId('web-duplicates');
+  const response = await fetch(`${API_URL}/api/incidents/${id}/duplicates`, {
+    method: 'GET',
+    headers: getAuthHeaders({ requestId }),
+  });
+  const data = await parseJsonOrEmpty(response);
+  if (!response.ok) {
+    throw new Error(parseErrorMessage(data, 'Failed to fetch duplicate info'));
+  }
+  return data;
+}
+
+/**
+ * Get potential duplicates for an incident
+ * @param {number|string} id - Incident report ID
+ * @returns {Promise<Object>} { potential_duplicates }
+ */
+export async function getPotentialDuplicates(id) {
+  const requestId = createRequestId('web-potential-duplicates');
+  const response = await fetch(`${API_URL}/api/incidents/${id}/potential-duplicates`, {
+    method: 'GET',
+    headers: getAuthHeaders({ requestId }),
+  });
+  const data = await parseJsonOrEmpty(response);
+  if (!response.ok) {
+    throw new Error(parseErrorMessage(data, 'Failed to fetch potential duplicates'));
+  }
+  return data;
+}
+
+/**
+ * Link incident as duplicate of another
+ * @param {number|string} id - Incident report ID
+ * @param {number} parentReportId - Parent incident ID
+ * @param {string} [reason] - Optional reason
+ * @returns {Promise<Object>} { success, is_duplicate, parent_report_id }
+ */
+export async function linkDuplicate(id, parentReportId, reason) {
+  const requestId = createRequestId('web-link-duplicate');
+  const response = await fetch(`${API_URL}/api/incidents/${id}/link-duplicate`, {
+    method: 'POST',
+    headers: getAuthHeaders({ requestId }),
+    body: JSON.stringify({ parent_report_id: parentReportId, reason }),
+  });
+  const data = await parseJsonOrEmpty(response);
+  if (!response.ok) {
+    throw new Error(parseErrorMessage(data, 'Failed to link duplicate'));
+  }
+  return data;
+}
+
+/**
+ * Unlink incident from duplicate
+ * @param {number|string} id - Incident report ID
+ * @param {string} [reason] - Optional reason
+ * @returns {Promise<Object>} { success, is_duplicate }
+ */
+export async function unlinkDuplicate(id, reason) {
+  const requestId = createRequestId('web-unlink-duplicate');
+  const response = await fetch(`${API_URL}/api/incidents/${id}/unlink-duplicate`, {
+    method: 'POST',
+    headers: getAuthHeaders({ requestId }),
+    body: JSON.stringify({ reason }),
+  });
+  const data = await parseJsonOrEmpty(response);
+  if (!response.ok) {
+    throw new Error(parseErrorMessage(data, 'Failed to unlink duplicate'));
+  }
   return data;
 }

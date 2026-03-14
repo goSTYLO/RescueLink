@@ -8,6 +8,10 @@ jest.mock('../src/services/retryFileScan', () => ({
   startFileScanRetryService: () => ({ stop: jest.fn() }),
 }));
 
+jest.mock('../src/services/duplicateBackgroundAnalyzer', () => ({
+  startDuplicateAnalyzer: () => null,
+}));
+
 const app = require('../src/app');
 
 afterAll(() => {
@@ -60,6 +64,10 @@ const endpoints = [
   { method: 'get', path: '/api/incidents/user/my' },
   { method: 'get', path: '/api/incidents' },
   { method: 'get', path: '/api/incidents/1' },
+  { method: 'get', path: '/api/incidents/1/duplicates' },
+  { method: 'get', path: '/api/incidents/1/potential-duplicates' },
+  { method: 'post', path: '/api/incidents/1/link-duplicate', body: { parent_report_id: 100 } },
+  { method: 'post', path: '/api/incidents/1/unlink-duplicate', body: {} },
 
   // Dispatches
   { method: 'post', path: '/api/dispatches', body: {} },

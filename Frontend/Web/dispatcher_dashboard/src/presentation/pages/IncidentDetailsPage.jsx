@@ -14,7 +14,7 @@ import {
   MessageSquare, Wrench, Award, Star, AlertCircle, Copy, Merge,
   X, ThumbsUp, Link2
 } from 'lucide-react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, Link } from 'react-router-dom';
 import { 
   incidents as mockIncidents, 
   incidentTimelines, 
@@ -25,7 +25,7 @@ import {
   units
 } from '@/data/mock/mockData';
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { getIncidentById, getIncidentAudioUrl, getIncidentWithAi, reclassifyIncident, updateIncidentStatus, verifyIncident, getCoordinationNotes, addCoordinationNote } from '@/data/api/incidents.api';
+import { getIncidentById, getIncidentAudioUrl, getIncidentWithAi, reclassifyIncident, updateIncidentStatus, verifyIncident, getCoordinationNotes, addCoordinationNote, getIncidentDuplicates, getPotentialDuplicates, linkDuplicate, unlinkDuplicate } from '@/data/api/incidents.api';
 import { getResponders, getResponderTeams, updateResponderStatus, updateResponderTeamStatus, getTeamMembers } from '@/data/api/responders.api';
 import { createDispatch, undoDepartmentNotification } from '@/data/api/dispatches.api';
 import { getDepartments } from '@/data/api/departments.api';
@@ -127,6 +127,9 @@ function mapApiToIncidentDetails(api, aiClassification = null) {
     closureMethod: api.closure_method || null,
     closureNotes: api.closure_notes || null,
     highPriority: normalizedSeverity === 'high',
+    isDuplicate: Boolean(api.is_duplicate),
+    parentReportId: api.parent_report_id ?? null,
+    duplicateCluster: Array.isArray(api.duplicate_cluster) ? api.duplicate_cluster : [],
     possibleDuplicates: [],
     closureData: api.closed_at
       ? {
@@ -240,7 +243,7 @@ export function IncidentDetailsPage() {
   const escalations = escalationHistory[id || ''] || [];
   const [coordination, setCoordination] = useState([]);
   const review = postIncidentReviews[id || ''];
-  const possibleDuplicates = mockIncidents.filter(i => incident?.possibleDuplicates?.includes(i.id));
+  const duplicateCluster = incident?.duplicateCluster ?? [];
 
   // Get current user role
   const currentUser = JSON.parse(sessionStorage.getItem('user') || '{}');
@@ -276,7 +279,7 @@ export function IncidentDetailsPage() {
     normalizedRole === ROLES.DEPARTMENT_ADMIN
     || normalizedRole === ROLES.DEPARTMENT_HEAD
   );
-  const canMarkFalseReport = (
+  const canManageDuplicates = (
     normalizedRole === ROLES.SUPER_ADMIN
     || normalizedRole === ROLES.DISPATCHER
   );
@@ -339,6 +342,10 @@ export function IncidentDetailsPage() {
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [statusBusy, setStatusBusy] = useState(false);
   const [departmentList, setDepartmentList] = useState([]);
+  const [potentialDuplicatesList, setPotentialDuplicatesList] = useState([]);
+  const [duplicateDialogLoading, setDuplicateDialogLoading] = useState(false);
+
+  const displayDuplicates = incident?.isDuplicate ? duplicateCluster : potentialDuplicatesList;
 
   const departmentNameByCode = departmentList.reduce((acc, dept) => {
     const code = String(dept?.code || '').trim();
@@ -916,17 +923,53 @@ export function IncidentDetailsPage() {
     setClosureDialogOpen(false);
   };
 
-  const handleMarkDuplicate = (duplicateId) => {
-    // Mock duplicate handling
-    alert(`Marked ${id} as duplicate of ${duplicateId}`);
-    setDuplicateDialogOpen(false);
-  };
-
-  const handleMarkFalse = () => {
-    if (confirm('Are you sure you want to mark this as a false report?')) {
-      alert('Incident marked as false report');
+  const handleMarkDuplicate = async (parentReportId) => {
+    const numericId = /^\d+$/.test(String(id));
+    if (!numericId) return;
+    try {
+      await linkDuplicate(id, parentReportId);
+      setDuplicateDialogOpen(false);
+      await fetchIncident();
+      window.dispatchEvent(new CustomEvent('incident:updated', { detail: { incidentId: id } }));
+      Swal.fire({ icon: 'success', title: 'Marked as duplicate', timer: 1500, showConfirmButton: false });
+    } catch (err) {
+      Swal.fire({ icon: 'error', title: 'Failed', text: err.message || 'Could not link duplicate' });
     }
   };
+
+  const handleUnlinkDuplicate = async () => {
+    const numericId = /^\d+$/.test(String(id));
+    if (!numericId) return;
+    try {
+      await unlinkDuplicate(id);
+      setDuplicateDialogOpen(false);
+      await fetchIncident();
+      window.dispatchEvent(new CustomEvent('incident:updated', { detail: { incidentId: id } }));
+      Swal.fire({ icon: 'success', title: 'Unlinked from duplicate', timer: 1500, showConfirmButton: false });
+    } catch (err) {
+      Swal.fire({ icon: 'error', title: 'Failed', text: err.message || 'Could not unlink' });
+    }
+  };
+
+  const loadPotentialDuplicates = useCallback(async () => {
+    const numericId = /^\d+$/.test(String(id));
+    if (!numericId) return;
+    setDuplicateDialogLoading(true);
+    try {
+      const res = await getPotentialDuplicates(id);
+      setPotentialDuplicatesList(res?.potential_duplicates ?? []);
+    } catch {
+      setPotentialDuplicatesList([]);
+    } finally {
+      setDuplicateDialogLoading(false);
+    }
+  }, [id]);
+
+  useEffect(() => {
+    if (duplicateDialogOpen && !incident?.isDuplicate) {
+      loadPotentialDuplicates();
+    }
+  }, [duplicateDialogOpen, incident?.isDuplicate, loadPotentialDuplicates]);
 
   const handleVerifyIncident = async () => {
     const numericId = /^\d+$/.test(String(id));
@@ -1157,24 +1200,14 @@ export function IncidentDetailsPage() {
           Mark Resolved
         </Button>
       )}
-      {possibleDuplicates.length > 0 && (
+      {canManageDuplicates && (
         <Button
           variant="outline"
           className={`gap-2 rounded-xl ${isLight ? 'text-amber-600 border-amber-200 hover:bg-amber-50' : 'text-amber-400 border-amber-500/40 hover:bg-amber-500/20'} ${compact ? 'h-8 px-3 text-xs rounded-lg' : ''}`}
           onClick={() => setDuplicateDialogOpen(true)}
         >
           <Merge className="w-4 h-4" />
-          Review Duplicates ({possibleDuplicates.length})
-        </Button>
-      )}
-      {canMarkFalseReport && (
-        <Button
-          variant="outline"
-          className={`gap-2 rounded-xl ${isLight ? 'text-primary border-primary/40 hover:bg-primary/10' : 'text-primary border-primary/50 hover:bg-primary/20'} ${compact ? 'h-8 px-3 text-xs rounded-lg' : ''}`}
-          onClick={handleMarkFalse}
-        >
-          <XCircle className="w-4 h-4" />
-          Mark as False Report
+          {incident?.isDuplicate ? 'View Duplicate Cluster' : 'Mark as Duplicate'}
         </Button>
       )}
       {isSupervisor && incident.status === 'Resolved' && (
@@ -1193,10 +1226,10 @@ export function IncidentDetailsPage() {
             {renderPrimaryActions({ compact: true })}
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-            {possibleDuplicates.length > 0 && incident.status !== 'Duplicate' && (
+            {duplicateCluster.length > 1 && (
               <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 border ${isLight ? 'border-amber-300 bg-amber-50 text-amber-700' : 'border-amber-500/40 bg-amber-500/10 text-amber-300'}`}>
                 <AlertCircle className="w-3 h-3" />
-                {possibleDuplicates.length} possible duplicate(s)
+                {duplicateCluster.length} related report(s)
               </span>
             )}
             {canManualReclassify && (
@@ -1243,7 +1276,7 @@ export function IncidentDetailsPage() {
                       High Priority
                     </Badge>
                   )}
-                  {incident.status === 'Duplicate' && (
+                  {(incident.isDuplicate || incident.status === 'Duplicate') && (
                     <Badge variant="outline" className="bg-card text-muted border-border rounded-lg">
                       <Copy className="w-3 h-3 mr-1" />
                       Duplicate
@@ -1332,6 +1365,32 @@ export function IncidentDetailsPage() {
                 </div>
               )}
             </div>
+
+            {duplicateCluster.length > 1 && (
+              <div className={`p-4 rounded-xl border ${isLight ? 'bg-amber-50/70 border-amber-200/80' : 'bg-amber-500/10 border-amber-500/30'}`}>
+                <div className="flex items-center gap-2 mb-3">
+                  <Link2 className="w-4 h-4 text-amber-600" />
+                  <p className="text-xs uppercase tracking-wide text-muted font-semibold">Related Reports ({duplicateCluster.length})</p>
+                </div>
+                <div className="space-y-2">
+                  {duplicateCluster.filter((r) => r.report_id !== incident.id).map((report) => (
+                    <div key={report.report_id} className="flex items-center justify-between gap-2 p-2 rounded-lg border border-border">
+                      <Link to={`/incidents/${report.report_id}`} className="font-medium text-primary hover:underline">
+                        Report #{report.report_id}
+                      </Link>
+                      <span className="text-sm text-muted">{report.reporter_name || `User #${report.user_id}`}</span>
+                      {report.confidence != null && (
+                        <Badge variant="outline">{Math.round((report.confidence || 0) * 100)}% match</Badge>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <Button variant="outline" size="sm" className="mt-2 gap-2" onClick={() => setDuplicateDialogOpen(true)}>
+                  <Merge className="w-3 h-3" />
+                  Manage duplicates
+                </Button>
+              </div>
+            )}
 
             <div className={`p-3 rounded-xl border ${isLight ? 'bg-white/80 border-gray-200/80' : 'bg-white/5 border-white/10'}`}>
               <div className="flex items-center justify-between gap-2 mb-2">
@@ -2406,54 +2465,56 @@ export function IncidentDetailsPage() {
         <Dialog open={duplicateDialogOpen} onOpenChange={setDuplicateDialogOpen}>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
-              <DialogTitle>Possible Duplicate Reports</DialogTitle>
+              <DialogTitle>{incident?.isDuplicate ? 'Duplicate Cluster' : 'Mark as Duplicate'}</DialogTitle>
               <DialogDescription>
-                Review these similar incidents and decide if this is a duplicate.
+                {incident?.isDuplicate
+                  ? 'This incident is linked to the following related reports.'
+                  : 'Review similar incidents and link this report as a duplicate if it describes the same incident.'}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4 max-h-96 overflow-y-auto">
-              {possibleDuplicates.map((dup) => (
-                <div key={dup.id} className="p-4 border border-border rounded-lg">
-                  <div className="flex items-start justify-between mb-2">
-                    <div>
-                      <p className="font-medium text-foreground">{dup.id}</p>
-                      <p className="text-sm text-gray-600">{dup.emergencyType} - {dup.barangay}</p>
+              {duplicateDialogLoading ? (
+                <p className="text-muted">Loading potential duplicates...</p>
+              ) : displayDuplicates.length === 0 ? (
+                <p className="text-muted">{incident?.isDuplicate ? 'No related reports.' : 'No potential duplicates found.'}</p>
+              ) : (
+                displayDuplicates.map((dup) => (
+                  <div key={dup.report_id} className="p-4 border border-border rounded-lg flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Link to={`/incidents/${dup.report_id}`} className="font-medium text-primary hover:underline">
+                          Report #{dup.report_id}
+                        </Link>
+                        {dup.confidence != null && (
+                          <Badge variant="outline">{Math.round((dup.confidence || 0) * 100)}% match</Badge>
+                        )}
+                      </div>
+                      <p className="text-sm text-muted">{dup.reporter_name || `User #${dup.user_id}`}</p>
+                      {dup.description && <p className="text-sm text-foreground mt-1 line-clamp-2">{dup.description}</p>}
+                      {dup.created_at && (
+                        <p className="text-xs text-muted mt-1">
+                          {new Date(dup.created_at).toLocaleString()}
+                        </p>
+                      )}
                     </div>
-                    <Badge className={getSeverityColor(dup.severity)}>
-                      {dup.severity}
-                    </Badge>
+                    {!incident?.isDuplicate && dup.report_id !== Number(id) && (
+                      <Button size="sm" variant="outline" className="gap-2 shrink-0" onClick={() => handleMarkDuplicate(dup.report_id)}>
+                        <Merge className="w-3 h-3" />
+                        Link as duplicate
+                      </Button>
+                    )}
                   </div>
-                  <p className="text-sm text-foreground mb-2">{dup.description}</p>
-                  <p className="text-xs text-gray-500 mb-3">Reported: {dup.timeReported}</p>
-                  <Button 
-                    size="sm" 
-                    variant="outline"
-                    className="gap-2"
-                    onClick={() => handleMarkDuplicate(dup.id)}
-                  >
-                    <Merge className="w-3 h-3" />
-                    Merge with this incident
-                  </Button>
-                </div>
-              ))}
+                ))
+              )}
             </div>
             <DialogFooter>
-              {canMarkFalseReport && (
-                <Button 
-                  variant="outline"
-                  className="text-red-600 border-red-200 hover:bg-red-50"
-                  onClick={() => {
-                    if (confirm('Mark this incident as a false report?')) {
-                      alert('Incident marked as false report');
-                      setDuplicateDialogOpen(false);
-                    }
-                  }}
-                >
-                  Mark as False Report
+              {incident?.isDuplicate && (
+                <Button variant="outline" className="text-amber-600 border-amber-200" onClick={handleUnlinkDuplicate}>
+                  Unlink from duplicate
                 </Button>
               )}
               <Button variant="outline" onClick={() => setDuplicateDialogOpen(false)}>
-                Not a Duplicate
+                {incident?.isDuplicate ? 'Close' : 'Not a Duplicate'}
               </Button>
             </DialogFooter>
           </DialogContent>

@@ -215,10 +215,31 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
       );
       if (!mounted) return;
       setState(() => _isSubmitting = false);
-        final dynamic rawIncident = response['incident'] ?? response;
-        final incident = rawIncident is Map
+      final dynamic rawIncident = response['incident'] ?? response;
+      final incident = rawIncident is Map
           ? rawIncident.cast<String, dynamic>()
           : <String, dynamic>{};
+      final dupInfo = DuplicateInfo.fromResponse(response);
+      if (dupInfo?.shouldShowDialog == true && mounted) {
+        await showDialog<void>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Possible Duplicate Detected'),
+            content: Text(
+              dupInfo!.isDuplicate
+                  ? 'This report was linked to an existing incident (same location/time).'
+                  : 'This appears related to an existing incident. Your report was submitted.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+      }
+      if (!mounted) return;
       widget.onSubmit?.call(incident);
     } catch (e) {
       if (!mounted) return;

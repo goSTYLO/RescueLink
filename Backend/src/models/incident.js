@@ -163,13 +163,14 @@ const Incident = {
     incident_type = null,
     barangay = null,
     department_code = null,
+    exclude_duplicates = false,
   } = {}) {
     // Keep incident list payloads bounded to protect API latency under encrypted datasets.
     const cappedLimit = Math.min(limit, 60);
 
     let query = `SELECT ir.report_id, ir.user_id, ir.incident_type, ir.severity_level, ir.status,
                         ir.description, ir.latitude, ir.longitude, ir.barangay, ir.created_at,
-                        ir.ai_pending, ir.ai_attempted,
+                        ir.ai_pending, ir.ai_attempted, ir.is_duplicate, ir.parent_report_id,
                         u.first_name AS reporter_first_name, u.last_name AS reporter_last_name, u.phone_number AS reporter_phone
       FROM incident_reports ir
       LEFT JOIN users u ON ir.user_id = u.user_id
@@ -211,6 +212,10 @@ const Incident = {
       paramCount++;
       query += ` AND ir.barangay = $${paramCount}`;
       params.push(barangay);
+    }
+
+    if (exclude_duplicates) {
+      query += ` AND (ir.is_duplicate IS NULL OR ir.is_duplicate = FALSE)`;
     }
 
     query += ` ORDER BY ir.created_at DESC LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}`;
@@ -263,7 +268,7 @@ const Incident = {
     return res.rows.map(decodeReporterFields);
   },
 
-  async countAll({ user_id = null, severity_level = null, status = null, incident_type = null, barangay = null, department_code = null } = {}) {
+  async countAll({ user_id = null, severity_level = null, status = null, incident_type = null, barangay = null, department_code = null, exclude_duplicates = false } = {}) {
     let query = 'SELECT COUNT(*)::int AS total FROM incident_reports WHERE 1=1';
     const params = [];
     let paramCount = 0;
@@ -302,6 +307,10 @@ const Incident = {
       paramCount++;
       query += ` AND barangay = $${paramCount}`;
       params.push(barangay);
+    }
+
+    if (exclude_duplicates) {
+      query += ` AND (is_duplicate IS NULL OR is_duplicate = FALSE)`;
     }
 
     const res = await pool.query(query, params);

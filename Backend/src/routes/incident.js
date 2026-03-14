@@ -71,6 +71,12 @@ router.get('/:id/coordination-notes', authMiddleware, incidentController.getCoor
 // Add a coordination note to an incident
 router.post('/:id/coordination-notes', authMiddleware, incidentController.addCoordinationNote);
 
+// Duplicate detection endpoints
+router.get('/:id/duplicates', authMiddleware, incidentController.getDuplicates);
+router.get('/:id/potential-duplicates', authMiddleware, incidentController.getPotentialDuplicates);
+router.post('/:id/link-duplicate', authMiddleware, authorize([ROLES.DISPATCHER, ROLES.ADMIN]), incidentController.linkDuplicate);
+router.post('/:id/unlink-duplicate', authMiddleware, authorize([ROLES.DISPATCHER, ROLES.ADMIN]), incidentController.unlinkDuplicate);
+
 // Get current user's incidents (always filtered to own)
 router.get('/user/my', authMiddleware, incidentController.getMyIncidents);
 
