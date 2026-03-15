@@ -35,6 +35,7 @@ import { ROLES, normalizeRole, getRoleDisplayLabel } from '@/core/constants';
 import { normalizeIncidentTaskType, doesTeamSupportIncidentType } from '@/core/utils/incidentClassification';
 import { Loader2 } from 'lucide-react';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
+import { Breadcrumb } from '@/presentation/components/common/Breadcrumb';
 import Swal from 'sweetalert2';
 
 function normalizeSeverityToDbLevel(value) {
@@ -1233,6 +1234,7 @@ export function IncidentDetailsPage() {
   return (
     <Layout>
       <div className="p-4 md:p-6">
+        <Breadcrumb items={[{ label: 'Home', path: '/dashboard' }, { label: 'Incidents', path: '/dashboard' }, { label: `Incident #${incident?.id ?? id}` }]} />
         <div className={`sticky top-2 z-30 mb-3 rounded-2xl border px-3 py-2 ${isLight ? 'bg-white/95 border-gray-200/80 backdrop-blur' : 'bg-card/90 border-white/10 backdrop-blur'}`}>
           <div className="flex flex-wrap items-center gap-2">
             {renderPrimaryActions({ compact: true })}

@@ -5,6 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Users, Bell, AlertCircle, Sliders, Sparkles } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
+import { Breadcrumb } from '@/presentation/components/common/Breadcrumb';
 import { ROLES, normalizeRole } from '@/core/constants';
 import { AccessDeniedNotice } from '@/presentation/components/common/AccessDeniedNotice';
 
@@ -73,6 +74,7 @@ export function SettingsPage() {
   return (
     <Layout>
       <div className="p-8 max-w-4xl mx-auto">
+        <Breadcrumb items={[{ label: 'Home', path: '/dashboard' }, { label: 'Settings' }]} />
         <div className={`${heroCardClass} mb-8`}>
           <div className="p-8 flex flex-wrap items-center gap-6">
             <div className={heroIconClass}>
@@ -118,7 +120,8 @@ export function SettingsPage() {
             </div>
           </div>
 
-          {/* Severity Thresholds */}
+          {/* Severity Thresholds - hidden for now */}
+          {false && (
           <div className={panelClass}>
             <div className={headerClass}>
               <span className={iconBoxClass()}>
@@ -199,6 +202,7 @@ export function SettingsPage() {
               </div>
             </div>
           </div>
+          )}
 
           {/* Notification Settings */}
           <div className={panelClass}>

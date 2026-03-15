@@ -12,6 +12,7 @@ import { listUsers, createUser, updateUserRole, deactivateUser } from '@/data/ap
 import { getDepartments } from '@/data/api/departments.api';
 import { ROLES, normalizeRole } from '@/core/constants';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
+import { Breadcrumb } from '@/presentation/components/common/Breadcrumb';
 
 const SWAL_PRIMARY = '#134178';
 const ROWS_PER_PAGE = 10;
@@ -262,6 +263,7 @@ export function TeamPage() {
   return (
     <Layout>
       <div className="p-6 space-y-6 max-w-7xl mx-auto">
+        <Breadcrumb items={[{ label: 'Home', path: '/dashboard' }, { label: 'Team' }]} />
         <div className={`rounded-3xl border overflow-hidden transition-all duration-300 ${isLight ? 'glass neumorphic-light bg-white/80 border-gray-200/80 shadow-[8px_8px_24px_rgba(209,213,219,0.5),-8px_-8px_24px_rgba(255,255,255,0.9)]' : 'glass neumorphic-dark bg-card/60 border-white/10 shadow-[8px_8px_24px_rgba(0,0,0,0.35),-6px_-6px_20px_rgba(19,65,120,0.2)]'}`}>
           <div className="p-8 flex flex-wrap items-center gap-6">
             <div className={iconBoxClass}>

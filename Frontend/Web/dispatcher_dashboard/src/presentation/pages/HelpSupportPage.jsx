@@ -1,4 +1,5 @@
 import { Layout } from '@/presentation/components/layout/Layout';
+import { Breadcrumb } from '@/presentation/components/common/Breadcrumb';
 import { HelpCircle, Mail, Phone, MessageCircle, FileText, Search, BookOpen, LayoutDashboard, Map, AlertTriangle, Building2, ScrollText, User, Settings, Shield, ChevronRight } from 'lucide-react';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
 
@@ -109,6 +110,7 @@ export function HelpSupportPage() {
   return (
     <Layout>
       <div className="p-8 min-h-full max-w-7xl mx-auto">
+        <Breadcrumb items={[{ label: 'Home', path: '/dashboard' }, { label: 'Help & Support' }]} />
         <div className={`${heroCardClass} mb-6`}>
           <div className="p-8 flex flex-wrap items-center gap-6">
             <div className={heroIconClass}>

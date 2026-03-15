@@ -1,4 +1,5 @@
 import { Layout } from '@/presentation/components/layout/Layout';
+import { Breadcrumb } from '@/presentation/components/common/Breadcrumb';
 import { Badge } from '@/presentation/components/ui/Badge';
 import { Button } from '@/presentation/components/ui/Button';
 import { SlidersHorizontal, Map, Link2, MapPin } from 'lucide-react';
@@ -171,6 +172,7 @@ export function MapViewPage() {
     <Layout>
       <div className="flex flex-col p-4 md:p-6 gap-4">
         <div className="w-full max-w-7xl mx-auto flex flex-col gap-4">
+          <Breadcrumb items={[{ label: 'Home', path: '/dashboard' }, { label: 'Map' }]} />
           <div className={`${panelClass()} overflow-visible`}>
             <div className="p-4 md:p-5 flex flex-wrap items-center gap-3">
               <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${iconBoxClass()}`}>

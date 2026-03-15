@@ -27,6 +27,7 @@ import {
   Activity,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { Breadcrumb } from '@/presentation/components/common/Breadcrumb';
 import Swal from 'sweetalert2';
 import { DEV_MODE } from '@/core/config/app.config';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
@@ -190,6 +191,7 @@ export function ProfilePage() {
   return (
     <Layout>
       <div className="p-8 max-w-4xl mx-auto relative min-h-[calc(100vh-8rem)]">
+        <Breadcrumb items={[{ label: 'Home', path: '/dashboard' }, { label: 'Profile' }]} />
         <div className={`${heroCardClass} mb-8`}>
           <div className="p-8 flex flex-wrap items-center gap-6">
             <div className={heroIconClass}>

@@ -20,6 +20,7 @@ import { MapContainer, Marker, TileLayer } from 'react-leaflet';
 import L from 'leaflet';
 import Swal from 'sweetalert2';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
+import { Breadcrumb } from '@/presentation/components/common/Breadcrumb';
 import { normalizeRole, ROLES } from '@/core/constants';
 import { getDepartmentById } from '@/data/api/departments.api';
 import {
@@ -381,7 +382,10 @@ export function DepartmentDetailsPage() {
   if (loadingDepartment) {
     return (
       <Layout>
-        <div className="p-6 text-sm text-muted">Loading department...</div>
+        <div className="p-3 md:p-4 max-w-7xl mx-auto">
+          <Breadcrumb items={[{ label: 'Home', path: '/dashboard' }, { label: 'Departments', path: '/departments' }, { label: 'Loading...' }]} />
+          <div className="p-6 text-sm text-muted">Loading department...</div>
+        </div>
       </Layout>
     );
   }
@@ -389,11 +393,14 @@ export function DepartmentDetailsPage() {
   if (!department) {
     return (
       <Layout>
-        <div className="p-6">
+        <div className="p-3 md:p-4 max-w-7xl mx-auto">
+          <Breadcrumb items={[{ label: 'Home', path: '/dashboard' }, { label: 'Departments', path: '/departments' }, { label: 'Not found' }]} />
+          <div className="p-6">
           <p className="text-foreground">Department not found.</p>
           <Button className="mt-3" variant="outline" onClick={() => navigate('/departments')}>
             Back to Departments
           </Button>
+          </div>
         </div>
       </Layout>
     );
@@ -407,6 +414,7 @@ export function DepartmentDetailsPage() {
   return (
     <Layout>
       <div className="p-3 md:p-4 max-w-7xl mx-auto space-y-3">
+        <Breadcrumb items={[{ label: 'Home', path: '/dashboard' }, { label: 'Departments', path: '/departments' }, { label: department?.name || 'Department' }]} />
         <div className={panelClass}>
           <div className={headerClass}>
             <Button variant="ghost" className="gap-2 rounded-lg" onClick={() => navigate('/departments')}>

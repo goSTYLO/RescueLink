@@ -17,6 +17,7 @@ import {
   Link2,
 } from 'lucide-react';
 import { getAuditLogs } from '@/data/api/auditLog.api';
+import { Breadcrumb } from '@/presentation/components/common/Breadcrumb';
 import { useState, useEffect, useCallback } from 'react';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
 
@@ -198,6 +199,7 @@ export function AuditLogPage() {
   return (
     <Layout>
       <div className="p-8 max-w-7xl mx-auto">
+        <Breadcrumb items={[{ label: 'Home', path: '/dashboard' }, { label: 'Audit Log' }]} />
         <div className={`${heroCardClass} mb-6`}>
           <div className="p-8 flex flex-wrap items-center gap-6">
             <div className={heroIconClass}>

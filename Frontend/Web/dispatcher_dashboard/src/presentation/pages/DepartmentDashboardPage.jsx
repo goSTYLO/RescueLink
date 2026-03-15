@@ -15,6 +15,7 @@ import { inferDepartmentSectorCode, normalizeSectorCode } from '@/core/utils/dep
 import { mapApiIncidentToDisplay } from '@/core/utils/incidentDisplay';
 import { ROLES } from '@/core/constants';
 import { useTheme } from '@/presentation/context/ThemeContext';
+import { Breadcrumb } from '@/presentation/components/common/Breadcrumb';
 import Swal from 'sweetalert2';
 
 function mapApiIncidentToRow(api) {
@@ -357,6 +358,7 @@ export function DepartmentDashboardPage() {
   return (
     <Layout>
       <div className="p-6 space-y-6 max-w-7xl mx-auto">
+        <Breadcrumb items={[{ label: 'Home', path: '/department/dashboard' }, { label: 'Department Dashboard' }]} />
         <div className={heroCardClass}>
           <div className="p-5 md:p-6 space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-4">

@@ -46,6 +46,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
+import { Breadcrumb } from '@/presentation/components/common/Breadcrumb';
 
 const DEPARTMENT_TYPES = [
   { value: 'Fire', label: 'Fire' },
@@ -723,6 +724,7 @@ export function DepartmentsPage() {
   return (
     <Layout>
       <div className="p-3 md:p-4 max-w-7xl mx-auto">
+        <Breadcrumb items={[{ label: 'Home', path: '/dashboard' }, { label: 'Departments' }]} />
         <div className={`${heroCardClass} mb-3`}>
           <div className="px-4 py-3 flex flex-wrap items-center gap-3">
             <div className={heroIconClass}>

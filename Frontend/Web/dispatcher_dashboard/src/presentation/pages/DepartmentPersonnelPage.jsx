@@ -37,6 +37,7 @@ import { personnel as mockPersonnel, incidents as mockIncidents } from '@/data/m
 import { ROLES } from '@/core/constants';
 import { normalizeSectorCode, inferDepartmentSectorCode } from '@/core/utils/departmentSector';
 import { useTheme } from '@/presentation/context/ThemeContext';
+import { Breadcrumb } from '@/presentation/components/common/Breadcrumb';
 import Swal from 'sweetalert2';
 
 const ASSIGNMENTS_STORAGE_KEY = 'rescuelink_incident_personnel_assignments';
@@ -415,6 +416,7 @@ export function DepartmentPersonnelPage() {
   return (
     <Layout>
       <div className="p-3 md:p-4 max-w-7xl mx-auto space-y-3">
+        <Breadcrumb items={[{ label: 'Home', path: '/department/dashboard' }, { label: 'Department Personnel' }]} />
         <div className={heroCardClass}>
           <div className="px-4 py-3 flex flex-wrap items-center gap-3">
             <div className={heroIconClass}>

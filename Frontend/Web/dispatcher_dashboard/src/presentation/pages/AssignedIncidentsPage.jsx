@@ -9,6 +9,7 @@ import { getIncidents } from '@/data/api/incidents.api';
 import { mapApiIncidentToDisplay } from '@/core/utils/incidentDisplay';
 import { ROLES } from '@/core/constants';
 import { useTheme } from '@/presentation/context/ThemeContext';
+import { Breadcrumb } from '@/presentation/components/common/Breadcrumb';
 
 function mapApiIncidentToRow(api) {
   return mapApiIncidentToDisplay(api);
@@ -93,6 +94,7 @@ export function AssignedIncidentsPage() {
   return (
     <Layout>
       <div className="p-6 space-y-6 max-w-7xl mx-auto">
+        <Breadcrumb items={[{ label: 'Home', path: '/department/dashboard' }, { label: 'Assigned Incidents' }]} />
         <div className={heroCardClass}>
           <div className="p-8 flex flex-wrap items-center gap-6">
             <div className={heroIconClass}>

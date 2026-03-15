@@ -29,6 +29,7 @@ import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
 import { AccessDeniedNotice } from '@/presentation/components/common/AccessDeniedNotice';
+import { Breadcrumb } from '@/presentation/components/common/Breadcrumb';
 
 export function AdminActionsPage() {
   const navigate = useNavigate();
@@ -211,6 +212,7 @@ export function AdminActionsPage() {
   return (
     <Layout>
       <div className="p-8 max-w-7xl mx-auto">
+        <Breadcrumb items={[{ label: 'Home', path: '/dashboard' }, { label: 'Admin Actions' }]} />
         <div className={`${heroCardClass} mb-6`}>
           <div className="p-8 flex flex-wrap items-center gap-6">
             <div className={heroIconClass}>

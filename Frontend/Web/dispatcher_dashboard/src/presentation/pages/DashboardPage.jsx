@@ -6,38 +6,20 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Label } from '@/presentation/components/ui/Label';
 import { Switch } from '@/presentation/components/ui/Switch';
 import { Activity, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, Loader2, SlidersHorizontal, LayoutList, CircleCheck, ExternalLink, Merge } from 'lucide-react';
-import { incidents as mockIncidents, barangays, departments as departmentsList } from '@/data/mock/mockData';
+import { incidents as mockIncidents, barangays } from '@/data/mock/mockData';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
 import { getIncidents, verifyIncident, linkDuplicate } from '@/data/api/incidents.api';
-import { createDispatch } from '@/data/api/dispatches.api';
 import { DEV_MODE } from '@/core/config/app.config';
 import { normalizeRole, ROLES } from '@/core/constants';
 import { mapIncidentTypeFilterToApi } from '@/core/utils/incidentClassification';
 import { mapApiIncidentToDisplay } from '@/core/utils/incidentDisplay';
 import { SelectParentIncidentDialog } from '@/presentation/components/common/SelectParentIncidentDialog';
+import { Breadcrumb } from '@/presentation/components/common/Breadcrumb';
 import Swal from 'sweetalert2';
 
 const POLLING_INTERVAL_MS = 60000;
-const ACTIVE_SECTOR_IDS = new Set(['pnp', 'drrmo']);
-
-const TEAM_OPTIONS_BY_SECTOR = {
-  pnp: [
-    { value: 'pnp-patrol-alpha', label: 'Patrol Alpha' },
-    { value: 'pnp-patrol-bravo', label: 'Patrol Bravo' },
-    { value: 'pnp-traffic-unit', label: 'Traffic Unit' },
-  ],
-  drrmo: [
-    { value: 'drrmo-rescue-alpha', label: 'Rescue Alpha' },
-    { value: 'drrmo-medical-alpha', label: 'Medical Alpha' },
-    { value: 'drrmo-fire-support', label: 'Fire Support' },
-  ],
-};
-
-function getDefaultSectorId(emergencyType) {
-  return String(emergencyType || '').toLowerCase() === 'police' ? 'pnp' : 'drrmo';
-}
 
 function mapStatusFilterToApi(value) {
   if (value === 'Pending') return 'pending';
@@ -106,13 +88,10 @@ export function DashboardPage() {
   const [itemsPerPage, setItemsPerPage] = useState(Number(persistedFilterState.itemsPerPage) || 5);
   const [pageSizeSelectOpen, setPageSizeSelectOpen] = useState(false);
 
-  // Verify & Assign modal (new incidents must be verified and assigned to a department first)
-  const [verifyAssignModalOpen, setVerifyAssignModalOpen] = useState(false);
-  const [verifyAssignIncident, setVerifyAssignIncident] = useState(null);
-  const [assignDepartmentId, setAssignDepartmentId] = useState('');
-  const [assignTeamName, setAssignTeamName] = useState('');
-  const [assignSelectOpen, setAssignSelectOpen] = useState(false);
-  const [assignTeamSelectOpen, setAssignTeamSelectOpen] = useState(false);
+  // Verify-only modal (incident verification on blockchain)
+  const [verifyModalOpen, setVerifyModalOpen] = useState(false);
+  const [verifyIncidentTarget, setVerifyIncidentTarget] = useState(null);
+  const [verifyInProgress, setVerifyInProgress] = useState(false);
 
   const fetchIncidents = useCallback(async () => {
     if (Date.now() < rateLimitUntilRef.current) {
@@ -270,13 +249,6 @@ export function DashboardPage() {
     setCurrentPage(1);
   }, [filterType, filterStatus, filterSeverity, filterBarangay]);
 
-  useEffect(() => {
-    const teams = TEAM_OPTIONS_BY_SECTOR[assignDepartmentId] || [];
-    if (!teams.some((team) => team.value === assignTeamName)) {
-      setAssignTeamName(teams[0]?.value || '');
-    }
-  }, [assignDepartmentId]);
-
   // Severity: Critical #FF4F52, Warning amber, Resolved/Low muted green (dark theme)
   const getSeverityColor = (severity) => {
     switch (severity) {
@@ -313,11 +285,9 @@ export function DashboardPage() {
     }
   };
 
-  const departments = (departmentsList || []).filter((d) => ACTIVE_SECTOR_IDS.has(d.id));
-  const selectedTeamOptions = TEAM_OPTIONS_BY_SECTOR[assignDepartmentId] || [];
   const currentUser = JSON.parse(sessionStorage.getItem('user') || '{}');
   const normalizedRole = normalizeRole(currentUser.role);
-  const canVerifyAndAssign = (
+  const canVerify = (
     normalizedRole === ROLES.SUPER_ADMIN
     || normalizedRole === ROLES.DISPATCHER
     || normalizedRole === ROLES.DEPARTMENT_ADMIN
@@ -327,37 +297,26 @@ export function DashboardPage() {
   const [incidentToLinkAsDuplicate, setIncidentToLinkAsDuplicate] = useState(null);
   const [linkDuplicateInProgress, setLinkDuplicateInProgress] = useState(false);
 
-  const openVerifyAssignModal = (incident) => {
-    const defaultDepartmentId = incident.assignedDepartmentId || getDefaultSectorId(incident.emergencyType);
-    setVerifyAssignIncident(incident);
-    setAssignDepartmentId(defaultDepartmentId);
-    setAssignTeamName((TEAM_OPTIONS_BY_SECTOR[defaultDepartmentId] || [])[0]?.value || '');
-    setVerifyAssignModalOpen(true);
+  const openVerifyModal = (incident) => {
+    setVerifyIncidentTarget(incident);
+    setVerifyModalOpen(true);
   };
 
-  const closeVerifyAssignModal = () => {
-    setVerifyAssignModalOpen(false);
-    setVerifyAssignIncident(null);
-    setAssignDepartmentId('');
-    setAssignTeamName('');
-    setAssignSelectOpen(false);
-    setAssignTeamSelectOpen(false);
+  const closeVerifyModal = () => {
+    setVerifyModalOpen(false);
+    setVerifyIncidentTarget(null);
   };
 
-  const submitVerifyAndAssign = async () => {
-    if (!verifyAssignIncident || !assignDepartmentId || !assignTeamName) return;
-    const dept = departments.find((d) => d.id === assignDepartmentId);
-    const assignedDepartment = dept ? dept.name : '';
-    const defaultDepartmentId = getDefaultSectorId(verifyAssignIncident.emergencyType);
-    const wasDefaultDepartment = defaultDepartmentId === assignDepartmentId;
+  const submitVerifyOnly = async () => {
+    if (!verifyIncidentTarget) return;
     const confirm = await Swal.fire({
-      title: 'Confirm verification',
-      html: `Assign incident <strong>${verifyAssignIncident.id}</strong> to <strong>${assignedDepartment}</strong> (${assignTeamName})?`,
+      title: 'Verify incident',
+      html: `Verify incident <strong>${verifyIncidentTarget.id}</strong> on the blockchain?`,
       icon: 'question',
       showCancelButton: true,
       confirmButtonColor: '#134178',
       cancelButtonColor: '#6b7280',
-      confirmButtonText: 'Verify & Assign',
+      confirmButtonText: 'Verify',
       cancelButtonText: 'Cancel',
       customClass: { popup: 'rounded-2xl shadow-xl', title: 'text-foreground text-xl', htmlContainer: 'text-muted' },
     });
@@ -365,47 +324,26 @@ export function DashboardPage() {
     if (!confirm.isConfirmed) return;
 
     let rollbackSnapshot = null;
+    setVerifyInProgress(true);
     try {
       rollbackSnapshot = incidents;
       setIncidents((prev) =>
         prev.map((inc) =>
-          inc.id === verifyAssignIncident.id
-            ? {
-                ...inc,
-                verified: true,
-                status: 'Verified',
-                assignedDepartmentId: assignDepartmentId,
-                assignedDepartment,
-                assignedTeamName: assignTeamName,
-              }
-            : inc
+          inc.id === verifyIncidentTarget.id ? { ...inc, verified: true, status: 'Verified' } : inc
         )
       );
-      const numericId = /^\d+$/.test(String(verifyAssignIncident.id));
+      const numericId = /^\d+$/.test(String(verifyIncidentTarget.id));
       const token = sessionStorage.getItem('token');
       if (numericId && token) {
-        await verifyIncident(verifyAssignIncident.id);
-        const assignmentResult = await createDispatch({
-          report_id: Number(verifyAssignIncident.id),
-          department_code: assignDepartmentId,
-          department_name: assignedDepartment,
-          team_name: assignTeamName,
-          default_department_code: defaultDepartmentId,
-          was_default_department: wasDefaultDepartment,
-          response_status: 'assigned',
-        });
-        const assignedCount = Number(assignmentResult?.assignment_summary?.assigned_count || 0);
-        if (assignedCount === 0) {
-          throw new Error('No available or standby responders found for the selected team.');
-        }
+        await verifyIncident(verifyIncidentTarget.id);
       }
 
-      closeVerifyAssignModal();
-      window.dispatchEvent(new CustomEvent('incident:updated', { detail: { incidentId: verifyAssignIncident.id } }));
+      closeVerifyModal();
+      window.dispatchEvent(new CustomEvent('incident:updated', { detail: { incidentId: verifyIncidentTarget.id } }));
       Swal.fire({
         icon: 'success',
         title: 'Incident verified',
-        text: `Assigned to ${assignedDepartment} (${assignTeamName}) using auto-team assignment.`,
+        text: 'Incident has been verified on the blockchain.',
         timer: 2500,
         showConfirmButton: false,
         timerProgressBar: true,
@@ -417,10 +355,12 @@ export function DashboardPage() {
       }
       await Swal.fire({
         icon: 'error',
-        title: 'Verify & assign failed',
-        text: err.message || 'Unable to complete verification and assignment.',
+        title: 'Verification failed',
+        text: err.message || 'Unable to verify incident.',
         confirmButtonColor: '#134178',
       });
+    } finally {
+      setVerifyInProgress(false);
     }
   };
 
@@ -453,7 +393,6 @@ export function DashboardPage() {
     { value: 'Critical', label: 'Critical' },
     { value: 'Warning', label: 'Warning' },
     { value: 'Low', label: 'Low' },
-    { value: 'Resolved', label: 'Resolved' },
   ];
 
   const heroCardClass = `rounded-3xl border overflow-hidden transition-all duration-300 ${isLight ? 'glass neumorphic-light bg-white/80 border-gray-200/80 shadow-[8px_8px_24px_rgba(209,213,219,0.5),-8px_-8px_24px_rgba(255,255,255,0.9)]' : 'glass neumorphic-dark bg-card/60 border-white/10 shadow-[8px_8px_24px_rgba(0,0,0,0.35),-6px_-6px_20px_rgba(19,65,120,0.2)]'}`;
@@ -462,6 +401,7 @@ export function DashboardPage() {
   return (
     <Layout>
       <div className="p-2 sm:p-3 md:p-4 max-w-7xl mx-auto min-h-[calc(100dvh-96px)] flex flex-col gap-2 md:gap-3">
+        <Breadcrumb items={[{ label: 'Home', path: '/dashboard' }, { label: 'Dashboard' }]} />
         <div className={heroCardClass}>
           <div className="px-3 sm:px-4 py-2.5 sm:py-3 flex flex-wrap items-center justify-between gap-2">
             <div className={heroIconClass}>
@@ -780,32 +720,34 @@ export function DashboardPage() {
                           </td>
                           <td className="py-2.5 px-3 text-sm text-muted">{incident.timeReported}</td>
                           <td className="py-2.5 px-3">
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-2">
                               <Button
                                 size="sm"
-                                variant="ghost"
-                                className="h-8 w-8 p-0 rounded-lg text-foreground/80 hover:bg-primary/15 hover:text-primary transition-all"
+                                variant="outline"
+                                className="h-9 px-3 rounded-lg text-foreground border-primary/40 hover:bg-primary/10 hover:text-primary transition-all gap-1.5"
                                 onClick={(e) => { e.stopPropagation(); navigate(`/incidents/${incident.id}`); }}
                                 title="View Details"
                               >
                                 <ExternalLink className="w-4 h-4" strokeWidth={2} />
+                                View
                               </Button>
-                              {canVerifyAndAssign && !incident.verified && (
+                              {canVerify && !incident.verified && (
                                 <Button
                                   size="sm"
-                                  variant="ghost"
-                                  className="h-8 w-8 p-0 rounded-lg text-severity-resolved hover:bg-severity-resolved/20 transition-all"
-                                  onClick={(e) => { e.stopPropagation(); openVerifyAssignModal(incident); }}
-                                  title="Verify & Assign to Department"
+                                  variant="default"
+                                  className="h-9 px-3 rounded-lg bg-severity-resolved hover:bg-severity-resolved/90 text-white border-0 gap-1.5"
+                                  onClick={(e) => { e.stopPropagation(); openVerifyModal(incident); }}
+                                  title="Verify Incident"
                                 >
                                   <CircleCheck className="w-4 h-4" strokeWidth={2} />
+                                  Verify
                                 </Button>
                               )}
                               {canManageDuplicates && !incident.isDuplicate && /^\d+$/.test(String(incident.id)) && (
                                 <Button
                                   size="sm"
-                                  variant="ghost"
-                                  className="h-8 w-8 p-0 rounded-lg text-amber-600 hover:bg-amber-500/20 transition-all"
+                                  variant="outline"
+                                  className="h-9 px-3 rounded-lg text-amber-600 border-amber-500/40 hover:bg-amber-500/20 transition-all gap-1.5"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     setIncidentToLinkAsDuplicate(incident);
@@ -814,6 +756,7 @@ export function DashboardPage() {
                                   title="Mark as duplicate"
                                 >
                                   <Merge className="w-4 h-4" strokeWidth={2} />
+                                  Duplicate
                                 </Button>
                               )}
                             </div>
@@ -829,89 +772,28 @@ export function DashboardPage() {
           </div>
         </div>
 
-        {/* Verify & Assign Modal — new incidents must be verified and assigned before department can update */}
-        <Dialog open={verifyAssignModalOpen} onOpenChange={(open) => !open && closeVerifyAssignModal()} className="max-w-md">
+        {/* Verify Modal — incident verification on blockchain */}
+        <Dialog open={verifyModalOpen} onOpenChange={(open) => !open && closeVerifyModal()} className="max-w-md">
           <DialogContent className="max-w-md">
             <DialogHeader>
-              <DialogTitle>Verify & Assign Incident</DialogTitle>
+              <DialogTitle>Verify Incident</DialogTitle>
               <DialogDescription>
-                Verify this incident and assign it to a department. The department will then be able to give updates to the super admin.
+                Verify this incident on the blockchain. This records the incident for audit and authenticity.
               </DialogDescription>
             </DialogHeader>
-            {verifyAssignIncident && (
+            {verifyIncidentTarget && (
               <div className="space-y-4 mt-4">
                 <div className="rounded-xl border border-border/50 p-3 bg-muted/20">
-                  <p className="text-sm font-medium text-foreground">{verifyAssignIncident.id}</p>
-                  <p className="text-sm text-muted">{verifyAssignIncident.reporterName} · {verifyAssignIncident.emergencyType} · {verifyAssignIncident.severity}</p>
-                  {verifyAssignIncident.barangay && <p className="text-xs text-muted mt-1">{verifyAssignIncident.barangay}</p>}
+                  <p className="text-sm font-medium text-foreground">{verifyIncidentTarget.id}</p>
+                  <p className="text-sm text-muted">{verifyIncidentTarget.reporterName} · {verifyIncidentTarget.emergencyType} · {verifyIncidentTarget.severity}</p>
+                  {verifyIncidentTarget.barangay && <p className="text-xs text-muted mt-1">{verifyIncidentTarget.barangay}</p>}
                 </div>
-                <div>
-                  <Label className="text-foreground">Sector *</Label>
-                  <Select value={assignDepartmentId} onValueChange={setAssignDepartmentId} open={assignSelectOpen} onOpenChange={setAssignSelectOpen}>
-                    {({ value, onValueChange, dropdownRect }) => (
-                      <>
-                        <SelectTrigger
-                          isOpen={assignSelectOpen}
-                          onClick={() => setAssignSelectOpen((o) => !o)}
-                          className="mt-1.5"
-                        >
-                          <SelectValue
-                            value={value}
-                            options={[{ value: '', label: 'Select sector' }, ...departments.map((d) => ({ value: d.id, label: d.name }))]}
-                            placeholder="Select sector"
-                          />
-                        </SelectTrigger>
-                        <SelectContent isOpen={assignSelectOpen} dropdownRect={dropdownRect}>
-                          <SelectItem value="" onSelect={() => { setAssignDepartmentId(''); setAssignSelectOpen(false); }}>Select sector</SelectItem>
-                          {departments.map((d) => (
-                            <SelectItem key={d.id} value={d.id} onSelect={(v) => { setAssignDepartmentId(v); setAssignSelectOpen(false); }}>{d.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </>
-                    )}
-                  </Select>
-                  {verifyAssignIncident && (
-                    <p className="text-xs text-muted mt-1">
-                      Default by classification: {getDefaultSectorId(verifyAssignIncident.emergencyType) === 'pnp' ? 'Police' : 'CDRRMO'} (editable)
-                    </p>
-                  )}
-                </div>
-                <div>
-                  <Label className="text-foreground">Team *</Label>
-                  <Select value={assignTeamName} onValueChange={setAssignTeamName} open={assignTeamSelectOpen} onOpenChange={setAssignTeamSelectOpen}>
-                    {({ value }) => (
-                      <>
-                        <SelectTrigger
-                          isOpen={assignTeamSelectOpen}
-                          onClick={() => setAssignTeamSelectOpen((o) => !o)}
-                          className="mt-1.5"
-                        >
-                          <SelectValue
-                            value={value}
-                            options={[{ value: '', label: 'Select team' }, ...selectedTeamOptions]}
-                            placeholder="Select team"
-                          />
-                        </SelectTrigger>
-                        <SelectContent isOpen={assignTeamSelectOpen}>
-                          <SelectItem value="" onSelect={() => { setAssignTeamName(''); setAssignTeamSelectOpen(false); }}>Select team</SelectItem>
-                          {selectedTeamOptions.map((t) => (
-                            <SelectItem key={t.value} value={t.value} onSelect={(v) => { setAssignTeamName(v); setAssignTeamSelectOpen(false); }}>
-                              {t.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </>
-                    )}
-                  </Select>
-                </div>
-                <p className="text-xs text-muted">
-                  Responders are now auto-assigned by backend based on available/standby members in the selected team.
-                </p>
                 <DialogFooter>
-                  <Button onClick={submitVerifyAndAssign} disabled={!assignDepartmentId || !assignTeamName} className="bg-primary text-white hover:bg-primary-hover">
-                    Verify & Assign
+                  <Button onClick={submitVerifyOnly} disabled={verifyInProgress} className="bg-primary text-white hover:bg-primary-hover">
+                    {verifyInProgress ? <Loader2 className="w-4 h-4 animate-spin" /> : <CircleCheck className="w-4 h-4" />}
+                    {verifyInProgress ? 'Verifying...' : 'Verify'}
                   </Button>
-                  <Button variant="outline" onClick={closeVerifyAssignModal}>Cancel</Button>
+                  <Button variant="outline" onClick={closeVerifyModal} disabled={verifyInProgress}>Cancel</Button>
                 </DialogFooter>
               </div>
             )}
