@@ -21,9 +21,10 @@ import {
   Settings,
   ListChecks,
 } from 'lucide-react';
-import { adminActionLogs, incidents, barangays, disasterControlMode } from '@/data/mock/mockData';
+import { incidents, barangays, disasterControlMode } from '@/data/mock/mockData';
+import { getAdminLogs } from '@/data/api/auditLog.api';
 import { ROLES, normalizeRole } from '@/core/constants';
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
@@ -40,21 +41,47 @@ export function AdminActionsPage() {
   const [autoEscalate, setAutoEscalate] = useState(false);
   const [filterAction, setFilterAction] = useState('all');
   const [filterUser, setFilterUser] = useState('all');
+  const [adminLogs, setAdminLogs] = useState([]);
+  const [adminLogsLoading, setAdminLogsLoading] = useState(true);
+  const [adminLogsError, setAdminLogsError] = useState(null);
   const [selectStates, setSelectStates] = useState({
     disasterType: false,
     filterAction: false,
     filterUser: false,
   });
 
-  const duplicateIncidents = incidents.filter(inc => 
+  const fetchAdminLogs = useCallback(async () => {
+    setAdminLogsLoading(true);
+    setAdminLogsError(null);
+    try {
+      const data = await getAdminLogs({
+        limit: 100,
+        offset: 0,
+        action: filterAction !== 'all' ? filterAction : undefined,
+      });
+      setAdminLogs(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setAdminLogsError(err.message || 'Failed to load admin logs');
+      setAdminLogs([]);
+    } finally {
+      setAdminLogsLoading(false);
+    }
+  }, [filterAction]);
+
+  useEffect(() => {
+    fetchAdminLogs();
+  }, [fetchAdminLogs]);
+
+  const duplicateIncidents = incidents.filter(inc =>
     inc.status === 'Duplicate' || (inc.possibleDuplicates && inc.possibleDuplicates.length > 0)
   );
 
-  const adminUsers = [...new Set(adminActionLogs.map(log => log.adminUser))];
+  const adminUsers = [...new Set(adminLogs.map(log => log.user_email || [log.user_first_name, log.user_last_name].filter(Boolean).join(' ') || `User #${log.user_id}`))];
 
-  const filteredLogs = adminActionLogs.filter(log => {
+  const filteredLogs = adminLogs.filter(log => {
     const actionMatch = filterAction === 'all' || log.action === filterAction;
-    const userMatch = filterUser === 'all' || log.adminUser === filterUser;
+    const adminLabel = log.user_email || [log.user_first_name, log.user_last_name].filter(Boolean).join(' ') || `User #${log.user_id}`;
+    const userMatch = filterUser === 'all' || adminLabel === filterUser;
     return actionMatch && userMatch;
   });
 
@@ -131,12 +158,42 @@ export function AdminActionsPage() {
 
   const actionFilterOptions = [
     { value: 'all', label: 'All Actions' },
-    { value: 'Severity Escalation', label: 'Severity Escalation' },
-    { value: 'Department Addition', label: 'Department Addition' },
-    { value: 'Mark as Duplicate', label: 'Mark as Duplicate' },
-    { value: 'Role Change', label: 'Role Change' },
-    { value: 'Incident Closure', label: 'Incident Closure' },
+    { value: 'user_create', label: 'User created' },
+    { value: 'user_role_update', label: 'Role change' },
+    { value: 'user_deactivate', label: 'User deactivated' },
+    { value: 'user_delete', label: 'User deleted' },
+    { value: 'user_read', label: 'User read' },
+    { value: 'users_list', label: 'Users list' },
+    { value: 'stats_view', label: 'Stats view' },
   ];
+
+  function formatActionLabel(action) {
+    const opt = actionFilterOptions.find((o) => o.value === action);
+    return opt ? opt.label : (action || '—').replace(/_/g, ' ');
+  }
+
+  function formatTimestamp(ts) {
+    if (!ts) return '—';
+    const d = new Date(ts);
+    if (isNaN(d.getTime())) return ts;
+    return d.toLocaleString('en-US', {
+      month: 'numeric',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true,
+    });
+  }
+
+  function formatDetailsForDisplay(details) {
+    if (details == null) return '—';
+    const parsed = typeof details === 'object' ? details : (typeof details === 'string' && details.trim().startsWith('{') ? (() => { try { return JSON.parse(details); } catch { return null; } })() : null);
+    if (!parsed || typeof parsed !== 'object') return details != null ? String(details) : '—';
+    const entries = Object.entries(parsed).filter(([, v]) => v != null && v !== '');
+    return entries.length > 0 ? entries.map(([k, v]) => `${k}: ${v}`).join(', ') : '—';
+  }
 
   const { theme } = useTheme();
   const isLight = theme === 'light';
@@ -178,16 +235,18 @@ export function AdminActionsPage() {
           </Alert>
         )}
 
-        <Tabs defaultValue="disaster" className="space-y-6">
+        <Tabs defaultValue="logs" className="space-y-6">
           <div className={`w-full rounded-xl p-1 ${isLight ? 'glass neumorphic-light bg-white/80' : 'glass neumorphic-dark bg-card/60'}`}>
             <TabsList className="flex w-full rounded-xl border-0 bg-transparent p-0 gap-1 h-11">
-              <TabsTrigger value="disaster" className="rounded-lg flex-1 min-w-0">Disaster Control</TabsTrigger>
+              {/* Disaster Control tab hidden for now - re-enable when ready */}
+              {/* <TabsTrigger value="disaster" className="rounded-lg flex-1 min-w-0">Disaster Control</TabsTrigger> */}
               <TabsTrigger value="duplicates" className="rounded-lg flex-1 min-w-0">Duplicate Management</TabsTrigger>
               <TabsTrigger value="logs" className="rounded-lg flex-1 min-w-0">Admin Logs</TabsTrigger>
             </TabsList>
           </div>
 
-          <TabsContent value="disaster">
+          {/* Disaster Control tab content - hidden for now */}
+          {false && <TabsContent value="disaster">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2">
                 <div className={`${panelClass} ${disasterMode ? (isLight ? 'border-red-300' : 'border-red-500/40') : ''}`}>
@@ -364,7 +423,7 @@ export function AdminActionsPage() {
                 </div>
               </div>
             </div>
-          </TabsContent>
+          </TabsContent>}
 
           <TabsContent value="duplicates">
             <div className={panelClass}>
@@ -468,38 +527,57 @@ export function AdminActionsPage() {
                 </div>
               </div>
               <div className="p-4">
+                {adminLogsError && (
+                  <div className="mb-4 p-3 rounded-xl bg-destructive/10 text-destructive text-sm border border-destructive/20">
+                    {adminLogsError}
+                  </div>
+                )}
+                {adminLogsLoading ? (
+                  <div className="py-12 flex flex-col items-center justify-center gap-3 text-muted">
+                    <ListChecks className="w-10 h-10 animate-pulse" strokeWidth={2} />
+                    <span>Loading admin logs...</span>
+                  </div>
+                ) : (
                 <div className="space-y-3">
-                  {filteredLogs.map((log) => (
+                  {filteredLogs.map((log) => {
+                    const details = typeof log.details === 'object' ? log.details : (typeof log.details === 'string' && log.details.trim().startsWith('{') ? (() => { try { return JSON.parse(log.details); } catch { return {}; } })() : {});
+                    const adminLabel = log.user_email || [log.user_first_name, log.user_last_name].filter(Boolean).join(' ') || `User #${log.user_id}`;
+                    const incidentId = log.resource_id ?? details?.report_id ?? details?.incident_id ?? details?.user_id;
+                    return (
                     <div
                       key={log.id}
                       className={`rounded-xl border p-4 transition-all duration-200 ${isLight ? 'bg-gray-50/80 border-gray-200/80 hover:border-primary/30' : 'bg-white/5 border-white/10 hover:border-primary/30'}`}
                     >
                       <div className="flex items-start justify-between mb-2">
                         <div className="flex items-center gap-2">
-                          {log.action === 'Severity Escalation' && <span className={iconSmClass()}><TrendingUp className="w-4 h-4" strokeWidth={2} /></span>}
-                          {log.action === 'Department Addition' && <span className={iconSmClass()}><Users className="w-4 h-4" strokeWidth={2} /></span>}
-                          {log.action === 'Mark as Duplicate' && <span className={iconSmClass()}><Copy className="w-4 h-4" strokeWidth={2} /></span>}
-                          {log.action === 'Role Change' && <span className={iconSmClass()}><Shield className="w-4 h-4" strokeWidth={2} /></span>}
-                          {log.action === 'Incident Closure' && <span className={iconSmClass()}><CheckCircle className="w-4 h-4" strokeWidth={2} /></span>}
-                          {!['Severity Escalation', 'Department Addition', 'Mark as Duplicate', 'Role Change', 'Incident Closure'].includes(log.action) && <span className={iconSmClass()}><FileText className="w-4 h-4" strokeWidth={2} /></span>}
+                          {(log.action === 'user_role_update' || log.action === 'user_deactivate' || log.action === 'user_delete') && <span className={iconSmClass()}><Shield className="w-4 h-4" strokeWidth={2} /></span>}
+                          {log.action === 'user_create' && <span className={iconSmClass()}><Users className="w-4 h-4" strokeWidth={2} /></span>}
+                          {log.action === 'stats_view' && <span className={iconSmClass()}><TrendingUp className="w-4 h-4" strokeWidth={2} /></span>}
+                          {!['user_role_update', 'user_deactivate', 'user_delete', 'user_create', 'stats_view'].includes(log.action) && <span className={iconSmClass()}><FileText className="w-4 h-4" strokeWidth={2} /></span>}
                           <Badge variant="outline" className="rounded-lg text-xs border-border bg-primary/5 text-primary">
-                            {log.action}
+                            {formatActionLabel(log.action)}
                           </Badge>
                         </div>
-                        <span className="text-xs text-muted">{log.timestamp}</span>
+                        <span className="text-xs text-muted">{formatTimestamp(log.created_at)}</span>
                       </div>
                       <div className="space-y-1 mb-2">
-                        <p className="text-sm text-foreground"><strong>Admin:</strong> {log.adminUser}</p>
-                        <p className="text-sm text-foreground"><strong>Details:</strong> {log.details}</p>
-                        <p className="text-sm text-muted"><strong>Reason:</strong> {log.reason}</p>
+                        <p className="text-sm text-foreground"><strong>Admin:</strong> {adminLabel}</p>
+                        <p className="text-sm text-foreground"><strong>Details:</strong> {formatDetailsForDisplay(log.details)}</p>
+                        {details?.reason && <p className="text-sm text-muted"><strong>Reason:</strong> {details.reason}</p>}
                       </div>
-                      {log.affectedIncident && (
-                        <Button size="sm" variant="link" className="p-0 h-auto text-xs text-primary" onClick={() => navigate(`/incidents/${log.affectedIncident}`)}>
-                          View Incident {log.affectedIncident} →
+                      {incidentId && log.resource_type === 'incident' && (
+                        <Button size="sm" variant="link" className="p-0 h-auto text-xs text-primary" onClick={() => navigate(`/incidents/${incidentId}`)}>
+                          View Incident {incidentId} →
+                        </Button>
+                      )}
+                      {incidentId && log.resource_type === 'user' && (
+                        <Button size="sm" variant="link" className="p-0 h-auto text-xs text-primary" onClick={() => navigate(`/admin/users`)}>
+                          View user #{incidentId} →
                         </Button>
                       )}
                     </div>
-                  ))}
+                    );
+                  })}
                   {filteredLogs.length === 0 && (
                     <div className="text-center py-12">
                       <span className={`inline-flex w-14 h-14 rounded-2xl items-center justify-center mb-4 ${isLight ? 'neumorphic-light-inset bg-gray-100 text-muted' : 'neumorphic-dark-inset bg-white/10 text-muted'}`}>
@@ -509,6 +587,7 @@ export function AdminActionsPage() {
                     </div>
                   )}
                 </div>
+                )}
               </div>
             </div>
           </TabsContent>

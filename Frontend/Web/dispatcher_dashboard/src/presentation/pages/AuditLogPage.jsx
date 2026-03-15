@@ -14,6 +14,7 @@ import {
   ChevronLeft,
   ChevronRight,
   RefreshCw,
+  Link2,
 } from 'lucide-react';
 import { getAuditLogs } from '@/data/api/auditLog.api';
 import { useState, useEffect, useCallback } from 'react';
@@ -29,6 +30,7 @@ const ACTION_OPTIONS = [
   { value: 'dispatch_create', label: 'Dispatch created' },
   { value: 'dispatch_update', label: 'Dispatch updated' },
   { value: 'dispatch_delete', label: 'Dispatch deleted' },
+  { value: 'incident_verify', label: 'Blockchain verified' },
 ];
 
 const RESOURCE_OPTIONS = [
@@ -58,6 +60,49 @@ function formatActionLabel(action) {
   return opt ? opt.label : (action || '—').replace(/_/g, ' ');
 }
 
+function truncateHash(hash, len = 10) {
+  if (!hash || typeof hash !== 'string') return '—';
+  const s = hash.startsWith('0x') ? hash : `0x${hash}`;
+  if (s.length <= len + 2) return s;
+  return `${s.slice(0, len)}...`;
+}
+
+function parseDetails(details) {
+  if (details == null) return null;
+  if (typeof details === 'object') return details;
+  if (typeof details === 'string') {
+    const t = details.trim();
+    if ((t.startsWith('{') && t.endsWith('}')) || (t.startsWith('[') && t.endsWith(']'))) {
+      try {
+        return JSON.parse(details);
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  }
+  return null;
+}
+
+function formatDetailsForDisplay(log) {
+  const details = parseDetails(log.details);
+  if (!details || typeof details !== 'object') {
+    return log.details != null && typeof log.details === 'string' ? log.details : '—';
+  }
+  const isBlockchain = log.action === 'incident_verify' && (details.tx_hash || details.block_number != null);
+  if (isBlockchain) {
+    const parts = [];
+    if (details.block_number != null) parts.push(`Block #${details.block_number}`);
+    if (details.tx_hash) parts.push(truncateHash(details.tx_hash));
+    parts.push('Blockchain Verified');
+    return parts.join(' · ');
+  }
+  const entries = Object.entries(details).filter(([, v]) => v != null && v !== '');
+  return entries.length > 0
+    ? entries.map(([k, v]) => `${k}: ${v}`).join(', ')
+    : '—';
+}
+
 export function AuditLogPage() {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -70,6 +115,7 @@ export function AuditLogPage() {
   const [itemsPerPage, setItemsPerPage] = useState(5);
   const [pageSizeSelectOpen, setPageSizeSelectOpen] = useState(false);
   const [selectStates, setSelectStates] = useState({ action: false, resource: false });
+  const [activeTab, setActiveTab] = useState('all');
 
   const fetchLogs = useCallback(async () => {
     setLoading(true);
@@ -98,15 +144,17 @@ export function AuditLogPage() {
     fetchLogs();
   }, [fetchLogs]);
 
-  const totalPages = Math.ceil(logs.length / itemsPerPage) || 1;
+  const blockchainLogs = logs.filter((l) => l.action === 'incident_verify');
+  const allLogsForTab = activeTab === 'blockchain' ? blockchainLogs : logs;
+  const totalPages = Math.ceil(allLogsForTab.length / itemsPerPage) || 1;
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedLogs = logs.slice(startIndex, startIndex + itemsPerPage);
-  const pageStart = logs.length === 0 ? 0 : startIndex + 1;
-  const pageEnd = Math.min(startIndex + itemsPerPage, logs.length);
+  const paginatedLogs = allLogsForTab.slice(startIndex, startIndex + itemsPerPage);
+  const pageStart = allLogsForTab.length === 0 ? 0 : startIndex + 1;
+  const pageEnd = Math.min(startIndex + itemsPerPage, allLogsForTab.length);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [filterAction, filterResourceType, filterFrom, filterTo]);
+  }, [filterAction, filterResourceType, filterFrom, filterTo, activeTab]);
 
   const { theme } = useTheme();
   const isLight = theme === 'light';
@@ -114,9 +162,7 @@ export function AuditLogPage() {
     if (!logs.length) return;
     const header = ['timestamp', 'user', 'action', 'resource_type', 'resource_id', 'details'];
     const rows = logs.map((log) => {
-      const details = log.details && typeof log.details === 'object'
-        ? JSON.stringify(log.details)
-        : (log.details != null ? String(log.details) : '');
+      const details = formatDetailsForDisplay(log);
       const userValue = log.user_email || ([log.user_first_name, log.user_last_name].filter(Boolean).join(' ') || (log.user_id != null ? `User #${log.user_id}` : ''));
       return [
         formatTimestamp(log.created_at),
@@ -308,7 +354,26 @@ export function AuditLogPage() {
             <span className={iconBoxClass('primary')}>
               <ListChecks className="w-5 h-5" strokeWidth={2} />
             </span>
-            <span className="font-medium text-foreground">Activity log ({logs.length})</span>
+            <span className="font-medium text-foreground flex-1">
+              {activeTab === 'blockchain' ? `Blockchain logs (${blockchainLogs.length})` : `Activity log (${logs.length})`}
+            </span>
+            <div className={`flex rounded-xl p-1 gap-1 ${isLight ? 'bg-gray-100/80' : 'bg-white/10'}`}>
+              <button
+                type="button"
+                onClick={() => setActiveTab('all')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 ${activeTab === 'all' ? (isLight ? 'bg-white text-foreground shadow-sm' : 'bg-white/20 text-foreground') : 'text-muted hover:text-foreground'}`}
+              >
+                All Logs
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('blockchain')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 ${activeTab === 'blockchain' ? (isLight ? 'bg-white text-foreground shadow-sm' : 'bg-white/20 text-foreground') : 'text-muted hover:text-foreground'}`}
+              >
+                <Link2 className="w-4 h-4" strokeWidth={2} />
+                Blockchain Logs
+              </button>
+            </div>
           </div>
           <div className="p-4">
             {error && (
@@ -323,7 +388,7 @@ export function AuditLogPage() {
               </div>
             ) : (
               <>
-                {logs.length > 0 && (
+                {allLogsForTab.length > 0 && (
                   <div className={`px-2 sm:px-3 py-2 mb-3 rounded-xl border ${isLight ? 'border-gray-200/80 bg-gray-50/20' : 'border-white/10 bg-white/[0.02]'}`}>
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="flex flex-wrap items-center gap-2">
@@ -373,7 +438,7 @@ export function AuditLogPage() {
                             </>
                           )}
                         </Select>
-                        <span className="text-xs text-muted sm:ml-1">Showing {pageStart}-{pageEnd} of {logs.length}</span>
+                        <span className="text-xs text-muted sm:ml-1">Showing {pageStart}-{pageEnd} of {allLogsForTab.length}</span>
                       </div>
 
                       <div className="flex flex-wrap items-center gap-2">
@@ -430,14 +495,22 @@ export function AuditLogPage() {
                         <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider text-muted">Action</th>
                         <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider text-muted">Resource</th>
                         <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider text-muted">Resource ID</th>
-                        <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider text-muted">Details</th>
+                        {activeTab === 'blockchain' ? (
+                          <>
+                            <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider text-muted">Block</th>
+                            <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider text-muted">Tx Hash</th>
+                            <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider text-muted">Status</th>
+                          </>
+                        ) : (
+                          <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider text-muted">Details</th>
+                        )}
                       </tr>
                     </thead>
                     <tbody>
                       {paginatedLogs.length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="py-12 text-center text-muted">
-                            No audit log entries found.
+                          <td colSpan={activeTab === 'blockchain' ? 9 : 6} className="py-12 text-center text-muted">
+                            {activeTab === 'blockchain' ? 'No blockchain verification logs found.' : 'No audit log entries found.'}
                           </td>
                         </tr>
                       ) : (
@@ -461,13 +534,25 @@ export function AuditLogPage() {
                             <td className="py-4 px-4 text-sm font-mono text-muted">
                               {log.resource_id != null ? log.resource_id : '—'}
                             </td>
-                            <td className="py-4 px-4 text-sm text-muted max-w-[200px] truncate" title={log.details ? JSON.stringify(log.details) : ''}>
-                              {log.details && typeof log.details === 'object'
-                                ? Object.entries(log.details)
-                                    .map(([k, v]) => `${k}: ${v}`)
-                                    .join(', ') || '—'
-                                : log.details != null ? String(log.details) : '—'}
-                            </td>
+                            {activeTab === 'blockchain' ? (
+                              <>
+                                <td className="py-4 px-4 text-sm font-mono text-muted">
+                                  {log.details?.block_number != null ? `#${log.details.block_number}` : '—'}
+                                </td>
+                                <td className="py-4 px-4 text-sm font-mono text-muted" title={log.details?.tx_hash || ''}>
+                                  {log.details?.tx_hash ? truncateHash(log.details.tx_hash) : '—'}
+                                </td>
+                                <td className="py-4 px-4">
+                                  <Badge variant="outline" className="rounded-lg border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                                    Blockchain Verified
+                                  </Badge>
+                                </td>
+                              </>
+                            ) : (
+                              <td className="py-4 px-4 text-sm text-muted max-w-[200px] truncate" title={log.details ? JSON.stringify(log.details) : ''}>
+                                {formatDetailsForDisplay(log)}
+                              </td>
+                            )}
                           </tr>
                         ))
                       )}

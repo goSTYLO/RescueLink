@@ -1345,9 +1345,19 @@ export function IncidentDetailsPage() {
             {latestVerificationMeta?.tx_hash && (
               <div className={`p-3 rounded-xl border ${isLight ? 'bg-emerald-50/80 border-emerald-200/80' : 'bg-emerald-500/10 border-emerald-500/30'}`}>
                 <p className="text-xs uppercase tracking-wide text-muted font-semibold mb-1">Latest Blockchain Verification</p>
-                <p className="text-sm text-foreground">
-                  Tx Hash: <span className="font-mono break-all">{latestVerificationMeta.tx_hash}</span>
-                </p>
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  <Badge variant="outline" className="rounded-lg border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                    Blockchain Verified
+                  </Badge>
+                  {latestVerificationMeta.block_number != null && (
+                    <span className="text-foreground">Block #{latestVerificationMeta.block_number}</span>
+                  )}
+                  <span className="font-mono text-muted" title={latestVerificationMeta.tx_hash}>
+                    {latestVerificationMeta.tx_hash.length > 12
+                      ? `${latestVerificationMeta.tx_hash.slice(0, 10)}...`
+                      : latestVerificationMeta.tx_hash}
+                  </span>
+                </div>
               </div>
             )}
 

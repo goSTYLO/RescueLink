@@ -98,7 +98,46 @@ const AuditLog = {
     params.push(cappedLimit, offset);
 
     const res = await pool.query(query, params);
-    return res.rows;
+    return res.rows.map(decodeAuditRow);
+  },
+
+  /**
+   * Find audit logs for admin users only (users with role = 'admin').
+   * Used for Admin Logs tab in Admin Actions page.
+   */
+  async findAdminLogs({ action = null, from = null, to = null, limit = 50, offset = 0 } = {}) {
+    const cappedLimit = Math.min(limit, 100);
+    let query = `
+      SELECT al.id, al.user_id, al.action, al.resource_type, al.resource_id, al.details, al.ip_address, al.user_agent, al.created_at,
+             u.email AS user_email, u.first_name AS user_first_name, u.last_name AS user_last_name
+      FROM dispatcher_audit_logs al
+      INNER JOIN users u ON al.user_id = u.user_id AND u.role = 'admin'
+      WHERE 1=1
+    `;
+    const params = [];
+    let paramCount = 0;
+
+    if (action) {
+      paramCount++;
+      query += ` AND al.action = $${paramCount}`;
+      params.push(action);
+    }
+    if (from) {
+      paramCount++;
+      query += ` AND al.created_at >= $${paramCount}`;
+      params.push(from);
+    }
+    if (to) {
+      paramCount++;
+      query += ` AND al.created_at <= $${paramCount}`;
+      params.push(to);
+    }
+
+    query += ` ORDER BY al.created_at DESC LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}`;
+    params.push(cappedLimit, offset);
+
+    const res = await pool.query(query, params);
+    return res.rows.map(decodeAuditRow);
   }
 };
 
