@@ -1,0 +1,122 @@
+[
+  {
+    "case_id": "P1",
+    "title": "Normal Input",
+    "steps": "Enter standard text report",
+    "expected": "< 200ms",
+    "pass": true,
+    "actual": "status=200, latency_ms=124.91",
+    "metrics": {
+      "status": 200,
+      "latency_ms": 124.91
+    },
+    "note": "Baseline normal text classify"
+  },
+  {
+    "case_id": "P2",
+    "title": "Long Input",
+    "steps": "Paste 1000+ characters",
+    "expected": "Process/Error",
+    "pass": true,
+    "actual": "status=200, latency_ms=212.33, length=1900",
+    "metrics": {
+      "status": 200,
+      "latency_ms": 212.33,
+      "length": 1900
+    },
+    "note": "Accepted if processed or safely rejected"
+  },
+  {
+    "case_id": "P3",
+    "title": "Empty Input",
+    "steps": "Submit blank field",
+    "expected": "Handle gracefully",
+    "pass": true,
+    "actual": "status=400, latency_ms=24.11",
+    "metrics": {
+      "status": 400,
+      "latency_ms": 24.11
+    },
+    "note": "Graceful validation expected"
+  },
+  {
+    "case_id": "P4",
+    "title": "AI Audio Throughput",
+    "steps": "Upload audio files of various durations",
+    "expected": "Process within reasonable time",
+    "pass": false,
+    "actual": "statuses=[503, 503, 503], avg_ms=31.12, p95_ms=43.42",
+    "metrics": {
+      "statuses": [
+        503,
+        503,
+        503
+      ],
+      "avg_ms": 31.12,
+      "p95_ms": 43.42,
+      "min_ms": 23.12,
+      "max_ms": 43.42
+    },
+    "note": "Audio test failed"
+  },
+  {
+    "case_id": "P5",
+    "title": "AI Audio Concurrent Load",
+    "steps": "Submit 5 simultaneous requests",
+    "expected": "Handle all without timeout",
+    "pass": false,
+    "actual": "statuses=[503, 503, 503, 503, 503], error_rate=100.0%, avg_ms=75.85, p95_ms=106.77",
+    "metrics": {
+      "statuses": [
+        503,
+        503,
+        503,
+        503,
+        503
+      ],
+      "error_rate": 100.0,
+      "avg_ms": 75.85,
+      "p95_ms": 106.77,
+      "min_ms": 32.99,
+      "max_ms": 106.77
+    },
+    "note": "All requests failed"
+  },
+  {
+    "case_id": "P6",
+    "title": "Blockchain Single Verify",
+    "steps": "Submit one report hash",
+    "expected": "< 3s, gas visible",
+    "pass": true,
+    "actual": "status=200, latency_ms=179.93, gas_used=24212",
+    "metrics": {
+      "status": 200,
+      "latency_ms": 179.93,
+      "gas_used": 24212
+    },
+    "note": "Single verify with gas visibility"
+  },
+  {
+    "case_id": "P7",
+    "title": "Blockchain Batch Verify",
+    "steps": "Submit 5 sequential verifications",
+    "expected": "0% error, p95 < 3.5s",
+    "pass": true,
+    "actual": "statuses=[200, 200, 200, 200, 200], error_rate=0.0%, avg_ms=129.08, p95_ms=155.01",
+    "metrics": {
+      "statuses": [
+        200,
+        200,
+        200,
+        200,
+        200
+      ],
+      "error_rate": 0.0,
+      "avg_ms": 129.08,
+      "p95_ms": 155.01,
+      "min_ms": 110.89,
+      "max_ms": 155.01
+    },
+    "note": "Batch verification throughput"
+  }
+]

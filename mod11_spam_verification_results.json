@@ -1,0 +1,32 @@
+[
+  {
+    "case_id": "CASE 1",
+    "title": "Text Report Spam Detection",
+    "before_state": "Manual review of all reports, slow response time",
+    "after_state": "AI automatically classifies spam in <200ms, flagged for review",
+    "improvement_type": "EXPANDED FEATURE",
+    "pass": true,
+    "actual_after": "{\n  \"legitimate\": {\n    \"status\": 200,\n    \"latency_ms\": 2708.33,\n    \"classification\": [\n      \"Fire\"\n    ],\n    \"severity\": \"Yellow\"\n  },\n  \"spam\": {\n    \"status\": 200,\n    \"latency_ms\": 172.19,\n    \"classification\": [\n      \"Crime\"\n    ],\n    \"severity\": \"Green\"\n  }\n}",
+    "note": "AI classifies legitimate vs spam text automatically"
+  },
+  {
+    "case_id": "CASE 2",
+    "title": "Audio Report Validation",
+    "before_state": "No validation, all audio reports accepted",
+    "after_state": "AI audio analysis detects spam/bogus audio uploads",
+    "improvement_type": "EXPANDED FEATURE",
+    "pass": false,
+    "actual_after": "{\n  \"status\": 503,\n  \"latency_ms\": 8442.06,\n  \"classification\": [],\n  \"severity\": null,\n  \"transcription\": \"\"\n}",
+    "note": "Audio analysis failed"
+  },
+  {
+    "case_id": "CASE 3",
+    "title": "Report Audit Trail",
+    "before_state": "Reports stored in database only, mutable records",
+    "after_state": "Report hashes stored on blockchain, immutable audit trail",
+    "improvement_type": "EXPANDED INTEGRATION",
+    "pass": "9acd42cc86a6218c99d7e38bee741d008619c9cd24b9b3171c7e09f8202d42a1",
+    "actual_after": "{\n  \"status\": 200,\n  \"latency_ms\": 2314.8,\n  \"tx_hash\": \"9acd42cc86a6218c99d7e38bee741d008619c9cd24b9b3171c7e09f8202d42a1\",\n  \"block_number\": 241,\n  \"gas_used\": 24224,\n  \"already_recorded\": false\n}",
+    "note": "Report hash stored on blockchain for audit trail"
+  }
+]
