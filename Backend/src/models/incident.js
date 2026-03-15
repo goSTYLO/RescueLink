@@ -164,13 +164,15 @@ const Incident = {
     barangay = null,
     department_code = null,
     exclude_duplicates = false,
+    search = null,
+    exclude_report_id = null,
   } = {}) {
     // Keep incident list payloads bounded to protect API latency under encrypted datasets.
     const cappedLimit = Math.min(limit, 60);
 
     let query = `SELECT ir.report_id, ir.user_id, ir.incident_type, ir.severity_level, ir.status,
                         ir.description, ir.latitude, ir.longitude, ir.barangay, ir.created_at,
-                        ir.ai_pending, ir.ai_attempted, ir.is_duplicate, ir.parent_report_id,
+                        ir.ai_pending, ir.ai_attempted, ir.is_duplicate, ir.parent_report_id, ir.flagged_for_review,
                         u.first_name AS reporter_first_name, u.last_name AS reporter_last_name, u.phone_number AS reporter_phone
       FROM incident_reports ir
       LEFT JOIN users u ON ir.user_id = u.user_id
@@ -216,6 +218,26 @@ const Incident = {
 
     if (exclude_duplicates) {
       query += ` AND (ir.is_duplicate IS NULL OR ir.is_duplicate = FALSE)`;
+    }
+
+    if (search && typeof search === 'string' && search.trim().length > 0) {
+      const searchTerm = search.trim();
+      const reportIdNum = parseInt(searchTerm, 10);
+      if (!Number.isNaN(reportIdNum) && String(reportIdNum) === searchTerm) {
+        paramCount++;
+        query += ` AND ir.report_id = $${paramCount}`;
+        params.push(reportIdNum);
+      } else {
+        paramCount++;
+        query += ` AND (ir.description ILIKE $${paramCount} OR ir.barangay ILIKE $${paramCount})`;
+        params.push(`%${searchTerm}%`);
+      }
+    }
+
+    if (exclude_report_id != null && Number.isInteger(Number(exclude_report_id))) {
+      paramCount++;
+      query += ` AND ir.report_id != $${paramCount}`;
+      params.push(Number(exclude_report_id));
     }
 
     query += ` ORDER BY ir.created_at DESC LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}`;
@@ -268,7 +290,7 @@ const Incident = {
     return res.rows.map(decodeReporterFields);
   },
 
-  async countAll({ user_id = null, severity_level = null, status = null, incident_type = null, barangay = null, department_code = null, exclude_duplicates = false } = {}) {
+  async countAll({ user_id = null, severity_level = null, status = null, incident_type = null, barangay = null, department_code = null, exclude_duplicates = false, search = null, exclude_report_id = null } = {}) {
     let query = 'SELECT COUNT(*)::int AS total FROM incident_reports WHERE 1=1';
     const params = [];
     let paramCount = 0;
@@ -311,6 +333,26 @@ const Incident = {
 
     if (exclude_duplicates) {
       query += ` AND (is_duplicate IS NULL OR is_duplicate = FALSE)`;
+    }
+
+    if (search && typeof search === 'string' && search.trim().length > 0) {
+      const searchTerm = search.trim();
+      const reportIdNum = parseInt(searchTerm, 10);
+      if (!Number.isNaN(reportIdNum) && String(reportIdNum) === searchTerm) {
+        paramCount++;
+        query += ` AND report_id = $${paramCount}`;
+        params.push(reportIdNum);
+      } else {
+        paramCount++;
+        query += ` AND (description ILIKE $${paramCount} OR barangay ILIKE $${paramCount})`;
+        params.push(`%${searchTerm}%`);
+      }
+    }
+
+    if (exclude_report_id != null && Number.isInteger(Number(exclude_report_id))) {
+      paramCount++;
+      query += ` AND report_id != $${paramCount}`;
+      params.push(Number(exclude_report_id));
     }
 
     const res = await pool.query(query, params);

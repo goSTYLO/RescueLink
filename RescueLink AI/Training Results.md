@@ -13,19 +13,18 @@
 - Threshold sweep range: `0.2` to `0.7` (step `0.05`)
 
 ## Seed 42
-- Incident F1 (micro): `0.999614`
-- Incident hamming loss: `0.000167`
-- Severity accuracy: `1.000000`
-- Selected threshold: `0.30`
-- Best blended score: `0.999807`
-- Last epoch F1@0.5: `0.999486`
-- Last epoch severity accuracy: `1.000000`
-- Epochs completed: `8`
-- Total train time: `2356.60s`
-- Average epoch time: `294.57s`
-- Evaluation time: `8.40s`
+- Incident F1 (micro): `0.929490`
+- Incident hamming loss: `0.047083`
+- Severity accuracy: `0.916000`
+- Selected threshold: `0.50`
+- Best blended score: `0.922745`
+- Last epoch F1@0.5: `0.928978`
+- Last epoch severity accuracy: `0.915500`
+- Epochs completed: `7`
+- Total train time: `1700.59s`
+- Average epoch time: `242.94s`
+- Evaluation time: `7.95s`
 - Notes: Auto-updated from notebook
-
 ## Seed 123
 - Incident F1 (micro): `0.999743`
 - Incident hamming loss: `0.000111`
@@ -53,11 +52,26 @@
 - Average epoch time: `295.81s`
 - Evaluation time: `8.09s`
 - Notes: Auto-updated from notebook
+
+## Seed 128
+- Incident F1 (micro): `0.509872`
+- Incident hamming loss: `0.657833`
+- Severity accuracy: `0.317000`
+- Selected threshold: `0.20`
+- Best blended score: `0.158500`
+- Last epoch F1@0.5: `0.000000`
+- Last epoch severity accuracy: `0.317000`
+- Epochs completed: `5`
+- Total train time: `550.72s`
+- Average epoch time: `110.14s`
+- Evaluation time: `3.24s`
+- Notes: Auto-updated from notebook
+
 ## Aggregation (Current Filled Seeds)
-- Incident F1 mean: `0.752840`
-- Incident F1 std: `0.349082`
-- Severity accuracy mean: `0.752000`
-- Severity accuracy std: `0.350725`
+- Incident F1 mean: `0.674567`
+- Incident F1 std: `0.304307`
+- Severity accuracy mean: `0.622250`
+- Severity accuracy std: `0.337750`
 - Pass/Fail (>= 0.99 on both metrics): `FAIL`
 
 ## Interpretation Notes

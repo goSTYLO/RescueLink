@@ -1,7 +1,18 @@
-import torch
-import json
+# Add nvidia CUDA libs to PATH before torch imports (caffe2_nvrtc, cublas, etc.)
 import os
 import sys
+for _p in sys.path:
+    if "site-packages" in _p:
+        for _sub in ("nvidia/cuda_nvrtc/bin", "nvidia/cublas/bin", "nvidia/cudnn/bin"):
+            _pth = os.path.join(_p, _sub.replace("/", os.sep))
+            if os.path.exists(_pth):
+                _path = os.environ.get("PATH", "")
+                if _pth not in _path.split(os.pathsep):
+                    os.environ["PATH"] = _pth + os.pathsep + _path
+        break
+
+import torch
+import json
 import logging
 import uuid
 import time

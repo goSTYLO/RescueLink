@@ -14,6 +14,7 @@ const pool = require('../src/config/db');
 const MIGRATIONS_DIR = path.join(__dirname);
 const MIGRATION_ORDER = [
   'add_duplicate_detection.sql',
+  'add_flagged_for_review.sql',
 ];
 
 async function runMigrations() {

@@ -41,13 +41,16 @@ def _detect_device(preferred: str) -> str:
     if normalized in {"cpu", "cuda"}:
         return normalized
 
+    # faster-whisper uses ctranslate2, not PyTorch; check ctranslate2's CUDA support
     try:
-        import torch
+        import ctranslate2
 
-        if torch.cuda.is_available():
+        supported = ctranslate2.get_supported_compute_types("cuda")
+        if supported:
             return "cuda"
-    except Exception:
-        pass
+        logger.info("CTranslate2 reports no CUDA compute types; using CPU")
+    except Exception as e:
+        logger.info("CTranslate2 CUDA unavailable (%s); using CPU", e)
 
     return "cpu"
 
@@ -57,6 +60,19 @@ def _resolve_compute_type(device: str, requested: str) -> str:
     if normalized != "auto":
         return normalized
     return "int8_float16" if device == "cuda" else "int8"
+
+
+def _ensure_cuda_libs_on_path() -> None:
+    """Add nvidia-cublas-cu12 bin dir to PATH so ctranslate2 can find cublas64_12.dll."""
+    for p in __import__("sys").path:
+        if "site-packages" in p:
+            cublas_bin = Path(p) / "nvidia" / "cublas" / "bin"
+            if cublas_bin.exists():
+                current = os.environ.get("PATH", "")
+                if str(cublas_bin) not in current.split(os.pathsep):
+                    os.environ["PATH"] = str(cublas_bin) + os.pathsep + current
+                    logger.info("✓ Added nvidia-cublas-cu12 to PATH for CUDA")
+                break
 
 
 def _ensure_ffmpeg_backend() -> None:
@@ -150,6 +166,24 @@ class _WhisperLocalProvider:
             init_kwargs["download_root"] = self.cache_dir
         return WhisperModel(self.model_size_or_path, **init_kwargs)
 
+    def _try_cuda_int8_fallback(self, error: Exception) -> bool:
+        """Try CUDA with int8 (no float16) before giving up on GPU."""
+        if self.device != "cuda" or self.compute_type != "int8_float16":
+            return False
+        error_text = str(error).lower()
+        if "cuda" not in error_text and "cublas" not in error_text and "cudnn" not in error_text:
+            return False
+        try:
+            logger.info(
+                "int8_float16 failed on CUDA (%s); retrying with int8 on CUDA",
+                error,
+            )
+            self.compute_type = "int8"
+            self.model = self._load_model(device="cuda", compute_type="int8")
+            return True
+        except Exception:
+            return False
+
     def _try_cpu_fallback(self, error: Exception) -> bool:
         if self.device != "cuda":
             return False
@@ -159,7 +193,14 @@ class _WhisperLocalProvider:
         if not any(marker in error_text for marker in cuda_error_markers):
             return False
 
-        logger.warning("Local Whisper CUDA runtime unavailable; switching to CPU int8 fallback")
+        # Try CUDA with int8 (no float16) before falling back to CPU
+        if self._try_cuda_int8_fallback(error):
+            return True
+
+        logger.warning(
+            "Local Whisper CUDA runtime unavailable; switching to CPU int8 fallback. Error: %s",
+            error,
+        )
         self.device = "cpu"
         self.compute_type = "int8"
         self.model = self._load_model(device=self.device, compute_type=self.compute_type)
@@ -229,6 +270,7 @@ class WhisperHandler:
         self.api_provider: Optional[_WhisperApiProvider] = None
 
         _ensure_ffmpeg_backend()
+        _ensure_cuda_libs_on_path()
         self._initialize_providers()
 
         self.usage_stats = {

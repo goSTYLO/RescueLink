@@ -1,4 +1,5 @@
 import { Layout } from '@/presentation/components/layout/Layout';
+import { SelectParentIncidentDialog } from '@/presentation/components/common/SelectParentIncidentDialog';
 import { IncidentMap } from '@/presentation/components/common/IncidentMap';
 import { Badge } from '@/presentation/components/ui/Badge';
 import { Button } from '@/presentation/components/ui/Button';
@@ -12,7 +13,7 @@ import {
   ArrowLeft, MapPin, CheckCircle, XCircle, Bell, 
   Clock, AlertTriangle, TrendingUp, Users, Shield, FileText,
   MessageSquare, Wrench, Award, Star, AlertCircle, Copy, Merge,
-  X, ThumbsUp, Link2
+  X, ThumbsUp, Link2, ChevronDown, ChevronUp, LayoutList
 } from 'lucide-react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { 
@@ -128,6 +129,7 @@ function mapApiToIncidentDetails(api, aiClassification = null) {
     closureNotes: api.closure_notes || null,
     highPriority: normalizedSeverity === 'high',
     isDuplicate: Boolean(api.is_duplicate),
+    flaggedForReview: Boolean(api.flagged_for_review),
     parentReportId: api.parent_report_id ?? null,
     duplicateCluster: Array.isArray(api.duplicate_cluster) ? api.duplicate_cluster : [],
     possibleDuplicates: [],
@@ -173,10 +175,11 @@ export function IncidentDetailsPage() {
   const [latestVerificationMeta, setLatestVerificationMeta] = useState(null);
   const coordinationStorageKey = `incident:${id}:coordination-notes:v1`;
 
-  const fetchIncident = useCallback(async () => {
+  const fetchIncident = useCallback(async (opts = {}) => {
+    const { silent = false } = opts;
     const numericId = /^\d+$/.test(String(id));
     if (numericId) {
-      setLoading(true);
+      if (!silent) setLoading(true);
       setError(null);
       try {
         try {
@@ -190,7 +193,7 @@ export function IncidentDetailsPage() {
         setError(err.message || 'Failed to fetch incident');
         setIncident(null);
       } finally {
-        setLoading(false);
+        if (!silent) setLoading(false);
       }
     } else {
       const mockIncident = mockIncidents.find(i => i.id === id);
@@ -304,6 +307,7 @@ export function IncidentDetailsPage() {
   const [addDepartmentDialogOpen, setAddDepartmentDialogOpen] = useState(false);
   const [closureDialogOpen, setClosureDialogOpen] = useState(false);
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
+  const [browseParentDialogOpen, setBrowseParentDialogOpen] = useState(false);
   const [verifyDialogOpen, setVerifyDialogOpen] = useState(false);
   const [notifyDialogOpen, setNotifyDialogOpen] = useState(false);
   const [verifyLoading, setVerifyLoading] = useState(false);
@@ -344,8 +348,11 @@ export function IncidentDetailsPage() {
   const [departmentList, setDepartmentList] = useState([]);
   const [potentialDuplicatesList, setPotentialDuplicatesList] = useState([]);
   const [duplicateDialogLoading, setDuplicateDialogLoading] = useState(false);
+  const [linkDuplicateInProgress, setLinkDuplicateInProgress] = useState(false);
+  const [relatedReportsExpanded, setRelatedReportsExpanded] = useState(false);
 
   const displayDuplicates = incident?.isDuplicate ? duplicateCluster : potentialDuplicatesList;
+  const closedRelatedReport = duplicateCluster.find((r) => r.report_id !== incident?.id && String(r.status || '').toLowerCase() === 'closed');
 
   const departmentNameByCode = departmentList.reduce((acc, dept) => {
     const code = String(dept?.code || '').trim();
@@ -539,6 +546,27 @@ export function IncidentDetailsPage() {
     }
     return Object.values(units).flat();
   };
+
+  // Must be declared before early returns to satisfy Rules of Hooks
+  const loadPotentialDuplicates = useCallback(async () => {
+    const numericId = /^\d+$/.test(String(id));
+    if (!numericId) return;
+    setDuplicateDialogLoading(true);
+    try {
+      const res = await getPotentialDuplicates(id);
+      setPotentialDuplicatesList(res?.potential_duplicates ?? []);
+    } catch {
+      setPotentialDuplicatesList([]);
+    } finally {
+      setDuplicateDialogLoading(false);
+    }
+  }, [id]);
+
+  useEffect(() => {
+    if (duplicateDialogOpen && !incident?.isDuplicate) {
+      loadPotentialDuplicates();
+    }
+  }, [duplicateDialogOpen, incident?.isDuplicate, loadPotentialDuplicates]);
 
   if (loading) {
     return (
@@ -926,14 +954,18 @@ export function IncidentDetailsPage() {
   const handleMarkDuplicate = async (parentReportId) => {
     const numericId = /^\d+$/.test(String(id));
     if (!numericId) return;
+    setLinkDuplicateInProgress(true);
     try {
       await linkDuplicate(id, parentReportId);
       setDuplicateDialogOpen(false);
-      await fetchIncident();
+      setPotentialDuplicatesList([]);
+      await fetchIncident({ silent: true });
       window.dispatchEvent(new CustomEvent('incident:updated', { detail: { incidentId: id } }));
       Swal.fire({ icon: 'success', title: 'Marked as duplicate', timer: 1500, showConfirmButton: false });
     } catch (err) {
       Swal.fire({ icon: 'error', title: 'Failed', text: err.message || 'Could not link duplicate' });
+    } finally {
+      setLinkDuplicateInProgress(false);
     }
   };
 
@@ -943,33 +975,13 @@ export function IncidentDetailsPage() {
     try {
       await unlinkDuplicate(id);
       setDuplicateDialogOpen(false);
-      await fetchIncident();
+      await fetchIncident({ silent: true });
       window.dispatchEvent(new CustomEvent('incident:updated', { detail: { incidentId: id } }));
       Swal.fire({ icon: 'success', title: 'Unlinked from duplicate', timer: 1500, showConfirmButton: false });
     } catch (err) {
       Swal.fire({ icon: 'error', title: 'Failed', text: err.message || 'Could not unlink' });
     }
   };
-
-  const loadPotentialDuplicates = useCallback(async () => {
-    const numericId = /^\d+$/.test(String(id));
-    if (!numericId) return;
-    setDuplicateDialogLoading(true);
-    try {
-      const res = await getPotentialDuplicates(id);
-      setPotentialDuplicatesList(res?.potential_duplicates ?? []);
-    } catch {
-      setPotentialDuplicatesList([]);
-    } finally {
-      setDuplicateDialogLoading(false);
-    }
-  }, [id]);
-
-  useEffect(() => {
-    if (duplicateDialogOpen && !incident?.isDuplicate) {
-      loadPotentialDuplicates();
-    }
-  }, [duplicateDialogOpen, incident?.isDuplicate, loadPotentialDuplicates]);
 
   const handleVerifyIncident = async () => {
     const numericId = /^\d+$/.test(String(id));
@@ -1207,7 +1219,7 @@ export function IncidentDetailsPage() {
           onClick={() => setDuplicateDialogOpen(true)}
         >
           <Merge className="w-4 h-4" />
-          {incident?.isDuplicate ? 'View Duplicate Cluster' : 'Mark as Duplicate'}
+          {incident?.isDuplicate ? 'View Duplicate Cluster' : 'Mark as Possible Duplicate'}
         </Button>
       )}
       {isSupervisor && incident.status === 'Resolved' && (
@@ -1230,6 +1242,12 @@ export function IncidentDetailsPage() {
               <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 border ${isLight ? 'border-amber-300 bg-amber-50 text-amber-700' : 'border-amber-500/40 bg-amber-500/10 text-amber-300'}`}>
                 <AlertCircle className="w-3 h-3" />
                 {duplicateCluster.length} related report(s)
+              </span>
+            )}
+            {(incident?.isDuplicate || incident?.flaggedForReview) && (
+              <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 border ${isLight ? 'border-orange-400 bg-orange-50 text-orange-600' : 'border-orange-500/40 bg-orange-500/10 text-orange-300'}`}>
+                <AlertTriangle className="w-3 h-3" />
+                {incident?.isDuplicate ? 'Duplicate' : 'Possible Duplicate'}
               </span>
             )}
             {canManualReclassify && (
@@ -1276,10 +1294,10 @@ export function IncidentDetailsPage() {
                       High Priority
                     </Badge>
                   )}
-                  {(incident.isDuplicate || incident.status === 'Duplicate') && (
-                    <Badge variant="outline" className="bg-card text-muted border-border rounded-lg">
+                  {(incident.isDuplicate || incident.flaggedForReview) && (
+                    <Badge variant="outline" className={`rounded-lg ${incident.isDuplicate ? 'bg-card text-muted border-border' : 'bg-orange-500/10 text-orange-600 border-orange-500/40'}`}>
                       <Copy className="w-3 h-3 mr-1" />
-                      Duplicate
+                      {incident.isDuplicate ? 'Duplicate' : 'Possible Duplicate'}
                     </Badge>
                   )}
                 </div>
@@ -1333,13 +1351,19 @@ export function IncidentDetailsPage() {
               </div>
             )}
 
-            <div className={`flex flex-wrap items-center gap-2 p-2.5 rounded-xl border text-xs ${isLight ? 'bg-gray-50/70 border-gray-200/80' : 'bg-white/5 border-white/10'}`}>
-              <span className="rounded-full border border-border px-2 py-0.5"><strong>Status:</strong> {incident.status}</span>
-              <span className="rounded-full border border-border px-2 py-0.5"><strong>Severity:</strong> {incident.severity}</span>
-              <span className="rounded-full border border-border px-2 py-0.5"><strong>Type:</strong> {incident.emergencyType}</span>
-              <span className="rounded-full border border-border px-2 py-0.5 truncate max-w-[220px]" title={incident.reporterName}><strong>Reporter:</strong> {incident.reporterName}</span>
-              <span className="rounded-full border border-border px-2 py-0.5 truncate max-w-[220px]" title={incident.reporterPhone}><strong>Contact:</strong> {incident.reporterPhone}</span>
-              <span className="rounded-full border border-border px-2 py-0.5 truncate max-w-[220px]" title={incident.barangay}><strong>Barangay:</strong> {incident.barangay}</span>
+            <div className={`flex flex-wrap items-center gap-3 p-3 rounded-xl border text-sm ${isLight ? 'bg-gray-50/70 border-gray-200/80' : 'bg-white/5 border-white/10'}`}>
+              <span className="rounded-lg border border-border px-3 py-1 font-medium"><strong>Status:</strong> {incident.status}</span>
+              <span className="rounded-lg border border-border px-3 py-1 font-medium"><strong>Severity:</strong> {incident.severity}</span>
+              <span className="rounded-lg border border-border px-3 py-1 font-medium"><strong>Type:</strong> {incident.emergencyType}</span>
+              <span className="rounded-lg border border-border px-3 py-1 truncate max-w-[220px] font-medium" title={incident.reporterName}><strong>Reporter:</strong> {incident.reporterName}</span>
+              <span className="rounded-lg border border-border px-3 py-1 truncate max-w-[220px] font-medium" title={incident.reporterPhone}><strong>Contact:</strong> {incident.reporterPhone}</span>
+              <span className="rounded-lg border border-border px-3 py-1 truncate max-w-[220px] font-medium" title={incident.barangay}><strong>Barangay:</strong> {incident.barangay}</span>
+              {(incident?.isDuplicate || incident?.flaggedForReview) && (
+                <span className={`inline-flex items-center gap-1 rounded-lg px-3 py-1 font-semibold border ${isLight ? 'border-orange-400 bg-orange-50 text-orange-700' : 'border-orange-500/40 bg-orange-500/10 text-orange-300'}`}>
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  {incident?.isDuplicate ? 'Duplicate' : 'Possible Duplicate'}
+                </span>
+              )}
             </div>
 
             {/* Incident Description - Top Priority */}
@@ -1367,28 +1391,59 @@ export function IncidentDetailsPage() {
             </div>
 
             {duplicateCluster.length > 1 && (
-              <div className={`p-4 rounded-xl border ${isLight ? 'bg-amber-50/70 border-amber-200/80' : 'bg-amber-500/10 border-amber-500/30'}`}>
-                <div className="flex items-center gap-2 mb-3">
-                  <Link2 className="w-4 h-4 text-amber-600" />
-                  <p className="text-xs uppercase tracking-wide text-muted font-semibold">Related Reports ({duplicateCluster.length})</p>
-                </div>
-                <div className="space-y-2">
-                  {duplicateCluster.filter((r) => r.report_id !== incident.id).map((report) => (
-                    <div key={report.report_id} className="flex items-center justify-between gap-2 p-2 rounded-lg border border-border">
-                      <Link to={`/incidents/${report.report_id}`} className="font-medium text-primary hover:underline">
-                        Report #{report.report_id}
-                      </Link>
-                      <span className="text-sm text-muted">{report.reporter_name || `User #${report.user_id}`}</span>
-                      {report.confidence != null && (
-                        <Badge variant="outline">{Math.round((report.confidence || 0) * 100)}% match</Badge>
+              <div className={`rounded-xl border ${isLight ? 'bg-amber-50/70 border-amber-200/80' : 'bg-amber-500/10 border-amber-500/30'}`}>
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-between gap-2 p-3 text-left hover:opacity-90 transition-opacity"
+                  onClick={() => setRelatedReportsExpanded((v) => !v)}
+                >
+                  <div className="flex items-center gap-2">
+                    {relatedReportsExpanded ? <ChevronUp className="w-4 h-4 text-muted" /> : <ChevronDown className="w-4 h-4 text-muted" />}
+                    <Link2 className="w-4 h-4 text-amber-600" />
+                    <p className="text-xs uppercase tracking-wide text-muted font-semibold">Related Reports ({duplicateCluster.length})</p>
+                  </div>
+                </button>
+                {relatedReportsExpanded && (
+                  <div className="px-3 pb-3 pt-0 space-y-2">
+                    {duplicateCluster.filter((r) => r.report_id !== incident.id).map((report) => (
+                      <div key={report.report_id} className="flex items-center justify-between gap-2 p-2 rounded-lg border border-border">
+                        <Link to={`/incidents/${report.report_id}`} className="font-medium text-primary hover:underline">
+                          Report #{report.report_id}
+                        </Link>
+                        <span className="text-sm text-muted">{report.reporter_name || `User #${report.user_id}`}</span>
+                        {report.confidence != null && (
+                          <Badge variant="outline">{Math.round((report.confidence || 0) * 100)}% match</Badge>
+                        )}
+                      </div>
+                    ))}
+                    <div className="flex flex-wrap gap-2 pt-2">
+                      <Button variant="outline" size="sm" className="gap-2" onClick={() => setDuplicateDialogOpen(true)}>
+                        <Merge className="w-3 h-3" />
+                        Manage duplicates
+                      </Button>
+                      {closedRelatedReport && incident.status !== 'Closed' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-2 text-severity-resolved border-severity-resolved/50"
+                          onClick={async () => {
+                            try {
+                              await updateIncidentStatus(id, 'closed');
+                              await fetchIncident();
+                              window.dispatchEvent(new CustomEvent('incident:updated', { detail: { incidentId: id } }));
+                              Swal.fire({ icon: 'success', title: 'Incident closed', timer: 1500, showConfirmButton: false });
+                            } catch (err) {
+                              Swal.fire({ icon: 'error', title: 'Failed', text: err.message || 'Could not close' });
+                            }
+                          }}
+                        >
+                          <CheckCircle className="w-3 h-3" />
+                          Close with related #{closedRelatedReport.report_id}
+                        </Button>
                       )}
                     </div>
-                  ))}
-                </div>
-                <Button variant="outline" size="sm" className="mt-2 gap-2" onClick={() => setDuplicateDialogOpen(true)}>
-                  <Merge className="w-3 h-3" />
-                  Manage duplicates
-                </Button>
+                  </div>
+                )}
               </div>
             )}
 
@@ -2465,10 +2520,10 @@ export function IncidentDetailsPage() {
         <Dialog open={duplicateDialogOpen} onOpenChange={setDuplicateDialogOpen}>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
-              <DialogTitle>{incident?.isDuplicate ? 'Duplicate Cluster' : 'Mark as Duplicate'}</DialogTitle>
+              <DialogTitle>{incident?.isDuplicate ? 'Duplicate Cluster' : 'Mark as Possible Duplicate'}</DialogTitle>
               <DialogDescription>
                 {incident?.isDuplicate
-                  ? 'This incident is linked to the following related reports.'
+                  ? 'This incident is linked to the following related reports. You can unlink or close with a related report.'
                   : 'Review similar incidents and link this report as a duplicate if it describes the same incident.'}
               </DialogDescription>
             </DialogHeader>
@@ -2497,17 +2552,59 @@ export function IncidentDetailsPage() {
                         </p>
                       )}
                     </div>
-                    {!incident?.isDuplicate && dup.report_id !== Number(id) && (
-                      <Button size="sm" variant="outline" className="gap-2 shrink-0" onClick={() => handleMarkDuplicate(dup.report_id)}>
-                        <Merge className="w-3 h-3" />
-                        Link as duplicate
-                      </Button>
-                    )}
+                    <div className="flex items-center gap-2 shrink-0">
+                      {!incident?.isDuplicate && dup.report_id !== Number(id) && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-2"
+                          disabled={linkDuplicateInProgress}
+                          onClick={() => handleMarkDuplicate(dup.report_id)}
+                        >
+                          {linkDuplicateInProgress ? <Loader2 className="w-3 h-3 animate-spin" /> : <Merge className="w-3 h-3" />}
+                          Link as duplicate
+                        </Button>
+                      )}
+                      {incident?.isDuplicate && dup.report_id !== Number(id) && String(dup.status || '').toLowerCase() === 'closed' && incident.status !== 'Closed' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-2 text-severity-resolved border-severity-resolved/50"
+                          onClick={async () => {
+                            try {
+                              await updateIncidentStatus(id, 'closed');
+                              setDuplicateDialogOpen(false);
+                              await fetchIncident();
+                              window.dispatchEvent(new CustomEvent('incident:updated', { detail: { incidentId: id } }));
+                              Swal.fire({ icon: 'success', title: 'Incident closed', timer: 1500, showConfirmButton: false });
+                            } catch (err) {
+                              Swal.fire({ icon: 'error', title: 'Failed', text: err.message || 'Could not close' });
+                            }
+                          }}
+                        >
+                          <CheckCircle className="w-3 h-3" />
+                          Close with #{dup.report_id}
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 ))
               )}
             </div>
-            <DialogFooter>
+            <DialogFooter className="flex-wrap gap-2">
+              {!incident?.isDuplicate && (
+                <Button
+                  variant="outline"
+                  className="gap-2 text-amber-600 border-amber-200"
+                  onClick={() => {
+                    setDuplicateDialogOpen(false);
+                    setBrowseParentDialogOpen(true);
+                  }}
+                >
+                  <LayoutList className="w-4 h-4" />
+                  Browse incidents
+                </Button>
+              )}
               {incident?.isDuplicate && (
                 <Button variant="outline" className="text-amber-600 border-amber-200" onClick={handleUnlinkDuplicate}>
                   Unlink from duplicate
@@ -2519,6 +2616,17 @@ export function IncidentDetailsPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        <SelectParentIncidentDialog
+          open={browseParentDialogOpen}
+          onOpenChange={setBrowseParentDialogOpen}
+          currentIncidentId={id}
+          loading={linkDuplicateInProgress}
+          onSelect={async (parentId) => {
+            await handleMarkDuplicate(parentId);
+            setBrowseParentDialogOpen(false);
+          }}
+        />
       </div>
     </Layout>
   );

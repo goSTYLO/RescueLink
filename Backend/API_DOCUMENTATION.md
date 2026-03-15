@@ -8,6 +8,8 @@ http://localhost:3000/api
 
 ## Latest Integration Notes (Mobile + Backend)
 
+- **Duplicate management**: Incidents are never auto-linked as duplicates. Geospatial detection only sets `flagged_for_review`. Dispatchers manually link via `POST /api/incidents/:id/link-duplicate`. Incident payloads include `is_duplicate`, `flagged_for_review`, `parent_report_id`, `duplicate_cluster` when applicable. Cluster descriptions and reporter names are decrypted.
+- **Incidents list**: `GET /api/incidents` supports `search` (report ID or description/barangay ILIKE), `exclude_report_id`, `incident_type`, `barangay`, `exclude_duplicates`.
 - Mobile incident detail flow is now unified on a single screen that uses `GET /api/incidents/:id/with-ai` as its primary data source.
 - AI confidence values may appear under different keys depending on endpoint/path:
   - `ai_classification.confidence` (create response path)
@@ -1377,9 +1379,20 @@ Retrieve a specific incident report by ID. Requires authentication.
   "longitude": 120.3337627,
   "media_url": null,
   "status": "pending",
-  "created_at": "2026-01-20T10:30:00.000Z"
+  "created_at": "2026-01-20T10:30:00.000Z",
+  "is_duplicate": false,
+  "flagged_for_review": false,
+  "parent_report_id": null,
+  "duplicate_cluster": []
 }
 ```
+
+**Duplicate-related fields (when applicable):**
+
+- `is_duplicate` (boolean) - True if manually linked as duplicate
+- `flagged_for_review` (boolean) - True if AI detected potential duplicate (dispatcher must verify)
+- `parent_report_id` (integer|null) - Parent incident ID when linked as duplicate
+- `duplicate_cluster` (array) - All reports in the cluster (primary + duplicates) with decrypted description, reporter_name, status
 
 **Error Responses:**
 
@@ -1409,11 +1422,18 @@ Retrieve a paginated list of all incident reports with optional filtering. Requi
 - `offset` (integer, optional) - Number of records to skip (default: 0)
 - `severity_level` (string, optional) - Filter by severity level (e.g., "high", "medium", "low")
 - `status` (string, optional) - Filter by status (e.g., "pending", "verified", "in_progress", "resolved", "closed")
+- `incident_type` (string, optional) - Filter by incident type (e.g., "fire", "medical", "police", "disaster")
+- `barangay` (string, optional) - Filter by barangay
+- `exclude_duplicates` (boolean, optional) - If `true`, excludes incidents marked as duplicates
+- `search` (string, optional) - Search by report ID (exact match if numeric) or by description/barangay (ILIKE)
+- `exclude_report_id` (integer, optional) - Exclude a specific report ID from results (e.g., when selecting parent for duplicate linking)
 
 **Example:**
 
 ```
 GET /api/incidents?limit=10&offset=0&severity_level=high&status=pending
+GET /api/incidents?search=582
+GET /api/incidents?search=fire&exclude_report_id=582
 ```
 
 **Response:** `200 OK`
@@ -1440,6 +1460,166 @@ GET /api/incidents?limit=10&offset=0&severity_level=high&status=pending
 - `400 Bad Request` - Invalid query parameters
 - `401 Unauthorized` - Missing or invalid authentication token
 - `500 Internal Server Error` - Server error
+
+**Response Headers:**
+
+- `x-total-count` - Total number of incidents matching the filters (for pagination)
+
+---
+
+### Duplicate Incident Management
+
+Duplicate detection uses geospatial + time-based clustering. Incidents are **never auto-linked** as duplicates; the system only flags potential duplicates for dispatcher review. Dispatchers verify and manually link incidents when correct.
+
+#### Get Duplicate Info
+
+**GET** `/api/incidents/:id/duplicates`
+
+Retrieve duplicate cluster info for an incident (if linked or has related reports).
+
+**Required Role:** `dispatcher`, `admin` (or department-head/department-admin if assigned)
+
+**Parameters:**
+
+- `id` (integer) - Incident report ID
+
+**Response:** `200 OK`
+
+```json
+{
+  "is_duplicate": true,
+  "parent_report_id": 595,
+  "duplicate_confidence": 0.95,
+  "cluster": [
+    {
+      "report_id": 595,
+      "status": "closed",
+      "created_at": "2026-03-14T08:00:00.000Z",
+      "description": "Fire near Poblacion Oeste",
+      "reporter_name": "Juan Dela Cruz",
+      "confidence": null
+    },
+    {
+      "report_id": 582,
+      "status": "pending",
+      "created_at": "2026-03-14T08:05:00.000Z",
+      "description": "Audio-reported fire incident",
+      "reporter_name": "Maria Santos",
+      "confidence": 0.95
+    }
+  ]
+}
+```
+
+**Notes:**
+
+- Cluster descriptions and reporter names are decrypted before return
+- `cluster` includes the primary report and all linked duplicates
+
+---
+
+#### Get Potential Duplicates
+
+**GET** `/api/incidents/:id/potential-duplicates`
+
+Retrieve AI/geospatial-detected potential duplicates for an incident (for "Mark as duplicate" flow).
+
+**Required Role:** `dispatcher`, `admin` (or department-head/department-admin if assigned)
+
+**Parameters:**
+
+- `id` (integer) - Incident report ID
+
+**Response:** `200 OK`
+
+```json
+{
+  "potential_duplicates": [
+    {
+      "report_id": 595,
+      "confidence": 0.92,
+      "status": "closed",
+      "description": "Fire near Poblacion Oeste",
+      "reporter_name": "Juan Dela Cruz",
+      "created_at": "2026-03-14T08:00:00.000Z"
+    }
+  ]
+}
+```
+
+**Notes:**
+
+- Descriptions and reporter names are decrypted
+- Used when dispatcher opens "Mark as Possible Duplicate" dialog
+
+---
+
+#### Link Incident as Duplicate
+
+**POST** `/api/incidents/:id/link-duplicate`
+
+Manually link an incident as a duplicate of another (parent).
+
+**Required Role:** `dispatcher`, `admin`
+
+**Parameters:**
+
+- `id` (integer) - Incident report ID (the one being linked as duplicate)
+
+**Request Body:**
+
+```json
+{
+  "parent_report_id": 595,
+  "reason": "Same location and time"
+}
+```
+
+**Response:** `200 OK`
+
+```json
+{
+  "success": true,
+  "is_duplicate": true,
+  "parent_report_id": 595
+}
+```
+
+**Error Responses:**
+
+- `400 Bad Request` - Cannot link incident to itself; invalid parent_report_id
+- `404 Not Found` - Incident or parent incident not found
+
+---
+
+#### Unlink Duplicate
+
+**POST** `/api/incidents/:id/unlink-duplicate`
+
+Unlink an incident from its duplicate (if falsely marked).
+
+**Required Role:** `dispatcher`, `admin`
+
+**Parameters:**
+
+- `id` (integer) - Incident report ID
+
+**Request Body:**
+
+```json
+{
+  "reason": "False positive"
+}
+```
+
+**Response:** `200 OK`
+
+```json
+{
+  "success": true,
+  "is_duplicate": false
+}
+```
 
 ---
 

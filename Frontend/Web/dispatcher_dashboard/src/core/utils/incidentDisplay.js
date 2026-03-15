@@ -68,5 +68,7 @@ export function mapApiIncidentToDisplay(api) {
     timeReportedTs,
     verified: api?.verified ?? false,
     reporterConfirmedAt: api?.reporter_confirmed_at || null,
+    isDuplicate: Boolean(api?.is_duplicate),
+    flaggedForReview: Boolean(api?.flagged_for_review),
   };
 }

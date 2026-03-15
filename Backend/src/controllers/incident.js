@@ -33,16 +33,12 @@ async function runRealtimeDuplicateCheck(incident) {
   try {
     const duplicates = await findPotentialDuplicates(incident);
     const best = duplicates[0];
-    if (best && best.confidence >= duplicateConfig.realTime.autoLinkThreshold) {
-      await linkAsDuplicate(incident.report_id, best.report_id, best.confidence, 'geospatial_time');
-      return {
-        is_duplicate: true,
-        parent_report_id: best.report_id,
-        confidence: best.confidence,
-        flagged_for_review: false,
-      };
-    }
+    // Never auto-link; only flag for dispatcher review. Dispatcher verifies and marks as duplicate manually.
     if (best && best.confidence >= duplicateConfig.realTime.flagThreshold) {
+      await pool.query(
+        'UPDATE incident_reports SET flagged_for_review = TRUE WHERE report_id = $1',
+        [incident.report_id]
+      );
       return {
         is_duplicate: false,
         potential_duplicate: best.report_id,
@@ -474,13 +470,15 @@ const incidentController = {
         return res.status(401).json({ error: 'Authentication required' });
       }
 
-      const { limit, offset, severity_level, status, incident_type, barangay, exclude_duplicates } = req.query;
+      const { limit, offset, severity_level, status, incident_type, barangay, exclude_duplicates, search, exclude_report_id } = req.query;
       const excludeDuplicates = exclude_duplicates === 'true' || exclude_duplicates === '1';
       const { limit: validatedLimit, offset: validatedOffset } = validatePagination(limit, offset);
       const validatedSeverityLevel = validateAllowedValue(severity_level, ['low', 'medium', 'high'], 'severity_level');
       const validatedStatus = validateAllowedValue(status, ['pending', 'verified', 'in_progress', 'resolved', 'closed'], 'status');
       const validatedIncidentType = validateAllowedValue(incident_type, ['fire', 'medical', 'police', 'disaster'], 'incident_type');
       const validatedBarangay = validateOptionalString(barangay, 'barangay', 150);
+      const validatedSearch = validateOptionalString(search, 'search', 200);
+      const validatedExcludeReportId = exclude_report_id != null && /^\d+$/.test(String(exclude_report_id)) ? parseInt(exclude_report_id, 10) : null;
 
       // Regular users only see their own incidents; dispatcher/admin see all; department-scoped roles see incidents assigned to their department
       let incidents = [];
@@ -531,6 +529,8 @@ const incidentController = {
           barangay: validatedBarangay,
           department_code: departmentCode,
           exclude_duplicates: excludeDuplicates,
+          search: validatedSearch,
+          exclude_report_id: validatedExcludeReportId,
         });
         totalCount = await Incident.countAll({
           severity_level: validatedSeverityLevel,
@@ -539,6 +539,8 @@ const incidentController = {
           barangay: validatedBarangay,
           department_code: departmentCode,
           exclude_duplicates: excludeDuplicates,
+          search: validatedSearch,
+          exclude_report_id: validatedExcludeReportId,
         });
       }
       const dataFetchLatencyMs = Date.now() - dataFetchStart;

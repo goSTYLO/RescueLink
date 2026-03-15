@@ -1,237 +1,260 @@
+"""
+Generate realistic Filipino/Taglish emergency reports for training.
+Uses curated base reports + controlled combinations/paraphrases.
+No location references (GPS collected separately).
+Run: python data/generate_dataset.py
+"""
 import csv
-import random
+import json
 import os
+import random
+import re
 
-# Always save inside the data folder of RescueLink AI
-OUTPUT_FILE = os.path.join("data", "emergency_dataset.csv")
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_REPORTS_PATH = os.path.join(SCRIPT_DIR, "realistic_base_reports.jsonl")
+OUTPUT_FILE = os.path.join(SCRIPT_DIR, "emergency_dataset.csv")
+TARGET_ROWS = 10_000
+SEED = 42
 
-# Incident types - Prioritize Filipino for city use
-incident_types = {
-    "Fire": {
-        "fil": [
-            "sunog sa bahay", "nasusunog na building", "may usok sa kusina",
-            "kuryente sunog", "nagliliyab na bahay", "tumatakbo ang apoy",
-            "nasusunog yung store", "may nag-aapoy na kotse", "gasoline sunog",
-            "chemical fire", "sunog sa factory", "bodega nasusunog"
-        ],
-        "en": [
-            "house fire", "building burning", "kitchen smoke",
-            "electrical fire", "structure fire", "car fire"
-        ]
-    },
-    "Crime": {
-        "fil": [
-            "holdap sa tindahan", "pananakit sa kalsada", "may kutsilyo",
-            "binaril ang tao", "nakawan sa bahay", "hostage situation",
-            "nag-aaway ng malakas", "bugbugan", "may nagnakaw",
-            "pagpatay", "kidnapping", "gulo sa bar"
-        ],
-        "en": [
-            "robbery", "assault on street", "stabbing",
-            "shooting incident", "burglary", "hostage"
-        ]
-    },
-    "Accident": {
-        "fil": [
-            "bangga ng kotse", "motor crash", "jeep tumama sa poste",
-            "truck nasagasaan ang tao", "hit and run", "nasagasaan",
-            "nahulog sa kanal", "nadulas", "naaksidente sa construction",
-            "nadaganan ng gamit", "banggaan sa highway", "rollover"
-        ],
-        "en": [
-            "car crash", "motorcycle collision", "vehicle accident",
-            "hit and run", "truck accident", "road collision"
-        ]
-    },
-    "Medical": {
-        "fil": [
-            "nahimatay", "hindi humihinga", "heart attack", 
-            "kombulsyon", "stroke", "nahihirapang huminga",
-            "duguan", "sugatan", "buntis manganak", 
-            "diabetic emergency", "overdose", "allergic reaction"
-        ],
-        "en": [
-            "collapsed person", "not breathing", "chest pain",
-            "seizure", "stroke", "bleeding"
-        ]
-    },
-    "Natural Disaster": {
-        "fil": [
-            "baha sa kalsada", "lindol", "landslide sa bundok",
-            "bagyo wasak ang bubong", "malakas na ulan", "storm surge",
-            "lupa gumuho", "puno tumama sa bahay", "hangin nilipat ang yero",
-            "tubig baha sa loob", "flash flood", "ulan di tumitigil"
-        ],
-        "en": [
-            "flooding", "earthquake", "landslide",
-            "typhoon damage", "heavy rain", "storm"
-        ]
-    },
-    "Other": {
-        "fil": [
-            "bata nawawala", "walang kuryente", "aso na-trap",
-            "tagas ng tubig", "brownout", "nagwawala ang tao",
-            "gulo sa rally", "ahas sa bahay", "nagkagulo ang mga tao",
-            "sarado ang daan", "nakita ang bangkay", "suspek na pakete",
-            "riot", "stampede", "gas leak", "kemikal natapon",
-            "may taong inuuusapan nang walang tigil", "basag na rehistro", "suka ng agua",
-            "mayroon na bukas na iwanan", "nakita ang pera sa daan", "may bayong anghang",
-            "tumutunog na siren", "may kakaibang kadahilan", "taong nakadating na basta-basta",
-            "may isda sa ilog", "gubat na mapapasok", "sira ang tulay",
-            "maraming tao sa isang lugar", "nag-aaksidente ang pulis", "nagsumiklab ang gulo",
-            "may batang umiiyak", "tumubalik na kuryente", "may gutom na tao",
-            "hindi alam kung saan", "may sekswal na guro", "may ligtas na tao",
-            "nawawalang alahas", "nahulog na phone", "basag na baso",
-            "sirang bahay", "sira ang tubig", "maling ulam"
-        ],
-        "en": [
-            "lost child", "power outage", "trapped animal",
-            "water main break", "public disturbance", "gas leak",
-            "loose animal", "broken fence", "lost person",
-            "strange object", "someone acting erratic", "unknown emergency",
-            "collapsed infrastructure", "suspicious activity", "unusual noise",
-            "found belongings", "building damage", "reported confusion",
-            "welfare check needed", "lost pet", "property damage",
-            "door forced open", "broken window", "trespasser",
-            "tree down", "debris blocking road", "fence collapse",
-            "manhole open", "missing person", "noise complaint",
-            "people gathering", "unauthorized entry", "general alarm"
-        ]
-    }
-}
-
-# START triage severity templates - Filipino prioritized
-severity_templates = {
-    "Green": {  # Minor
-        "fil": [
-            "walang sugat", "safe naman", "konting galos lang",
-            "kaya pang maghintay", "ok lang", "minor lang"
-        ],
-        "en": ["no injuries", "safe to wait", "minor only"]
-    },
-    "Yellow": {  # Delayed
-        "fil": [
-            "kailangan ng tulong pero stable", "posibleng bali", 
-            "kailangan tignan", "medyo masakit", "puwedeng delayed"
-        ],
-        "en": ["needs treatment soon", "possible fracture", "can wait"]
-    },
-    "Red": {  # Immediate
-        "fil": [
-            "malakas na dugo", "hindi makahinga", "kailangan agad",
-            "critical na", "buhay ang nakataya", "agarang emergency"
-        ],
-        "en": ["severe bleeding", "not breathing", "life-threatening", "urgent"]
-    },
-    "Black": {  # Expectant  
-        "fil": [
-            "walang buhay", "hindi na umaandar", "patay na",
-            "wala nang pulso", "deceased"
-        ],
-        "en": ["no signs of life", "deceased", "no pulse"]
-    }
-}
-
-# Realistic emergency report templates - 1-2 sentences, Filipino priority (70%)
-sentence_templates_fil = [
-    "May {incident}, {severity}.",
-    "{incident} dito sa {location}, {severity}!",
-    "Emergency! {incident}, {severity}.",
-    "Tulong! {incident}, {severity}.",
-    "{incident} nangyari, {severity}. Padala agad.",
-    "Grabe {incident}! {severity}. Bilisan!",
-    "Boss may {incident}, {severity}.",
-    "{incident} sa {location}. {severity}.",
-    "Nag-report ng {incident}, {severity}.",
-    "Biglaang {incident}, {severity}!"
+# Location phrases to strip (GPS collected separately)
+LOCATION_PATTERNS = [
+    r"\s+sa\s+(?:Tondo|Marikina|EDSA|Makati|Quezon City|Manila|Barangay Centro|Poblacion|San Jose|Bagong Silang|kanto|palengke|plaza|highway|mall|sakayan|area|Cebu|Davao|Baguio|Iloilo|Cagayan)\b",
+    r"\s+at\s+(?:Tondo|Marikina|EDSA|Makati|Manila|Cebu|Davao)\b",
+    r"\s+near\s+(?:EDSA|Makati|Manila|the\s+mall|the\s+highway)\b",
+    r"\s+malapit\s+sa\s+(?:Tondo|Marikina|EDSA|Makati|Manila|kanto|plaza)\b",
+    r"\s+dito\s+sa\s+(?:Tondo|Marikina|EDSA|Makati|Manila)\b",
+    r"\s+bandang\s+(?:Tondo|Marikina|EDSA|Makati|Manila|kanto)\b",
 ]
 
-sentence_templates_en = [
-    "{incident}, {severity}.",
-    "Emergency: {incident}, {severity}.",
-    "{incident} at {location}, {severity}.",
-    "Urgent - {incident}, {severity}!"
+# Tokens that indicate location leakage (for post-generation validation)
+LOCATION_LEAKAGE_TOKENS = [
+    "tondo", "marikina", "edsa", "makati", "quezon city", "manila",
+    "barangay centro", "poblacion", "san jose", "bagong silang",
+    "kanto", "palengke", "plaza", "highway", "mall", "sakayan",
+    "cebu", "davao", "baguio", "iloilo", "cagayan",
 ]
 
-# Location names (Filipino city context)
-locations = [
-    "Barangay Centro", "Poblacion", "San Jose", "Bagong Silang",
-    "highway", "palengke", "plaza", "elementary school",
-    "kanto", "tabi ng simbahan", "sakayan", "market"
-]
+# Must match training schema
+INCIDENT_TYPES = ["Fire", "Crime", "Accident", "Medical", "Natural Disaster", "Other"]
+SEVERITIES = ["Green", "Yellow", "Red", "Black"]
+INCIDENT_TO_IDX = {name: idx for idx, name in enumerate(INCIDENT_TYPES)}
+SEVERITY_TO_IDX = {name: idx for idx, name in enumerate(SEVERITIES)}
 
-# Light imperfection injection for realism (reduced for quality)
-def add_natural_variation(text):
-    variations = [
-        lambda s: s + " po",                        # polite marker
-        lambda s: s + " pls",                       # casual
-        lambda s: s.replace("!", "."),              # punctuation
-        lambda s: s.lower(),                        # lowercase
-        lambda s: s.upper()                         # urgent caps
-    ]
-    if random.random() < 0.15:  # Only 15% variation for higher quality
-        func = random.choice(variations)
-        return func(text)
+
+def strip_locations(text: str) -> str:
+    """Remove location references (GPS collected separately)."""
+    for pat in LOCATION_PATTERNS:
+        text = re.sub(pat, "", text, flags=re.IGNORECASE)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def has_location_leakage(text: str) -> bool:
+    """Check if text still contains location tokens (whole-word match to avoid false positives)."""
+    lower = text.lower()
+    for tok in LOCATION_LEAKAGE_TOKENS:
+        if " " in tok:
+            if re.search(r"\b" + re.escape(tok.replace(" ", r"\s+")) + r"\b", lower):
+                return True
+        elif re.search(r"\b" + re.escape(tok) + r"\b", lower):
+            return True
+    return False
+
+
+def load_base_reports() -> list[dict]:
+    """Load 1,000 curated base reports from JSONL."""
+    if not os.path.exists(BASE_REPORTS_PATH):
+        raise FileNotFoundError(
+            f"Base reports not found: {BASE_REPORTS_PATH}. Run: python data/create_base_reports.py"
+        )
+    rows = []
+    with open(BASE_REPORTS_PATH, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            r = json.loads(line)
+            r["text"] = strip_locations(r["text"])
+            rows.append(r)
+    return rows
+
+
+def add_paraphrase_variation(text: str) -> str:
+    """Light paraphrase for variety (deterministic given seed)."""
+    r = random.random()
+    if r < 0.1:
+        return text + " pls" if not text.endswith("pls") else text
+    if r < 0.2:
+        return text.replace("!", ".").replace(".", "!") if "!" in text or "." in text else text
+    if r < 0.25:
+        return text.replace(" po", "").replace(" pls", "")
     return text
 
-# Label mappings
-incident_type_labels = {name: idx for idx, name in enumerate(incident_types.keys())}
-severity_labels = {name: idx for idx, name in enumerate(severity_templates.keys())}
 
-# Generate dataset
-rows = []
-TARGET_ROWS = 15000  # High-quality synthetic dataset
-id_counter = 1
+def generate_combination(base1: dict, base2: dict) -> dict | None:
+    """Create a multi-label combination from two base reports (same or different types)."""
+    types1 = set(base1["incident_types"])
+    types2 = set(base2["incident_types"])
+    combined = sorted(types1 | types2)
+    if len(combined) < 2:
+        return None
+    # Use severity from the more severe report
+    sev_order = {"Green": 0, "Yellow": 1, "Red": 2, "Black": 3}
+    s1, s2 = base1["severity"], base2["severity"]
+    severity = s2 if sev_order[s2] >= sev_order[s1] else s1
+    # Simple combo text
+    t1 = base1["text"].split(".")[0].split("!")[0].strip()
+    t2 = base2["text"].split(".")[0].split("!")[0].strip()
+    if t1 == t2:
+        return None
+    text = f"{t1} at {t2}."
+    return {"text": text, "incident_types": combined, "severity": severity}
 
-while len(rows) < TARGET_ROWS:
-    # Pick 1–2 incident types (multi-label) - weighted toward single label (70%)
-    num_incidents = 1 if random.random() < 0.7 else 2
-    incident_choices = random.sample(list(incident_types.keys()), k=num_incidents)
-    
-    # 80% Filipino, 20% English
-    use_filipino = random.random() < 0.8
-    lang = "fil" if use_filipino else "en"
-    
-    # Get incident phrases in chosen language
-    incident_phrases = [random.choice(incident_types[it][lang]) for it in incident_choices]
-    incident_text = " at ".join(incident_phrases) if lang == "fil" else " and ".join(incident_phrases)
 
-    # Pick severity in same language
-    severity = random.choice(list(severity_templates.keys()))
-    severity_phrase = random.choice(severity_templates[severity][lang])
-    
-    # Choose template from appropriate language
-    sentence_template = random.choice(sentence_templates_fil if lang == "fil" else sentence_templates_en)
+def validate_dataset(rows: list[list]) -> dict:
+    """Run quality checks and return summary."""
+    if len(rows) < TARGET_ROWS * 0.95:
+        raise ValueError(f"Dataset too small: {len(rows)} < {int(TARGET_ROWS * 0.95)}")
+    texts = [r[1] for r in rows]
+    dupes = len(texts) - len(set(texts))
+    lengths = [len(t) for t in texts]
+    inc_counts = {}
+    sev_counts = {}
+    leakage_count = 0
+    leakage_samples = []
+    for r in rows:
+        for it in eval(r[2]) if isinstance(r[2], str) else r[2]:
+            inc_counts[it] = inc_counts.get(it, 0) + 1
+        sev = r[3]
+        sev_counts[sev] = sev_counts.get(sev, 0) + 1
+        if has_location_leakage(r[1]):
+            leakage_count += 1
+            if len(leakage_samples) < 5:
+                leakage_samples.append(r[1][:80])
+    return {
+        "row_count": len(rows),
+        "duplicate_count": dupes,
+        "min_len": min(lengths),
+        "max_len": max(lengths),
+        "avg_len": sum(lengths) / len(lengths),
+        "incident_dist": inc_counts,
+        "severity_dist": sev_counts,
+        "location_leakage_count": leakage_count,
+        "location_leakage_samples": leakage_samples,
+    }
 
-    # Build sentence
-    text = sentence_template.format(
-        incident=incident_text,
-        severity=severity_phrase,
-        location=random.choice(locations) if "{location}" in sentence_template else ""
-    )
 
-    # Add light natural variation
-    text = add_natural_variation(text)
+def main():
+    random.seed(SEED)
+    os.makedirs(SCRIPT_DIR, exist_ok=True)
 
-    # Append row with multi-label incident types
-    rows.append([
-        id_counter,
-        text,
-        incident_choices,  # list of incident types
-        severity,
-        [incident_type_labels[it] for it in incident_choices],  # list of numeric labels
-        severity_labels[severity],
-        lang
-    ])
-    id_counter += 1
+    base_reports = load_base_reports()
+    if len(base_reports) < 500:
+        raise ValueError(f"Need at least 500 base reports, got {len(base_reports)}")
 
-# Ensure data folder exists
-os.makedirs("data", exist_ok=True)
+    # Label mappings for output
+    def to_type_labels(incidents: list) -> list:
+        return [INCIDENT_TO_IDX[it] for it in incidents]
 
-# Write CSV
-with open(OUTPUT_FILE, mode="w", newline="", encoding="utf-8") as f:
-    writer = csv.writer(f)
-    writer.writerow(["id", "text", "incident_types", "severity", "type_labels", "severity_label", "lang"])
-    writer.writerows(rows)
+    def to_severity_label(sev: str) -> int:
+        return SEVERITY_TO_IDX[sev]
 
-print(f"Generated {len(rows)} emergency scenarios in {OUTPUT_FILE}")
+    # Detect lang heuristically for CSV
+    def detect_lang(text: str) -> str:
+        fil_words = ["may", "sa", "ang", "na", "ng", "po", "kailangan", "malakas", "hindi", "walang"]
+        c = sum(1 for w in fil_words if w in text.lower())
+        return "fil" if c >= 2 else "tl"
+
+    rows = []
+    seen_texts = set()
+    id_counter = 1
+
+    # 1. Add base reports (with light variation to avoid exact dupes)
+    for r in base_reports:
+        text = r["text"].strip()
+        if text in seen_texts:
+            text = add_paraphrase_variation(text)
+        if text in seen_texts:
+            continue
+        seen_texts.add(text)
+        rows.append([
+            id_counter,
+            text,
+            r["incident_types"],
+            r["severity"],
+            to_type_labels(r["incident_types"]),
+            to_severity_label(r["severity"]),
+            detect_lang(text),
+        ])
+        id_counter += 1
+        if len(rows) >= TARGET_ROWS:
+            break
+
+    # 2. Add combinations/paraphrases to reach target
+    while len(rows) < TARGET_ROWS:
+        if random.random() < 0.7:
+            # Paraphrase of random base
+            b = random.choice(base_reports)
+            text = add_paraphrase_variation(b["text"].strip())
+        else:
+            # Combination of two bases
+            b1, b2 = random.sample(base_reports, 2)
+            combo = generate_combination(b1, b2)
+            if combo is None:
+                continue
+            text = combo["text"]
+            b = combo
+        text = strip_locations(text)
+        if text in seen_texts or len(text) < 10:
+            continue
+        seen_texts.add(text)
+        inc = b.get("incident_types", ["Other"])
+        sev = b.get("severity", "Yellow")
+        rows.append([
+            id_counter,
+            text,
+            inc,
+            sev,
+            to_type_labels(inc),
+            to_severity_label(sev),
+            detect_lang(text),
+        ])
+        id_counter += 1
+
+    rows = rows[:TARGET_ROWS]
+
+    # Validate
+    summary = validate_dataset(rows)
+    print("Dataset quality summary:")
+    print(f"  Rows: {summary['row_count']}")
+    print(f"  Duplicates: {summary['duplicate_count']}")
+    print(f"  Text length: min={summary['min_len']} max={summary['max_len']} avg={summary['avg_len']:.1f}")
+    print(f"  Incident dist: {summary['incident_dist']}")
+    print(f"  Severity dist: {summary['severity_dist']}")
+    leakage = summary.get("location_leakage_count", 0)
+    print(f"  Location leakage: {leakage} rows")
+    if leakage > 0:
+        print("  Leakage samples:", summary.get("location_leakage_samples", [])[:3])
+    print("  Label mappings (training schema):")
+    print(f"    Incident types: {INCIDENT_TYPES}")
+    print(f"    Severity: {SEVERITIES}")
+
+    # Write CSV
+    with open(OUTPUT_FILE, mode="w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(["id", "text", "incident_types", "severity", "type_labels", "severity_label", "lang"])
+        for r in rows:
+            writer.writerow([
+                r[0],
+                r[1],
+                str(r[2]) if isinstance(r[2], list) else r[2],
+                r[3],
+                str(r[4]) if isinstance(r[4], list) else r[4],
+                r[5],
+                r[6],
+            ])
+
+    print(f"\nGenerated {len(rows)} rows in {OUTPUT_FILE}")
+
+
+if __name__ == "__main__":
+    main()

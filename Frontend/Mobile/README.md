@@ -2,6 +2,10 @@
 
 Flutter mobile application for RescueLink built with BLoC architecture.
 
+## Duplicate Incident Management
+
+Duplicate incident linking is a **dispatcher-only** feature available on the web dashboard. The mobile app does not include duplicate management UI. When creating an incident, the backend may return a response indicating a potential related incident; that is informational only. Dispatchers verify and link duplicates via the web app.
+
 ## Session Updates (Incident + Notification Integration)
 
 Recent mobile updates:

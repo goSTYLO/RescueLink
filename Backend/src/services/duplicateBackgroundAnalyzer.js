@@ -8,8 +8,6 @@ const pool = require('../config/db');
 const duplicateConfig = require('../config/duplicateDetection');
 const {
   findPotentialDuplicates,
-  linkAsDuplicate,
-  getPrimaryReportId,
 } = require('./duplicateDetectionService');
 
 const CRON_SCHEDULE = '*/2 * * * *'; // Every 2 minutes
@@ -36,35 +34,42 @@ async function getRecentReportsToAnalyze(minutes = 30) {
 
 /**
  * Run background duplicate analysis
+ * @param {Object} [options]
+ * @param {number} [options.extendedWindowMinutes] - When set (e.g. 10080 = 7 days), analyze all unlinked reports from this window. Use for manual runs on older data.
  */
-async function runDuplicateAnalysis() {
+async function runDuplicateAnalysis(options = {}) {
   if (!duplicateConfig.enabled) return;
 
   try {
     const radius = duplicateConfig.background.radiusMeters;
     const timeWindow = duplicateConfig.background.timeWindowMinutes;
-    const minClusterSize = duplicateConfig.background.minClusterSize;
-    const autoLinkThreshold = duplicateConfig.realTime.autoLinkThreshold;
+    const analysisWindow = options.extendedWindowMinutes ?? timeWindow;
 
-    const reports = await getRecentReportsToAnalyze(timeWindow);
+    const reports = await getRecentReportsToAnalyze(analysisWindow);
     if (reports.length === 0) return;
 
     let linked = 0;
+    const flagThreshold = duplicateConfig.realTime.flagThreshold;
 
+    // Only flag for review; never auto-link. Dispatcher verifies and marks as duplicate manually.
     for (const report of reports) {
       const duplicates = await findPotentialDuplicates(report, radius, timeWindow);
-      const best = duplicates[0];
-      if (best && best.confidence >= autoLinkThreshold) {
-        const primaryId = await getPrimaryReportId(best.report_id);
-        if (primaryId !== report.report_id) {
-          await linkAsDuplicate(report.report_id, primaryId, best.confidence, 'background_analysis');
-          linked++;
-        }
+      for (const dup of duplicates) {
+        if (dup.confidence < flagThreshold) continue;
+        const dupCheck = await pool.query('SELECT flagged_for_review FROM incident_reports WHERE report_id = $1', [dup.report_id]);
+        if (dupCheck.rows[0]?.flagged_for_review) continue;
+        await pool.query('UPDATE incident_reports SET flagged_for_review = TRUE WHERE report_id = $1', [dup.report_id]);
+        linked++;
+      }
+      const reportCheck = await pool.query('SELECT flagged_for_review FROM incident_reports WHERE report_id = $1', [report.report_id]);
+      if (duplicates.some((d) => d.confidence >= flagThreshold) && !reportCheck.rows[0]?.flagged_for_review) {
+        await pool.query('UPDATE incident_reports SET flagged_for_review = TRUE WHERE report_id = $1', [report.report_id]);
+        linked++;
       }
     }
 
     if (linked > 0) {
-      console.log(`[DuplicateAnalyzer] Linked ${linked} report(s) as duplicates`);
+      console.log(`[DuplicateAnalyzer] Flagged ${linked} report(s) for possible duplicate review`);
     }
   } catch (err) {
     console.error('[DuplicateAnalyzer] Error:', err.message);

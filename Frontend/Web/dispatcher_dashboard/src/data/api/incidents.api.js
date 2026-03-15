@@ -31,8 +31,11 @@ export function normalizeIncidentStatus(value) {
  * @param {string} [params.status] - Filter by status (pending, verified, in_progress, resolved, closed)
  * @param {string} [params.incident_type] - Filter by incident type (fire, medical, police, disaster)
  * @param {string} [params.barangay] - Filter by barangay
+ * @param {boolean} [params.exclude_duplicates=false] - Exclude incidents marked as duplicates
+ * @param {string} [params.search] - Search by report ID (exact) or description/barangay (ILIKE)
+ * @param {number} [params.exclude_report_id] - Exclude a specific report ID (e.g. when selecting parent for duplicate)
  * @param {boolean} [params.withMeta=false] - Include backend pagination metadata
- * @returns {Promise<Array>} Array of incident objects
+ * @returns {Promise<Array>} Array of incident objects (or { items, totalCount, limit, offset } if withMeta)
  */
 export async function getIncidents({
   limit = 100,
@@ -42,6 +45,8 @@ export async function getIncidents({
   incident_type,
   barangay,
   exclude_duplicates = false,
+  search,
+  exclude_report_id,
   withMeta = false,
 } = {}) {
   const requestId = createRequestId('web-incidents');
@@ -54,6 +59,8 @@ export async function getIncidents({
   if (incident_type) params.set('incident_type', String(incident_type).toLowerCase());
   if (barangay) params.set('barangay', barangay);
   if (exclude_duplicates) params.set('exclude_duplicates', 'true');
+  if (search && String(search).trim()) params.set('search', String(search).trim());
+  if (exclude_report_id != null) params.set('exclude_report_id', String(exclude_report_id));
   params.set('meta', withMeta ? '1' : '0');
   const queryKey = params.toString();
   const cached = incidentsCache.get(queryKey);

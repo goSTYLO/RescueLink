@@ -5,17 +5,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/presentation/components/ui/Dialog';
 import { Label } from '@/presentation/components/ui/Label';
 import { Switch } from '@/presentation/components/ui/Switch';
-import { Activity, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, Loader2, SlidersHorizontal, LayoutList, CircleCheck, ExternalLink } from 'lucide-react';
+import { Activity, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, Loader2, SlidersHorizontal, LayoutList, CircleCheck, ExternalLink, Merge } from 'lucide-react';
 import { incidents as mockIncidents, barangays, departments as departmentsList } from '@/data/mock/mockData';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
-import { getIncidents, verifyIncident } from '@/data/api/incidents.api';
+import { getIncidents, verifyIncident, linkDuplicate } from '@/data/api/incidents.api';
 import { createDispatch } from '@/data/api/dispatches.api';
 import { DEV_MODE } from '@/core/config/app.config';
 import { normalizeRole, ROLES } from '@/core/constants';
 import { mapIncidentTypeFilterToApi } from '@/core/utils/incidentClassification';
 import { mapApiIncidentToDisplay } from '@/core/utils/incidentDisplay';
+import { SelectParentIncidentDialog } from '@/presentation/components/common/SelectParentIncidentDialog';
 import Swal from 'sweetalert2';
 
 const POLLING_INTERVAL_MS = 60000;
@@ -92,7 +93,7 @@ export function DashboardPage() {
   const [filterStatus, setFilterStatus] = useState(persistedFilterState.filterStatus || 'All');
   const [filterSeverity, setFilterSeverity] = useState(persistedFilterState.filterSeverity || 'All');
   const [filterBarangay, setFilterBarangay] = useState(persistedFilterState.filterBarangay || 'All');
-  const [hideDuplicates, setHideDuplicates] = useState(persistedFilterState.hideDuplicates !== false);
+  const [hideDuplicates, setHideDuplicates] = useState(persistedFilterState.hideDuplicates === true);
   const [selectStates, setSelectStates] = useState({
     type: false,
     status: false,
@@ -321,6 +322,10 @@ export function DashboardPage() {
     || normalizedRole === ROLES.DISPATCHER
     || normalizedRole === ROLES.DEPARTMENT_ADMIN
   );
+  const canManageDuplicates = normalizedRole === ROLES.SUPER_ADMIN || normalizedRole === ROLES.DISPATCHER;
+  const [browseDuplicateDialogOpen, setBrowseDuplicateDialogOpen] = useState(false);
+  const [incidentToLinkAsDuplicate, setIncidentToLinkAsDuplicate] = useState(null);
+  const [linkDuplicateInProgress, setLinkDuplicateInProgress] = useState(false);
 
   const openVerifyAssignModal = (incident) => {
     const defaultDepartmentId = incident.assignedDepartmentId || getDefaultSectorId(incident.emergencyType);
@@ -761,6 +766,16 @@ export function DashboardPage() {
                                   {incident.reporterConfirmedAt ? 'Reporter confirmed' : 'Awaiting confirmation'}
                                 </span>
                               )}
+                              {incident.isDuplicate && (
+                                <Badge className="bg-gray-500/20 text-gray-400 border border-gray-500/40 rounded-lg px-2 py-0.5 text-[11px] font-semibold w-fit">
+                                  DUPLICATE
+                                </Badge>
+                              )}
+                              {!incident.isDuplicate && incident.flaggedForReview && (
+                                <Badge className="bg-orange-500/20 text-orange-400 border border-orange-500/40 rounded-lg px-2 py-0.5 text-[11px] font-semibold w-fit">
+                                  POSSIBLE DUPLICATE
+                                </Badge>
+                              )}
                             </div>
                           </td>
                           <td className="py-2.5 px-3 text-sm text-muted">{incident.timeReported}</td>
@@ -779,11 +794,26 @@ export function DashboardPage() {
                                 <Button
                                   size="sm"
                                   variant="ghost"
-                                className="h-8 w-8 p-0 rounded-lg text-severity-resolved hover:bg-severity-resolved/20 transition-all"
+                                  className="h-8 w-8 p-0 rounded-lg text-severity-resolved hover:bg-severity-resolved/20 transition-all"
                                   onClick={(e) => { e.stopPropagation(); openVerifyAssignModal(incident); }}
                                   title="Verify & Assign to Department"
                                 >
                                   <CircleCheck className="w-4 h-4" strokeWidth={2} />
+                                </Button>
+                              )}
+                              {canManageDuplicates && !incident.isDuplicate && /^\d+$/.test(String(incident.id)) && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-8 w-8 p-0 rounded-lg text-amber-600 hover:bg-amber-500/20 transition-all"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setIncidentToLinkAsDuplicate(incident);
+                                    setBrowseDuplicateDialogOpen(true);
+                                  }}
+                                  title="Mark as duplicate"
+                                >
+                                  <Merge className="w-4 h-4" strokeWidth={2} />
                                 </Button>
                               )}
                             </div>
@@ -887,6 +917,32 @@ export function DashboardPage() {
             )}
           </DialogContent>
         </Dialog>
+
+        <SelectParentIncidentDialog
+          open={browseDuplicateDialogOpen}
+          onOpenChange={(open) => {
+            setBrowseDuplicateDialogOpen(open);
+            if (!open) setIncidentToLinkAsDuplicate(null);
+          }}
+          currentIncidentId={incidentToLinkAsDuplicate?.id}
+          loading={linkDuplicateInProgress}
+          onSelect={async (parentId) => {
+            if (!incidentToLinkAsDuplicate) return;
+            setLinkDuplicateInProgress(true);
+            try {
+              await linkDuplicate(incidentToLinkAsDuplicate.id, parentId);
+              setBrowseDuplicateDialogOpen(false);
+              setIncidentToLinkAsDuplicate(null);
+              await fetchIncidents();
+              window.dispatchEvent(new CustomEvent('incident:updated', { detail: { incidentId: incidentToLinkAsDuplicate.id } }));
+              Swal.fire({ icon: 'success', title: 'Marked as duplicate', timer: 1500, showConfirmButton: false });
+            } catch (err) {
+              Swal.fire({ icon: 'error', title: 'Failed', text: err.message || 'Could not link duplicate' });
+            } finally {
+              setLinkDuplicateInProgress(false);
+            }
+          }}
+        />
       </div>
     </Layout>
   );

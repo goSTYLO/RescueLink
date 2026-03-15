@@ -1,32 +1,32 @@
 @echo off
+setlocal
 set "ROOT=%~dp0"
 
-where code >nul 2>&1
+where npm >nul 2>&1
 if errorlevel 1 (
-	echo VS Code CLI not found on PATH.
-	echo Open this workspace in VS Code and run:
-	echo   Terminal ^> Run Task ^> Run All Services
+	echo npm not found on PATH. Install Node.js and ensure npm is available.
 	pause
 	exit /b 1
 )
 
-echo Opening workspace and triggering Run All Services in VS Code...
-code --reuse-window "%ROOT%" --command workbench.action.tasks.build >nul 2>&1
-
+where python >nul 2>&1
 if errorlevel 1 (
-	echo.
-	echo VS Code opened, but automatic task start did not complete.
-	echo Run one of these inside VS Code:
-	echo   Ctrl+Shift+B
-	echo   Terminal ^> Run Task ^> Run All Services
+	echo python not found on PATH. Install Python and ensure it is available.
 	pause
 	exit /b 1
 )
 
-echo Services should start in integrated VS Code terminals.
-echo If they do not, run Ctrl+Shift+B inside VS Code.
+echo Launching RescueLink services...
 
-echo Opening Mobile terminal...
-start "RescueLink Mobile" powershell -NoProfile -NoExit -Command "& {Set-Location '%ROOT%Frontend\Mobile'; Write-Host 'Mobile terminal ready. Run: flutter run' -ForegroundColor Cyan}"
+start "RescueLink Backend" powershell -NoProfile -NoExit -ExecutionPolicy Bypass -Command "& {Set-Location '%ROOT%Backend'; npm run dev}"
+REM Both RescueLink AI and Blockchain use the shared root .venv
+start "RescueLink AI" powershell -NoProfile -NoExit -ExecutionPolicy Bypass -Command "& { $r = '%ROOT%'; if (Test-Path ($r + '.venv\Scripts\Activate.ps1')) { & ($r + '.venv\Scripts\Activate.ps1') }; Set-Location ($r + 'RescueLink AI'); python -m uvicorn api.main:app --reload --port 8000 }"
+start "RescueLink Blockchain" powershell -NoProfile -NoExit -ExecutionPolicy Bypass -Command "& { $r = '%ROOT%'; if (Test-Path ($r + '.venv\Scripts\Activate.ps1')) { & ($r + '.venv\Scripts\Activate.ps1') }; Set-Location ($r + 'Blockchain'); python -m uvicorn main:app --host 0.0.0.0 --port 8001 }"
+start "RescueLink Web" powershell -NoProfile -NoExit -ExecutionPolicy Bypass -Command "& {Set-Location '%ROOT%Frontend\Web\dispatcher_dashboard'; npm run dev}"
+start "RescueLink Mobile" powershell -NoProfile -NoExit -Command "& {Set-Location '%ROOT%Frontend\Mobile'}"
 
+start /B powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Sleep -Seconds 4; Start-Process 'http://localhost:5173'"
+
+echo.
+echo Services launched. Browser will open shortly.
 exit /b 0

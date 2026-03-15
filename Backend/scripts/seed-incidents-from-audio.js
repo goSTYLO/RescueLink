@@ -7,6 +7,7 @@ const { Pool } = require('pg');
 const { encrypt } = require('../src/utils/encryption');
 const { ROLES } = require('../src/config/roles');
 const { checkAiHealth, processIncidentWithAudio } = require('../src/services/aiService');
+const { runDuplicateAnalysis } = require('../src/services/duplicateBackgroundAnalyzer');
 
 const DATABASE_URL = process.env.DATABASE_URL;
 if (!DATABASE_URL) {
@@ -18,9 +19,10 @@ const pool = new Pool({ connectionString: DATABASE_URL });
 const args = new Set(process.argv.slice(2));
 const shouldReset = args.has('--reset');
 const requestedCountArg = process.argv.slice(2).find((arg) => arg.startsWith('--count='));
-// Limit audio-based seeding to at most 15 incidents for demo runs
-const DEFAULT_INCIDENT_COUNT = 15;
-const MAX_INCIDENT_COUNT = 15;
+// Seed 20 incidents: 5 duplicates (same location, within 10 min) + 15 unique
+const DEFAULT_INCIDENT_COUNT = 20;
+const MAX_INCIDENT_COUNT = 20;
+const DUPLICATE_CLUSTER_SIZE = 5;
 const requestedCount = requestedCountArg ? Number(requestedCountArg.split('=')[1]) : DEFAULT_INCIDENT_COUNT;
 const targetCount = Number.isFinite(requestedCount) && requestedCount > 0
   ? Math.min(requestedCount, MAX_INCIDENT_COUNT)
@@ -38,6 +40,13 @@ const BARANGAYS = [
   'Malued',
   'Bacayao Norte',
   'Bacayao Sur',
+];
+
+// Base location for duplicate cluster (within 100m, 10-min window per env thresholds)
+const DUPLICATE_CLUSTER_BASE = { barangay: 'Poblacion Oeste', latitude: 16.043037, longitude: 120.3323573, label: 'Dagupan City Police Station' };
+// Small offsets (~5.5m each) so all 5 stay within 100m
+const DUPLICATE_LOCATION_OFFSETS = [
+  [0, 0], [0.00005, 0], [0, 0.00005], [-0.00005, 0], [0, -0.00005],
 ];
 
 const DAGUPAN_LOCATION_FIXTURES = [
@@ -230,9 +239,123 @@ async function seedIncidents() {
     let createdCount = 0;
     let aiCount = 0;
     let skippedCount = 0;
+    const duplicateReportIds = [];
+    const baseTime = new Date();
 
-    for (let i = 0; i < audioFiles.length && createdCount < targetCount; i++) {
-      const audio = audioFiles[i];
+    // Phase 1: Create 5 duplicate incidents (same location within 100m, created_at within 10 min)
+    const duplicateAudio = audioFiles[0];
+    let duplicateAiResult;
+    try {
+      const audioBuffer = await fs.readFile(duplicateAudio.sourcePath);
+      duplicateAiResult = await processIncidentWithAudio(audioBuffer, duplicateAudio.originalName, null, {
+        requestId: `seed-incidents-${Date.now()}-dup`,
+      });
+    } catch (error) {
+      skippedCount += DUPLICATE_CLUSTER_SIZE;
+      console.warn(`⚠️ Skipping ${DUPLICATE_CLUSTER_SIZE} duplicate incidents (AI failed for ${duplicateAudio.originalName}): ${error.message}`);
+    }
+
+    if (duplicateAiResult) {
+      const incidentType = coerceIncidentType(duplicateAiResult?.primaryType);
+      const severity = coerceSeverity(duplicateAiResult?.severity);
+      const secondaryType = coerceIncidentType(duplicateAiResult?.secondaryType);
+      const primaryConfidence = normalizeConfidence(duplicateAiResult?.maxConfidence);
+      const secondaryConfidence = normalizeConfidence(duplicateAiResult?.secondaryConfidence);
+      const transcriptionText = String(duplicateAiResult?.transcription || '').trim();
+      if (incidentType && transcriptionText) {
+        const barangay = DUPLICATE_CLUSTER_BASE.barangay;
+        for (let dupIdx = 0; dupIdx < DUPLICATE_CLUSTER_SIZE; dupIdx++) {
+          const offset = DUPLICATE_LOCATION_OFFSETS[dupIdx];
+          const latitude = DUPLICATE_CLUSTER_BASE.latitude + offset[0];
+          const longitude = DUPLICATE_CLUSTER_BASE.longitude + offset[1];
+          const createdAt = new Date(baseTime.getTime() - (8 - dupIdx * 2) * 60 * 1000);
+          const userId = reporterIds[dupIdx % reporterIds.length];
+          const statusCycle = ['pending', 'verified', 'in_progress', 'resolved', 'closed'];
+          const status = statusCycle[dupIdx % statusCycle.length];
+          const baseDescription = `Audio-reported ${incidentType} incident near ${barangay}. Location: ${DUPLICATE_CLUSTER_BASE.label}. Source file: ${duplicateAudio.originalName} (duplicate #${dupIdx + 1})`;
+
+          const insertRes = await client.query(
+            `INSERT INTO incident_reports(
+               user_id,
+               incident_type,
+               severity_level,
+               primary_classification,
+               primary_confidence,
+               secondary_classification,
+               secondary_confidence,
+               description,
+               latitude,
+               longitude,
+               barangay,
+               status,
+               transcription,
+               verified,
+               ai_pending,
+               ai_attempted,
+               scan_status,
+               quarantined,
+               created_at
+             )
+             VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,FALSE,TRUE,'clean',FALSE,$15)
+             RETURNING report_id`,
+            [
+              userId,
+              incidentType,
+              severity,
+              incidentType,
+              primaryConfidence,
+              secondaryType,
+              secondaryConfidence,
+              maybeEncrypt(baseDescription, incidentColumnMeta.description),
+              maybeEncrypt(latitude, incidentColumnMeta.latitude),
+              maybeEncrypt(longitude, incidentColumnMeta.longitude),
+              maybeEncrypt(barangay, incidentColumnMeta.barangay),
+              status,
+              maybeEncrypt(transcriptionText, incidentColumnMeta.transcription),
+              status !== 'pending',
+              createdAt,
+            ]
+          );
+          const reportId = insertRes.rows[0].report_id;
+          duplicateReportIds.push(reportId);
+
+          const targetFilename = `incident_${reportId}_audio${duplicateAudio.ext}`;
+          const targetAbsolutePath = path.join(uploadsDir, targetFilename);
+          await fs.copyFile(duplicateAudio.sourcePath, targetAbsolutePath);
+          const audioDbPath = path.join('uploads', 'incidents', targetFilename).replace(/\\/g, '/');
+
+          await client.query(
+            `UPDATE incident_reports SET audio_path = $1 WHERE report_id = $2`,
+            [audioDbPath, reportId]
+          );
+
+          await client.query(
+            `INSERT INTO ai_classifications(report_id, predicted_type, predicted_severity, confidence_score, secondary_predicted_type, secondary_confidence_score, low_confidence_flag, is_duplicate, is_override, retry_count)
+             VALUES($1,$2,$3,$4,$5,$6,$7,FALSE,FALSE,0)`,
+            [
+              reportId,
+              incidentType,
+              severity,
+              primaryConfidence,
+              secondaryType,
+              secondaryConfidence,
+              Boolean(duplicateAiResult?.lowConfidenceFlag),
+            ]
+          );
+
+          createdCount++;
+          aiCount++;
+          console.log(`✅ Seeded report_id=${reportId} [duplicate ${dupIdx + 1}/5] file=${duplicateAudio.originalName} type=${incidentType} severity=${severity}`);
+        }
+      } else {
+        skippedCount += DUPLICATE_CLUSTER_SIZE;
+        console.warn(`⚠️ Skipping ${DUPLICATE_CLUSTER_SIZE} duplicate incidents (unsupported type or empty transcription).`);
+      }
+    }
+
+    // Phase 2: Create 15 unique incidents (different locations, created_at 60-210 min ago)
+    for (let i = DUPLICATE_CLUSTER_SIZE; i < targetCount; i++) {
+      const audio = audioFiles[i % audioFiles.length];
       const userId = reporterIds[i % reporterIds.length];
       const locationFixture = DAGUPAN_LOCATION_FIXTURES[i % DAGUPAN_LOCATION_FIXTURES.length];
       const barangay = locationFixture?.barangay || BARANGAYS[i % BARANGAYS.length];
@@ -240,6 +363,7 @@ async function seedIncidents() {
       const longitude = Number(locationFixture?.longitude);
       const statusCycle = ['pending', 'verified', 'in_progress', 'resolved', 'closed'];
       const status = statusCycle[i % statusCycle.length];
+      const createdAt = new Date(baseTime.getTime() - (60 + (i - DUPLICATE_CLUSTER_SIZE) * 10) * 60 * 1000);
       const requestId = `seed-incidents-${Date.now()}-${i}`;
       let aiResult;
       try {
@@ -288,9 +412,10 @@ async function seedIncidents() {
            ai_pending,
            ai_attempted,
            scan_status,
-           quarantined
+           quarantined,
+           created_at
          )
-         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,FALSE,TRUE,'clean',FALSE)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,FALSE,TRUE,'clean',FALSE,$15)
          RETURNING report_id`,
         [
           userId,
@@ -307,6 +432,7 @@ async function seedIncidents() {
           status,
           maybeEncrypt(transcriptionText, incidentColumnMeta.transcription),
           status !== 'pending',
+          createdAt,
         ]
       );
       const reportId = insertRes.rows[0].report_id;
@@ -317,25 +443,12 @@ async function seedIncidents() {
       const audioDbPath = path.join('uploads', 'incidents', targetFilename).replace(/\\/g, '/');
 
       await client.query(
-        `UPDATE incident_reports
-         SET audio_path = $1
-         WHERE report_id = $2`,
+        `UPDATE incident_reports SET audio_path = $1 WHERE report_id = $2`,
         [audioDbPath, reportId]
       );
 
       await client.query(
-        `INSERT INTO ai_classifications(
-           report_id,
-           predicted_type,
-           predicted_severity,
-           confidence_score,
-           secondary_predicted_type,
-           secondary_confidence_score,
-           low_confidence_flag,
-           is_duplicate,
-           is_override,
-           retry_count
-         )
+        `INSERT INTO ai_classifications(report_id, predicted_type, predicted_severity, confidence_score, secondary_predicted_type, secondary_confidence_score, low_confidence_flag, is_duplicate, is_override, retry_count)
          VALUES($1,$2,$3,$4,$5,$6,$7,FALSE,FALSE,0)`,
         [
           reportId,
@@ -357,6 +470,16 @@ async function seedIncidents() {
       throw new Error('AI-based seeding created 0 incidents. Check AI service logs and audio files.');
     }
 
+    // Run duplicate analysis to link the 5 duplicate incidents immediately
+    if (duplicateReportIds.length > 0) {
+      try {
+        await runDuplicateAnalysis();
+        console.log('   🔗 Duplicate analysis run (5 incidents should be linked as duplicates)');
+      } catch (err) {
+        console.warn(`   ⚠️ Duplicate analysis failed: ${err.message}`);
+      }
+    }
+
     console.log('════════════════════════════════════════════════');
     console.log('✅ Incident audio seeding completed!');
     console.log('════════════════════════════════════════════════');
@@ -364,6 +487,9 @@ async function seedIncidents() {
     console.log(`   🤖 AI classification rows: ${aiCount}`);
     console.log(`   ⏭️ Skipped audio files: ${skippedCount}`);
     console.log(`   🗂️ Source pools: RescueLink AI/test + Backend/uploads/incidents`);
+    if (duplicateReportIds.length > 0) {
+      console.log(`   🔗 Duplicate cluster (report_ids): ${duplicateReportIds.join(', ')}`);
+    }
   } catch (error) {
     console.error('❌ Incident seeding failed!');
     console.error(error);

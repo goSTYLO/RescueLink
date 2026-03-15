@@ -1,9 +1,15 @@
 /**
  * Duplicate detection service - geospatial + time-based clustering
- * No AI required - uses distance and time window matching
+ * No AI required - uses distance and time window matching.
+ *
+ * Behavior:
+ * - Never auto-links incidents; only flags for dispatcher review (flagged_for_review).
+ * - findPotentialDuplicates returns decrypted description, reporter_name, status for UI display.
+ * - getDuplicateInfo/getDuplicateCluster return decrypted cluster data.
  */
 
 const pool = require('../config/db');
+const { tryDecryptValue } = require('../utils/encryption');
 const { calculateDistance } = require('../utils/geolocation');
 const duplicateConfig = require('../config/duplicateDetection');
 
@@ -80,7 +86,8 @@ async function findPotentialDuplicates(report, radiusMeters = null, timeWindowMi
   timeEnd.setMinutes(timeEnd.getMinutes() + timeWindow);
 
   const res = await pool.query(
-    `SELECT ir.report_id, ir.user_id, ir.incident_type, ir.primary_classification, ir.latitude, ir.longitude, ir.created_at,
+    `SELECT ir.report_id, ir.user_id, ir.incident_type, ir.primary_classification, ir.status, ir.description,
+            ir.latitude, ir.longitude, ir.created_at,
             u.first_name AS reporter_first_name, u.last_name AS reporter_last_name
      FROM incident_reports ir
      LEFT JOIN users u ON ir.user_id = u.user_id
@@ -101,11 +108,12 @@ async function findPotentialDuplicates(report, radiusMeters = null, timeWindowMi
       user_id: row.user_id,
       incident_type: row.incident_type,
       primary_classification: row.primary_classification,
+      status: row.status,
       latitude: row.latitude,
       longitude: row.longitude,
       created_at: row.created_at,
-      reporter_first_name: row.reporter_first_name,
-      reporter_last_name: row.reporter_last_name,
+      description: tryDecryptValue(row.description) || row.description,
+      reporter_name: [tryDecryptValue(row.reporter_first_name), tryDecryptValue(row.reporter_last_name)].filter(Boolean).join(' ').trim() || `User #${row.user_id}`,
       confidence,
     };
   }).filter((c) => c.confidence > 0);
@@ -135,7 +143,7 @@ async function linkAsDuplicate(reportId, parentReportId, confidence, method = 'g
  */
 async function getDuplicateCluster(primaryReportId) {
   const res = await pool.query(
-    `SELECT ir.report_id, ir.user_id, ir.incident_type, ir.severity_level, ir.description, ir.latitude, ir.longitude,
+    `SELECT ir.report_id, ir.user_id, ir.incident_type, ir.severity_level, ir.status, ir.description, ir.latitude, ir.longitude,
             ir.created_at, ir.duplicate_confidence_score, ir.duplicate_detection_method, ir.is_duplicate, ir.parent_report_id,
             u.first_name AS reporter_first_name, u.last_name AS reporter_last_name
      FROM incident_reports ir
@@ -194,9 +202,10 @@ async function getDuplicateInfo(reportId) {
     duplicate_confidence: row.duplicate_confidence_score,
     cluster: cluster.map((r) => ({
       report_id: r.report_id,
+      status: r.status,
       created_at: r.created_at,
-      description: r.description,
-      reporter_name: [r.reporter_first_name, r.reporter_last_name].filter(Boolean).join(' ').trim() || `User #${r.user_id}`,
+      description: tryDecryptValue(r.description) || r.description,
+      reporter_name: [tryDecryptValue(r.reporter_first_name), tryDecryptValue(r.reporter_last_name)].filter(Boolean).join(' ').trim() || `User #${r.user_id}`,
       confidence: r.duplicate_confidence_score,
     })),
   };
