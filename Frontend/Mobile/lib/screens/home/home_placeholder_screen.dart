@@ -5,8 +5,11 @@ import 'notifications_screen.dart';
 import 'settings_screen.dart';
 import '../../services/auth_service.dart';
 import '../../utils/responsive.dart';
+import '../../widgets/animated_fab.dart';
+import '../../widgets/glass_card.dart';
 
 class HomePlaceholderScreen extends StatefulWidget {
+  final Future<void> Function(ThemeMode mode)? onThemeChanged;
   final int? initialTabIndex;
   final VoidCallback? onInitialTabApplied;
   final VoidCallback onLogout;
@@ -18,9 +21,11 @@ class HomePlaceholderScreen extends StatefulWidget {
   final VoidCallback? onEmergencyContactsTap;
   final VoidCallback? onChangePasswordTap;
   final VoidCallback? onPrivacySecurityTap;
+  final VoidCallback? onAboutTap;
 
   const HomePlaceholderScreen({
     super.key,
+    this.onThemeChanged,
     this.initialTabIndex,
     this.onInitialTabApplied,
     required this.onLogout,
@@ -32,6 +37,7 @@ class HomePlaceholderScreen extends StatefulWidget {
     this.onEmergencyContactsTap,
     this.onChangePasswordTap,
     this.onPrivacySecurityTap,
+    this.onAboutTap,
   });
 
   @override
@@ -42,6 +48,7 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
   Timer? _sosTimer;
   int _sosCountdown = 0;
   bool _loadingLocation = true;
+  bool _safetyTipsExpanded = false;
   String? _locationError;
   String _locationTitle = 'Dagupan City, Pangasinan';
   String _locationSubtitle = 'Loading location...';
@@ -237,18 +244,18 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (context) => Scaffold(
-          backgroundColor: const Color(0xFFF9FAFB),
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
           appBar: AppBar(
-            backgroundColor: const Color(0xFFF9FAFB),
+            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
             elevation: 0,
             leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Color(0xFF374151)),
+              icon: Icon(Icons.arrow_back, color: Theme.of(context).colorScheme.onSurface),
               onPressed: () => Navigator.of(context).pop(),
             ),
-            title: const Text(
+            title: Text(
               'Notifications',
               style: TextStyle(
-                  color: Color(0xFF111827), fontWeight: FontWeight.w600),
+                  color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.w600),
             ),
           ),
           body: const SafeArea(child: NotificationsScreen()),
@@ -257,87 +264,14 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
     );
   }
 
-  /// Outlined red circle with glow — matches second image style.
-  Widget _buildOutlinedRedCircleButton({
-    required IconData icon,
-    required String label,
-    required String subtitle,
-    required double size,
-    required double iconSize,
-    int subtitleMaxLines = 2,
-    VoidCallback? onTap,
-    VoidCallback? onLongPress,
-  }) {
-    const color = Color(0xFFEF4444);
-    final hasAction = onTap != null || onLongPress != null;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Material(
-          color: Colors.transparent,
-          child: GestureDetector(
-            onTap: onTap,
-            onLongPress: onLongPress,
-            behavior: HitTestBehavior.opaque,
-            child: Container(
-              width: size,
-              height: size,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: color.withValues(alpha: 0.35),
-                border: Border.all(color: color, width: 2),
-                boxShadow: [
-                  BoxShadow(
-                    color: color.withValues(alpha: 0.25),
-                    blurRadius: 16,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Icon(icon, color: Colors.white, size: iconSize),
-            ),
-          ),
-        ),
-        const SizedBox(height: 14),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 17,
-            fontWeight: FontWeight.bold,
-            color:
-                hasAction ? const Color(0xFF111827) : const Color(0xFF9CA3AF),
-          ),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 4),
-        Text(
-          subtitle,
-          style: TextStyle(
-            fontSize: 13,
-            color:
-                hasAction ? const Color(0xFF6B7280) : const Color(0xFF9CA3AF),
-          ),
-          textAlign: TextAlign.center,
-          maxLines: subtitleMaxLines,
-          overflow: TextOverflow.ellipsis,
-        ),
-      ],
-    );
-  }
-
   Widget _buildHomeContent() {
     return LayoutBuilder(
       builder: (context, constraints) {
+        final theme = Theme.of(context);
         final width = constraints.maxWidth;
         final horizontalPadding = Responsive.horizontalPadding(width);
         final spacingScale = Responsive.spacingScale(width);
         final compact = Responsive.isCompact(width);
-        final contentWidth =
-            (width - (horizontalPadding * 2)).clamp(0.0, width);
-        final sosCircleSize = Responsive.sosCircleSize(width);
-        final sosIconSize = Responsive.sosIconSize(width);
-        final sosItemWidth = compact ? contentWidth : ((contentWidth - 16) / 2);
-
         return RefreshIndicator(
           onRefresh: _loadHomeLocation,
           child: SingleChildScrollView(
@@ -352,8 +286,8 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
                 children: [
                   Expanded(child: _buildLogo(width)),
                   IconButton(
-                    icon: const Icon(Icons.notifications_none,
-                        color: Color(0xFF374151), size: 28),
+                    icon: Icon(Icons.notifications_none,
+                        color: Theme.of(context).colorScheme.onSurface, size: 28),
                     onPressed: () => _openNotifications(context),
                     visualDensity: compact
                         ? VisualDensity.compact
@@ -362,63 +296,32 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
                 ],
               ),
               SizedBox(height: 20 * spacingScale),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF3F4F6),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFE5E7EB)),
-                ),
+              GlassCard(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                borderRadius: 16,
+                blurSigma: 12,
                 child: Row(
                   children: [
-                    const Icon(Icons.location_on,
-                        color: Color(0xFF374151), size: 26),
+                    Icon(Icons.location_on,
+                        color: Theme.of(context).colorScheme.onSurface, size: 26),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _locationTitle,
-                            style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF111827),
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            _loadingLocation
-                                ? 'Loading location...'
-                                : _locationSubtitle,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              color: Color(0xFF374151),
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          if (_locationError != null) ...[
-                            const SizedBox(height: 2),
-                            const Text(
-                              'Pull down to refresh profile data',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: Color(0xFF6B7280),
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ],
+                      child: Text(
+                        _loadingLocation
+                            ? 'Loading...'
+                            : _locationTitle,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     IconButton(
                       icon: const Icon(Icons.refresh, size: 20),
-                      color: const Color(0xFF6B7280),
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                       tooltip: 'Refresh location',
                       onPressed: _loadingLocation ? null : _loadHomeLocation,
                     ),
@@ -426,113 +329,49 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
                 ),
               ),
               SizedBox(height: 16 * spacingScale),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFDCFCE7),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFF86EFAC)),
-                ),
-                child: const Row(
+              GlassCard(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                borderRadius: 16,
+                blurSigma: 12,
+                child: Row(
                   children: [
-                    Icon(Icons.shield, color: Color(0xFF22C55E), size: 28),
-                    SizedBox(width: 12),
+                    const Icon(Icons.shield, color: Color(0xFF22C55E), size: 28),
+                    const SizedBox(width: 12),
                     Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'All Systems Active',
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF16A34A),
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          SizedBox(height: 2),
-                          Text(
-                            'Emergency services ready',
-                            style: TextStyle(
-                                fontSize: 13,
-                                color: Color(0xFF16A34A),
-                                fontWeight: FontWeight.w500),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
+                      child: Text(
+                        'All Systems Active',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: theme.colorScheme.onSurface,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],
                 ),
               ),
               SizedBox(height: 28 * spacingScale),
-              Wrap(
-                spacing: compact ? 0 : 16,
-                runSpacing: 16,
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  SizedBox(
-                    width: sosItemWidth,
-                    child: _buildOutlinedRedCircleButton(
-                      icon: Icons.report_problem,
-                      label: 'SOS',
-                      subtitle: _sosCountdown > 0
-                          ? 'Cancelling in $_sosCountdown...'
-                          : 'Tap for 5s countdown. Tap Cancel to abort.',
-                      size: sosCircleSize,
-                      iconSize: sosIconSize,
-                      subtitleMaxLines: compact ? 3 : 2,
-                      onTap: _sosCountdown > 0 ? null : _startSosCountdown,
-                      onLongPress: _sosCountdown > 0 ? null : _startSosCountdown,
-                    ),
+                  AnimatedFab(
+                    icon: Icons.report_problem,
+                    hintLabel: 'SOS',
+                    onPressed: _sosCountdown > 0 ? null : _startSosCountdown,
+                    onLongPress: _sosCountdown > 0 ? null : _startSosCountdown,
                   ),
-                  SizedBox(
-                    width: sosItemWidth,
-                    child: _buildOutlinedRedCircleButton(
-                      icon: Icons.bar_chart,
-                      label: 'Report Incident',
-                      subtitle: 'Press to report incident',
-                      size: sosCircleSize,
-                      iconSize: sosIconSize,
-                      onTap: widget.onSosPressed,
-                    ),
+                  AnimatedFab(
+                    icon: Icons.bar_chart,
+                    hintLabel: 'Report',
+                    onPressed: widget.onSosPressed,
                   ),
                 ],
               ),
               SizedBox(height: 28 * spacingScale),
-              const Row(
-                children: [
-                  Icon(Icons.lightbulb_outline,
-                      color: Color(0xFFF97316), size: 22),
-                  SizedBox(width: 6),
-                  Text(
-                    'Emergency Tips',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF111827),
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: 12 * spacingScale),
-              _tipCard(
-                title: 'Fire Safety',
-                subtitle: 'Keep fire extinguishers accessible',
-              ),
-              const SizedBox(height: 10),
-              _tipCard(
-                title: 'Fire Safety',
-                subtitle: 'Keep fire extinguishers accessible',
-              ),
-              const SizedBox(height: 10),
-              _tipCard(
-                title: 'Fire Safety',
-                subtitle: 'Keep fire extinguishers accessible',
-              ),
-                SizedBox(height: 24 * spacingScale),
+              _safetyTipsAccordion(spacingScale),
+              SizedBox(height: 24 * spacingScale),
               ],
             ),
           ),
@@ -541,75 +380,100 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
     );
   }
 
-  Widget _tipCard({required String title, required String subtitle}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
+  static const List<({String title, String content})> _safetyTips = [
+    (title: 'Fire Safety', content: 'Keep fire extinguishers accessible. Know your escape routes. Never use elevators during a fire. Stay low to avoid smoke.'),
+    (title: 'Medical Emergency', content: 'Call for help first. Do not move an injured person unless necessary. Apply pressure to stop bleeding. Know your blood type and allergies.'),
+    (title: 'Earthquake', content: 'Drop, Cover, and Hold On. Stay away from windows. If outdoors, move to open area. After shaking stops, check for hazards.'),
+    (title: 'Flood Safety', content: 'Never walk or drive through floodwaters. Move to higher ground. Avoid downed power lines. Have an emergency kit ready.'),
+    (title: 'Typhoon Preparedness', content: 'Stock food, water, and medicine. Secure loose objects. Stay indoors. Monitor official advisories.'),
+  ];
+
+  Widget _safetyTipsAccordion(double spacingScale) {
+    final theme = Theme.of(context);
+    return GlassCard(
+      padding: EdgeInsets.zero,
+      borderRadius: 20,
+      blurSigma: 12,
+      child: Column(
         children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: const Color(0xFFEFF6FF),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Icon(Icons.shield_outlined,
-                color: Color(0xFF2563EB), size: 24),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF111827),
+          InkWell(
+            onTap: () => setState(() => _safetyTipsExpanded = !_safetyTipsExpanded),
+            borderRadius: BorderRadius.circular(20),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              child: Row(
+                children: [
+                  Icon(Icons.lightbulb_outline,
+                      color: theme.colorScheme.primary, size: 22),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Emergency Tips',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: theme.colorScheme.onSurface,
+                      ),
+                    ),
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  style:
-                      const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+                  Icon(
+                    _safetyTipsExpanded ? Icons.expand_less : Icons.expand_more,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ],
+              ),
             ),
           ),
+          if (_safetyTipsExpanded) ...[
+            Divider(height: 1, color: theme.colorScheme.outline.withValues(alpha: 0.3)),
+            ..._safetyTips.map((tip) => Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    tip.title,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: theme.colorScheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    tip.content,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: theme.colorScheme.onSurfaceVariant,
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ),
+            )),
+          ],
         ],
       ),
     );
   }
 
   Widget _buildReportHistoryContent() {
-    return ReportHistoryScreen(onReportTap: widget.onReportTap);
+    return ReportHistoryScreen(
+      onReportTap: widget.onReportTap,
+      onReportIncidentTap: widget.onSosPressed,
+    );
   }
 
   Widget _buildSettingsContent() {
     return SettingsScreen(
+        onThemeChanged: widget.onThemeChanged,
         onLogout: widget.onLogout,
         onPhoneNumberTap: widget.onPhoneNumberTap,
         onBarangayTap: widget.onBarangayTap,
         onEmergencyContactsTap: widget.onEmergencyContactsTap,
         onChangePasswordTap: widget.onChangePasswordTap,
-        onPrivacySecurityTap: widget.onPrivacySecurityTap);
+        onPrivacySecurityTap: widget.onPrivacySecurityTap,
+        onAboutTap: widget.onAboutTap);
   }
 
   @override
@@ -622,7 +486,7 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
     ];
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF9FAFB),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Stack(
         children: [
           SafeArea(
@@ -636,13 +500,13 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.06),
-              blurRadius: 12,
-              offset: const Offset(0, -2),
+              color: Colors.black.withValues(alpha: 0.08),
+              blurRadius: 16,
+              offset: const Offset(0, -4),
             ),
           ],
         ),
@@ -681,7 +545,7 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
               size: 24,
               color: isSelected
                   ? const Color(0xFFEF4444)
-                  : const Color(0xFF6B7280),
+                  : Theme.of(context).colorScheme.onSurfaceVariant,
             ),
             const SizedBox(height: 4),
             Text(
@@ -691,7 +555,7 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
                 color: isSelected
                     ? const Color(0xFFEF4444)
-                    : const Color(0xFF6B7280),
+                    : Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
             if (isSelected) ...[

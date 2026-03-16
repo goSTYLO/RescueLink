@@ -1095,6 +1095,27 @@ const locationController = {
     }
   },
 
+  // Get barangay name for coordinates (for mobile incident report)
+  async getBarangay(req, res) {
+    try {
+      const latitude = validateLatitude(req.query?.lat ?? req.query?.latitude);
+      const longitude = validateLongitude(req.query?.lng ?? req.query?.longitude);
+      const barangay = getBarangayFromCoordinates(latitude, longitude);
+      return res.status(200).json({
+        success: true,
+        barangay: barangay || null,
+        latitude,
+        longitude,
+      });
+    } catch (error) {
+      const msg = (error && error.message) ? error.message : String(error);
+      if (msg.includes('must be') || msg.includes('Latitude') || msg.includes('Longitude')) {
+        return res.status(400).json({ error: msg });
+      }
+      return res.status(500).json({ error: 'Failed to get barangay' });
+    }
+  },
+
   // Check if coordinates are within Dagupan city boundaries
   async checkLocation(req, res) {
     try {

@@ -7,6 +7,7 @@ import '../../bloc/auth/auth_state.dart';
 import '../../services/auth_service.dart';
 import '../../utils/responsive.dart';
 import '../../utils/validators.dart';
+import '../../widgets/glass_card.dart';
 
 class LoginScreen extends StatefulWidget {
   final VoidCallback? onSignUpTap;
@@ -105,7 +106,6 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget _buildLogo(double width) {
     final logoSize = Responsive.logoSize(width);
     final titleSize = Responsive.brandTitleSize(width);
-    final subtitleSize = Responsive.brandSubtitleSize(width);
     final compact = Responsive.isCompact(width);
 
     return Row(
@@ -138,13 +138,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         style: TextStyle(color: Color(0xFFEF4444))),
                   ],
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              Text(
-                'Emergency Response and Safety',
-                style: TextStyle(
-                    color: const Color(0xFF6B7280), fontSize: subtitleSize),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -200,7 +193,7 @@ class _LoginScreenState extends State<LoginScreen> {
         final compact = Responsive.isCompact(screenWidth);
         final headingSize = compact ? 24.0 : 28.0;
         return Scaffold(
-          backgroundColor: Colors.white,
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
           body: SafeArea(
             child: SingleChildScrollView(
               child: Padding(
@@ -220,71 +213,46 @@ class _LoginScreenState extends State<LoginScreen> {
                       style: TextStyle(
                         fontSize: headingSize,
                         fontWeight: FontWeight.bold,
-                        color: const Color(0xFF111827),
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Log in to RescueLink',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Color(0xFF374151),
+                        color: Theme.of(context).colorScheme.onSurface,
                       ),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 40),
                     // Form Section
-                    Form(
+                    GlassCard(
+                      padding: const EdgeInsets.all(20),
+                      child: Form(
                       key: _formKey,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Phone Number Input
-                          const Row(
-                            children: [
-                              Icon(
-                                Icons.phone,
-                                size: 18,
-                                color: Color(0xFF374151),
-                              ),
-                              SizedBox(width: 8),
-                              Text(
-                                'Phone Number',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Color(0xFF374151),
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
+                          // Phone Number Input (icon + placeholder only)
                           TextFormField(
                             controller: _phoneController,
                             keyboardType: TextInputType.phone,
                             decoration: InputDecoration(
+                              prefixIcon: Icon(Icons.phone, size: 20, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
                               hintText: 'Enter your number',
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(
-                                  color: Color(0xFFE5E7EB),
+                                borderSide: BorderSide(
+                                  color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
                                 ),
                               ),
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(
-                                  color: Color(0xFFE5E7EB),
+                                borderSide: BorderSide(
+                                  color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
                                 ),
                               ),
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 borderSide: const BorderSide(
                                   color: Color(0xFFEF4444),
+                                  width: 2,
                                 ),
                               ),
                               filled: true,
-                              fillColor: Colors.white,
                               contentPadding: const EdgeInsets.symmetric(
                                 horizontal: 16,
                                 vertical: 14,
@@ -294,37 +262,19 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           const SizedBox(height: 20),
 
-                          // Password Input
-                          const Row(
-                            children: [
-                              Icon(
-                                Icons.lock,
-                                size: 18,
-                                color: Color(0xFF374151),
-                              ),
-                              SizedBox(width: 8),
-                              Text(
-                                'Password',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Color(0xFF374151),
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
+                          // Password Input (icon + placeholder only)
                           TextFormField(
                             controller: _passwordController,
                             obscureText: _obscurePassword,
                             decoration: InputDecoration(
+                              prefixIcon: Icon(Icons.lock, size: 20, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
                               hintText: 'Enter your password',
                               suffixIcon: IconButton(
                                 icon: Icon(
                                   _obscurePassword
                                       ? Icons.visibility_off
                                       : Icons.visibility,
-                                  color: const Color(0xFF9CA3AF),
+                                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
                                 ),
                                 onPressed: () {
                                   setState(() {
@@ -334,24 +284,24 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(
-                                  color: Color(0xFFE5E7EB),
+                                borderSide: BorderSide(
+                                  color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
                                 ),
                               ),
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(
-                                  color: Color(0xFFE5E7EB),
+                                borderSide: BorderSide(
+                                  color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
                                 ),
                               ),
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 borderSide: const BorderSide(
                                   color: Color(0xFFEF4444),
+                                  width: 2,
                                 ),
                               ),
                               filled: true,
-                              fillColor: Colors.white,
                               contentPadding: const EdgeInsets.symmetric(
                                 horizontal: 16,
                                 vertical: 14,
@@ -506,6 +456,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ],
                       ),
+                    ),
                     ),
                     const SizedBox(height: 32),
 

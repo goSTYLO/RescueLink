@@ -8,115 +8,7 @@ const fs = require('fs').promises;
 const os = require('os');
 const crypto = require('crypto');
 const { UPLOAD_DIR, AUDIO_EXTENSIONS, PHOTO_EXTENSIONS, VIDEO_EXTENSIONS } = require('../middleware/fileUpload');
-
-let sharp = null;
-let ffmpeg = null;
-let ffmpegPath = null;
-
-try {
-  sharp = require('sharp');
-} catch (_) {
-  sharp = null;
-}
-
-try {
-  ffmpeg = require('fluent-ffmpeg');
-  ffmpegPath = require('ffmpeg-static');
-  if (ffmpeg && ffmpegPath) {
-    ffmpeg.setFfmpegPath(ffmpegPath);
-  }
-} catch (_) {
-  ffmpeg = null;
-  ffmpegPath = null;
-}
-
-const IMAGE_COMPRESSION_ENABLED = String(process.env.IMAGE_COMPRESSION_ENABLED || 'true').toLowerCase() === 'true';
-const VIDEO_COMPRESSION_ENABLED = String(process.env.VIDEO_COMPRESSION_ENABLED || 'true').toLowerCase() === 'true';
-const IMAGE_MAX_WIDTH = parseInt(process.env.IMAGE_MAX_WIDTH || '1920', 10);
-const IMAGE_JPEG_QUALITY = parseInt(process.env.IMAGE_JPEG_QUALITY || '78', 10);
-const VIDEO_CRF = parseInt(process.env.VIDEO_CRF || '30', 10);
-
-const createTempPath = (ext) => {
-  const id = crypto.randomUUID ? crypto.randomUUID() : crypto.randomBytes(12).toString('hex');
-  return path.join(os.tmpdir(), `rescue_${id}${ext}`);
-};
-
-const compressImageBuffer = async (buffer, ext) => {
-  if (!IMAGE_COMPRESSION_ENABLED || !sharp) {
-    console.log(`ℹ️ Image compression skipped (enabled=${IMAGE_COMPRESSION_ENABLED}, sharp_available=${Boolean(sharp)})`);
-    return { buffer, ext, compressed: false };
-  }
-
-  try {
-    let pipeline = sharp(buffer, { failOn: 'none' }).rotate().resize({ width: IMAGE_MAX_WIDTH, withoutEnlargement: true });
-
-    if (ext === '.png') {
-      pipeline = pipeline.png({ compressionLevel: 9, palette: true, quality: 80 });
-      const output = await pipeline.toBuffer()
-      console.log(`🗜️ Image compressed (${ext}): ${buffer.length}B -> ${output.length}B`);
-      return { buffer: output, ext: '.png', compressed: true };
-    }
-
-    const output = await pipeline.jpeg({ quality: IMAGE_JPEG_QUALITY, mozjpeg: true }).toBuffer()
-    console.log(`🗜️ Image compressed (${ext}): ${buffer.length}B -> ${output.length}B`);
-    return {
-      buffer: output,
-      ext: '.jpg',
-      compressed: true,
-    };
-  } catch (error) {
-    console.warn('⚠️ Image compression failed, using original buffer:', error.message);
-    return { buffer, ext, compressed: false };
-  }
-};
-
-const transcodeVideoToMp4 = async (inputPath, outputPath) => {
-  return new Promise((resolve, reject) => {
-    ffmpeg(inputPath)
-      .outputOptions([
-        `-crf ${VIDEO_CRF}`,
-        '-preset veryfast',
-        '-movflags +faststart',
-        '-c:v libx264',
-        '-c:a aac',
-      ])
-      .format('mp4')
-      .save(outputPath)
-      .on('end', resolve)
-      .on('error', reject);
-  });
-};
-
-const compressVideoBuffer = async (buffer, ext) => {
-  if (!VIDEO_COMPRESSION_ENABLED || !ffmpeg || !ffmpegPath) {
-    console.log(`ℹ️ Video compression skipped (enabled=${VIDEO_COMPRESSION_ENABLED}, ffmpeg_available=${Boolean(ffmpeg && ffmpegPath)})`);
-    return { buffer, ext, compressed: false };
-  }
-
-  const inputPath = createTempPath(ext || '.mp4');
-  const outputPath = createTempPath('.mp4');
-
-  try {
-    await fs.writeFile(inputPath, buffer);
-    await transcodeVideoToMp4(inputPath, outputPath);
-    const outputBuffer = await fs.readFile(outputPath);
-
-    if (outputBuffer.length >= buffer.length) {
-      console.log(`ℹ️ Video compression not applied (${ext}): output not smaller (${buffer.length}B -> ${outputBuffer.length}B)`);
-      return { buffer, ext, compressed: false };
-    }
-
-    console.log(`🗜️ Video compressed (${ext}): ${buffer.length}B -> ${outputBuffer.length}B`);
-
-    return { buffer: outputBuffer, ext: '.mp4', compressed: true };
-  } catch (error) {
-    console.warn('⚠️ Video compression failed, using original buffer:', error.message);
-    return { buffer, ext, compressed: false };
-  } finally {
-    await fs.unlink(inputPath).catch(() => null);
-    await fs.unlink(outputPath).catch(() => null);
-  }
-};
+const { compressPhoto, compressVideo } = require('../services/mediaCompressionService');
 
 /**
  * Validate audio file duration (optional - requires audio processing library)
@@ -229,24 +121,24 @@ const saveMediaFiles = async (mediaFiles, reportId) => {
     const { isPhoto, isVideo, ext } = validateMediaFile(file);
     let payloadBuffer = file.buffer;
     let payloadExt = ext;
-    
-    let filename;
-    if (isPhoto) {
-      const compressed = await compressImageBuffer(file.buffer, ext);
-      payloadBuffer = compressed.buffer;
-      payloadExt = compressed.ext;
-      filename = generateFilename(reportId, 'photo', payloadExt, photoIndex);
-      photoIndex++;
-    } else if (isVideo) {
-      const compressed = await compressVideoBuffer(file.buffer, ext);
-      payloadBuffer = compressed.buffer;
-      payloadExt = compressed.ext;
-      filename = generateFilename(reportId, 'video', payloadExt, videoIndex);
-      videoIndex++;
-    }
 
-    const filePath = await saveFile(payloadBuffer, filename);
-    savedPaths.push(filePath);
+    if (isPhoto) {
+      const result = await compressPhoto(file.buffer, file.originalname);
+      payloadBuffer = result.buffer;
+      payloadExt = result.outputExt || ext;
+      const filename = generateFilename(reportId, 'photo', payloadExt, photoIndex);
+      photoIndex++;
+      const filePath = await saveFile(payloadBuffer, filename);
+      savedPaths.push(filePath);
+    } else if (isVideo) {
+      const result = await compressVideo(file.buffer, file.originalname);
+      payloadBuffer = result.buffer;
+      payloadExt = result.outputExt || ext;
+      const filename = generateFilename(reportId, 'video', payloadExt, videoIndex);
+      videoIndex++;
+      const filePath = await saveFile(payloadBuffer, filename);
+      savedPaths.push(filePath);
+    }
   }
   
   return savedPaths;

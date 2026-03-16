@@ -75,6 +75,32 @@ class ApiService {
     }
   }
 
+  // Generic PATCH request
+  Future<Map<String, dynamic>> patch(
+    String endpoint, {
+    Map<String, dynamic>? body,
+    Map<String, String>? headers,
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl$endpoint');
+      final response = await client.patch(
+        uri,
+        headers: _buildHeaders(headers),
+        body: body != null ? jsonEncode(body) : null,
+      ).timeout(AppConfig.apiTimeout);
+
+      return _handleResponse(response);
+    } on TimeoutException {
+      throw ApiException('PATCH request timed out after ${AppConfig.apiTimeout.inSeconds}s. Check connection to $baseUrl');
+    } on SocketException {
+      throw ApiException('Unable to connect to $baseUrl. Check network and API_BASE_URL.');
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('PATCH request failed: $e');
+    }
+  }
+
   // Generic PUT request
   Future<Map<String, dynamic>> put(
     String endpoint, {

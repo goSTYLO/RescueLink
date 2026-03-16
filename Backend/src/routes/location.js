@@ -8,9 +8,12 @@ const { ROLES } = require('../config/roles');
 // Check if coordinates are within Dagupan city boundaries
 router.post('/check', locationController.checkLocation);
 
-// Dagupan-scoped geocoding endpoints (used by admin/dispatcher UIs)
-router.get('/search', authMiddleware, authorize([ROLES.ADMIN, ROLES.DISPATCHER]), locationController.search);
-router.get('/reverse', authMiddleware, authorize([ROLES.ADMIN, ROLES.DISPATCHER]), locationController.reverse);
+// Barangay lookup from coordinates (for mobile incident report UI)
+router.get('/barangay', authMiddleware, authorize([ROLES.USER, ROLES.DISPATCHER, ROLES.ADMIN]), locationController.getBarangay);
+
+// Dagupan-scoped geocoding endpoints (admin/dispatcher UIs + mobile user address)
+router.get('/search', authMiddleware, authorize([ROLES.USER, ROLES.ADMIN, ROLES.DISPATCHER]), locationController.search);
+router.get('/reverse', authMiddleware, authorize([ROLES.USER, ROLES.ADMIN, ROLES.DISPATCHER]), locationController.reverse);
 
 // Geospatial intelligence endpoints for dispatcher/admin workflows
 router.post('/closest-units', authMiddleware, authorize([ROLES.DISPATCHER, ROLES.ADMIN]), locationController.closestUnits);

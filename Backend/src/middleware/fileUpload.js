@@ -12,8 +12,8 @@ require('dotenv').config();
 
 // Get configuration from environment
 const MAX_AUDIO_SIZE = parseInt(process.env.MAX_AUDIO_SIZE, 10) || 26214400; // 25MB default
-const MAX_PHOTO_SIZE = parseInt(process.env.MAX_PHOTO_SIZE, 10) || 10485760; // 10MB default
-const MAX_VIDEO_SIZE = parseInt(process.env.MAX_VIDEO_SIZE, 10) || 52428800; // 50MB default
+const MAX_PHOTO_SIZE = parseInt(process.env.MAX_PHOTO_SIZE, 10) || 1048576; // 1MB default
+const MAX_VIDEO_SIZE = parseInt(process.env.MAX_VIDEO_SIZE, 10) || 10485760; // 10MB default
 const UPLOAD_DIR = process.env.UPLOAD_DIR || 'uploads/incidents';
 
 // Allowed file extensions

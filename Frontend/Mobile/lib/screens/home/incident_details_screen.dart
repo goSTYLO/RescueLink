@@ -1,11 +1,18 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:path_provider/path_provider.dart';
 import '../../services/incident_service.dart';
+import '../../theme/app_theme.dart';
 import '../../utils/report_ui.dart';
+import '../../widgets/glass_card.dart';
+import '../../widgets/gradient_header.dart';
+import '../../widgets/skeleton_placeholder.dart';
 
 class IncidentDetailsScreen extends StatefulWidget {
   final int? reportId;
@@ -42,6 +49,7 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
   Duration _audioPosition = Duration.zero;
   Duration _audioDuration = Duration.zero;
   String? _loadError;
+  final Set<String> _expandedSections = {'timeline', 'summary'};
 
   @override
   void initState() {
@@ -144,11 +152,20 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
   }
 
   List<String> get _mediaPaths {
-    final raw = _incident?['media_paths'];
-    if (raw is! List) {
-      return const [];
+    // Support both media_paths (snake_case) and mediaPaths (camelCase)
+    dynamic raw = _incident?['media_paths'] ?? _incident?['mediaPaths'];
+    if (raw is List) {
+      return raw.whereType<String>().where((path) => path.isNotEmpty).toList();
     }
-    return raw.whereType<String>().where((path) => path.isNotEmpty).toList();
+    if (raw is String && raw.isNotEmpty) {
+      try {
+        final parsed = jsonDecode(raw);
+        if (parsed is List) {
+          return parsed.whereType<String>().where((path) => path.isNotEmpty).toList();
+        }
+      } catch (_) {}
+    }
+    return const [];
   }
 
   bool _isImagePath(String path) {
@@ -468,81 +485,50 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF9FAFB),
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Red header
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              decoration: const BoxDecoration(
-                color: Color(0xFFEF4444),
-                borderRadius: BorderRadius.only(
-                    bottomLeft: Radius.circular(20),
-                    bottomRight: Radius.circular(20)),
-              ),
-              child: Row(
-                children: [
-                  IconButton(
-                    onPressed: widget.onBack,
-                    icon: const CircleAvatar(
-                      backgroundColor: Colors.white,
-                      child: Icon(Icons.arrow_back,
-                          color: Color(0xFF111827), size: 22),
-                    ),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text(
-                          'Incident Details',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          _reportIdDisplay(),
-                          style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.95),
-                              fontSize: 12),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Image.asset(
-                    'assets/logo/logo2.png',
-                    width: 32,
-                    height: 32,
-                    fit: BoxFit.contain,
-                    color: Colors.white,
-                    colorBlendMode: BlendMode.srcIn,
-                    errorBuilder: (_, __, ___) =>
-                        const Icon(Icons.shield, color: Colors.white, size: 28),
-                  ),
-                ],
-              ),
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) widget.onBack?.call();
+      },
+      child: Scaffold(
+      backgroundColor: isDark ? AppTheme.darkBackground : theme.scaffoldBackgroundColor,
+      body: Column(
+        children: [
+          GradientHeader(
+            title: 'Incident Details',
+            subtitle: _reportIdDisplay(),
+            onBack: widget.onBack,
+            transparentFade: true,
+            trailing: Image.asset(
+              'assets/logo/logo2.png',
+              width: 32,
+              height: 32,
+              fit: BoxFit.contain,
+              color: Colors.white,
+              colorBlendMode: BlendMode.srcIn,
+              errorBuilder: (_, __, ___) =>
+                  const Icon(Icons.shield, color: Colors.white, size: 28),
             ),
-            Expanded(
+          ),
+          Expanded(
+            child: SafeArea(
+              top: false,
               child: RefreshIndicator(
                 onRefresh: _loadIncident,
                 child: _loading
                     ? ListView(
                         physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                         children: const [
-                          SizedBox(
-                            height: 320,
-                            child: Center(child: CircularProgressIndicator()),
-                          ),
+                          SkeletonCard(height: 120),
+                          SizedBox(height: 12),
+                          SkeletonCard(height: 100),
+                          SizedBox(height: 12),
+                          SkeletonCard(height: 100),
+                          SizedBox(height: 12),
+                          SkeletonCard(height: 150),
                         ],
                       )
                     : _loadError != null
@@ -575,19 +561,70 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
                               children: [
                               // Status card
                               _buildStatusCard(),
+                              if (ReportStatusUi.isResolved(
+                                      _incident?['status'] as String?) &&
+                                  !_reporterConfirmed) ...[
+                                const SizedBox(height: 16),
+                                FilledButton.icon(
+                                  onPressed: _confirmingResolution ? null : _confirmResolution,
+                                  icon: _confirmingResolution
+                                      ? const SizedBox(
+                                          height: 16,
+                                          width: 16,
+                                          child: CircularProgressIndicator(strokeWidth: 2),
+                                        )
+                                      : const Icon(Icons.thumb_up_alt_outlined),
+                                  label: Text(_confirmingResolution
+                                      ? 'Confirming...'
+                                      : 'Confirm Resolution'),
+                                ),
+                              ],
+                              if (ReportStatusUi.isResolvedOrClosed(
+                                      _incident?['status'] as String?) &&
+                                  _reporterConfirmed) ...[
+                                const SizedBox(height: 12),
+                                Row(
+                                  children: [
+                                    const Icon(Icons.check_circle, color: Color(0xFF22C55E), size: 20),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      ReportStatusUi.isClosed(_incident?['status'] as String?)
+                                          ? 'You confirmed this resolution. Incident is now closed.'
+                                          : 'You confirmed this resolution.',
+                                      style: const TextStyle(fontSize: 13, color: Color(0xFF15803D)),
+                                    ),
+                                  ],
+                                ),
+                              ],
                               const SizedBox(height: 16),
-                              _buildTimelineCard(),
+                              _collapsibleCard(
+                                key: 'timeline',
+                                title: 'Status Timeline',
+                                icon: Icons.timeline,
+                                iconColor: const Color(0xFF2563EB),
+                                child: _buildTimelineCardContent(),
+                              ),
                               const SizedBox(height: 16),
-                              _buildResponderAvailabilityCard(),
+                              _collapsibleCard(
+                                key: 'responder',
+                                title: 'Assigned Department',
+                                icon: Icons.local_fire_department,
+                                iconColor: const Color(0xFFEA580C),
+                                child: _buildResponderAvailabilityCardContent(),
+                              ),
                               const SizedBox(height: 16),
-                              _buildResponderLocationCard(),
+                              _collapsibleCard(
+                                key: 'location',
+                                title: 'Incident Location',
+                                icon: Icons.location_on,
+                                iconColor: const Color(0xFF2563EB),
+                                child: _buildResponderLocationCardContent(),
+                              ),
                               const SizedBox(height: 16),
                               _buildResponderActions(),
                               const SizedBox(height: 16),
-                              _buildTrackingInfoFooter(),
-                              const SizedBox(height: 16),
-                              // Incident Summary card
-                              _whiteCard(
+                              _collapsibleCard(
+                                key: 'summary',
                                 title: 'Incident Summary',
                                 icon: Icons.emergency,
                                 iconColor: const Color(0xFFEA580C),
@@ -615,16 +652,9 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
                                       icon: Icons.location_on,
                                       iconBg: const Color(0xFFDBEAFE),
                                       label: 'Location',
-                                      value: safeString(
-                                                  _incident?['barangay']) !=
-                                              null
+                                      value: safeString(_incident?['barangay']) != null
                                           ? '${safeString(_incident?['barangay'])}, Dagupan City'
                                           : 'Dagupan City',
-                                      subtitle: _incident != null &&
-                                              _incident!['latitude'] != null &&
-                                              _incident!['longitude'] != null
-                                          ? '${(_incident!['latitude'] as num).toStringAsFixed(4)}° N, ${(_incident!['longitude'] as num).toStringAsFixed(4)}° E'
-                                          : null,
                                     ),
                                     if (_incident?['description'] != null &&
                                         (_incident!['description'] as String)
@@ -642,126 +672,16 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
                                 ),
                               ),
                               const SizedBox(height: 16),
-                              // Voice Recording card
-                              _whiteCard(
+                              _collapsibleCard(
+                                key: 'voice',
                                 title: 'Voice Recording',
                                 icon: Icons.mic,
                                 iconColor: const Color(0xFFEF4444),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    _simpleRow(
-                                      'Audio File',
-                                      safeString(_incident?['audio_path']) !=
-                                              null
-                                          ? 'Available'
-                                          : 'Not available',
-                                    ),
-                                    if (_incident?['transcription'] != null ||
-                                        _aiClassification?['transcription'] !=
-                                            null) ...[
-                                      const SizedBox(height: 10),
-                                      const Text(
-                                        'Transcription',
-                                        style: TextStyle(
-                                            fontSize: 12,
-                                            color: Color(0xFF6B7280)),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        _incident?['transcription']
-                                                as String? ??
-                                            _aiClassification?['transcription']
-                                                as String? ??
-                                            '',
-                                        style: const TextStyle(
-                                          fontSize: 13,
-                                          color: Color(0xFF374151),
-                                          fontStyle: FontStyle.italic,
-                                        ),
-                                      ),
-                                    ],
-                                    const SizedBox(height: 10),
-                                    if (safeString(_incident?['audio_path']) != null)
-                                      Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Row(
-                                            children: [
-                                              Expanded(
-                                                child: FilledButton.icon(
-                                                  onPressed: _preparingAudio
-                                                      ? null
-                                                      : _toggleAudioPlayback,
-                                                  icon: _preparingAudio
-                                                      ? const SizedBox(
-                                                          width: 16,
-                                                          height: 16,
-                                                          child: CircularProgressIndicator(
-                                                              strokeWidth: 2),
-                                                        )
-                                                      : Icon(_playingAudio
-                                                          ? Icons.pause
-                                                          : Icons.play_arrow),
-                                                  label: Text(_preparingAudio
-                                                      ? 'Preparing...'
-                                                      : _playingAudio
-                                                          ? 'Pause Audio'
-                                                          : 'Play Audio'),
-                                                ),
-                                              ),
-                                              const SizedBox(width: 8),
-                                              Expanded(
-                                                child: OutlinedButton.icon(
-                                                  onPressed: _downloadingAudio
-                                                      ? null
-                                                      : _downloadAudio,
-                                                  icon: _downloadingAudio
-                                                      ? const SizedBox(
-                                                          width: 16,
-                                                          height: 16,
-                                                          child: CircularProgressIndicator(
-                                                              strokeWidth: 2),
-                                                        )
-                                                      : const Icon(Icons.download),
-                                                  label: Text(_downloadingAudio
-                                                      ? 'Downloading...'
-                                                      : 'Download'),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                          const SizedBox(height: 8),
-                                          LinearProgressIndicator(
-                                            value: _audioDuration.inMilliseconds > 0
-                                                ? _audioPosition.inMilliseconds /
-                                                    _audioDuration.inMilliseconds
-                                                : 0,
-                                            minHeight: 6,
-                                            backgroundColor: const Color(0xFFE5E7EB),
-                                          ),
-                                          const SizedBox(height: 6),
-                                          Text(
-                                            '${_formatDuration(_audioPosition)} / ${_formatDuration(_audioDuration)}',
-                                            style: const TextStyle(
-                                                fontSize: 12,
-                                                color: Color(0xFF6B7280)),
-                                          ),
-                                        ],
-                                      )
-                                    else
-                                      const Text(
-                                        'No audio file is available for this incident.',
-                                        style: TextStyle(
-                                            fontSize: 12,
-                                            color: Color(0xFF6B7280)),
-                                      ),
-                                  ],
-                                ),
+                                child: _buildVoiceRecordingCardContent(),
                               ),
                               const SizedBox(height: 16),
-                              // Attach Media card
-                              _whiteCard(
+                              _collapsibleCard(
+                                key: 'media',
                                 title: 'Attached Media',
                                 icon: Icons.attach_file,
                                 iconColor: const Color(0xFF374151),
@@ -774,11 +694,11 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
                                     ),
                                     const SizedBox(height: 10),
                                     if (_mediaPaths.isEmpty)
-                                      const Text(
+                                      Text(
                                         'No media attachments are available for this incident.',
                                         style: TextStyle(
                                             fontSize: 12,
-                                            color: Color(0xFF6B7280)),
+                                            color: Theme.of(context).colorScheme.onSurfaceVariant),
                                       )
                                     else
                                       ...List<Widget>.generate(_mediaPaths.length, (index) {
@@ -833,8 +753,8 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
                                 ),
                               ),
                               const SizedBox(height: 16),
-                              // Response Details card
-                              _whiteCard(
+                              _collapsibleCard(
+                                key: 'response',
                                 title: 'Response Details',
                                 icon: Icons.info_outline,
                                 iconColor: const Color(0xFF374151),
@@ -878,9 +798,8 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
                                 ),
                               ),
                               const SizedBox(height: 16),
-                              // Resolution footer
                               Container(
-                                padding: const EdgeInsets.all(16),
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                                 decoration: BoxDecoration(
                                   color: ReportStatusUi.isResolvedOrClosed(
                                           _incident?['status'] as String?)
@@ -895,7 +814,6 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
                                   ),
                                 ),
                                 child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Icon(
                                       ReportStatusUi.isResolvedOrClosed(
@@ -906,93 +824,32 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
                                               _incident?['status'] as String?)
                                           ? const Color(0xFF22C55E)
                                           : const Color(0xFF2563EB),
-                                      size: 24,
+                                      size: 20,
                                     ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                              ReportStatusUi.isClosed(
+                                    const SizedBox(width: 10),
+                                    Text(
+                                      ReportStatusUi.isClosed(_incident?['status'] as String?)
+                                          ? 'Incident Closed'
+                                          : (ReportStatusUi.isResolved(_incident?['status'] as String?)
+                                              ? 'Emergency Resolved'
+                                              : ReportStatusUi.label(_incident?['status'] as String?)),
+                                      style: TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.bold,
+                                        color: ReportStatusUi.isResolvedOrClosed(
                                                 _incident?['status'] as String?)
-                                            ? 'Incident Closed'
-                                            : (ReportStatusUi.isResolved(
-                                              _incident?['status'] as String?)
-                                                ? 'Emergency Resolved'
-                                                : 'Emergency In Progress'),
-                                            style: TextStyle(
-                                              fontSize: 15,
-                                              fontWeight: FontWeight.bold,
-                                                color: ReportStatusUi.isResolvedOrClosed(
-                                                  _incident?['status'] as String?)
-                                                  ? const Color(0xFF166534)
-                                                  : const Color(0xFF1E40AF),
-                                            ),
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                              ReportStatusUi.isClosed(
-                                                _incident?['status'] as String?)
-                                            ? 'Closed on ${formatReportDateTime((_incident?['closed_at'] ?? _incident?['updated_at']) as String?)}.'
-                                            : (ReportStatusUi.isResolved(
-                                              _incident?['status'] as String?)
-                                                ? 'Resolved on ${formatReportDateTime(_incident?['updated_at'] as String?)}.'
-                                                : 'Latest status: ${ReportStatusUi.label(_incident?['status'] as String?)}.'),
-                                            style: TextStyle(
-                                              fontSize: 13,
-                                                color: ReportStatusUi.isResolvedOrClosed(
-                                                  _incident?['status'] as String?)
-                                                  ? const Color(0xFF15803D)
-                                                  : const Color(0xFF1E40AF),
-                                            ),
-                                          ),
-                                        ],
+                                            ? const Color(0xFF166534)
+                                            : const Color(0xFF1E40AF),
                                       ),
                                     ),
                                   ],
                                 ),
                               ),
-                              if (ReportStatusUi.isResolved(
-                                      _incident?['status'] as String?) &&
-                                  !_reporterConfirmed) ...[
-                                const SizedBox(height: 16),
-                                FilledButton.icon(
-                                  onPressed: _confirmingResolution ? null : _confirmResolution,
-                                  icon: _confirmingResolution
-                                      ? const SizedBox(
-                                          height: 16,
-                                          width: 16,
-                                          child: CircularProgressIndicator(strokeWidth: 2),
-                                        )
-                                      : const Icon(Icons.thumb_up_alt_outlined),
-                                  label: Text(_confirmingResolution
-                                      ? 'Confirming...'
-                                      : 'Confirm Resolution'),
-                                ),
-                              ],
-                              if (ReportStatusUi.isResolvedOrClosed(
-                                      _incident?['status'] as String?) &&
-                                  _reporterConfirmed) ...[
-                                const SizedBox(height: 12),
-                                Row(
-                                  children: [
-                                    const Icon(Icons.check_circle, color: Color(0xFF22C55E), size: 20),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      ReportStatusUi.isClosed(_incident?['status'] as String?)
-                                          ? 'You confirmed this resolution. Incident is now closed.'
-                                          : 'You confirmed this resolution.',
-                                      style: const TextStyle(fontSize: 13, color: Color(0xFF15803D)),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                                const SizedBox(height: 24),
+                              const SizedBox(height: 24),
                               ],
                             ),
                           ),
+                ),
               ),
             ),
           ],
@@ -1005,7 +862,6 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
     final status = _status;
     final isResolved = ReportStatusUi.isResolved(status);
     final isClosed = ReportStatusUi.isClosed(status);
-    final isFinalized = ReportStatusUi.isResolvedOrClosed(status);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       decoration: BoxDecoration(
@@ -1043,103 +899,7 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
               color: ReportStatusUi.badgeText(status),
             ),
           ),
-          const SizedBox(height: 10),
-          Text(
-            _estimatedEtaMinutes != null
-                ? 'Estimated responder arrival: $_estimatedEtaMinutes min (around $_estimatedArrivalLabel).'
-                : 'Estimated responder arrival is not yet available. Status updates still sync in real time.',
-            style: const TextStyle(fontSize: 12, color: Color(0xFF475569)),
-            textAlign: TextAlign.center,
-          ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildTimelineCard() {
-    final timeline = ReportStatusUi.timeline(
-      status: _incident?['status'] as String?,
-      hasAiClassification: _aiClassification != null,
-      createdAt: _incident?['created_at'] as String?,
-      updatedAt: _incident?['updated_at'] as String?,
-      closedAt: _incident?['closed_at'] as String?,
-      estimatedEtaMinutes: _estimatedEtaMinutes,
-      estimatedArrivalAt: _incident?['estimated_arrival_at'] as String?,
-    );
-
-    return _whiteCard(
-      title: 'Status Timeline',
-      icon: Icons.timeline,
-      iconColor: const Color(0xFF2563EB),
-      child: Column(
-        children: timeline
-            .map(
-              (step) => _timelineItem(
-                icon: step.icon,
-                iconBg: step.iconColor,
-                title: step.title,
-                subtitle: step.subtitle,
-                isCompleted: step.isCompleted,
-                isInProgress: step.isInProgress,
-              ),
-            )
-            .toList(),
-      ),
-    );
-  }
-
-  Widget _buildResponderAvailabilityCard() {
-    final department = assignedDepartmentDisplayName(_incident);
-    return _whiteCard(
-      title: 'Assigned Department',
-      icon: Icons.local_fire_department,
-      iconColor: const Color(0xFFEA580C),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _simpleRow('Department', department),
-          const SizedBox(height: 8),
-          _simpleRow('Estimated Arrival', _estimatedEtaMinutes != null ? '$_estimatedEtaMinutes min' : 'Pending'),
-          const SizedBox(height: 8),
-          _simpleRow('ETA Clock', _estimatedEtaMinutes != null ? _estimatedArrivalLabel : 'Pending'),
-          const SizedBox(height: 8),
-          Text(
-            _estimatedEtaMinutes != null
-                ? 'ETA is estimated from department dispatch origin and incident location.'
-                : 'ETA will appear after dispatch assignment is available.',
-            style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildResponderLocationCard() {
-    return _whiteCard(
-      title: 'Responder Location',
-      icon: Icons.location_on,
-      iconColor: const Color(0xFF2563EB),
-      child: Container(
-        height: 150,
-        decoration: BoxDecoration(
-          color: const Color(0xFFF3F4F6),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFE5E7EB)),
-        ),
-        child: const Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.map, color: Color(0xFF2563EB), size: 38),
-              SizedBox(height: 8),
-              Text(
-                'Live responder coordinates are currently unavailable.',
-                style: TextStyle(fontSize: 13, color: Color(0xFF374151)),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
@@ -1163,29 +923,6 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildTrackingInfoFooter() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFEFF6FF),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFBFDBFE)),
-      ),
-      child: const Row(
-        children: [
-          Icon(Icons.info, color: Color(0xFF2563EB), size: 22),
-          SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              'Tracking view shows live incident status from the database. Responder contact and map details are unavailable in the current API.',
-              style: TextStyle(fontSize: 12, color: Color(0xFF1E40AF)),
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -1255,47 +992,272 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
     );
   }
 
-  Widget _whiteCard({
+  Widget _collapsibleCard({
+    required String key,
     required String title,
     required IconData icon,
     required Color iconColor,
     required Widget child,
   }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
+    final isExpanded = _expandedSections.contains(key);
+    return GlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              Icon(icon, color: iconColor, size: 20),
-              const SizedBox(width: 8),
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF111827),
-                ),
+          InkWell(
+            onTap: () {
+              setState(() {
+                if (isExpanded) {
+                  _expandedSections.remove(key);
+                } else {
+                  _expandedSections.add(key);
+                }
+              });
+            },
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: [
+                  Icon(icon, color: iconColor, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    isExpanded ? Icons.expand_less : Icons.expand_more,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
-          const SizedBox(height: 14),
-          child,
+          if (isExpanded) ...[
+            const SizedBox(height: 14),
+            child,
+          ],
         ],
       ),
+    );
+  }
+
+  Widget _buildTimelineCardContent() {
+    final timeline = ReportStatusUi.timeline(
+      status: _incident?['status'] as String?,
+      hasAiClassification: _aiClassification != null,
+      createdAt: _incident?['created_at'] as String?,
+      updatedAt: _incident?['updated_at'] as String?,
+      closedAt: _incident?['closed_at'] as String?,
+      estimatedEtaMinutes: _estimatedEtaMinutes,
+      estimatedArrivalAt: _incident?['estimated_arrival_at'] as String?,
+    );
+    return Column(
+      children: timeline
+          .map(
+            (step) => _timelineItem(
+              icon: step.icon,
+              iconBg: step.iconColor,
+              title: step.title,
+              subtitle: step.subtitle,
+              isCompleted: step.isCompleted,
+              isInProgress: step.isInProgress,
+            ),
+          )
+          .toList(),
+    );
+  }
+
+  Widget _buildResponderAvailabilityCardContent() {
+    final department = assignedDepartmentDisplayName(_incident);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _simpleRow('Department', department),
+        const SizedBox(height: 8),
+        _simpleRow('Estimated Arrival', _estimatedEtaMinutes != null ? '$_estimatedEtaMinutes min' : 'Pending'),
+        const SizedBox(height: 8),
+        _simpleRow('ETA Clock', _estimatedEtaMinutes != null ? _estimatedArrivalLabel : 'Pending'),
+      ],
+    );
+  }
+
+  Widget _buildResponderLocationCardContent() {
+    final latRaw = _incident?['latitude'];
+    final lngRaw = _incident?['longitude'];
+    final lat = latRaw is num ? latRaw.toDouble() : null;
+    final lng = lngRaw is num ? lngRaw.toDouble() : null;
+    final hasCoords = lat != null && lng != null &&
+        !lat.isNaN && !lng.isNaN;
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: SizedBox(
+        height: 192,
+        child: hasCoords
+            ? FlutterMap(
+                options: MapOptions(
+                  initialCenter: LatLng(lat, lng),
+                  initialZoom: 14,
+                  interactionOptions: const InteractionOptions(
+                    flags: InteractiveFlag.all,
+                  ),
+                ),
+                children: [
+                  TileLayer(
+                    urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    userAgentPackageName: 'com.rescuelink.mobile',
+                    subdomains: const ['a', 'b', 'c'],
+                  ),
+                  MarkerLayer(
+                    markers: [
+                      Marker(
+                        point: LatLng(lat, lng),
+                        width: 40,
+                        height: 40,
+                        child: const Icon(
+                          Icons.location_on,
+                          color: Color(0xFFEF4444),
+                          size: 40,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              )
+            : Container(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.map_outlined,
+                        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5),
+                        size: 48,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Location not available',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+      ),
+    );
+  }
+
+  Widget _buildVoiceRecordingCardContent() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _simpleRow(
+          'Audio File',
+          safeString(_incident?['audio_path']) != null
+              ? 'Available'
+              : 'Not available',
+        ),
+        if (_incident?['transcription'] != null ||
+            _aiClassification?['transcription'] != null) ...[
+          const SizedBox(height: 10),
+          Text(
+            'Transcription',
+            style: TextStyle(
+                fontSize: 12,
+                color: Theme.of(context).colorScheme.onSurfaceVariant),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            _incident?['transcription'] as String? ??
+                _aiClassification?['transcription'] as String? ??
+                '',
+            style: TextStyle(
+              fontSize: 13,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ],
+        const SizedBox(height: 10),
+        if (safeString(_incident?['audio_path']) != null)
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: _preparingAudio ? null : _toggleAudioPlayback,
+                      icon: _preparingAudio
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : Icon(_playingAudio ? Icons.pause : Icons.play_arrow),
+                      label: Text(_preparingAudio
+                          ? 'Preparing...'
+                          : _playingAudio
+                              ? 'Pause Audio'
+                              : 'Play Audio'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _downloadingAudio ? null : _downloadAudio,
+                      icon: _downloadingAudio
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.download),
+                      label: Text(_downloadingAudio
+                          ? 'Downloading...'
+                          : 'Download'),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              LinearProgressIndicator(
+                value: _audioDuration.inMilliseconds > 0
+                    ? _audioPosition.inMilliseconds /
+                        _audioDuration.inMilliseconds
+                    : 0,
+                minHeight: 6,
+                backgroundColor:
+                    Theme.of(context).colorScheme.surfaceContainerHighest,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                '${_formatDuration(_audioPosition)} / ${_formatDuration(_audioDuration)}',
+                style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant),
+              ),
+            ],
+          )
+        else
+          Text(
+            'No audio file is available for this incident.',
+            style: TextStyle(
+                fontSize: 12,
+                color: Theme.of(context).colorScheme.onSurfaceVariant),
+          ),
+      ],
     );
   }
 
@@ -1328,22 +1290,22 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
             children: [
               Text(
                 label,
-                style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+                style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
               ),
               const SizedBox(height: 2),
               Text(
                 value,
-                style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF111827)),
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
               ),
               if (subtitle != null) ...[
                 const SizedBox(height: 2),
                 Text(
                   subtitle,
-                  style:
-                      const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+                  style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
                 ),
               ],
             ],
@@ -1354,23 +1316,24 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
   }
 
   Widget _simpleRow(String label, String value) {
+    final theme = Theme.of(context);
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
-          style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
+          style: TextStyle(fontSize: 13, color: theme.colorScheme.onSurfaceVariant),
         ),
         const SizedBox(width: 12),
         Expanded(
           child: Text(
             value,
             textAlign: TextAlign.right,
-            style: const TextStyle(
+            style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: Color(0xFF111827)),
+                color: theme.colorScheme.onSurface),
           ),
         ),
       ],

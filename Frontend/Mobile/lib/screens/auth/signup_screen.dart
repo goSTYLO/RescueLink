@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../bloc/auth/auth_bloc.dart';
 import '../../bloc/auth/auth_state.dart';
 import '../../utils/responsive.dart';
+import '../../widgets/glass_card.dart';
 
 // Dagupan City Barangays
 const List<String> dagupanBarangays = [
@@ -170,7 +171,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
   Widget _buildLogo(double width) {
     final logoSize = Responsive.logoSize(width);
     final titleSize = Responsive.brandTitleSize(width);
-    final subtitleSize = Responsive.brandSubtitleSize(width);
     final compact = Responsive.isCompact(width);
 
     return Row(
@@ -206,13 +206,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-              Text(
-                'Emergency Response and Safety',
-                style: TextStyle(
-                    color: const Color(0xFF6B7280), fontSize: subtitleSize),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
             ],
           ),
         ),
@@ -242,6 +235,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
             SnackBar(
               content: Text(state.message),
               backgroundColor: const Color(0xFFEF4444),
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 5),
             ),
           );
         }
@@ -253,7 +248,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
         final compact = Responsive.isCompact(screenWidth);
         final headingSize = compact ? 24.0 : 28.0;
         return Scaffold(
-          backgroundColor: Colors.white,
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
           body: SafeArea(
             child: SingleChildScrollView(
               child: Padding(
@@ -273,50 +268,55 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       style: TextStyle(
                         fontSize: headingSize,
                         fontWeight: FontWeight.bold,
-                        color: const Color(0xFF111827),
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Join RescueLink Dagupan City',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Color(0xFF374151),
+                        color: Theme.of(context).colorScheme.onSurface,
                       ),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 32),
                     // Form Section
-                    Form(
+                    GlassCard(
+                      padding: const EdgeInsets.all(20),
+                      child: Form(
                       key: _formKey,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // First Name
-                          const Text(
-                            'First Name',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Color(0xFF374151),
-                              fontWeight: FontWeight.w500,
+                          // Error banner when account exists or other registration error
+                          if (state is RegisterError) ...[
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(12),
+                              margin: const EdgeInsets.only(bottom: 16),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFEF4444),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                state.message,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w500,
+                                  fontSize: 14,
+                                ),
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 8),
+                          ],
+                          // First Name (icon + placeholder only)
                           TextFormField(
                             controller: _firstNameController,
                             decoration: InputDecoration(
+                              prefixIcon: Icon(Icons.person_outline, size: 20, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
                               hintText: 'Enter your first name',
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(
-                                  color: Color(0xFFE5E7EB),
+                                borderSide: BorderSide(
+                                  color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
                                 ),
                               ),
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(
-                                  color: Color(0xFFE5E7EB),
+                                borderSide: BorderSide(
+                                  color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
                                 ),
                               ),
                               focusedBorder: OutlineInputBorder(
@@ -326,7 +326,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                 ),
                               ),
                               filled: true,
-                              fillColor: Colors.white,
                               contentPadding: const EdgeInsets.symmetric(
                                 horizontal: 16,
                                 vertical: 14,
@@ -336,30 +335,22 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           ),
                           const SizedBox(height: 20),
 
-                          // Last Name
-                          const Text(
-                            'Last Name',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Color(0xFF374151),
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
+                          // Last Name (icon + placeholder only)
                           TextFormField(
                             controller: _lastNameController,
                             decoration: InputDecoration(
+                              prefixIcon: Icon(Icons.person_outline, size: 20, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
                               hintText: 'Enter your last name',
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(
-                                  color: Color(0xFFE5E7EB),
+                                borderSide: BorderSide(
+                                  color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
                                 ),
                               ),
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(
-                                  color: Color(0xFFE5E7EB),
+                                borderSide: BorderSide(
+                                  color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
                                 ),
                               ),
                               focusedBorder: OutlineInputBorder(
@@ -369,7 +360,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                 ),
                               ),
                               filled: true,
-                              fillColor: Colors.white,
                               contentPadding: const EdgeInsets.symmetric(
                                 horizontal: 16,
                                 vertical: 14,
@@ -379,42 +369,23 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           ),
                           const SizedBox(height: 20),
 
-                          // Phone Number
-                          const Row(
-                            children: [
-                              Icon(
-                                Icons.phone,
-                                size: 18,
-                                color: Color(0xFF374151),
-                              ),
-                              SizedBox(width: 8),
-                              Text(
-                                'Phone Number',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Color(0xFF374151),
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
+                          // Phone Number (icon + placeholder only)
                           TextFormField(
                             controller: _phoneController,
                             keyboardType: TextInputType.phone,
                             decoration: InputDecoration(
+                              prefixIcon: Icon(Icons.phone, size: 20, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
                               hintText: 'Enter your number',
-                              // Removed prefixIcon here
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(
-                                  color: Color(0xFFE5E7EB),
+                                borderSide: BorderSide(
+                                  color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
                                 ),
                               ),
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(
-                                  color: Color(0xFFE5E7EB),
+                                borderSide: BorderSide(
+                                  color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
                                 ),
                               ),
                               focusedBorder: OutlineInputBorder(
@@ -424,7 +395,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                 ),
                               ),
                               filled: true,
-                              fillColor: Colors.white,
                               contentPadding: const EdgeInsets.symmetric(
                                 horizontal: 16,
                                 vertical: 14,
@@ -434,30 +404,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           ),
                           const SizedBox(height: 20),
 
-                          // Barangay Dropdown
-                          const Row(
-                            children: [
-                              Icon(
-                                Icons.location_on,
-                                size: 18,
-                                color: Color(0xFF374151),
-                              ),
-                              SizedBox(width: 8),
-                              Text(
-                                'Barangay (Dagupan City)',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Color(0xFF374151),
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
+                          // Barangay Dropdown (icon in placeholder)
                           Container(
                             decoration: BoxDecoration(
                               border: Border.all(
-                                color: const Color(0xFFE5E7EB),
+                                color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
                               ),
                               borderRadius: BorderRadius.circular(12),
                               color: Colors.white,
@@ -466,8 +417,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                               initialValue: _selectedBarangay,
                               isExpanded: true,
                               decoration: const InputDecoration(
+                                prefixIcon: Icon(Icons.location_on, size: 20, color: Color(0xFF6B7280)),
                                 hintText: 'Select your barangay',
-                                // Removed prefixIcon here
                                 suffixIcon: Icon(
                                   Icons.arrow_drop_down,
                                   color: Color(0xFF9CA3AF),
@@ -501,26 +452,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           ),
                           const SizedBox(height: 20),
 
-                          // Password
-                          const Row(
-                            children: [
-                              Icon(
-                                Icons.lock,
-                                size: 18,
-                                color: Color(0xFF374151),
-                              ),
-                              SizedBox(width: 8),
-                              Text(
-                                'Password',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Color(0xFF374151),
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
+                          // Password (icon + placeholder only)
                           TextFormField(
                             controller: _passwordController,
                             obscureText: _obscurePassword,
@@ -528,14 +460,14 @@ class _SignUpScreenState extends State<SignUpScreen> {
                               _updatePasswordStrength(value);
                             },
                             decoration: InputDecoration(
+                              prefixIcon: const Icon(Icons.lock, size: 20, color: Color(0xFF6B7280)),
                               hintText: 'Minimum 8 characters',
-                              // Removed prefixIcon here
                               suffixIcon: IconButton(
                                 icon: Icon(
                                   _obscurePassword
                                       ? Icons.visibility_off
                                       : Icons.visibility,
-                                  color: const Color(0xFF9CA3AF),
+                                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
                                 ),
                                 onPressed: () {
                                   setState(() {
@@ -545,14 +477,14 @@ class _SignUpScreenState extends State<SignUpScreen> {
                               ),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(
-                                  color: Color(0xFFE5E7EB),
+                                borderSide: BorderSide(
+                                  color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
                                 ),
                               ),
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(
-                                  color: Color(0xFFE5E7EB),
+                                borderSide: BorderSide(
+                                  color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
                                 ),
                               ),
                               focusedBorder: OutlineInputBorder(
@@ -562,7 +494,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                 ),
                               ),
                               filled: true,
-                              fillColor: Colors.white,
                               contentPadding: const EdgeInsets.symmetric(
                                 horizontal: 16,
                                 vertical: 14,
@@ -616,27 +547,19 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           ),
                           const SizedBox(height: 20),
 
-                          // Confirm Password
-                          const Text(
-                            'Confirm Password',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Color(0xFF374151),
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
+                          // Confirm Password (icon + placeholder only)
                           TextFormField(
                             controller: _confirmPasswordController,
                             obscureText: _obscureConfirmPassword,
                             decoration: InputDecoration(
+                              prefixIcon: const Icon(Icons.lock_outline, size: 20, color: Color(0xFF6B7280)),
                               hintText: 'Re-enter password',
                               suffixIcon: IconButton(
                                 icon: Icon(
                                   _obscureConfirmPassword
                                       ? Icons.visibility_off
                                       : Icons.visibility,
-                                  color: const Color(0xFF9CA3AF),
+                                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
                                 ),
                                 onPressed: () {
                                   setState(() {
@@ -647,14 +570,14 @@ class _SignUpScreenState extends State<SignUpScreen> {
                               ),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(
-                                  color: Color(0xFFE5E7EB),
+                                borderSide: BorderSide(
+                                  color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
                                 ),
                               ),
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(
-                                  color: Color(0xFFE5E7EB),
+                                borderSide: BorderSide(
+                                  color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
                                 ),
                               ),
                               focusedBorder: OutlineInputBorder(
@@ -664,7 +587,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                 ),
                               ),
                               filled: true,
-                              fillColor: Colors.white,
                               contentPadding: const EdgeInsets.symmetric(
                                 horizontal: 16,
                                 vertical: 14,
@@ -749,6 +671,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           ),
                         ],
                       ),
+                    ),
                     ),
                     const SizedBox(height: 40),
                   ],

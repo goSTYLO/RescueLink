@@ -28,6 +28,7 @@ dependencies:
   record: ^6.0.0
   audioplayers: ^6.1.0
   image_picker: ^1.0.7
+  video_player: ^2.8.1
   path_provider: ^2.1.2
   
   # Local Storage
@@ -43,14 +44,22 @@ dependencies:
   # UI
   cupertino_icons: ^1.0.6
   flutter_svg: ^2.0.9
+  shimmer: ^3.0.0
 
   # WebView (for reCAPTCHA v2; avoids conflict with Firebase)
   webview_flutter: ^4.4.2
+
+  # Map (OpenStreetMap - same as web)
+  flutter_map: ^8.2.2
+  latlong2: ^0.9.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.0
+  integration_test:
+    sdk: flutter
+  mocktail: ^1.0.0
 
 flutter:
   uses-material-design: true

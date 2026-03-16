@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
 import '../../services/incident_service.dart';
+import '../../utils/report_ui.dart';
+import '../../widgets/glass_card.dart';
+import '../../widgets/skeleton_placeholder.dart';
+import '../../widgets/empty_state_illustration.dart';
+import '../../widgets/premium_card.dart';
 
 class ReportHistoryScreen extends StatefulWidget {
   final void Function(int reportId)? onReportTap;
+  final VoidCallback? onReportIncidentTap;
 
-  const ReportHistoryScreen({super.key, this.onReportTap});
+  const ReportHistoryScreen({super.key, this.onReportTap, this.onReportIncidentTap});
 
   @override
   State<ReportHistoryScreen> createState() => _ReportHistoryScreenState();
@@ -179,21 +185,6 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
     return const Color(0xFF6B7280);
   }
 
-  String _formatDate(String? dateStr) {
-    if (dateStr == null) return '—';
-    try {
-      final dt = DateTime.parse(dateStr);
-      return '${_month(dt.month)} ${dt.day}, ${dt.year} • ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-    } catch (_) {
-      return dateStr;
-    }
-  }
-
-  String _month(int m) {
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return months[m - 1];
-  }
-
   String _locationTitle() {
     if (_incidents.isEmpty) {
       return 'Location unavailable';
@@ -237,16 +228,13 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
           const SizedBox(height: 16),
           Align(alignment: Alignment.centerLeft, child: _buildLogo()),
           const SizedBox(height: 20),
-          Container(
+          GlassCard(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF3F4F6),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFFE5E7EB)),
-            ),
+            borderRadius: 16,
+            blurSigma: 12,
             child: Row(
               children: [
-                const Icon(Icons.location_on, color: Color(0xFF6B7280), size: 24),
+                Icon(Icons.location_on, color: Theme.of(context).colorScheme.onSurfaceVariant, size: 24),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -254,16 +242,16 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                     children: [
                       Text(
                         _locationTitle(),
-                        style: const TextStyle(
-                          fontSize: 15,
+                        style: TextStyle(
+                          fontSize: 13,
                           fontWeight: FontWeight.w600,
-                          color: Color(0xFF111827),
+                          color: Theme.of(context).colorScheme.onSurface,
                         ),
                       ),
                       const SizedBox(height: 2),
                       Text(
                         _locationSubtitle(),
-                        style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
+                        style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
                       ),
                     ],
                   ),
@@ -275,29 +263,29 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             decoration: BoxDecoration(
-              color: const Color(0xFFEF4444),
-              borderRadius: BorderRadius.circular(12),
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFFEF4444), Color(0xFFDC2626)],
+              ),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFFEF4444).withOpacity(0.2),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
             child: Row(
               children: [
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Report History',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Your past emergency reports',
-                        style: TextStyle(color: Colors.white.withValues(alpha: 0.95), fontSize: 12),
-                      ),
-                    ],
+                  child: Text(
+                    'Report History',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
                 IconButton(
@@ -322,7 +310,7 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
             focusNode: _searchFocusNode,
             decoration: InputDecoration(
               hintText: 'Search by ID, type, status, date...',
-              prefixIcon: const Icon(Icons.search, color: Color(0xFF6B7280), size: 22),
+              prefixIcon: Icon(Icons.search, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6), size: 22),
               suffixIcon: _searchQuery.isNotEmpty
                   ? IconButton(
                       icon: const Icon(Icons.clear, size: 20),
@@ -332,34 +320,40 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                     )
                   : null,
               filled: true,
-              fillColor: Colors.white,
+              fillColor: Theme.of(context).colorScheme.surface,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                borderSide: BorderSide(color: Theme.of(context).colorScheme.outline.withOpacity(0.5)),
               ),
               contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             ),
           ),
           const SizedBox(height: 12),
-          // Filters: Status and Type dropdowns
+          // Filters: Status and Type dropdowns with labels
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text('Status', style: TextStyle(fontSize: 13, color: Color(0xFF6B7280))),
-                    const SizedBox(height: 6),
+                    Text(
+                      'Status',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
                     DropdownButtonFormField<String?>(
-                      initialValue: _filterStatus,
+                      value: _filterStatus,
                       decoration: InputDecoration(
                         filled: true,
-                        fillColor: Colors.white,
+                        fillColor: Theme.of(context).colorScheme.surface,
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                          borderSide: BorderSide(color: Theme.of(context).colorScheme.outline.withOpacity(0.5)),
                         ),
                         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                       ),
@@ -386,18 +380,24 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text('Type', style: TextStyle(fontSize: 13, color: Color(0xFF6B7280))),
-                    const SizedBox(height: 6),
+                    Text(
+                      'Type',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
                     DropdownButtonFormField<String?>(
-                      initialValue: _filterType,
+                      value: _filterType,
                       decoration: InputDecoration(
                         filled: true,
-                        fillColor: Colors.white,
+                        fillColor: Theme.of(context).colorScheme.surface,
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                          borderSide: BorderSide(color: Theme.of(context).colorScheme.outline.withOpacity(0.5)),
                         ),
                         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                       ),
@@ -424,8 +424,16 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
           const SizedBox(height: 16),
           if (_loading && _incidents.isEmpty)
             const Padding(
-              padding: EdgeInsets.symmetric(vertical: 32),
-              child: Center(child: CircularProgressIndicator()),
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child: Column(
+                children: [
+                  SkeletonCard(height: 72),
+                  SizedBox(height: 12),
+                  SkeletonCard(height: 72),
+                  SizedBox(height: 12),
+                  SkeletonCard(height: 72),
+                ],
+              ),
             )
           else if (_error != null && _incidents.isEmpty)
             Padding(
@@ -445,7 +453,7 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
             Row(
               children: [
                 Expanded(
-                  child: _summaryCard(
+                  child: _summaryCardCompact(
                     value: '${_filteredIncidents.length}',
                     label: _searchQuery.isNotEmpty ? 'Shown' : 'Total',
                     valueColor: const Color(0xFF14B8A6),
@@ -453,15 +461,15 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: _summaryCard(
-                    value: '${_filteredIncidents.where((e) => _status(e)?.toLowerCase() == 'resolved').length}',
-                    label: 'Resolved',
-                    valueColor: const Color(0xFFF59E0B),
+                  child: _summaryCardCompact(
+                    value: '${_filteredIncidents.where((e) => _status(e)?.toLowerCase() == 'in_progress').length}',
+                    label: 'In progress',
+                    valueColor: const Color(0xFF2563EB),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: _summaryCard(
+                  child: _summaryCardCompact(
                     value: '${_filteredIncidents.where((e) => _status(e)?.toLowerCase() == 'closed').length}',
                     label: 'Closed',
                     valueColor: const Color(0xFF22C55E),
@@ -471,14 +479,14 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
             ),
             const SizedBox(height: 20),
             if (_filteredIncidents.isEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 24),
-                child: Center(
-                  child: Text(
-                    _searchQuery.isNotEmpty ? 'No reports match your search' : 'No reports yet',
-                    style: const TextStyle(fontSize: 15, color: Color(0xFF6B7280)),
-                  ),
-                ),
+              EmptyStateIllustration(
+                icon: Icons.assignment_outlined,
+                title: _searchQuery.isNotEmpty ? 'No reports match your search' : 'No reports yet',
+                subtitle: _searchQuery.isEmpty
+                    ? 'Submit an incident report to see your history here.'
+                    : 'Try adjusting your search or filters.',
+                actionLabel: _searchQuery.isEmpty ? 'Report incident' : null,
+                onAction: _searchQuery.isEmpty ? widget.onReportIncidentTap : null,
               )
             else ...[
               ..._filteredIncidents.map<Widget>((incident) {
@@ -493,11 +501,9 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                     iconBg: _iconColorForType(type).withValues(alpha: 0.2),
                     iconColor: _iconColorForType(type),
                     type: type,
-                    id: 'DGP-${reportId ?? '—'}',
-                    department: 'Emergency',
-                    dateTime: _formatDate(createdAt),
                     status: status ?? 'Pending',
                     statusColor: _statusColor(status),
+                    date: formatReportDateTime(createdAt),
                     onTap: reportId != null ? () => widget.onReportTap?.call(reportId) : null,
                   ),
                 );
@@ -535,39 +541,34 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
     }
   }
 
-  Widget _summaryCard({
+  Widget _summaryCardCompact({
     required String value,
     required String label,
     required Color valueColor,
   }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
+    return GlassCard(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+      borderRadius: 16,
+      blurSigma: 12,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             value,
             style: TextStyle(
-              fontSize: 24,
+              fontSize: 16,
               fontWeight: FontWeight.bold,
               color: valueColor,
             ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              label,
+              style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant),
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
         ],
       ),
@@ -579,90 +580,68 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
     required Color iconBg,
     required Color iconColor,
     required String type,
-    required String id,
-    required String department,
-    required String dateTime,
     required String status,
     required Color statusColor,
+    String? date,
     VoidCallback? onTap,
   }) {
-    return InkWell(
+    return PremiumCard(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFE5E7EB)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: iconBg,
+              borderRadius: BorderRadius.circular(10),
             ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: iconBg,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(icon, color: iconColor, size: 26),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+            child: Icon(icon, color: iconColor, size: 24),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  type,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                ),
+                if (date != null && date.isNotEmpty && date != '—') ...[
+                  const SizedBox(height: 2),
                   Text(
-                    type,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF111827),
+                    date,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'ID: $id',
-                    style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    department,
-                    style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    dateTime,
-                    style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
-                  ),
                 ],
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: statusColor,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              status,
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
               ),
             ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: statusColor,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                status,
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            const Icon(Icons.arrow_forward_ios, size: 14, color: Color(0xFF9CA3AF)),
-          ],
-        ),
+          ),
+          const SizedBox(width: 8),
+          Icon(Icons.chevron_right, size: 20, color: Theme.of(context).colorScheme.onSurfaceVariant),
+        ],
       ),
     );
   }

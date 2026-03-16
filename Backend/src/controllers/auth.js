@@ -418,6 +418,57 @@ exports.dispatcherSignup = async (req, res) => {
   }
 };
 
+// Update current user's profile (address/barangay)
+exports.updateMe = async (req, res) => {
+  try {
+    const userId = req.user?.user_id;
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const { address } = req.body;
+    let validatedAddress = null;
+    try {
+      validatedAddress = validateAddress(address);
+    } catch (err) {
+      if (err.message?.includes('must be') || err.message?.includes('must not')) {
+        return res.status(400).json({ message: err.message });
+      }
+    }
+
+    await User.updateAddress(userId, validatedAddress);
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    let department = null;
+    if (user.department_id) {
+      const dept = await Department.findById(user.department_id);
+      department = dept ? dept.name : null;
+    }
+
+    res.json({
+      user: {
+        user_id: user.user_id,
+        phone: user.phone_number,
+        email: user.email,
+        address: user.address,
+        phone_verified: user.phone_verified,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        role: user.role,
+        department_id: user.department_id ?? null,
+        department: department ?? null,
+        created_at: user.created_at,
+      },
+    });
+  } catch (err) {
+    console.error('❌ Update profile error:', err.message);
+    res.status(500).json({ message: 'Failed to update profile' });
+  }
+};
+
 // Get current authenticated user's profile
 exports.getMe = async (req, res) => {
   try {

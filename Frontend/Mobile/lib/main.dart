@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'firebase_options.dart';
+import 'theme/app_theme.dart';
+import 'services/theme_service.dart';
 import 'bloc/auth/auth_bloc.dart';
 import 'bloc/auth/auth_event.dart';
 import 'bloc/auth/auth_state.dart';
@@ -32,6 +34,7 @@ import 'screens/home/emergency_contacts_screen.dart';
 import 'screens/home/change_password_screen.dart';
 import 'screens/home/privacy_security_screen.dart';
 import 'screens/home/logout_confirmation_screen.dart';
+import 'screens/home/about_screen.dart';
 import 'services/incident_service.dart';
 
 void main() async {
@@ -42,28 +45,49 @@ void main() async {
   runApp(const RescueLinkApp());
 }
 
-class RescueLinkApp extends StatelessWidget {
+class RescueLinkApp extends StatefulWidget {
   const RescueLinkApp({super.key});
+
+  @override
+  State<RescueLinkApp> createState() => _RescueLinkAppState();
+}
+
+class _RescueLinkAppState extends State<RescueLinkApp> {
+  ThemeMode _themeMode = ThemeMode.system;
+
+  @override
+  void initState() {
+    super.initState();
+    ThemeService.getThemeMode().then((mode) {
+      if (mounted) setState(() => _themeMode = mode);
+    });
+  }
+
+  Future<void> _onThemeChanged(ThemeMode mode) async {
+    await ThemeService.setThemeMode(mode);
+    if (mounted) setState(() => _themeMode = mode);
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'RescueLink',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-        useMaterial3: true,
-      ),
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: _themeMode,
       home: BlocProvider<AuthBloc>(
         create: (_) => AuthBloc(AuthService()),
-        child: const AuthNavigator(),
+        child: AuthNavigator(onThemeChanged: _onThemeChanged),
       ),
     );
   }
 }
 
 class AuthNavigator extends StatefulWidget {
-  const AuthNavigator({super.key});
+  final Future<void> Function(ThemeMode mode)? onThemeChanged;
+
+  const AuthNavigator({super.key, this.onThemeChanged});
 
   @override
   State<AuthNavigator> createState() => _AuthNavigatorState();
@@ -111,6 +135,7 @@ class _AuthNavigatorState extends State<AuthNavigator> {
   bool _showChangePassword = false;
   bool _showPasswordUpdatedFromSettings = false;
   bool _showPrivacySecurity = false;
+  bool _showAbout = false;
   bool _showLogoutConfirmation = false;
   bool _returnToSettingsTab = false;
   bool _returnToReportsTab = false;
@@ -184,6 +209,7 @@ class _AuthNavigatorState extends State<AuthNavigator> {
       _showChangePassword = false;
       _showPasswordUpdatedFromSettings = false;
       _showPrivacySecurity = false;
+      _showAbout = false;
       _showLogoutConfirmation = false;
       _returnToSettingsTab = false;
       _returnToReportsTab = false;
@@ -406,6 +432,19 @@ class _AuthNavigatorState extends State<AuthNavigator> {
           }),
         );
       }
+      if (_showAbout) {
+        return AboutScreen(
+          onBack: () => setState(() {
+            _showAbout = false;
+            _returnToSettingsTab = true;
+          }),
+          onPrivacySecurityTap: () => setState(() {
+            _showAbout = false;
+            _showPrivacySecurity = true;
+            _returnToSettingsTab = true;
+          }),
+        );
+      }
       if (_showPrivacySecurity) {
         return PrivacySecurityScreen(
           onBack: () => setState(() {
@@ -430,6 +469,7 @@ class _AuthNavigatorState extends State<AuthNavigator> {
       return Stack(
         children: [
           HomePlaceholderScreen(
+            onThemeChanged: widget.onThemeChanged,
             initialTabIndex: _returnToSettingsTab
                 ? 2
                 : (_returnToReportsTab ? 1 : null),
@@ -458,6 +498,7 @@ class _AuthNavigatorState extends State<AuthNavigator> {
                 setState(() => _showChangePassword = true),
             onPrivacySecurityTap: () =>
                 setState(() => _showPrivacySecurity = true),
+            onAboutTap: () => setState(() => _showAbout = true),
           ),
           if (_emergencyNoAiInProgress)
             Container(

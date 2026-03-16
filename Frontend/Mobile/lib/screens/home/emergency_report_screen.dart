@@ -1,10 +1,18 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:video_player/video_player.dart';
 import '../../services/auth_service.dart';
 import '../../services/incident_service.dart';
+import '../../theme/app_theme.dart';
+import '../../widgets/glass_card.dart';
+import '../../widgets/gradient_header.dart';
+import '../../widgets/skeleton_placeholder.dart';
 
 class EmergencyReportScreen extends StatefulWidget {
   final VoidCallback? onBack;
@@ -26,11 +34,14 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
 
   double? _currentLat;
   double? _currentLng;
+  String? _barangay;
   String? _locationError;
   bool _locationLoading = false;
+  bool _additionalDetailsExpanded = false;
   bool _isRecording = false;
   List<int>? _audioBytes;
-  final List<({List<int> bytes, String filename})> _mediaFiles = [];
+  ({List<int> bytes, String filename})? _photoFile;
+  ({List<int> bytes, String filename})? _videoFile;
   bool _isSubmitting = false;
 
   @override
@@ -50,21 +61,29 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
     setState(() {
       _locationLoading = true;
       _locationError = null;
+      _barangay = null;
     });
     try {
       final result = await AuthService().getCurrentLocation();
       if (!mounted) return;
-      setState(() {
-        _locationLoading = false;
-        if (result['success'] == true) {
-          _currentLat = (result['latitude'] as num).toDouble();
-          _currentLng = (result['longitude'] as num).toDouble();
+      if (result['success'] == true) {
+        final lat = (result['latitude'] as num).toDouble();
+        final lng = (result['longitude'] as num).toDouble();
+        final barangay = await AuthService().getBarangayFromCoordinates(lat, lng);
+        if (!mounted) return;
+        setState(() {
+          _currentLat = lat;
+          _currentLng = lng;
+          _barangay = barangay;
+          _locationLoading = false;
           _locationError = null;
-        } else {
-          _locationError =
-              result['error'] as String? ?? 'Could not get location.';
-        }
-      });
+        });
+      } else {
+        setState(() {
+          _locationLoading = false;
+          _locationError = result['error'] as String? ?? 'Could not get location.';
+        });
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -141,7 +160,7 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
       final ext = xfile.path.split('.').last.toLowerCase();
       final filename =
           'photo_${DateTime.now().millisecondsSinceEpoch}.${ext == 'jpg' || ext == 'jpeg' ? 'jpg' : 'png'}';
-      setState(() => _mediaFiles.add((bytes: bytes, filename: filename)));
+      setState(() => _photoFile = (bytes: bytes, filename: filename));
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -153,16 +172,36 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
     }
   }
 
+  static const int _maxVideoDurationSeconds = 10;
+
   Future<void> _pickVideo() async {
     try {
       final picker = ImagePicker();
       final xfile = await picker.pickVideo(source: ImageSource.camera);
       if (xfile == null || !mounted) return;
+
+      final file = File(xfile.path);
+      final controller = VideoPlayerController.file(file);
+      await controller.initialize();
+      final duration = controller.value.duration;
+      await controller.dispose();
+
+      if (!mounted) return;
+      if (duration.inSeconds > _maxVideoDurationSeconds) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Video must be 10 seconds or less.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
       final bytes = await xfile.readAsBytes();
       final ext = xfile.path.split('.').last.toLowerCase();
       final filename =
           'video_${DateTime.now().millisecondsSinceEpoch}.${ext == 'mov' ? 'mov' : 'mp4'}';
-      setState(() => _mediaFiles.add((bytes: bytes, filename: filename)));
+      setState(() => _videoFile = (bytes: bytes, filename: filename));
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -172,6 +211,129 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
         );
       }
     }
+  }
+
+  List<({List<int> bytes, String filename})>? _buildMediaFilesList() {
+    final list = <({List<int> bytes, String filename})>[];
+    if (_photoFile != null) list.add(_photoFile!);
+    if (_videoFile != null) list.add(_videoFile!);
+    return list.isEmpty ? null : list;
+  }
+
+  Widget _buildMediaAddButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback? onTap,
+  }) {
+    return InkWell(
+      onTap: _isSubmitting ? null : onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 20),
+        decoration: BoxDecoration(
+          color: const Color(0xFFDCFCE7),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFF86EFAC)),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, size: 28, color: const Color(0xFF16A34A)),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF166534),
+              ),
+            ),
+            const SizedBox(height: 6),
+            const Icon(Icons.add_circle_outline,
+                size: 20, color: Color(0xFF86EFAC)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPhotoPreview() {
+    final file = _photoFile!;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: Image.memory(
+            Uint8List.fromList(file.bytes),
+            fit: BoxFit.cover,
+            height: 120,
+            width: double.infinity,
+          ),
+        ),
+        Positioned(
+          top: 4,
+          right: 4,
+          child: IconButton(
+            onPressed: _isSubmitting ? null : () => setState(() => _photoFile = null),
+            icon: const Icon(Icons.close, color: Colors.white, size: 20),
+            style: IconButton.styleFrom(
+              backgroundColor: Colors.black54,
+              padding: const EdgeInsets.all(4),
+              minimumSize: const Size(28, 28),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildVideoPreview() {
+    final file = _videoFile!;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Container(
+          height: 120,
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: const Color(0xFF1F2937),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.videocam, color: Colors.white70, size: 40),
+                const SizedBox(height: 8),
+                Text(
+                  file.filename,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Colors.white70,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        ),
+        Positioned(
+          top: 4,
+          right: 4,
+          child: IconButton(
+            onPressed: _isSubmitting ? null : () => setState(() => _videoFile = null),
+            icon: const Icon(Icons.close, color: Colors.white, size: 20),
+            style: IconButton.styleFrom(
+              backgroundColor: Colors.black54,
+              padding: const EdgeInsets.all(4),
+              minimumSize: const Size(28, 28),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   Future<void> _submit() async {
@@ -211,7 +373,7 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
             : _detailsController.text.trim(),
         audioBytes: _audioBytes!,
         audioFilename: 'recording.wav',
-        mediaFiles: _mediaFiles.isEmpty ? null : _mediaFiles,
+        mediaFiles: _buildMediaFilesList(),
       );
       if (!mounted) return;
       setState(() => _isSubmitting = false);
@@ -256,73 +418,37 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: Stack(
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) widget.onBack?.call();
+      },
+      child: Scaffold(
+        backgroundColor: isDark ? AppTheme.darkBackground : theme.scaffoldBackgroundColor,
+        body: Stack(
           children: [
             Column(
               children: [
-                // Red header bar
-                Container(
-                  width: double.infinity,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFEF4444),
-                  ),
-                  child: Row(
-                    children: [
-                      IconButton(
-                        onPressed: _isSubmitting ? null : widget.onBack,
-                        icon: const CircleAvatar(
-                          backgroundColor: Colors.white,
-                          child: Icon(Icons.arrow_back,
-                              color: Color(0xFF111827), size: 22),
-                        ),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Text(
-                              'Emergency Report',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              'Choose the type that best matches your situation.',
-                              style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.95),
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Image.asset(
-                        'assets/logo/logo2.png',
-                        width: 32,
-                        height: 32,
-                        fit: BoxFit.contain,
-                        color: Colors.white,
-                        colorBlendMode: BlendMode.srcIn,
-                        errorBuilder: (_, __, ___) => const Icon(Icons.shield,
-                            color: Colors.white, size: 28),
-                      ),
-                    ],
+                GradientHeader(
+                  title: 'Emergency Report',
+                  onBack: _isSubmitting ? null : widget.onBack,
+                  transparentFade: true,
+                  trailing: Image.asset(
+                    'assets/logo/logo2.png',
+                    width: 32,
+                    height: 32,
+                    fit: BoxFit.contain,
+                    color: Colors.white,
+                    colorBlendMode: BlendMode.srcIn,
+                    errorBuilder: (_, __, ___) => const Icon(Icons.shield,
+                        color: Colors.white, size: 28),
                   ),
                 ),
-                // Scrollable content
-                Expanded(
+              Expanded(
+                child: SafeArea(
+                  top: false,
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 20, vertical: 20),
@@ -330,19 +456,7 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         // Voice Recording card
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.04),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
+                        GlassCard(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
@@ -419,13 +533,6 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
                                           color: Colors.white,
                                         ),
                                       ),
-                                      const SizedBox(height: 4),
-                                      const Text(
-                                        'Audio is required for AI classification',
-                                        style: TextStyle(
-                                            fontSize: 12,
-                                            color: Colors.white70),
-                                      ),
                                     ],
                                   ),
                                 ),
@@ -434,261 +541,252 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
                           ),
                         ),
                         const SizedBox(height: 20),
-                        _sectionTitle(
-                            icon: Icons.location_on,
-                            iconColor: const Color(0xFF0EA5E9),
-                            title: 'Location'),
-                        const SizedBox(height: 10),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 20),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF3F4F6),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: const Color(0xFFE5E7EB)),
-                          ),
+                        GlassCard(
                           child: Column(
                             children: [
-                              const Icon(Icons.location_on,
-                                  color: Color(0xFF0EA5E9), size: 40),
+                              Row(
+                                children: [
+                                  Icon(Icons.location_on,
+                                      color: theme.colorScheme.primary, size: 22),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'Location',
+                                      style: theme.textTheme.titleMedium?.copyWith(
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                  if (!_locationLoading)
+                                    IconButton(
+                                      icon: const Icon(Icons.refresh),
+                                      onPressed: _isSubmitting
+                                          ? null
+                                          : () {
+                                              setState(() {
+                                                _currentLat = null;
+                                                _currentLng = null;
+                                                _barangay = null;
+                                              });
+                                              _fetchLocation();
+                                            },
+                                      tooltip: 'Refresh location',
+                                    ),
+                                ],
+                              ),
                               const SizedBox(height: 12),
                               if (_locationLoading)
-                                const Text(
-                                  'Getting location...',
-                                  style: TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.bold,
-                                      color: Color(0xFF374151)),
+                                const SkeletonPlaceholder(
+                                  width: double.infinity,
+                                  height: 48,
+                                  borderRadius: 8,
                                 )
                               else if (_locationError != null)
                                 Text(
                                   _locationError!,
-                                  style: const TextStyle(
-                                      fontSize: 13, color: Color(0xFFDC2626)),
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: theme.colorScheme.error,
+                                  ),
                                   textAlign: TextAlign.center,
                                 )
                               else ...[
-                                const Text(
-                                  'GPS Location Captured',
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF374151),
+                                Text(
+                                  _barangay != null && _barangay!.isNotEmpty
+                                      ? _barangay!
+                                      : 'Dagupan City',
+                                  style: theme.textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w600,
                                   ),
                                 ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  _currentLat != null && _currentLng != null
-                                      ? '${_currentLat!.toStringAsFixed(5)}, ${_currentLng!.toStringAsFixed(5)}'
-                                      : 'Dagupan City',
-                                  style: const TextStyle(
-                                      fontSize: 13, color: Color(0xFF6B7280)),
-                                ),
-                                const SizedBox(height: 10),
-                                const Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(Icons.check_circle,
-                                        color: Color(0xFF22C55E), size: 18),
-                                    SizedBox(width: 6),
-                                    Text(
-                                      'Accuracy: High',
-                                      style: TextStyle(
-                                          fontSize: 13,
-                                          color: Color(0xFF22C55E),
-                                          fontWeight: FontWeight.w500),
+                                if (_currentLat != null && _currentLng != null) ...[
+                                  const SizedBox(height: 12),
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: SizedBox(
+                                      height: 160,
+                                      child: FlutterMap(
+                                        options: MapOptions(
+                                          initialCenter: LatLng(_currentLat!, _currentLng!),
+                                          initialZoom: 15,
+                                          interactionOptions: const InteractionOptions(
+                                            flags: InteractiveFlag.all,
+                                          ),
+                                        ),
+                                        children: [
+                                          TileLayer(
+                                            urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                                            userAgentPackageName: 'com.rescuelink.mobile',
+                                            subdomains: const ['a', 'b', 'c'],
+                                          ),
+                                          MarkerLayer(
+                                            markers: [
+                                              Marker(
+                                                point: LatLng(_currentLat!, _currentLng!),
+                                                width: 40,
+                                                height: 40,
+                                                child: Icon(
+                                                  Icons.location_on,
+                                                  color: theme.colorScheme.error,
+                                                  size: 40,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
                                     ),
-                                  ],
+                                  ),
+                                ],
+                              ],
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        GlassCard(
+                          onTap: () => setState(() =>
+                              _additionalDetailsExpanded = !_additionalDetailsExpanded),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(Icons.description,
+                                      color: theme.colorScheme.primary, size: 22),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'Additional Details (Optional)',
+                                      style: theme.textTheme.titleMedium?.copyWith(
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                  Icon(
+                                    _additionalDetailsExpanded
+                                        ? Icons.expand_less
+                                        : Icons.expand_more,
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                ],
+                              ),
+                              if (_additionalDetailsExpanded) ...[
+                                const SizedBox(height: 12),
+                                TextField(
+                                  controller: _detailsController,
+                                  maxLines: 4,
+                                  enabled: !_isSubmitting,
+                                  decoration: InputDecoration(
+                                    hintText: 'Describe the emergency situation..',
+                                    filled: true,
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: BorderSide.none,
+                                    ),
+                                    contentPadding: const EdgeInsets.symmetric(
+                                        horizontal: 16, vertical: 14),
+                                  ),
                                 ),
                               ],
                             ],
                           ),
                         ),
                         const SizedBox(height: 20),
-                        const Text(
-                          'Additional Details (Optional)',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF374151),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        TextField(
-                          controller: _detailsController,
-                          maxLines: 4,
-                          enabled: !_isSubmitting,
-                          decoration: InputDecoration(
-                            hintText: 'Describe the emergency situation..',
-                            hintStyle: const TextStyle(
-                                color: Color(0xFF9CA3AF), fontSize: 14),
-                            filled: true,
-                            fillColor: const Color(0xFFF3F4F6),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide.none,
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 14),
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        const Text(
+                        Text(
                           'Attach Media (Optional)',
-                          style: TextStyle(
-                            fontSize: 15,
+                          style: theme.textTheme.titleMedium?.copyWith(
                             fontWeight: FontWeight.bold,
-                            color: Color(0xFF374151),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Video max 10 seconds',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
                           ),
                         ),
                         const SizedBox(height: 10),
                         Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Expanded(
-                              child: InkWell(
-                                onTap: _isSubmitting ? null : _pickPhoto,
-                                borderRadius: BorderRadius.circular(12),
-                                child: Container(
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 20),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFDCFCE7),
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                        color: const Color(0xFF86EFAC)),
-                                  ),
-                                  child: Column(
-                                    children: [
-                                      Icon(Icons.camera_alt,
-                                          size: 28,
-                                          color: _mediaFiles.isNotEmpty
-                                              ? const Color(0xFF22C55E)
-                                              : const Color(0xFF16A34A)),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        'Photo (${_mediaFiles.length})',
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w600,
-                                          color: _mediaFiles.isNotEmpty
-                                              ? const Color(0xFF22C55E)
-                                              : const Color(0xFF166534),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 6),
-                                      Icon(Icons.add_circle_outline,
-                                          size: 20,
-                                          color: _mediaFiles.isNotEmpty
-                                              ? const Color(0xFF22C55E)
-                                              : const Color(0xFF86EFAC)),
-                                    ],
-                                  ),
-                                ),
-                              ),
+                              child: _photoFile != null
+                                  ? _buildPhotoPreview()
+                                  : _buildMediaAddButton(
+                                      icon: Icons.camera_alt,
+                                      label: 'Photo',
+                                      onTap: _pickPhoto,
+                                    ),
                             ),
                             const SizedBox(width: 12),
                             Expanded(
-                              child: InkWell(
-                                onTap: _isSubmitting ? null : _pickVideo,
-                                borderRadius: BorderRadius.circular(12),
-                                child: Container(
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 20),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFDCFCE7),
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                        color: const Color(0xFF86EFAC)),
-                                  ),
-                                  child: const Column(
-                                    children: [
-                                      Icon(Icons.videocam,
-                                          size: 28, color: Color(0xFF16A34A)),
-                                      SizedBox(height: 8),
-                                      Text(
-                                        'Video',
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w600,
-                                          color: Color(0xFF166534),
-                                        ),
-                                      ),
-                                      SizedBox(height: 6),
-                                      Icon(Icons.add_circle_outline,
-                                          size: 20, color: Color(0xFF86EFAC)),
-                                    ],
-                                  ),
-                                ),
-                              ),
+                              child: _videoFile != null
+                                  ? _buildVideoPreview()
+                                  : _buildMediaAddButton(
+                                      icon: Icons.videocam,
+                                      label: 'Video',
+                                      onTap: _pickVideo,
+                                    ),
                             ),
                           ],
                         ),
                         const SizedBox(height: 32),
+                        // Bottom submit button
+                        Container(
+                          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+                          decoration: BoxDecoration(
+                            color: isDark ? AppTheme.darkCard : theme.scaffoldBackgroundColor,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.06),
+                                blurRadius: 10,
+                                offset: const Offset(0, -2),
+                              ),
+                            ],
+                          ),
+                          child: SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton(
+                              onPressed: _isSubmitting ? null : _submit,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFFEF4444),
+                                padding: const EdgeInsets.symmetric(vertical: 18),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12)),
+                              ),
+                              child: _isSubmitting
+                                  ? const SizedBox(
+                                      height: 24,
+                                      width: 24,
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2, color: Colors.white),
+                                    )
+                                  : const Text(
+                                      'Submit Emergency Report',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ),
                 ),
-                // Bottom submit button
-                Container(
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.06),
-                        blurRadius: 10,
-                        offset: const Offset(0, -2),
-                      ),
-                    ],
-                  ),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: _isSubmitting ? null : _submit,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFEF4444),
-                        padding: const EdgeInsets.symmetric(vertical: 18),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                      ),
-                      child: _isSubmitting
-                          ? const SizedBox(
-                              height: 24,
-                              width: 24,
-                              child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: Colors.white),
-                            )
-                          : const Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  'Submit Emergency Report',
-                                  style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16),
-                                ),
-                                SizedBox(height: 4),
-                                Text(
-                                  'AI will verify and dispatch immediately',
-                                  style: TextStyle(
-                                      color: Colors.white70, fontSize: 12),
-                                ),
-                              ],
-                            ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
+          ),
             if (_isSubmitting)
               Container(
                 color: Colors.black26,
-                child: const Center(
+                child: Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
-                    children: [
-                      CircularProgressIndicator(),
+                    children: const [
+                      CircularProgressIndicator(strokeWidth: 2),
                       SizedBox(height: 16),
                       Text('Submitting...',
                           style: TextStyle(color: Colors.white, fontSize: 16)),
@@ -702,23 +800,4 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
     );
   }
 
-  Widget _sectionTitle(
-      {required IconData icon,
-      required Color iconColor,
-      required String title}) {
-    return Row(
-      children: [
-        Icon(icon, color: iconColor, size: 22),
-        const SizedBox(width: 8),
-        Text(
-          title,
-          style: const TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF374151),
-          ),
-        ),
-      ],
-    );
-  }
 }

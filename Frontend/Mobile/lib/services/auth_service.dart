@@ -156,9 +156,79 @@ class AuthService {
     }
   }
 
-  // Register user with backend (now includes location validation)
-    // Check if location is within Dagupan City
-    Future<Map<String, dynamic>> checkLocationInDagupan({
+  /// Search Dagupan locations (address autocomplete)
+  Future<Map<String, dynamic>> searchLocations(String query, {int limit = 5}) async {
+    final token = getToken();
+    if (token == null || token.isEmpty) {
+      return {'success': false, 'error': 'Not authenticated'};
+    }
+    try {
+      final response = await _apiService.get(
+        '/api/location/search',
+        queryParameters: {'q': query, 'limit': limit.toString()},
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      return response;
+    } catch (e) {
+      return {'success': false, 'error': e.toString(), 'results': []};
+    }
+  }
+
+  /// Reverse geocode coordinates to address
+  Future<Map<String, dynamic>> reverseGeocode(double latitude, double longitude) async {
+    final token = getToken();
+    if (token == null || token.isEmpty) {
+      return {'success': false, 'error': 'Not authenticated'};
+    }
+    try {
+      final response = await _apiService.get(
+        '/api/location/reverse',
+        queryParameters: {'latitude': latitude.toString(), 'longitude': longitude.toString()},
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      return response;
+    } catch (e) {
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
+  /// Update user profile (address/barangay)
+  Future<Map<String, dynamic>> updateProfile({String? address}) async {
+    final token = getToken();
+    if (token == null || token.isEmpty) {
+      return {'success': false, 'error': 'Not authenticated'};
+    }
+    try {
+      final response = await _apiService.patch(
+        '/api/auth/me',
+        body: {'address': address},
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      return {'success': true, 'user': response['user'] ?? response};
+    } catch (e) {
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
+  /// Get barangay name for coordinates (for incident report UI).
+  /// Returns null if not in Dagupan or on API error.
+  Future<String?> getBarangayFromCoordinates(double latitude, double longitude) async {
+    final token = getToken();
+    if (token == null || token.isEmpty) return null;
+    try {
+      final response = await _apiService.get(
+        '/api/location/barangay',
+        queryParameters: {'lat': latitude.toString(), 'lng': longitude.toString()},
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      return response['barangay'] as String?;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // Check if location is within Dagupan City
+  Future<Map<String, dynamic>> checkLocationInDagupan({
       required double latitude,
       required double longitude,
     }) async {
@@ -185,7 +255,7 @@ class AuthService {
       }
     }
 
-    // Register user with backend (now includes location validation)
+  // Register user with backend (now includes location validation)
   Future<Map<String, dynamic>> register({
     required String firstName,
     required String lastName,
@@ -217,9 +287,31 @@ class AuthService {
 
       return {'success': true, 'data': response};
     } catch (e) {
+      String errorMessage = 'Registration could not be completed. Please try again.';
+      final msg = e.toString().toLowerCase();
+      if (msg.contains('already have an account') ||
+          msg.contains('account already exists') ||
+          msg.contains('already registered') ||
+          msg.contains('phone.*taken') ||
+          msg.contains('duplicate')) {
+        errorMessage = 'An account with this phone number already exists. Please sign in instead.';
+      } else if (e is ApiException) {
+        final apiMsg = e.message.toLowerCase();
+        if (apiMsg.contains('already have an account') ||
+            apiMsg.contains('account already exists') ||
+            apiMsg.contains('already registered')) {
+          errorMessage = 'An account with this phone number already exists. Please sign in instead.';
+        } else {
+          errorMessage = e.message;
+        }
+      } else if (msg.contains('socketexception') ||
+          msg.contains('connection') ||
+          msg.contains('failed host lookup')) {
+        errorMessage = 'Unable to connect. Please check your network and try again.';
+      }
       return {
         'success': false,
-        'error': e.toString(),
+        'error': errorMessage,
       };
     }
   }

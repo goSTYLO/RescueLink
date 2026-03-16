@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../theme/app_theme.dart';
 
 class ChangePasswordScreen extends StatefulWidget {
   final VoidCallback? onBack;
@@ -76,8 +77,15 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF3F4F6),
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) widget.onBack?.call();
+      },
+      child: Scaffold(
+      backgroundColor: isDark ? AppTheme.darkBackground : theme.scaffoldBackgroundColor,
       body: SafeArea(
         child: Column(
           children: [
@@ -217,6 +225,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
           ],
         ),
       ),
+    ),
     );
   }
 

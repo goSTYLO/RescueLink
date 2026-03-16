@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../services/notification_service.dart';
+import '../../widgets/glass_card.dart';
+import '../../widgets/skeleton_placeholder.dart';
 
 class NotificationsScreen extends StatefulWidget {
   final VoidCallback? onNotificationTap;
@@ -16,6 +18,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   List<Map<String, dynamic>> _notifications = const [];
   bool _loading = true;
   String? _error;
+  final Set<String> _expandedKeys = {};
 
   @override
   void initState() {
@@ -63,41 +66,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     super.dispose();
   }
 
-  Widget _buildLogo() {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Image.asset(
-          'assets/logo/logo2.png',
-          width: 64,
-          height: 64,
-          fit: BoxFit.contain,
-        ),
-        const SizedBox(width: 0),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            RichText(
-              text: const TextSpan(
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-                children: [
-                  TextSpan(text: 'Rescue', style: TextStyle(color: Color(0xFF2563EB))),
-                  TextSpan(text: 'Link', style: TextStyle(color: Color(0xFFEF4444))),
-                ],
-              ),
-            ),
-            const Text(
-              'Emergency Response and Safety',
-              style: TextStyle(color: Color(0xFF6B7280), fontSize: 13),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
   DateTime? _sentAt(Map<String, dynamic> notification) {
     final raw = notification['sent_at'];
     if (raw is! String || raw.isEmpty) {
@@ -141,15 +109,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
-  ({IconData icon, Color iconBg, Color iconColor, Color cardColor})
-      _notificationStyle(Map<String, dynamic> notification) {
+  ({IconData icon, Color iconBg, Color iconColor}) _notificationStyle(
+      Map<String, dynamic> notification) {
     final sentVia = (notification['sent_via'] as String?)?.toLowerCase() ?? '';
     if (sentVia.contains('sms')) {
       return (
         icon: Icons.sms_outlined,
         iconBg: const Color(0xFFFEF3C7),
         iconColor: const Color(0xFFD97706),
-        cardColor: const Color(0xFFFFFBEB),
       );
     }
     if (sentVia.contains('email')) {
@@ -157,7 +124,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         icon: Icons.mail_outline,
         iconBg: const Color(0xFFEDE9FE),
         iconColor: const Color(0xFF6D28D9),
-        cardColor: const Color(0xFFF5F3FF),
       );
     }
     if (sentVia.contains('push')) {
@@ -165,14 +131,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         icon: Icons.notifications_active_outlined,
         iconBg: const Color(0xFFDBEAFE),
         iconColor: const Color(0xFF2563EB),
-        cardColor: const Color(0xFFEFF6FF),
       );
     }
     return (
       icon: Icons.info_outline,
       iconBg: const Color(0xFFFCE7F3),
       iconColor: const Color(0xFFEC4899),
-      cardColor: const Color(0xFFFDF2F8),
     );
   }
 
@@ -190,9 +154,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
           const SizedBox(height: 16),
-          Align(alignment: Alignment.centerLeft, child: _buildLogo()),
-          const SizedBox(height: 20),
-          // Notifications banner (red)
+          // Notifications banner (no logo, no subtitle)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             decoration: BoxDecoration(
@@ -202,23 +164,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             child: Row(
               children: [
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Notifications',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Emergency updates & alerts',
-                        style: TextStyle(color: Colors.white.withValues(alpha: 0.95), fontSize: 12),
-                      ),
-                    ],
+                  child: Text(
+                    'Notifications',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
                 const Icon(Icons.notifications, color: Colors.white, size: 28),
@@ -228,8 +179,16 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           const SizedBox(height: 24),
           if (_loading)
             const Padding(
-              padding: EdgeInsets.symmetric(vertical: 40),
-              child: Center(child: CircularProgressIndicator()),
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child: Column(
+                children: [
+                  SkeletonCard(height: 72),
+                  SizedBox(height: 12),
+                  SkeletonCard(height: 72),
+                  SizedBox(height: 12),
+                  SkeletonCard(height: 72),
+                ],
+              ),
             )
           else if (_error != null)
             Padding(
@@ -271,13 +230,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 final style = _notificationStyle(item);
                 final message = (item['message'] as String?) ?? 'Notification update';
                 final reportId = item['report_id'];
+                final key = 'new_${reportId}_${item['sent_at']}';
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: _notificationCard(
+                    expandKey: key,
                     icon: style.icon,
                     iconBg: style.iconBg,
                     iconColor: style.iconColor,
-                    cardColor: style.cardColor,
                     title: reportId is num
                         ? 'Incident Update #DGP-${reportId.toInt()}'
                         : 'Incident Update',
@@ -304,13 +264,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 final style = _notificationStyle(item);
                 final message = (item['message'] as String?) ?? 'Notification update';
                 final reportId = item['report_id'];
+                final key = 'earlier_${reportId}_${item['sent_at']}';
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: _notificationCard(
+                    expandKey: key,
                     icon: style.icon,
                     iconBg: style.iconBg,
                     iconColor: style.iconColor,
-                    cardColor: style.cardColor,
                     title: reportId is num
                         ? 'Incident Update #DGP-${reportId.toInt()}'
                         : 'Incident Update',
@@ -347,84 +308,90 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   Widget _notificationCard({
+    required String expandKey,
     required IconData icon,
     required Color iconBg,
     required Color iconColor,
-    required Color cardColor,
     required String title,
     required String description,
     required String time,
     required bool showUnreadDot,
     VoidCallback? onTap,
   }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: cardColor,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFE5E7EB)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
+    final isExpanded = _expandedKeys.contains(expandKey);
+    return GlassCard(
+      onTap: () {
+        setState(() {
+          if (isExpanded) {
+            _expandedKeys.remove(expandKey);
+          } else {
+            _expandedKeys.add(expandKey);
+          }
+        });
+      },
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: iconBg,
+              borderRadius: BorderRadius.circular(10),
             ),
-          ],
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: iconBg,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(icon, color: iconColor, size: 24),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF111827),
-                    ),
+            child: Icon(icon, color: iconColor, size: 22),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    description,
-                    style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280), height: 1.3),
-                  ),
+                ),
+                if (isExpanded) ...[
                   const SizedBox(height: 6),
                   Text(
-                    time,
-                    style: const TextStyle(fontSize: 11, color: Color(0xFF9CA3AF)),
+                    description,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      height: 1.3,
+                    ),
                   ),
                 ],
+                const SizedBox(height: 4),
+                Text(
+                  time,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Theme.of(context).colorScheme.outline,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (showUnreadDot)
+            Container(
+              width: 8,
+              height: 8,
+              margin: const EdgeInsets.only(top: 6),
+              decoration: const BoxDecoration(
+                color: Color(0xFFEF4444),
+                shape: BoxShape.circle,
               ),
             ),
-            if (showUnreadDot)
-              Container(
-                width: 8,
-                height: 8,
-                margin: const EdgeInsets.only(top: 6, right: 6),
-                decoration: const BoxDecoration(
-                  color: Color(0xFFEF4444),
-                  shape: BoxShape.circle,
-                ),
-              ),
-            const SizedBox(width: 4),
-            const Icon(Icons.arrow_forward_ios, size: 14, color: Color(0xFF9CA3AF)),
-          ],
-        ),
+          const SizedBox(width: 4),
+          Icon(
+            isExpanded ? Icons.expand_less : Icons.expand_more,
+            size: 20,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ],
       ),
     );
   }

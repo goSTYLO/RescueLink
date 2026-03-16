@@ -122,6 +122,14 @@ const User = {
     return decodeUserFields(res.rows[0]);
   },
 
+  async updateAddress(user_id, address) {
+    const res = await pool.query(
+      'UPDATE users SET address = $1 WHERE user_id = $2 RETURNING user_id, email, phone_number, address, phone_verified, first_name, last_name, role, created_at',
+      [address, user_id]
+    );
+    return decodeUserFields(res.rows[0]);
+  },
+
   /**
    * Get paginated list of all users (active and inactive), with department name when department_id set
    * @param {number} offset - Pagination offset

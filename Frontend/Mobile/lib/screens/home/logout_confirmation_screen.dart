@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../theme/app_theme.dart';
 
 class LogoutConfirmationScreen extends StatefulWidget {
   final VoidCallback? onBack;
@@ -29,8 +30,15 @@ class _LogoutConfirmationScreenState extends State<LogoutConfirmationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) (widget.onBack ?? widget.onCancel)?.call();
+      },
+      child: Scaffold(
+      backgroundColor: isDark ? AppTheme.darkBackground : theme.scaffoldBackgroundColor,
       body: SafeArea(
         child: Column(
           children: [
@@ -59,18 +67,12 @@ class _LogoutConfirmationScreenState extends State<LogoutConfirmationScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Text(
+                        Text(
                           'Logout Confirmation',
-                          style: TextStyle(
+                          style: theme.textTheme.titleLarge?.copyWith(
                             color: Colors.white,
-                            fontSize: 18,
                             fontWeight: FontWeight.bold,
                           ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Secure your account before leaving.',
-                          style: TextStyle(color: Colors.white.withOpacity(0.95), fontSize: 12),
                         ),
                       ],
                     ),
@@ -282,6 +284,7 @@ class _LogoutConfirmationScreenState extends State<LogoutConfirmationScreen> {
           ],
         ),
       ),
+    ),
     );
   }
 

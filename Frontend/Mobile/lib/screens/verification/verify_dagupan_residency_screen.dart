@@ -321,7 +321,7 @@ class _VerifyDagupanResidencyScreenState
     final barangay = widget.selectedBarangay ?? 'Barangay Poblacion Oeste';
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -338,18 +338,18 @@ class _VerifyDagupanResidencyScreenState
                 ),
               ),
               const SizedBox(height: 24),
-              const Text(
+              Text(
                 'Verify Dagupan Residency',
                 style: TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.bold,
-                  color: Color(0xFF111827),
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
               const SizedBox(height: 8),
-              const Text(
+              Text(
                 'Confirm your identity and location',
-                style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
+                style: TextStyle(fontSize: 14, color: Theme.of(context).colorScheme.onSurfaceVariant),
               ),
               const SizedBox(height: 24),
               // Map placeholder
@@ -370,23 +370,24 @@ class _VerifyDagupanResidencyScreenState
                         height: double.infinity,
                       ),
                     ),
-                    const Positioned(
+                    Positioned(
                       top: 12,
                       left: 12,
                       right: 12,
                       child: Row(
                         children: [
-                          Icon(Icons.location_on,
+                          const Icon(Icons.location_on,
                               color: Color(0xFFEF4444), size: 24),
-                          SizedBox(width: 8),
+                          const SizedBox(width: 8),
                           Expanded(
                             child: Text(
                               'Poblacion Oeste, Barangay Hall',
                               style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
-                                color: Color(0xFF111827),
+                                color: Theme.of(context).colorScheme.onSurface,
                               ),
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                         ],
@@ -408,23 +409,28 @@ class _VerifyDagupanResidencyScreenState
                                 blurRadius: 8)
                           ],
                         ),
-                        child: const Row(
+                        child: Row(
                           children: [
                             Icon(Icons.map_outlined,
-                                size: 18, color: Color(0xFF6B7280)),
-                            SizedBox(width: 8),
-                            Text(
-                              'Dagupan City Boundaries',
-                              style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                  color: Color(0xFF374151)),
+                                size: 18, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Dagupan City Boundaries',
+                                style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                    color: Theme.of(context).colorScheme.onSurface),
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
-                            Spacer(),
-                            Text(
-                              'Pangasinan, Philippines',
-                              style: TextStyle(
-                                  fontSize: 11, color: Color(0xFF6B7280)),
+                            Flexible(
+                              child: Text(
+                                'Pangasinan, Philippines',
+                                style: TextStyle(
+                                    fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
                           ],
                         ),

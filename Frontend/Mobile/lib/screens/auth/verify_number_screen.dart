@@ -87,7 +87,6 @@ class _VerifyNumberScreenState extends State<VerifyNumberScreen> {
                 ],
               ),
             ),
-            const Text('Emergency Response and Safety', style: TextStyle(color: Color(0xFF6B7280), fontSize: 13)),
           ],
         ),
       ],
@@ -97,7 +96,7 @@ class _VerifyNumberScreenState extends State<VerifyNumberScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -125,19 +124,9 @@ class _VerifyNumberScreenState extends State<VerifyNumberScreen> {
                 'Verify Your Number',
                 style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF111827)),
               ),
-              const SizedBox(height: 8),
-              const Text(
-                'Enter the code we sent you',
-                style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
-              ),
               const SizedBox(height: 20),
               const Icon(Icons.shield_outlined, color: Color(0xFF2563EB), size: 32),
               const SizedBox(height: 8),
-              const Text(
-                'Enter the 6-digit code sent to',
-                style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
-              ),
-              const SizedBox(height: 4),
               Text(
                 widget.phoneNumber,
                 style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF111827)),

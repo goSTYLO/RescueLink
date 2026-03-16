@@ -70,7 +70,6 @@ class _CreateNewPasswordScreenState extends State<CreateNewPasswordScreen> {
                 ],
               ),
             ),
-            const Text('Emergency Response and Safety', style: TextStyle(color: Color(0xFF6B7280), fontSize: 13)),
           ],
         ),
       ],

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../widgets/bottom_sheet_wrapper.dart';
+import '../../widgets/glass_card.dart';
 
 class EmergencyContact {
   final String name;
@@ -34,53 +36,30 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
     EmergencyContact(name: 'Jose Dela Cruz', relation: 'Parent', phone: '+63 918 345 6789'),
   ];
 
-  bool _showAddForm = false;
   EmergencyContact? _contactToDelete;
-
-  final _fullNameController = TextEditingController();
-  final _phoneController = TextEditingController();
-  String? _selectedRelation;
 
   static const int _maxContacts = 5;
 
-  @override
-  void dispose() {
-    _fullNameController.dispose();
-    _phoneController.dispose();
-    super.dispose();
-  }
-
   void _onAddContactTap() {
-    setState(() {
-      _showAddForm = true;
-      _fullNameController.clear();
-      _phoneController.clear();
-      _selectedRelation = null;
-    });
-  }
-
-  void _onCancelAdd() {
-    setState(() {
-      _showAddForm = false;
-    });
-  }
-
-  void _onSubmitAdd() {
-    final name = _fullNameController.text.trim();
-    final phone = _phoneController.text.trim();
-    if (name.isEmpty || _selectedRelation == null || _selectedRelation!.isEmpty || phone.isEmpty) return;
     if (_contacts.length >= _maxContacts) return;
-    setState(() {
-      _contacts.add(EmergencyContact(
-        name: name,
-        relation: _selectedRelation!,
-        phone: phone.startsWith('+63') ? phone : '+63 $phone',
-      ));
-      _showAddForm = false;
-      _fullNameController.clear();
-      _phoneController.clear();
-      _selectedRelation = null;
-    });
+    BottomSheetWrapper.show(
+      context: context,
+      title: 'Add Emergency Contact',
+      child: _AddContactFormContent(
+        onAdd: (name, relation, phone) {
+          setState(() {
+            _contacts.add(EmergencyContact(
+              name: name,
+              relation: relation,
+              phone: phone.startsWith('+63') ? phone : '+63 $phone',
+            ));
+          });
+          if (context.mounted) Navigator.of(context).pop();
+        },
+        onCancel: () => Navigator.of(context).pop(),
+        relationshipOptions: _relationshipOptions,
+      ),
+    );
   }
 
   void _onDeleteTap(EmergencyContact contact) {
@@ -105,7 +84,12 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) widget.onBack?.call();
+      },
+      child: Scaffold(
       backgroundColor: const Color(0xFFF3F4F6),
       body: SafeArea(
         child: Column(
@@ -169,9 +153,8 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Add Emergency Contact button (when form is hidden)
-                    if (!_showAddForm) ...[
-                      OutlinedButton.icon(
+                    // Add Emergency Contact button
+                    OutlinedButton.icon(
                         onPressed: _contacts.length >= _maxContacts ? null : _onAddContactTap,
                         icon: const Icon(Icons.person_add, color: Color(0xFF111827), size: 22),
                         label: const Text(
@@ -188,8 +171,7 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                       ),
-                      const SizedBox(height: 20),
-                    ],
+                    const SizedBox(height: 20),
                     // Existing contact cards
                     ...List.generate(_contacts.length, (i) {
                       final c = _contacts[i];
@@ -198,19 +180,12 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
                         child: _contactCard(
                           initial: c.name.isNotEmpty ? c.name[0].toUpperCase() : '?',
                           name: c.name,
-                          relation: c.relation,
                           phone: c.phone,
                           onEdit: () {},
                           onDelete: () => _onDeleteTap(c),
                         ),
                       );
                     }),
-                    // Add New Contact form card
-                    if (_showAddForm) ...[
-                      const SizedBox(height: 8),
-                      _addNewContactForm(),
-                      const SizedBox(height: 20),
-                    ],
                     const SizedBox(height: 24),
                     // How It Works box
                     Container(
@@ -263,166 +238,23 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
           ],
         ),
       ),
-    );
-  }
-
-  Widget _addNewContactForm() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Text(
-            'Add New Contact',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF111827),
-            ),
-          ),
-          const SizedBox(height: 16),
-          const Text('Full Name', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Color(0xFF374151))),
-          const SizedBox(height: 6),
-          TextField(
-            controller: _fullNameController,
-            decoration: InputDecoration(
-              hintText: 'Enter full name',
-              hintStyle: const TextStyle(color: Color(0xFF9CA3AF)),
-              filled: true,
-              fillColor: const Color(0xFFF3F4F6),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
-              ),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-            ),
-          ),
-          const SizedBox(height: 14),
-          const Text('Relationship', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Color(0xFF374151))),
-          const SizedBox(height: 6),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF3F4F6),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                value: _selectedRelation != null && _relationshipOptions.contains(_selectedRelation) ? _selectedRelation : null,
-                isExpanded: true,
-                hint: const Text('Select relationship', style: TextStyle(color: Color(0xFF9CA3AF))),
-                items: _relationshipOptions.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
-                onChanged: (v) => setState(() => _selectedRelation = v),
-              ),
-            ),
-          ),
-          const SizedBox(height: 14),
-          const Text('Phone number', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Color(0xFF374151))),
-          const SizedBox(height: 6),
-          Row(
-            children: [
-              Container(
-                width: 64,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF3F4F6),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                alignment: Alignment.center,
-                child: const Text('+63', style: TextStyle(fontSize: 14, color: Color(0xFF374151))),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: TextField(
-                  controller: _phoneController,
-                  keyboardType: TextInputType.phone,
-                  decoration: InputDecoration(
-                    hintText: '917 123 4567',
-                    hintStyle: const TextStyle(color: Color(0xFF9CA3AF)),
-                    filled: true,
-                    fillColor: const Color(0xFFF3F4F6),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: _onCancelAdd,
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    side: const BorderSide(color: Color(0xFFE5E7EB)),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: const Text('Cancel', style: TextStyle(color: Color(0xFF111827), fontWeight: FontWeight.w600)),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: _onSubmitAdd,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFEF4444),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: const Text('Add Contact', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
+    ),
     );
   }
 
   Widget _contactCard({
     required String initial,
     required String name,
-    required String relation,
     required String phone,
     required VoidCallback onEdit,
     required VoidCallback onDelete,
   }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
+    return GlassCard(
       child: Row(
         children: [
           Container(
-            width: 52,
-            height: 52,
+            width: 48,
+            height: 48,
             decoration: BoxDecoration(
               gradient: const LinearGradient(
                 begin: Alignment.topLeft,
@@ -435,34 +267,32 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
             child: Text(
               initial,
               style: const TextStyle(
-                fontSize: 22,
+                fontSize: 20,
                 fontWeight: FontWeight.bold,
                 color: Colors.white,
               ),
             ),
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   name,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF111827),
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  relation,
-                  style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
-                ),
-                const SizedBox(height: 2),
-                Text(
                   phone,
-                  style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ],
             ),
@@ -473,15 +303,106 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
           ),
-          const SizedBox(width: 4),
           IconButton(
             onPressed: onDelete,
-            icon: const Icon(Icons.delete_outline, color: Color(0xFFEF4444), size: 24),
+            icon: const Icon(Icons.delete_outline, color: Color(0xFFEF4444), size: 22),
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _AddContactFormContent extends StatefulWidget {
+  final void Function(String name, String relation, String phone) onAdd;
+  final VoidCallback onCancel;
+  final List<String> relationshipOptions;
+
+  const _AddContactFormContent({
+    required this.onAdd,
+    required this.onCancel,
+    required this.relationshipOptions,
+  });
+
+  @override
+  State<_AddContactFormContent> createState() => _AddContactFormContentState();
+}
+
+class _AddContactFormContentState extends State<_AddContactFormContent> {
+  final _fullNameController = TextEditingController();
+  final _phoneController = TextEditingController();
+  String? _selectedRelation;
+
+  @override
+  void dispose() {
+    _fullNameController.dispose();
+    _phoneController.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final name = _fullNameController.text.trim();
+    final phone = _phoneController.text.trim();
+    if (name.isEmpty || _selectedRelation == null || _selectedRelation!.isEmpty || phone.isEmpty) return;
+    widget.onAdd(name, _selectedRelation!, phone);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        TextField(
+          controller: _fullNameController,
+          decoration: const InputDecoration(
+            hintText: 'Full name',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 12),
+        DropdownButtonFormField<String>(
+          initialValue: _selectedRelation,
+          decoration: const InputDecoration(
+            border: OutlineInputBorder(),
+          ),
+          hint: const Text('Relationship'),
+          items: widget.relationshipOptions
+              .map((s) => DropdownMenuItem(value: s, child: Text(s)))
+              .toList(),
+          onChanged: (v) => setState(() => _selectedRelation = v),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _phoneController,
+          keyboardType: TextInputType.phone,
+          decoration: const InputDecoration(
+            hintText: '+63 917 123 4567',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 20),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: widget.onCancel,
+                child: const Text('Cancel'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: ElevatedButton(
+                onPressed: _submit,
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFEF4444)),
+                child: const Text('Add', style: TextStyle(color: Colors.white)),
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }
