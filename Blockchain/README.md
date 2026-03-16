@@ -9,6 +9,10 @@ The blockchain verify flow was updated during the latest performance session wit
 - **Gas observability in API response**: `/verify-incident` now returns `gas_used`, `effective_gas_price`, and `gas_cost_wei`
 - **Duplicate-write prevention**: before sending a new transaction, the service checks existing `IncidentVerified` logs for the same `report_id`
 - **No extra gas for duplicates**: when already recorded, the API returns the existing transaction reference with `already_recorded: true` and zero gas fields
+- **Contract gas optimizations** (see `contracts/IncidentRegistry.sol`):
+  - Events-only design (no on-chain storage): ~24k gas vs ~48k for storage-based
+  - Timestamp removed from event: derivable from `blockNumber`; saves ~256 gas/tx
+- **Solidity optimizer**: `contract.py` compiles with `optimize=True`, `optimize_runs=200` for smaller bytecode and lower execution gas
 
 This keeps functional behavior for verification while reducing unnecessary repeated on-chain writes.
 

@@ -1,6 +1,9 @@
 """
 RescueLink Blockchain Service - FastAPI
+
 Stores verified incident hashes on Ganache for tamper-proof audit trail.
+Uses gas-optimized IncidentRegistry contract (events-only, ~24k gas/tx).
+See Blockchain/README.md for optimization details.
 """
 
 import logging

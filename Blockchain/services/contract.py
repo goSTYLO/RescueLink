@@ -1,5 +1,8 @@
 """
 Compile and deploy IncidentRegistry smart contract.
+
+Compilation uses Solidity optimizer (optimize=True, optimize_runs=200) to reduce
+bytecode size and execution gas. See _compile_contract() for details.
 """
 
 import logging
@@ -39,7 +42,12 @@ _deployed_address: str | None = None
 
 
 def _compile_contract() -> tuple[list, str]:
-    """Compile IncidentRegistry.sol and return (abi, bytecode)."""
+    """
+    Compile IncidentRegistry.sol and return (abi, bytecode).
+
+    Uses solc 0.8.17 with optimizer enabled (optimize_runs=200) for gas-efficient
+    bytecode. Timestamp was removed from IncidentVerified event to save ~256 gas/tx.
+    """
     import solcx
 
     # Use solc 0.8.17 + Paris EVM to avoid PUSH0 (Shanghai) opcode unsupported by Ganache 2.7.x
@@ -58,6 +66,8 @@ def _compile_contract() -> tuple[list, str]:
         output_values=["abi", "bin"],
         allow_paths=[str(BLOCKCHAIN_ROOT)],
         evm_version="london",
+        optimize=True,       # Reduces bytecode size and execution gas
+        optimize_runs=200,   # Balance between deploy cost and runtime cost
     )
 
     # Key is typically "contracts/IncidentRegistry.sol:IncidentRegistry"

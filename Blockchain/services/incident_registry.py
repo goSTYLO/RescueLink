@@ -1,6 +1,10 @@
 """
 Incident logging on blockchain via IncidentRegistry contract.
+
 Records verified incident hashes on-chain (Ganache) for tamper-proof audit trail.
+Uses events-only design (~24k gas/tx). Duplicate detection avoids re-recording
+same report_id (0 gas for duplicates). Event format: IncidentVerified(reportId, hashValue);
+timestamp is derivable from blockNumber in the transaction receipt.
 """
 
 import hashlib
@@ -57,7 +61,10 @@ def record_incident_on_blockchain(
 ) -> dict[str, Any]:
     """
     Record verified incident hash on blockchain via IncidentRegistry contract.
-    Emits IncidentVerified event with reportId and hash.
+
+    Emits IncidentVerified(reportId, hashValue). Checks existing event logs first;
+    if report_id already recorded, returns existing tx reference with gas_used=0.
+    Returns gas_used, effective_gas_price, gas_cost_wei for cost tracking.
     """
     if not PRIVATE_KEY:
         raise ValueError(
