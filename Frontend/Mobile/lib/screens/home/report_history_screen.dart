@@ -9,8 +9,9 @@ import '../../widgets/premium_card.dart';
 class ReportHistoryScreen extends StatefulWidget {
   final void Function(int reportId)? onReportTap;
   final VoidCallback? onReportIncidentTap;
+  final VoidCallback? onNotificationsTap;
 
-  const ReportHistoryScreen({super.key, this.onReportTap, this.onReportIncidentTap});
+  const ReportHistoryScreen({super.key, this.onReportTap, this.onReportIncidentTap, this.onNotificationsTap});
 
   @override
   State<ReportHistoryScreen> createState() => _ReportHistoryScreenState();
@@ -123,7 +124,6 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
 
   Widget _buildLogo() {
     return Row(
-      mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Image.asset(
@@ -132,25 +132,15 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
           height: 64,
           fit: BoxFit.contain,
         ),
-        const SizedBox(width: 0),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            RichText(
-              text: const TextSpan(
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-                children: [
-                  TextSpan(text: 'Rescue', style: TextStyle(color: Color(0xFF2563EB))),
-                  TextSpan(text: 'Link', style: TextStyle(color: Color(0xFFEF4444))),
-                ],
-              ),
-            ),
-            const Text(
-              'Emergency Response and Safety',
-              style: TextStyle(color: Color(0xFF6B7280), fontSize: 13),
-            ),
-          ],
+        const SizedBox(width: 10),
+        Text.rich(
+          TextSpan(
+            style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+            children: const [
+              TextSpan(text: 'Rescue', style: TextStyle(color: Color(0xFF2563EB))),
+              TextSpan(text: 'Link', style: TextStyle(color: Color(0xFFEF4444))),
+            ],
+          ),
         ),
       ],
     );
@@ -221,12 +211,56 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
       onRefresh: _loadIncidents,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
           const SizedBox(height: 16),
-          Align(alignment: Alignment.centerLeft, child: _buildLogo()),
+          ClipRRect(
+            borderRadius: const BorderRadius.only(
+              bottomLeft: Radius.circular(24),
+              bottomRight: Radius.circular(24),
+            ),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: Theme.of(context).brightness == Brightness.light
+                      ? [
+                          const Color(0xFFEF4444),
+                          const Color(0xFFDC2626),
+                          const Color(0xFFB91C1C),
+                        ]
+                      : [
+                          const Color(0xFFEF4444),
+                          const Color(0xB3EF4444),
+                          const Color(0x66EF4444),
+                          const Color(0x00EF4444),
+                        ],
+                ),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(child: _buildLogo()),
+                  if (widget.onNotificationsTap != null)
+                    IconButton(
+                      icon: const Icon(Icons.notifications_none, color: Colors.white, size: 28),
+                      onPressed: widget.onNotificationsTap,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
           const SizedBox(height: 20),
           GlassCard(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
@@ -525,11 +559,14 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                 ),
               ],
             ],
-          ],
+            ],
             const SizedBox(height: 24),
           ],
         ),
       ),
+        ],
+      ),
+    ),
     );
   }
 

@@ -281,6 +281,7 @@ export function DashboardPage() {
       case 'Medical': return '🏥';
       case 'Police': return '👮';
       case 'Disaster': return '⚠️';
+      case 'SOS': return '🆘';
       default: return t ? '📋' : '';
     }
   };
@@ -372,6 +373,7 @@ export function DashboardPage() {
     { value: 'Medical', label: 'Medical' },
     { value: 'Police', label: 'Police' },
     { value: 'Disaster', label: 'Disaster' },
+    { value: 'SOS', label: 'SOS' },
     { value: 'Other', label: 'Other' },
   ];
 

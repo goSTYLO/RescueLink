@@ -11,11 +11,11 @@ class AppTheme {
   static const Color successGreen = Color(0xFF22C55E);
   static const Color warningAmber = Color(0xFFF59E0B);
 
-  // Light mode colors
-  static const Color lightBackground = Color(0xFFF9FAFB);
-  static const Color lightSurface = Color(0xFFFFFFFF);
-  static const Color lightCard = Color(0xFFFFFFFF);
-  static const Color lightBorder = Color(0xFFE5E7EB);
+  // Light mode colors (very light grey primary)
+  static const Color lightBackground = Color(0xFFE5E5E5);
+  static const Color lightSurface = Color(0xFFE5E5E5);
+  static const Color lightCard = Color(0xFFEEEEEE);
+  static const Color lightBorder = Color(0xFFD4D4D4);
   static const Color lightTextPrimary = Color(0xFF111827);
   static const Color lightTextSecondary = Color(0xFF6B7280);
   static const Color lightTextMuted = Color(0xFF9CA3AF);

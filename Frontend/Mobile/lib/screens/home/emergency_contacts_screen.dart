@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../widgets/bottom_sheet_wrapper.dart';
 import '../../widgets/glass_card.dart';
+import '../../widgets/skeleton_placeholder.dart';
 
 class EmergencyContact {
   final String name;
@@ -37,8 +38,17 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
   ];
 
   EmergencyContact? _contactToDelete;
+  bool _loadingContacts = true;
 
   static const int _maxContacts = 5;
+
+  @override
+  void initState() {
+    super.initState();
+    Future.delayed(const Duration(milliseconds: 400), () {
+      if (mounted) setState(() => _loadingContacts = false);
+    });
+  }
 
   void _onAddContactTap() {
     if (_contacts.length >= _maxContacts) return;
@@ -153,6 +163,26 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    if (_loadingContacts) ...[
+                      const SkeletonPlaceholder(
+                        width: double.infinity,
+                        height: 48,
+                        borderRadius: 12,
+                      ),
+                      const SizedBox(height: 20),
+                      const SkeletonContactCard(),
+                      const SizedBox(height: 12),
+                      const SkeletonContactCard(),
+                      const SizedBox(height: 12),
+                      const SkeletonContactCard(),
+                      const SizedBox(height: 24),
+                      const SkeletonPlaceholder(
+                        width: double.infinity,
+                        height: 100,
+                        borderRadius: 12,
+                      ),
+                      const SizedBox(height: 24),
+                    ] else ...[
                     // Add Emergency Contact button
                     OutlinedButton.icon(
                         onPressed: _contacts.length >= _maxContacts ? null : _onAddContactTap,
@@ -231,6 +261,7 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
                       ),
                     ),
                     const SizedBox(height: 24),
+                    ],
                   ],
                 ),
               ),

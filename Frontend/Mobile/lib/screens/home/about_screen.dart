@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../widgets/glass_card.dart';
+import '../../widgets/gradient_header.dart';
 
 class AboutScreen extends StatefulWidget {
   final VoidCallback? onBack;
@@ -26,15 +27,15 @@ class _AboutScreenState extends State<AboutScreen> {
         if (!didPop) widget.onBack?.call();
       },
       child: Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          onPressed: widget.onBack,
-          icon: const Icon(Icons.arrow_back),
-        ),
-        title: const Text('About'),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-      ),
-      body: SingleChildScrollView(
+      body: Column(
+        children: [
+          GradientHeader(
+            title: 'About',
+            onBack: widget.onBack,
+            transparentFade: true,
+          ),
+          Expanded(
+            child: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -53,6 +54,9 @@ class _AboutScreenState extends State<AboutScreen> {
             ),
           ],
         ),
+      ),
+          ),
+        ],
       ),
     ),
     );

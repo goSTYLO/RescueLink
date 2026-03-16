@@ -7,6 +7,7 @@ import '../../services/auth_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/gradient_header.dart';
 import '../../widgets/glass_card.dart';
+import '../../widgets/skeleton_placeholder.dart';
 
 class BarangayInformationScreen extends StatefulWidget {
   final VoidCallback? onBack;
@@ -141,10 +142,12 @@ class _BarangayInformationScreenState extends State<BarangayInformationScreen> {
         _locationError = null;
       });
     } catch (e) {
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _isResolvingLocation = false;
         _locationError = 'Unable to get location: ${e.toString()}';
       });
+      }
     }
   }
 
@@ -208,9 +211,31 @@ class _BarangayInformationScreenState extends State<BarangayInformationScreen> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       if (_loadingProfile)
-                        const Padding(
-                          padding: EdgeInsets.all(24),
-                          child: Center(child: CircularProgressIndicator()),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            const SkeletonFormField(inputHeight: 48),
+                            const SizedBox(height: 12),
+                            const SkeletonPlaceholder(
+                              width: double.infinity,
+                              height: 48,
+                              borderRadius: 12,
+                            ),
+                            const SizedBox(height: 20),
+                            const SkeletonMapPlaceholder(height: 180),
+                            const SizedBox(height: 16),
+                            const SkeletonPlaceholder(
+                              width: double.infinity,
+                              height: 48,
+                              borderRadius: 12,
+                            ),
+                            const SizedBox(height: 24),
+                            SkeletonPlaceholder(
+                              width: double.infinity,
+                              height: 100,
+                              borderRadius: 16,
+                            ),
+                          ],
                         )
                       else ...[
                         Text(

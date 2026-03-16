@@ -4,10 +4,12 @@ const TYPE_MAP = {
   police: 'Police',
   disaster: 'Disaster',
   other: 'Other',
+  sos: 'SOS',
 };
 
 const SEVERITY_MAP = {
   high: 'Critical',
+  critical: 'Critical',
   medium: 'Warning',
   low: 'Low',
 };

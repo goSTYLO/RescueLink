@@ -1,5 +1,5 @@
 const pool = require('../config/db');
-const { decrypt } = require('../utils/encryption');
+const { encrypt, decrypt } = require('../utils/encryption');
 const { ROLES } = require('../config/roles');
 
 function looksEncryptedValue(value) {
@@ -17,6 +17,30 @@ function tryDecryptValue(value) {
   try {
     return decrypt(value);
   } catch {
+    return value;
+  }
+}
+
+function tryEncryptValue(value) {
+  if (value === null || value === undefined) {
+    return value;
+  }
+  if (typeof value !== 'string') {
+    return value;
+  }
+  if (value.trim() === '') {
+    return value;
+  }
+  // Don't double-encrypt
+  if (looksEncryptedValue(value)) {
+    return value;
+  }
+  try {
+    const encrypted = encrypt(value);
+    console.log(`[incident-model] Encrypted value of length ${value.length} to ${encrypted.length}`);
+    return encrypted;
+  } catch (err) {
+    console.warn(`[incident-model] Encryption failed: ${err.message}, returning original value`);
     return value;
   }
 }
@@ -85,9 +109,9 @@ const Incident = {
   async create({ user_id, incident_type = null, severity_level, description = null, latitude, longitude, barangay = null, media_url = null, status = 'pending' }) {
     const res = await pool.query(
       'INSERT INTO incident_reports(user_id, incident_type, severity_level, description, latitude, longitude, barangay, media_url, status) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *',
-      [user_id, incident_type, severity_level, description, latitude, longitude, barangay, media_url, status]
+      [user_id, incident_type, severity_level, tryEncryptValue(description), latitude, longitude, barangay, media_url, status]
     );
-    return res.rows[0];
+    return decodeReporterFields(res.rows[0]);
   },
 
   /**
@@ -119,12 +143,12 @@ const Incident = {
           scan_status, scan_engine, scan_error, status
         ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *`,
         [
-          user_id, incident_type, severity_level, description, latitude, longitude, barangay,
-          transcription, audio_path, JSON.stringify(media_paths), ai_pending, ai_attempted,
+          user_id, incident_type, severity_level, tryEncryptValue(description), latitude, longitude, barangay,
+          tryEncryptValue(transcription), audio_path, JSON.stringify(media_paths), ai_pending, ai_attempted,
           scan_status, scan_engine, scan_error, status
         ]
       );
-      return res.rows[0];
+      return decodeReporterFields(res.rows[0]);
     } catch (error) {
       if (error.code === '42703' || /scan_status|scan_engine|scan_error/i.test(error.message)) {
         const fallbackRes = await pool.query(
@@ -133,11 +157,11 @@ const Incident = {
             transcription, audio_path, media_paths, ai_pending, ai_attempted, status
           ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`,
           [
-            user_id, incident_type, severity_level, description, latitude, longitude, barangay,
-            transcription, audio_path, JSON.stringify(media_paths), ai_pending, ai_attempted, status
+            user_id, incident_type, severity_level, tryEncryptValue(description), latitude, longitude, barangay,
+            tryEncryptValue(transcription), audio_path, JSON.stringify(media_paths), ai_pending, ai_attempted, status
           ]
         );
-        return fallbackRes.rows[0];
+        return decodeReporterFields(fallbackRes.rows[0]);
       }
       throw error;
     }
@@ -362,9 +386,9 @@ const Incident = {
   async update(report_id, { incident_type, severity_level, description, latitude, longitude, barangay, media_url, status }) {
     const res = await pool.query(
       'UPDATE incident_reports SET incident_type = $1, severity_level = $2, description = $3, latitude = $4, longitude = $5, barangay = $6, media_url = $7, status = $8 WHERE report_id = $9 RETURNING *',
-      [incident_type, severity_level, description, latitude, longitude, barangay, media_url, status, report_id]
+      [incident_type, severity_level, tryEncryptValue(description), latitude, longitude, barangay, media_url, status, report_id]
     );
-    return res.rows[0];
+    return decodeReporterFields(res.rows[0]);
   },
 
   async updateClassification(report_id, { incident_type, severity_level }) {

@@ -199,11 +199,20 @@ String formatIncidentCode(int? reportId) {
   return 'DGP-$reportId';
 }
 
+/// Formats time in 12-hour format (e.g. 2:30 PM).
+String _formatTime12h(DateTime dt) {
+  final hour = dt.hour;
+  final minute = dt.minute;
+  final period = hour >= 12 ? 'PM' : 'AM';
+  final hour12 = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
+  return '$hour12:${minute.toString().padLeft(2, '0')} $period';
+}
+
 String formatReportDateTime(String? dateStr) {
   if (dateStr == null || dateStr.isEmpty) return '—';
   try {
     final dt = DateTime.parse(dateStr).toLocal();
-    return '${_month(dt.month)} ${dt.day}, ${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    return '${_month(dt.month)} ${dt.day}, ${dt.year} ${_formatTime12h(dt)}';
   } catch (_) {
     return dateStr;
   }

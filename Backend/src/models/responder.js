@@ -15,11 +15,12 @@ function normalizeIncidentType(value) {
   if (normalized === 'natural disaster' || normalized === 'natural-disaster') return 'disaster';
   if (normalized === 'crime') return 'police';
   if (normalized === 'other') return 'other';
+  if (normalized === 'sos') return 'sos';
   return normalized;
 }
 
 function shouldBypassIncidentTypeFilter(incidentType) {
-  return !incidentType || incidentType === 'other';
+  return !incidentType || incidentType === 'other' || incidentType === 'sos';
 }
 
 function normalizeIncidentTypes(values) {

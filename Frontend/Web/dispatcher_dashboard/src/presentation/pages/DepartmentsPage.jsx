@@ -55,7 +55,7 @@ const DEPARTMENT_TYPES = [
   { value: 'Disaster', label: 'Disaster' },
   { value: 'Community', label: 'Community' },
 ];
-const TASK_TYPES = ['fire', 'medical', 'police', 'disaster'];
+const TASK_TYPES = ['fire', 'medical', 'police', 'disaster', 'sos'];
 const AVAILABILITY_OPTIONS = ['available', 'standby', 'busy', 'off-duty'];
 
 function normalizeSectorCode(rawValue) {

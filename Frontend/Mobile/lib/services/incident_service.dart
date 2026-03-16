@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'package:flutter/foundation.dart';
 import '../utils/app_config.dart';
 import 'api_service.dart';
@@ -79,6 +80,18 @@ class IncidentService {
       'Authorization': 'Bearer $token',
       'Accept': 'application/json',
     };
+  }
+
+  MediaType? _mediaContentType(String filename) {
+    final lower = filename.toLowerCase();
+    if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) {
+      return MediaType('image', 'jpeg');
+    }
+    if (lower.endsWith('.png')) return MediaType('image', 'png');
+    if (lower.endsWith('.mp4')) return MediaType('video', 'mp4');
+    if (lower.endsWith('.mov')) return MediaType('video', 'quicktime');
+    if (lower.endsWith('.avi')) return MediaType('video', 'x-msvideo');
+    return null;
   }
 
   /// Report emergency (no AI): get current location and POST to /api/incidents/emergency.
@@ -162,10 +175,12 @@ class IncidentService {
 
     if (mediaFiles != null && mediaFiles.isNotEmpty) {
       for (final m in mediaFiles) {
+        final contentType = _mediaContentType(m.filename);
         request.files.add(http.MultipartFile.fromBytes(
           'media',
           m.bytes,
           filename: m.filename,
+          contentType: contentType,
         ));
       }
     }

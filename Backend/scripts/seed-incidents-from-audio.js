@@ -19,9 +19,9 @@ const pool = new Pool({ connectionString: DATABASE_URL });
 const args = new Set(process.argv.slice(2));
 const shouldReset = args.has('--reset');
 const requestedCountArg = process.argv.slice(2).find((arg) => arg.startsWith('--count='));
-// Seed 20 incidents: 5 duplicates (same location, within 10 min) + 15 unique
-const DEFAULT_INCIDENT_COUNT = 20;
-const MAX_INCIDENT_COUNT = 20;
+// Seed 30 incidents: 5 duplicates (same location, within 10 min) + 25 unique
+const DEFAULT_INCIDENT_COUNT = 30;
+const MAX_INCIDENT_COUNT = 30;
 const DUPLICATE_CLUSTER_SIZE = 5;
 const requestedCount = requestedCountArg ? Number(requestedCountArg.split('=')[1]) : DEFAULT_INCIDENT_COUNT;
 const targetCount = Number.isFinite(requestedCount) && requestedCount > 0
@@ -65,6 +65,17 @@ const DAGUPAN_LOCATION_FIXTURES = [
   { barangay: 'Malued', latitude: 16.0569, longitude: 120.346, label: 'Malued District Center' },
   { barangay: 'Poblacion Norte', latitude: 16.0449, longitude: 120.333, label: 'Poblacion Norte Hall' },
   { barangay: 'Poblacion Sur', latitude: 16.0429, longitude: 120.3336, label: 'Poblacion Sur Hall' },
+  { barangay: 'Mangin', latitude: 16.0482, longitude: 120.3412, label: 'Mangin District' },
+  { barangay: 'Arellano-Bani', latitude: 16.0455, longitude: 120.3389, label: 'Arellano-Bani Area' },
+  { barangay: 'Herrero-Perez', latitude: 16.0478, longitude: 120.3356, label: 'Herrero-Perez Area' },
+  { barangay: 'Lasip Grande', latitude: 16.0521, longitude: 120.3612, label: 'Lasip Grande Barangay' },
+  { barangay: 'Tambac', latitude: 16.0412, longitude: 120.3289, label: 'Tambac Area' },
+  { barangay: 'Carael', latitude: 16.0398, longitude: 120.3156, label: 'Carael District' },
+  { barangay: 'Calmay', latitude: 16.0375, longitude: 120.3221, label: 'Calmay Area' },
+  { barangay: 'Pogo Chico', latitude: 16.0502, longitude: 120.3445, label: 'Pogo Chico Barangay' },
+  { barangay: 'Pogo Grande', latitude: 16.0534, longitude: 120.3489, label: 'Pogo Grande Barangay' },
+  { barangay: 'Salisay', latitude: 16.0467, longitude: 120.3523, label: 'Salisay Area' },
+  { barangay: 'Tebeng', latitude: 16.0592, longitude: 120.3298, label: 'Tebeng District' },
 ];
 
 function estimateEncryptedHexLength(value) {
@@ -353,11 +364,12 @@ async function seedIncidents() {
       }
     }
 
-    // Phase 2: Create 15 unique incidents (different locations, created_at 60-210 min ago)
+    // Phase 2: Create unique incidents (variety of Dagupan locations, created_at 60+ min ago)
+    const shuffledLocations = shuffleList([...DAGUPAN_LOCATION_FIXTURES]);
     for (let i = DUPLICATE_CLUSTER_SIZE; i < targetCount; i++) {
       const audio = audioFiles[i % audioFiles.length];
       const userId = reporterIds[i % reporterIds.length];
-      const locationFixture = DAGUPAN_LOCATION_FIXTURES[i % DAGUPAN_LOCATION_FIXTURES.length];
+      const locationFixture = shuffledLocations[i % shuffledLocations.length];
       const barangay = locationFixture?.barangay || BARANGAYS[i % BARANGAYS.length];
       const latitude = Number(locationFixture?.latitude);
       const longitude = Number(locationFixture?.longitude);

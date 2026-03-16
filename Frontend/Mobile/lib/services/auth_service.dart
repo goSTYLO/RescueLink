@@ -214,6 +214,33 @@ class AuthService {
     }
   }
 
+  /// Change password for authenticated user (no OTP required).
+  Future<Map<String, dynamic>> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final token = getToken();
+    if (token == null || token.isEmpty) {
+      return {'success': false, 'error': 'Not authenticated'};
+    }
+    try {
+      await _apiService.post(
+        '/api/auth/change-password',
+        body: {
+          'currentPassword': currentPassword,
+          'newPassword': newPassword,
+        },
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      return {'success': true};
+    } catch (e) {
+      if (e is ApiException) {
+        return {'success': false, 'error': e.message};
+      }
+      return {'success': false, 'error': 'Failed to change password. Please try again.'};
+    }
+  }
+
   /// Get barangay name for coordinates (for incident report UI).
   /// Returns null if not in Dagupan or on API error.
   Future<String?> getBarangayFromCoordinates(double latitude, double longitude) async {

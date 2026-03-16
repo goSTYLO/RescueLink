@@ -235,6 +235,10 @@ async function buildIncidentTimeline(incident, reportId, dispatches = null) {
   return incident;
 }
 
+// Fallback Dagupan city center when department has no coordinates
+const DEFAULT_DEPARTMENT_LAT = 16.043037;
+const DEFAULT_DEPARTMENT_LNG = 120.3323573;
+
 async function attachDispatchEta(incident, reportId, dispatches = null) {
   if (!incident || reportId == null) return incident;
   try {
@@ -255,19 +259,27 @@ async function attachDispatchEta(incident, reportId, dispatches = null) {
     let etaMinutes = Number.isFinite(Number(earliest?.estimated_eta_minutes)) ? Number(earliest.estimated_eta_minutes) : null;
     let etaArrivalAt = earliest?.estimated_arrival_at || null;
 
-    if (!etaMinutes && Number.isFinite(Number(incident.latitude)) && Number.isFinite(Number(incident.longitude))) {
-      const departmentCode = earliest?.department_code || null;
+    const incLat = Number(incident.latitude ?? incident.lat);
+    const incLng = Number(incident.longitude ?? incident.lng);
+    const hasIncidentCoords = Number.isFinite(incLat) && Number.isFinite(incLng);
+
+    if (!etaMinutes && hasIncidentCoords) {
+      const departmentCode = earliest?.department_code ?? earliest?.department_Code ?? null;
+      let deptLat = null;
+      let deptLng = null;
       if (departmentCode) {
-        const dept = await Department.findByCode(departmentCode);
-        const deptLat = Number(dept?.latitude);
-        const deptLng = Number(dept?.longitude);
-        if (Number.isFinite(deptLat) && Number.isFinite(deptLng)) {
-          const distanceMeters = calculateDistance(Number(incident.latitude), Number(incident.longitude), deptLat, deptLng);
-          etaMinutes = estimateEtaMinutes(distanceMeters);
-          const dispatchedAt = earliest?.dispatched_at ? new Date(earliest.dispatched_at) : new Date();
-          etaArrivalAt = new Date(dispatchedAt.getTime() + (etaMinutes * 60 * 1000)).toISOString();
-        }
+        const dept = await Department.findByCode(String(departmentCode).trim());
+        deptLat = Number(dept?.latitude);
+        deptLng = Number(dept?.longitude);
       }
+      if (!Number.isFinite(deptLat) || !Number.isFinite(deptLng)) {
+        deptLat = DEFAULT_DEPARTMENT_LAT;
+        deptLng = DEFAULT_DEPARTMENT_LNG;
+      }
+      const distanceMeters = calculateDistance(incLat, incLng, deptLat, deptLng);
+      etaMinutes = estimateEtaMinutes(distanceMeters);
+      const dispatchedAt = earliest?.dispatched_at ? new Date(earliest.dispatched_at) : new Date();
+      etaArrivalAt = new Date(dispatchedAt.getTime() + (etaMinutes * 60 * 1000)).toISOString();
     }
 
     incident.estimated_eta_minutes = etaMinutes;
@@ -375,12 +387,12 @@ const incidentController = {
       // Resolve barangay from incident location (dagupan_barangays.geojson)
       const barangay = getBarangayFromCoordinates(validatedLat, validatedLng);
 
-      // Create emergency incident with high severity
+      // Create emergency incident (SOS) with critical severity
       const incident = await Incident.create({
         user_id: user_id,
-        incident_type: null, // No type for emergency reports
-        severity_level: 'high', // Automatically set to high priority
-        description: null,
+        incident_type: 'SOS',
+        severity_level: 'critical',
+        description: 'SOS emergency report submitted by user',
         latitude: validatedLat,
         longitude: validatedLng,
         barangay,
@@ -388,7 +400,7 @@ const incidentController = {
         status: 'pending'
       });
 
-      await logIncidentAction(req, 'incident_create', incident.report_id, { type: 'emergency', severity_level: 'high' });
+      await logIncidentAction(req, 'incident_create', incident.report_id, { type: 'emergency', severity_level: 'critical' });
 
       const duplicateInfo = await runRealtimeDuplicateCheck(incident);
 
@@ -475,7 +487,7 @@ const incidentController = {
       const { limit: validatedLimit, offset: validatedOffset } = validatePagination(limit, offset);
       const validatedSeverityLevel = validateAllowedValue(severity_level, ['low', 'medium', 'high'], 'severity_level');
       const validatedStatus = validateAllowedValue(status, ['pending', 'verified', 'in_progress', 'resolved', 'closed'], 'status');
-      const validatedIncidentType = validateAllowedValue(incident_type, ['fire', 'medical', 'police', 'disaster'], 'incident_type');
+      const validatedIncidentType = validateAllowedValue(incident_type, ['fire', 'medical', 'police', 'disaster', 'sos', 'other'], 'incident_type');
       const validatedBarangay = validateOptionalString(barangay, 'barangay', 150);
       const validatedSearch = validateOptionalString(search, 'search', 200);
       const validatedExcludeReportId = exclude_report_id != null && /^\d+$/.test(String(exclude_report_id)) ? parseInt(exclude_report_id, 10) : null;
@@ -575,7 +587,7 @@ const incidentController = {
       const { limit, offset, status, incident_type } = req.query;
       const { limit: validatedLimit, offset: validatedOffset } = validatePagination(limit, offset);
       const validatedStatus = validateAllowedValue(status, ['pending', 'verified', 'in_progress', 'resolved', 'closed'], 'status');
-      const validatedIncidentType = validateAllowedValue(incident_type, ['fire', 'medical', 'police', 'disaster'], 'incident_type');
+      const validatedIncidentType = validateAllowedValue(incident_type, ['fire', 'medical', 'police', 'disaster', 'sos', 'other'], 'incident_type');
 
       const incidents = await Incident.findByUserId(user_id, {
         limit: validatedLimit,
@@ -633,13 +645,20 @@ const incidentController = {
         return res.status(400).json({ error: 'Audio file is required' });
       }
 
-      // Get media files if provided
-      const mediaFiles = req.files?.media || [];
+      // Get media files if provided (multer returns array; normalize if single file)
+      const rawMedia = req.files?.media;
+      const mediaFiles = Array.isArray(rawMedia) ? rawMedia : (rawMedia ? [rawMedia] : []);
 
       console.log(`[backend][incident][createWithAudio] request_id=${requestId} status=start user_id=${user_id} audio_name=${audioFile.originalname} audio_bytes=${audioFile.size} media_count=${mediaFiles.length}`);
 
+      // Check encryption key status
+      const encryptionKeyStatus = process.env.ENCRYPTION_KEY ? 'set' : 'NOT_SET';
+      console.log(`[backend][incident][createWithAudio] request_id=${requestId} encryption_key_status=${encryptionKeyStatus}`);
+
       // Create initial incident record (without AI classification)
-      const incident = await Incident.createWithAi({
+      let incident;
+      try {
+        incident = await Incident.createWithAi({
         user_id,
         incident_type: null, // Will be filled by AI
         severity_level: 'medium', // Temporary, will be updated by AI
@@ -657,6 +676,10 @@ const incidentController = {
         scan_error: null,
         status: 'pending'
       });
+      } catch (createError) {
+        console.error(`[backend][incident][createWithAudio] request_id=${requestId} status=create_failed error=${createError.message} stack=${createError.stack}`);
+        throw createError;
+      }
 
       const reportId = incident.report_id;
       await logIncidentAction(req, 'incident_create', reportId, { type: 'with_audio', severity_level: 'medium' });
@@ -881,14 +904,24 @@ const incidentController = {
         return res.status(404).json({ error: 'Incident not found' });
       }
 
-      const mediaPaths = incident.media_paths || [];
+      // Parse media_paths if it's a JSON string (e.g. from raw DB)
+      let mediaPaths = incident.media_paths;
+      if (typeof mediaPaths === 'string') {
+        try {
+          mediaPaths = JSON.parse(mediaPaths);
+        } catch {
+          mediaPaths = [];
+        }
+      }
+      mediaPaths = Array.isArray(mediaPaths) ? mediaPaths : [];
+
       if (mediaPaths.length === 0) {
         return res.status(404).json({ error: 'No media files found for this incident' });
       }
 
       if (validatedIndex < 0 || validatedIndex >= mediaPaths.length) {
-        return res.status(404).json({ 
-          error: `Invalid media index. Available: 0-${mediaPaths.length - 1}` 
+        return res.status(404).json({
+          error: `Invalid media index. Available: 0-${mediaPaths.length - 1}`
         });
       }
 
@@ -896,16 +929,26 @@ const incidentController = {
         return res.status(403).json({ error: 'Media files are quarantined and unavailable for download' });
       }
 
-      const mediaPath = mediaPaths[validatedIndex];
-      const absolutePath = getAbsolutePath(mediaPath);
-      const exists = await fileExists(mediaPath);
+      let mediaPath = mediaPaths[validatedIndex];
+      if (typeof mediaPath !== 'string') {
+        mediaPath = String(mediaPath || '').trim();
+      }
+      // Remove angle brackets and stray brackets if present (corrupted/copy-paste paths)
+      mediaPath = mediaPath.replace(/^[\[<]+|[\]>]+$/g, '').trim();
+      const normalizedPath = mediaPath.startsWith('uploads/') || mediaPath.startsWith('uploads\\')
+        ? mediaPath.replace(/\\/g, '/')
+        : `uploads/incidents/${mediaPath}`.replace(/\\/g, '/');
+      const absolutePath = path.resolve(process.cwd(), normalizedPath);
+      const exists = await fileExists(normalizedPath);
 
       if (!exists) {
+        console.warn(`[backend][incident][downloadMedia] report_id=${validatedId} index=${validatedIndex} path=${normalizedPath} absolute=${absolutePath} exists=false`);
         return res.status(404).json({ error: 'Media file not found on server' });
       }
 
-      const filename = path.basename(mediaPath);
-      res.download(absolutePath, filename, (err) => {
+      const filename = path.basename(normalizedPath);
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.sendFile(absolutePath, (err) => {
         if (err) {
           console.error('Error downloading media:', err);
           if (!res.headersSent) {
@@ -1110,7 +1153,7 @@ const incidentController = {
     try {
       const { id } = req.params;
       const validatedId = validateInteger(id, 'report_id');
-      const validatedType = validateAllowedValue(req.body?.incident_type, ['fire', 'medical', 'police', 'disaster'], 'incident_type');
+      const validatedType = validateAllowedValue(req.body?.incident_type, ['fire', 'medical', 'police', 'disaster', 'sos', 'other'], 'incident_type');
       const validatedSeverity = validateAllowedValue(req.body?.severity_level, ['low', 'medium', 'high'], 'severity_level');
       const reason = req.body?.reason != null && req.body?.reason !== ''
         ? validateOptionalString(req.body.reason, 'reason', 500)

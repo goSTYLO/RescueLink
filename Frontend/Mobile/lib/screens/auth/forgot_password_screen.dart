@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../utils/app_config.dart';
 import '../../widgets/recaptcha_webview.dart';
 import '../../widgets/glass_card.dart';
+import '../../widgets/gradient_header.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   final VoidCallback? onBackToLogin;
@@ -152,36 +153,28 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF374151)),
-          onPressed: widget.onBackToLogin,
-        ),
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Column(
-            children: [
-              const SizedBox(height: 28),
-              Center(child: _buildLogo()),
-              const SizedBox(height: 20),
+      body: Column(
+        children: [
+          GradientHeader(
+            title: 'Forgot Password',
+            onBack: widget.onBackToLogin,
+            transparentFade: true,
+          ),
+          Expanded(
+            child: SafeArea(
+              top: false,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 28),
+                    Center(child: _buildLogo()),
+                    const SizedBox(height: 20),
               SizedBox(
                 height: 180,
                 child: Image.asset(
                   'assets/images/forgotpassword_illustration.png',
                   fit: BoxFit.contain,
-                ),
-              ),
-              const SizedBox(height: 24),
-              const Text(
-                'Forgot Password',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF111827),
                 ),
               ),
               const SizedBox(height: 24),
@@ -280,13 +273,16 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                   ),
                 ),
               ),
+              const SizedBox(height: 40),
                   ],
                 ),
               ),
-              const SizedBox(height: 40),
             ],
           ),
         ),
+      ),
+    ),
+  ],
       ),
     );
   }

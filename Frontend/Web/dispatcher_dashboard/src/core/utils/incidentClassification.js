@@ -3,6 +3,7 @@ export function mapIncidentTypeFilterToApi(value) {
   if (value === 'Medical') return 'medical';
   if (value === 'Police') return 'police';
   if (value === 'Disaster') return 'disaster';
+  if (value === 'SOS') return 'sos';
   if (value === 'Other') return 'other';
   return undefined;
 }
@@ -15,6 +16,7 @@ export function normalizeIncidentTaskType(value) {
   if (!collapsed) return '';
 
   if (['other', 'others'].includes(collapsed)) return 'other';
+  if (normalized === 'sos') return 'sos';
   if (['natural disaster', 'typhoon', 'flood', 'earthquake', 'landslide', 'storm surge', 'volcanic eruption', 'disaster', 'calamity'].includes(collapsed)) return 'disaster';
   if (['crime', 'robbery', 'theft', 'assault', 'violence', 'homicide', 'shooting', 'stabbing', 'police', 'law enforcement'].includes(collapsed)) return 'police';
   if (['accident', 'vehicular accident', 'road accident', 'traffic accident', 'collision', 'injury', 'trauma', 'medical emergency', 'emergency medical', 'medical', 'first aid'].includes(collapsed)) return 'medical';

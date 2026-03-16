@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 
-export function Dialog({ open, onOpenChange, children, className = '' }) {
+export function Dialog({ open, onOpenChange, children, className = '', zIndex = 50 }) {
   useEffect(() => {
     if (open) {
       document.body.style.overflow = 'hidden';
@@ -15,11 +15,11 @@ export function Dialog({ open, onOpenChange, children, className = '' }) {
   if (!open) return null;
 
   const wrapperClass = className
-    ? `relative z-50 w-full bg-card border border-[rgba(19,65,120,0.35)] rounded-lg shadow-card-hover overflow-hidden ${className}`
-    : 'relative z-50 w-full max-w-lg bg-card border border-[rgba(19,65,120,0.35)] rounded-lg shadow-card-hover overflow-hidden';
+    ? `relative w-full bg-card border border-[rgba(19,65,120,0.35)] rounded-lg shadow-card-hover overflow-hidden ${className}`
+    : 'relative w-full max-w-lg bg-card border border-[rgba(19,65,120,0.35)] rounded-lg shadow-card-hover overflow-hidden';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex }}>
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={() => onOpenChange(false)} aria-hidden="true" />
       <div className={wrapperClass}>
         {children}

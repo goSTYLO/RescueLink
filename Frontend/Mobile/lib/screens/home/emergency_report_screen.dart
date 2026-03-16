@@ -157,9 +157,11 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
       final xfile = await picker.pickImage(source: ImageSource.camera);
       if (xfile == null || !mounted) return;
       final bytes = await xfile.readAsBytes();
-      final ext = xfile.path.split('.').last.toLowerCase();
-      final filename =
-          'photo_${DateTime.now().millisecondsSinceEpoch}.${ext == 'jpg' || ext == 'jpeg' ? 'jpg' : 'png'}';
+      final pathExt = xfile.path.split('.').last.toLowerCase();
+      final ext = (pathExt == 'jpg' || pathExt == 'jpeg' || pathExt == 'png')
+          ? (pathExt == 'png' ? 'png' : 'jpg')
+          : 'jpg';
+      final filename = 'photo_${DateTime.now().millisecondsSinceEpoch}.$ext';
       setState(() => _photoFile = (bytes: bytes, filename: filename));
     } catch (e) {
       if (mounted) {
@@ -198,9 +200,9 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
       }
 
       final bytes = await xfile.readAsBytes();
-      final ext = xfile.path.split('.').last.toLowerCase();
-      final filename =
-          'video_${DateTime.now().millisecondsSinceEpoch}.${ext == 'mov' ? 'mov' : 'mp4'}';
+      final pathExt = xfile.path.split('.').last.toLowerCase();
+      final ext = (pathExt == 'mov' || pathExt == 'avi') ? pathExt : 'mp4';
+      final filename = 'video_${DateTime.now().millisecondsSinceEpoch}.$ext';
       setState(() => _videoFile = (bytes: bytes, filename: filename));
     } catch (e) {
       if (mounted) {
@@ -252,6 +254,44 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
                 size: 20, color: Color(0xFF86EFAC)),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildDisabledMediaButton({
+    required IconData icon,
+    required String label,
+    required String hint,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 20),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade200,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, size: 28, color: Colors.grey.shade400),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey.shade500,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            hint,
+            style: TextStyle(
+              fontSize: 11,
+              color: Colors.grey.shade400,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
       ),
     );
   }
@@ -700,7 +740,7 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Video max 10 seconds',
+                          'Video max 10 seconds. Choose either photo OR video.',
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant,
                           ),
@@ -712,21 +752,33 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
                             Expanded(
                               child: _photoFile != null
                                   ? _buildPhotoPreview()
-                                  : _buildMediaAddButton(
-                                      icon: Icons.camera_alt,
-                                      label: 'Photo',
-                                      onTap: _pickPhoto,
-                                    ),
+                                  : _videoFile != null
+                                      ? _buildDisabledMediaButton(
+                                          icon: Icons.camera_alt,
+                                          label: 'Photo',
+                                          hint: 'Video already selected',
+                                        )
+                                      : _buildMediaAddButton(
+                                          icon: Icons.camera_alt,
+                                          label: 'Photo',
+                                          onTap: _pickPhoto,
+                                        ),
                             ),
                             const SizedBox(width: 12),
                             Expanded(
                               child: _videoFile != null
                                   ? _buildVideoPreview()
-                                  : _buildMediaAddButton(
-                                      icon: Icons.videocam,
-                                      label: 'Video',
-                                      onTap: _pickVideo,
-                                    ),
+                                  : _photoFile != null
+                                      ? _buildDisabledMediaButton(
+                                          icon: Icons.videocam,
+                                          label: 'Video',
+                                          hint: 'Photo already selected',
+                                        )
+                                      : _buildMediaAddButton(
+                                          icon: Icons.videocam,
+                                          label: 'Video',
+                                          onTap: _pickVideo,
+                                        ),
                             ),
                           ],
                         ),
@@ -782,10 +834,10 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
             if (_isSubmitting)
               Container(
                 color: Colors.black26,
-                child: Center(
+                child: const Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
-                    children: const [
+                    children: [
                       CircularProgressIndicator(strokeWidth: 2),
                       SizedBox(height: 16),
                       Text('Submitting...',

@@ -404,3 +404,37 @@ export async function unlinkDuplicate(id, reason) {
   }
   return data;
 }
+
+/**
+ * Fetch incident media (photo/video) by index and return a blob URL
+ * @param {number|string} id - Incident report ID
+ * @param {number} index - Media file index (0-based)
+ * @returns {Promise<{url: string, filename: string, contentType: string}>} Blob URL and metadata
+ */
+export async function getIncidentMediaUrl(id, index) {
+  const requestId = createRequestId('web-media');
+  const start = performance.now();
+  const response = await fetch(`${API_URL}/api/incidents/${id}/media/${index}`, {
+    method: 'GET',
+    headers: getAuthHeaders({ requestId, includeContentType: false }),
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    logError(`[web][incidents][getIncidentMediaUrl] request_id=${requestId} report_id=${id} index=${index} status=${response.status}`);
+    throw new Error('Failed to fetch media');
+  }
+
+  const blob = await response.blob();
+  const contentType = response.headers.get('content-type') || blob.type || 'application/octet-stream';
+  const contentDisposition = response.headers.get('content-disposition') || '';
+  const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+  const filename = filenameMatch ? filenameMatch[1].replace(/['"]/g, '') : `media_${index}`;
+
+  logInfo(`[web][incidents][getIncidentMediaUrl] request_id=${requestId} report_id=${id} index=${index} status=${response.status} content_type=${contentType} latency_ms=${Math.round(performance.now() - start)}`);
+  return {
+    url: URL.createObjectURL(blob),
+    filename,
+    contentType,
+  };
+}

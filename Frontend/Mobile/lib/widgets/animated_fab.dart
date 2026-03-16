@@ -31,16 +31,20 @@ class _AnimatedFabState extends State<AnimatedFab>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _pulseAnimation;
+  late Animation<double> _scaleAnimation;
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 1500),
+      duration: const Duration(milliseconds: 900),
       vsync: this,
     )..repeat(reverse: true);
 
-    _pulseAnimation = Tween<double>(begin: 0.2, end: 0.5).animate(
+    _pulseAnimation = Tween<double>(begin: 0.15, end: 0.65).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+    _scaleAnimation = Tween<double>(begin: 0.98, end: 1.02).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
     );
   }
@@ -67,21 +71,23 @@ class _AnimatedFabState extends State<AnimatedFab>
       mainAxisSize: MainAxisSize.min,
       children: [
         AnimatedBuilder(
-          animation: _pulseAnimation,
+          animation: Listenable.merge([_pulseAnimation, _scaleAnimation]),
           builder: (context, child) {
-            final opacity = 0.25 + _pulseAnimation.value;
-            return Container(
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: widget.backgroundColor.withOpacity(opacity),
-                    blurRadius: 20,
-                    spreadRadius: 2 + (_pulseAnimation.value * 2),
-                  ),
-                ],
-              ),
-              child: Material(
+            final opacity = 0.2 + _pulseAnimation.value;
+            return Transform.scale(
+              scale: _scaleAnimation.value,
+              child: Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: widget.backgroundColor.withOpacity(opacity),
+                      blurRadius: 24,
+                      spreadRadius: 3 + (_pulseAnimation.value * 5),
+                    ),
+                  ],
+                ),
+                child: Material(
                 color: Colors.transparent,
                 child: InkWell(
                   onTap: widget.onPressed != null ? _handleTap : null,
@@ -89,8 +95,8 @@ class _AnimatedFabState extends State<AnimatedFab>
                       widget.onLongPress != null ? _handleLongPress : null,
                   customBorder: const CircleBorder(),
                   child: Container(
-                    width: 96,
-                    height: 96,
+                    width: 116,
+                    height: 116,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
@@ -103,11 +109,12 @@ class _AnimatedFabState extends State<AnimatedFab>
                     child: Icon(
                       widget.icon,
                       color: widget.iconColor,
-                      size: 48,
+                      size: 56,
                     ),
                   ),
                 ),
               ),
+            ),
             );
           },
         ),

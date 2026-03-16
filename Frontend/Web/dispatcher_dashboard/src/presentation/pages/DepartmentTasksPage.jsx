@@ -50,7 +50,7 @@ export function DepartmentTasksPage() {
   };
 
   const getTypeIcon = (type) => {
-    const icons = { Fire: '🔥', Medical: '🏥', Police: '👮', Disaster: '⚠️' };
+    const icons = { Fire: '🔥', Medical: '🏥', Police: '👮', Disaster: '⚠️', SOS: '🆘' };
     return icons[String(type)] || '📋';
   };
 

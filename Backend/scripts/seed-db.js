@@ -185,9 +185,15 @@ const TEAMS = [
   { department_code: 'pnp', team_name: 'Patrol Alpha', team_status: 'available', supported_incident_types: ['police'] },
   { department_code: 'pnp', team_name: 'Patrol Bravo', team_status: 'standby', supported_incident_types: ['police'] },
   { department_code: 'pnp', team_name: 'Traffic Unit', team_status: 'available', supported_incident_types: ['police'] },
+  { department_code: 'pnp', team_name: 'K9 Unit', team_status: 'available', supported_incident_types: ['police'] },
+  { department_code: 'pnp', team_name: 'Investigation Unit', team_status: 'available', supported_incident_types: ['police'] },
+  { department_code: 'pnp', team_name: 'Quick Response Team', team_status: 'available', supported_incident_types: ['police'] },
   { department_code: 'drrmo', team_name: 'Rescue Alpha', team_status: 'available', supported_incident_types: ['disaster', 'medical'] },
   { department_code: 'drrmo', team_name: 'Medical Alpha', team_status: 'available', supported_incident_types: ['medical'] },
   { department_code: 'drrmo', team_name: 'Fire Support', team_status: 'standby', supported_incident_types: ['fire', 'disaster'] },
+  { department_code: 'drrmo', team_name: 'Emergency Response Alpha', team_status: 'available', supported_incident_types: ['disaster', 'medical'] },
+  { department_code: 'drrmo', team_name: 'Logistics Support', team_status: 'available', supported_incident_types: ['disaster'] },
+  { department_code: 'drrmo', team_name: 'Search and Rescue', team_status: 'standby', supported_incident_types: ['disaster'] },
 ];
 
 const USERS = [
@@ -226,11 +232,21 @@ const RESPONDERS = [
   { name: 'SPO2 Paolo Reyes', organization: 'Dagupan City Police Office', contact_number: '09171230001', availability_status: 'available', source_type: 'account', team_name: 'Patrol Alpha', supported_incident_types: ['police'] },
   { name: 'SPO1 Diana Flores', organization: 'Dagupan City Police Office', contact_number: '09171230002', availability_status: 'standby', source_type: 'account', team_name: 'Patrol Bravo', supported_incident_types: ['police'] },
   { name: 'Traffic Officer Miguel Cruz', organization: 'Dagupan City Police Office', contact_number: '09171230003', availability_status: 'available', source_type: 'directory', team_name: 'Traffic Unit', supported_incident_types: ['police'] },
+  { name: 'K9 Officer', organization: 'Dagupan City Police Office', contact_number: '09171230004', availability_status: 'available', source_type: 'directory', team_name: 'K9 Unit', supported_incident_types: ['police'] },
+  { name: 'Investigator', organization: 'Dagupan City Police Office', contact_number: '09171230005', availability_status: 'available', source_type: 'directory', team_name: 'Investigation Unit', supported_incident_types: ['police'] },
+  { name: 'QRT Officer', organization: 'Dagupan City Police Office', contact_number: '09171230006', availability_status: 'available', source_type: 'directory', team_name: 'Quick Response Team', supported_incident_types: ['police'] },
+  { name: 'Patrol Officer', organization: 'Dagupan City Police Office', contact_number: '09171230007', availability_status: 'available', source_type: 'directory', team_name: 'Patrol Alpha', supported_incident_types: ['police'] },
+  { name: 'Desk Officer', organization: 'Dagupan City Police Office', contact_number: '09171230008', availability_status: 'standby', source_type: 'directory', team_name: 'Patrol Bravo', supported_incident_types: ['police'] },
   { name: 'Rescuer Noel Ramos', organization: 'Dagupan CDRRMO', contact_number: '09181230001', availability_status: 'available', source_type: 'account', team_name: 'Rescue Alpha', supported_incident_types: ['disaster', 'medical'] },
   { name: 'Medic Trina Santos', organization: 'Dagupan CDRRMO', contact_number: '09181230002', availability_status: 'available', source_type: 'account', team_name: 'Medical Alpha', supported_incident_types: ['medical'] },
   { name: 'Fire Volunteer Leo Dela Cruz', organization: 'Dagupan CDRRMO', contact_number: '09181230003', availability_status: 'standby', source_type: 'directory', team_name: 'Fire Support', supported_incident_types: ['fire', 'disaster'] },
   { name: 'BLS Medic Karen Villanueva', organization: 'Dagupan CDRRMO', contact_number: '09181230004', availability_status: 'busy', source_type: 'directory', team_name: 'Medical Alpha', supported_incident_types: ['medical'] },
   { name: 'Rescue Driver Omar Garcia', organization: 'Dagupan CDRRMO', contact_number: '09181230005', availability_status: 'off-duty', source_type: 'directory', team_name: 'Rescue Alpha', supported_incident_types: ['disaster'] },
+  { name: 'Emergency Medic', organization: 'Dagupan CDRRMO', contact_number: '09181230006', availability_status: 'available', source_type: 'directory', team_name: 'Emergency Response Alpha', supported_incident_types: ['disaster', 'medical'] },
+  { name: 'Logistics Coordinator', organization: 'Dagupan CDRRMO', contact_number: '09181230007', availability_status: 'available', source_type: 'directory', team_name: 'Logistics Support', supported_incident_types: ['disaster'] },
+  { name: 'SAR Volunteer', organization: 'Dagupan CDRRMO', contact_number: '09181230008', availability_status: 'standby', source_type: 'directory', team_name: 'Search and Rescue', supported_incident_types: ['disaster'] },
+  { name: 'Paramedic', organization: 'Dagupan CDRRMO', contact_number: '09181230009', availability_status: 'available', source_type: 'directory', team_name: 'Emergency Response Alpha', supported_incident_types: ['medical'] },
+  { name: 'Ambulance Driver', organization: 'Dagupan CDRRMO', contact_number: '09181230010', availability_status: 'available', source_type: 'directory', team_name: 'Medical Alpha', supported_incident_types: ['medical'] },
 ];
 
 function toRoleLabel(role) {

@@ -154,7 +154,7 @@ class _LogoutConfirmationScreenState extends State<LogoutConfirmationScreen> {
                                 ),
                                 SizedBox(height: 4),
                                 Text(
-                                  'End all active sessions on your phone, tablet, and web browser',
+                                  'End all active sessions on your phone and tablet',
                                   style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
                                 ),
                               ],
@@ -264,10 +264,11 @@ class _LogoutConfirmationScreenState extends State<LogoutConfirmationScreen> {
                       onPressed: _onCancel,
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 16),
-                        side: const BorderSide(color: Color(0xFFE5E7EB)),
+                        side: BorderSide(color: theme.colorScheme.outline),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        foregroundColor: theme.colorScheme.onSurface,
                       ),
-                      child: const Text('Cancel', style: TextStyle(color: Color(0xFF111827), fontWeight: FontWeight.bold)),
+                      child: const Text('Cancel', style: TextStyle(fontWeight: FontWeight.bold)),
                     ),
                     const SizedBox(height: 24),
                     // Footer

@@ -13,17 +13,20 @@ import '../../utils/report_ui.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/gradient_header.dart';
 import '../../widgets/skeleton_placeholder.dart';
+import 'notifications_screen.dart';
 
 class IncidentDetailsScreen extends StatefulWidget {
   final int? reportId;
   final Map<String, dynamic>? initialIncident;
   final VoidCallback? onBack;
+  final VoidCallback? onNotificationsTap;
 
   const IncidentDetailsScreen({
     super.key,
     this.reportId,
     this.initialIncident,
     this.onBack,
+    this.onNotificationsTap,
   });
 
   @override
@@ -117,12 +120,50 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
         _loading = false;
         _loadError = null;
       });
+      if (mounted && _mediaPaths.isNotEmpty) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _loadThumbnailsForImages();
+        });
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _loading = false;
         _loadError = e is IncidentServiceException ? e.message : e.toString();
       });
+    }
+  }
+
+  Future<void> _loadThumbnail(int mediaIndex) async {
+    if (_previewingMedia.contains(mediaIndex) ||
+        _mediaPreviewBytes.containsKey(mediaIndex)) return;
+    if (mediaIndex < 0 || mediaIndex >= _mediaPaths.length) return;
+    if (!_isImagePath(_mediaPaths[mediaIndex])) return;
+    final reportId = _resolvedReportId;
+    if (reportId == null) return;
+    setState(() => _previewingMedia.add(mediaIndex));
+    try {
+      final file =
+          await _incidentService.downloadIncidentMedia(reportId, mediaIndex);
+      final bytes = Uint8List.fromList(file.bytes);
+      if (!mounted) return;
+      setState(() {
+        _mediaPreviewBytes[mediaIndex] = bytes;
+        _previewingMedia.remove(mediaIndex);
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _previewingMedia.remove(mediaIndex));
+    }
+  }
+
+  void _loadThumbnailsForImages() {
+    if (_resolvedReportId == null) return;
+    for (int i = 0; i < _mediaPaths.length; i++) {
+      if (!_isImagePath(_mediaPaths[i])) continue;
+      if (_mediaPreviewBytes.containsKey(i)) continue;
+      if (_previewingMedia.contains(i)) continue;
+      _loadThumbnail(i);
     }
   }
 
@@ -501,15 +542,27 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
             subtitle: _reportIdDisplay(),
             onBack: widget.onBack,
             transparentFade: true,
-            trailing: Image.asset(
-              'assets/logo/logo2.png',
-              width: 32,
-              height: 32,
-              fit: BoxFit.contain,
-              color: Colors.white,
-              colorBlendMode: BlendMode.srcIn,
-              errorBuilder: (_, __, ___) =>
-                  const Icon(Icons.shield, color: Colors.white, size: 28),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.notifications_none, color: Colors.white, size: 28),
+                  onPressed: widget.onNotificationsTap ?? _openNotifications,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+                const SizedBox(width: 8),
+                Image.asset(
+                  'assets/logo/logo2.png',
+                  width: 32,
+                  height: 32,
+                  fit: BoxFit.contain,
+                  color: Colors.white,
+                  colorBlendMode: BlendMode.srcIn,
+                  errorBuilder: (_, __, ___) =>
+                      const Icon(Icons.shield, color: Colors.white, size: 28),
+                ),
+              ],
             ),
           ),
           Expanded(
@@ -684,7 +737,7 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
                                 key: 'media',
                                 title: 'Attached Media',
                                 icon: Icons.attach_file,
-                                iconColor: const Color(0xFF374151),
+                                iconColor: Theme.of(context).colorScheme.onSurfaceVariant,
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
@@ -701,54 +754,117 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
                                             color: Theme.of(context).colorScheme.onSurfaceVariant),
                                       )
                                     else
-                                      ...List<Widget>.generate(_mediaPaths.length, (index) {
-                                        final downloading = _downloadingMedia.contains(index);
-                                        final previewing = _previewingMedia.contains(index);
-                                        return Padding(
-                                          padding: const EdgeInsets.only(bottom: 8),
-                                          child: Row(
-                                            children: [
-                                              Expanded(
-                                                child: OutlinedButton.icon(
-                                                  onPressed: previewing
-                                                      ? null
-                                                      : () => _previewMedia(index),
-                                                  icon: previewing
-                                                      ? const SizedBox(
-                                                          width: 16,
-                                                          height: 16,
-                                                          child: CircularProgressIndicator(
-                                                              strokeWidth: 2),
-                                                        )
-                                                      : const Icon(Icons.visibility_outlined),
-                                                  label: Text(previewing
-                                                      ? 'Opening...'
-                                                      : 'Preview ${index + 1}'),
-                                                ),
+                                      Wrap(
+                                        spacing: 12,
+                                        runSpacing: 12,
+                                        children: List<Widget>.generate(_mediaPaths.length, (index) {
+                                          final path = _mediaPaths[index];
+                                          final isImage = _isImagePath(path);
+                                          final downloading = _downloadingMedia.contains(index);
+                                          final loadingThumb = _previewingMedia.contains(index);
+                                          final cached = _mediaPreviewBytes[index];
+                                          if (isImage) {
+                                            return Padding(
+                                              padding: const EdgeInsets.only(bottom: 8),
+                                              child: Row(
+                                                crossAxisAlignment: CrossAxisAlignment.center,
+                                                children: [
+                                                  SizedBox(
+                                                    width: 80,
+                                                    height: 80,
+                                                    child: GestureDetector(
+                                                      onTap: cached != null
+                                                          ? () => _showImagePreview(path, cached)
+                                                          : null,
+                                                      child: ClipRRect(
+                                                        borderRadius: BorderRadius.circular(8),
+                                                        child: Container(
+                                                          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                                                          child: loadingThumb
+                                                              ? const Center(
+                                                                  child: SizedBox(
+                                                                    width: 24,
+                                                                    height: 24,
+                                                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                                                  ),
+                                                                )
+                                                              : cached != null
+                                                                  ? Image.memory(
+                                                                      cached,
+                                                                      fit: BoxFit.cover,
+                                                                      width: 80,
+                                                                      height: 80,
+                                                                      errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined, size: 32),
+                                                                    )
+                                                                  : const Icon(Icons.image_outlined, size: 32),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 12),
+                                                  Expanded(
+                                                    child: OutlinedButton.icon(
+                                                      onPressed: downloading ? null : () => _downloadMedia(index),
+                                                      icon: downloading
+                                                          ? const SizedBox(
+                                                              width: 14,
+                                                              height: 14,
+                                                              child: CircularProgressIndicator(strokeWidth: 2),
+                                                            )
+                                                          : const Icon(Icons.download_outlined, size: 18),
+                                                      label: const Text('Download'),
+                                                      style: OutlinedButton.styleFrom(
+                                                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
                                               ),
-                                              const SizedBox(width: 8),
-                                              Expanded(
-                                                child: OutlinedButton.icon(
-                                                  onPressed: downloading
-                                                      ? null
-                                                      : () => _downloadMedia(index),
-                                                  icon: downloading
-                                                      ? const SizedBox(
-                                                          width: 16,
-                                                          height: 16,
-                                                          child: CircularProgressIndicator(
-                                                              strokeWidth: 2),
-                                                        )
-                                                      : const Icon(Icons.download_outlined),
-                                                  label: Text(downloading
-                                                      ? 'Downloading...'
-                                                      : 'Download ${index + 1}'),
+                                            );
+                                          }
+                                          return Padding(
+                                            padding: const EdgeInsets.only(bottom: 8),
+                                            child: Row(
+                                              crossAxisAlignment: CrossAxisAlignment.center,
+                                              children: [
+                                                SizedBox(
+                                                  width: 80,
+                                                  height: 80,
+                                                  child: GestureDetector(
+                                                    onTap: () => _previewMedia(index),
+                                                    child: ClipRRect(
+                                                      borderRadius: BorderRadius.circular(8),
+                                                      child: Container(
+                                                        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                                                        child: const Center(
+                                                          child: Icon(Icons.videocam_outlined, size: 32),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
                                                 ),
-                                              ),
-                                            ],
-                                          ),
-                                        );
-                                      }),
+                                                const SizedBox(width: 12),
+                                                Expanded(
+                                                  child: OutlinedButton.icon(
+                                                    onPressed: downloading ? null : () => _downloadMedia(index),
+                                                    icon: downloading
+                                                        ? const SizedBox(
+                                                            width: 14,
+                                                            height: 14,
+                                                            child: CircularProgressIndicator(strokeWidth: 2),
+                                                          )
+                                                        : const Icon(Icons.download_outlined, size: 18),
+                                                    label: const Text('Download'),
+                                                    style: OutlinedButton.styleFrom(
+                                                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                        }),
+                                      ),
                                   ],
                                 ),
                               ),
@@ -757,7 +873,7 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
                                 key: 'response',
                                 title: 'Response Details',
                                 icon: Icons.info_outline,
-                                iconColor: const Color(0xFF374151),
+                                iconColor: Theme.of(context).colorScheme.onSurfaceVariant,
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
@@ -935,6 +1051,26 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
     );
   }
 
+  void _openNotifications() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => Scaffold(
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+          body: Column(
+            children: [
+              GradientHeader(
+                title: 'Notifications',
+                onBack: () => Navigator.of(context).pop(),
+                transparentFade: true,
+              ),
+              const Expanded(child: SafeArea(top: false, child: NotificationsScreen())),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _timelineItem({
     required IconData icon,
     required Color iconBg,
@@ -964,10 +1100,10 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
-                    color: Color(0xFF111827),
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -977,7 +1113,7 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
                     fontSize: 12,
                     color: isInProgress
                         ? const Color(0xFFEF4444)
-                        : const Color(0xFF6B7280),
+                        : Theme.of(context).colorScheme.onSurfaceVariant,
                     fontWeight:
                         isInProgress ? FontWeight.w500 : FontWeight.normal,
                   ),

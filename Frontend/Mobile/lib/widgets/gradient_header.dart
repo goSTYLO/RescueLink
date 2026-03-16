@@ -23,6 +23,19 @@ class GradientHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isLight = Theme.of(context).brightness == Brightness.light;
+    final gradientColors = transparentFade && !isLight
+        ? [
+            const Color(0xFFEF4444),
+            const Color(0xB3EF4444),
+            const Color(0x66EF4444),
+            const Color(0x00EF4444),
+          ]
+        : [
+            const Color(0xFFEF4444),
+            const Color(0xFFDC2626),
+            const Color(0xFFB91C1C),
+          ];
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -30,18 +43,7 @@ class GradientHeader extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: transparentFade
-              ? [
-                  const Color(0xFFEF4444),
-                  const Color(0xB3EF4444),
-                  const Color(0x66EF4444),
-                  const Color(0x00EF4444),
-                ]
-              : [
-                  const Color(0xFFEF4444),
-                  const Color(0xFFDC2626),
-                  const Color(0xFFB91C1C),
-                ],
+          colors: gradientColors,
         ),
         borderRadius: const BorderRadius.only(
           bottomLeft: Radius.circular(28),

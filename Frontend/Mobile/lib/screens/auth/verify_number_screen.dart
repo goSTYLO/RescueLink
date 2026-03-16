@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../widgets/gradient_header.dart';
 
 class VerifyNumberScreen extends StatefulWidget {
   final String phoneNumber;
@@ -97,21 +98,22 @@ class _VerifyNumberScreenState extends State<VerifyNumberScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF374151)),
-          onPressed: widget.onBack,
-        ),
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Column(
-            children: [
-              _buildLogo(),
-              const SizedBox(height: 20),
+      body: Column(
+        children: [
+          GradientHeader(
+            title: 'Verify Your Number',
+            onBack: widget.onBack,
+            transparentFade: true,
+          ),
+          Expanded(
+            child: SafeArea(
+              top: false,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Column(
+                  children: [
+                    _buildLogo(),
+                    const SizedBox(height: 20),
               SizedBox(
                 height: 180,
                 child: Image.asset(
@@ -120,10 +122,6 @@ class _VerifyNumberScreenState extends State<VerifyNumberScreen> {
                 ),
               ),
               const SizedBox(height: 24),
-              const Text(
-                'Verify Your Number',
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF111827)),
-              ),
               const SizedBox(height: 20),
               const Icon(Icons.shield_outlined, color: Color(0xFF2563EB), size: 32),
               const SizedBox(height: 8),
@@ -197,9 +195,12 @@ class _VerifyNumberScreenState extends State<VerifyNumberScreen> {
                 ),
               ),
               const SizedBox(height: 40),
-            ],
+                  ],
+                ),
+              ),
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

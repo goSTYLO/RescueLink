@@ -321,7 +321,7 @@ export function DepartmentDashboardPage() {
   };
 
   const getTypeIcon = (type) => {
-    const icons = { Fire: '🔥', Medical: '🏥', Police: '👮', Disaster: '⚠️' };
+    const icons = { Fire: '🔥', Medical: '🏥', Police: '👮', Disaster: '⚠️', SOS: '🆘' };
     return icons[String(type)] || '📋';
   };
 
@@ -331,6 +331,7 @@ export function DepartmentDashboardPage() {
     { value: 'Medical', label: 'Medical' },
     { value: 'Police', label: 'Police' },
     { value: 'Disaster', label: 'Disaster' },
+    { value: 'SOS', label: 'SOS' },
     { value: 'Other', label: 'Other' },
   ];
 

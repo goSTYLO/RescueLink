@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../services/auth_service.dart';
 import '../../services/theme_service.dart';
+import '../../utils/responsive.dart';
 import '../../widgets/glass_card.dart';
+import '../../widgets/skeleton_placeholder.dart';
 
 class SettingsScreen extends StatefulWidget {
   final Future<void> Function(ThemeMode mode)? onThemeChanged;
@@ -12,6 +14,7 @@ class SettingsScreen extends StatefulWidget {
   final VoidCallback? onChangePasswordTap;
   final VoidCallback? onPrivacySecurityTap;
   final VoidCallback? onAboutTap;
+  final VoidCallback? onNotificationsTap;
 
   const SettingsScreen({
     super.key,
@@ -23,6 +26,7 @@ class SettingsScreen extends StatefulWidget {
     this.onChangePasswordTap,
     this.onPrivacySecurityTap,
     this.onAboutTap,
+    this.onNotificationsTap,
   });
 
   @override
@@ -110,18 +114,91 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final address = (profile['address'] ?? '') as String;
     final phoneVerified = profile['phone_verified'] == true || profile['phoneVerified'] == true;
 
+    final width = MediaQuery.sizeOf(context).width;
+    final horizontalPadding = Responsive.horizontalPadding(width);
+    final compact = Responsive.isCompact(width);
+
     return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          ClipRRect(
+            borderRadius: const BorderRadius.only(
+              bottomLeft: Radius.circular(24),
+              bottomRight: Radius.circular(24),
+            ),
+            child: Container(
+              width: double.infinity,
+              padding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 20),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: Theme.of(context).brightness == Brightness.light
+                      ? [
+                          const Color(0xFFEF4444),
+                          const Color(0xFFDC2626),
+                          const Color(0xFFB91C1C),
+                        ]
+                      : [
+                          const Color(0xFFEF4444),
+                          const Color(0xB3EF4444),
+                          const Color(0x66EF4444),
+                          const Color(0x00EF4444),
+                        ],
+                ),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(child: _buildSettingsHeaderLogo(width)),
+                  if (widget.onNotificationsTap != null)
+                    IconButton(
+                      icon: const Icon(Icons.notifications_none, color: Colors.white, size: 28),
+                      onPressed: widget.onNotificationsTap,
+                      visualDensity: compact ? VisualDensity.compact : VisualDensity.standard,
+                    ),
+                ],
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
           const SizedBox(height: 16),
-          if (_loadingProfile)
-            const Padding(
-              padding: EdgeInsets.only(bottom: 16),
-              child: LinearProgressIndicator(minHeight: 3),
-            )
-          else if (_profileError != null)
+          if (_loadingProfile) ...[
+            const SkeletonLocationCard(),
+            const SizedBox(height: 20),
+            const SkeletonPlaceholder(
+              width: double.infinity,
+              height: 52,
+              borderRadius: 16,
+            ),
+            const SizedBox(height: 20),
+            const SkeletonProfileCard(),
+            const SizedBox(height: 24),
+            const SkeletonCollapsibleSection(),
+            const SizedBox(height: 12),
+            const SkeletonCollapsibleSection(),
+            const SizedBox(height: 12),
+            const SkeletonCollapsibleSection(),
+            const SizedBox(height: 12),
+            const SkeletonCollapsibleSection(),
+            const SizedBox(height: 12),
+            const SkeletonCollapsibleSection(),
+            const SizedBox(height: 12),
+            const SkeletonCollapsibleSection(),
+            const SizedBox(height: 24),
+            const SkeletonPlaceholder(
+              width: double.infinity,
+              height: 52,
+              borderRadius: 12,
+            ),
+            const SizedBox(height: 24),
+          ] else ...[
+          if (_profileError != null)
             Container(
               margin: const EdgeInsets.only(bottom: 16),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -293,14 +370,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          _collapsibleSection(
-            key: 'emergency',
-            title: 'Emergency Contacts',
-            icon: Icons.people_outline,
-            children: [
-              _settingsRow(icon: Icons.people_outline, iconBg: const Color(0xFFFEE2E2), iconColor: const Color(0xFFEF4444), title: 'Barangay Emergency Contacts', subtitle: '2 Contacts Added', showArrow: true, onTap: widget.onEmergencyContactsTap),
-            ],
-          ),
+          // Emergency Contacts section - hidden for now
+          // _collapsibleSection(
+          //   key: 'emergency',
+          //   title: 'Emergency Contacts',
+          //   icon: Icons.people_outline,
+          //   children: [
+          //     _settingsRow(icon: Icons.people_outline, iconBg: const Color(0xFFFEE2E2), iconColor: const Color(0xFFEF4444), title: 'Barangay Emergency Contacts', subtitle: '2 Contacts Added', showArrow: true, onTap: widget.onEmergencyContactsTap),
+          //   ],
+          // ),
           const SizedBox(height: 12),
           _collapsibleSection(
             key: 'notification',
@@ -385,8 +463,44 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
           const SizedBox(height: 24),
+          ],
         ],
       ),
+    ),
+    ],
+  ),
+    );
+  }
+
+  Widget _buildSettingsHeaderLogo(double width) {
+    final logoSize = Responsive.logoSize(width);
+    final titleSize = Responsive.brandTitleSize(width);
+    final compact = Responsive.isCompact(width);
+    return Row(
+      mainAxisSize: MainAxisSize.max,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Image.asset(
+          'assets/logo/logo2.png',
+          width: logoSize,
+          height: logoSize,
+          fit: BoxFit.contain,
+        ),
+        SizedBox(width: compact ? 6 : 10),
+        Expanded(
+          child: Text.rich(
+            TextSpan(
+              style: TextStyle(fontSize: titleSize, fontWeight: FontWeight.bold),
+              children: const [
+                TextSpan(text: 'Rescue', style: TextStyle(color: Color(0xFFBFDBFE))),
+                TextSpan(text: 'Link', style: TextStyle(color: Colors.white)),
+              ],
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
     );
   }
 

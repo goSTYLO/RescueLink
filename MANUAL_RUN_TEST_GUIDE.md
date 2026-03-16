@@ -71,30 +71,28 @@ psql $DATABASE_URL -f migrations/add_team_member_assignment_schema.sql
 psql $DATABASE_URL -f migrations/add_responder_task_and_team_status.sql
 # Populate with realistic test data
 npm run seed-db
-npm run seed-incidents -- --reset --count=10
+npm run seed-incidents -- --reset
 ```
 
 Note:
-- `seed-db` is idempotent and seeds realistic core data (departments, users, teams, responders, team memberships).
-- `seed-incidents` seeds incidents from real audio assets (`RescueLink AI/test` + `Backend/uploads/incidents`).
-- incident seeding is capped for local/dev (`max/default: 10`).
+- `seed-db` is idempotent and seeds realistic core data (departments, users, 12 teams, 18 responders, team memberships).
+- `seed-incidents` seeds 30 incidents (5 duplicates + 25 unique) from real audio assets (`RescueLink AI/test` + `Backend/uploads/incidents`), distributed across Dagupan City locations.
 - Use `--reset` to clear prior incident-related records before repopulating.
+- Use `--count=N` to override the default (max: 30).
 
 **Seeded test accounts:**
 
 Dispatchers (password: `dispatcher123`):
-- `dispatcher@rescuelink.test` (Address: Dagupan Barangay, Dagupan City, Pangasinan)
-- `dispatcher2@rescuelink.test` (Address: Malur Barangay, Dagupan City, Pangasinan)
+- `dispatcher@rescuelink.test`, `dispatcher2@rescuelink.test`, `dispatcher3@rescuelink.test`, `dispatcher4@rescuelink.test`
 
 Responders (password: `responder123`):
-- `responder@rescuelink.test` (Address: Bonuan Barangay, Dagupan City, Pangasinan)
-- `responder2@rescuelink.test` (Address: Bacnotan Barangay, Dagupan City, Pangasinan)
-- `responder3@rescuelink.test` (Address: Pantal Barangay, Dagupan City, Pangasinan)
-- `responder4@rescuelink.test` (Address: Dagupan Barangay, Dagupan City, Pangasinan)
-- `responder5@rescuelink.test` (Address: Malur Barangay, Dagupan City, Pangasinan)
+- `responder@rescuelink.test` (PNP, Pob. Oeste)
+- `responder2@rescuelink.test` (PNP, Pob. Oeste)
+- `responder3@rescuelink.test` (DRRMO, Bonuan Gueset)
+- `responder4@rescuelink.test` (DRRMO, Bonuan Gueset)
 
 Regular Users (password: `user123`):
-- `user@rescuelink.test` through `user10@rescuelink.test` (distributed across Dagupan barangays: Dagupan, Malur, Bonuan, Bacnotan, Pantal)
+- `user@rescuelink.test` through `user6@rescuelink.test` (distributed across Dagupan barangays: Bonuan Binloc, Tapuac, Mangin, Pantal, Bonuan Boquig, Lucao)
 
 Ganache (Terminal 2)
 - Option A: open Ganache Desktop and use the GUI
@@ -273,7 +271,7 @@ Database seeding script details
 - Incident audio script: `Backend/scripts/seed-incidents-from-audio.js`
 - Run with:
   - `npm run seed-db`
-  - `npm run seed-incidents -- --reset --count=10`
+  - `npm run seed-incidents -- --reset`
   - or `npm run seed-db:full`
 
 Where to look for more details

@@ -7,6 +7,8 @@ import '../../services/auth_service.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/animated_fab.dart';
 import '../../widgets/glass_card.dart';
+import '../../widgets/gradient_header.dart';
+import '../../widgets/staggered_fade_in.dart';
 
 class HomePlaceholderScreen extends StatefulWidget {
   final Future<void> Function(ThemeMode mode)? onThemeChanged;
@@ -131,6 +133,7 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
   }
 
   int _currentIndex = 0;
+  int _tabSwitchCounter = 0;
 
   Widget _buildSosCountdownOverlay() {
     return Material(
@@ -140,7 +143,7 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
           margin: const EdgeInsets.symmetric(horizontal: 32),
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: Theme.of(context).colorScheme.surface,
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
@@ -158,16 +161,16 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
               const SizedBox(height: 16),
               Text(
                 'SOS in $_sosCountdown',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
-                  color: Color(0xFF111827),
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
               const SizedBox(height: 8),
-              const Text(
+              Text(
                 'Tap Cancel to abort',
-                style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
+                style: TextStyle(fontSize: 14, color: Theme.of(context).colorScheme.onSurfaceVariant),
               ),
               const SizedBox(height: 20),
               SizedBox(
@@ -188,11 +191,12 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
     );
   }
 
-  Widget _buildLogo(double width) {
+  Widget _buildLogo(double width, {bool onRedGradient = false}) {
     final logoSize = Responsive.logoSize(width);
     final titleSize = Responsive.brandTitleSize(width);
-    final subtitleSize = Responsive.brandSubtitleSize(width);
     final compact = Responsive.isCompact(width);
+    final titleColor1 = onRedGradient ? const Color(0xFFBFDBFE) : const Color(0xFF2563EB);
+    final titleColor2 = onRedGradient ? Colors.white : const Color(0xFFEF4444);
 
     return Row(
       mainAxisSize: MainAxisSize.max,
@@ -206,34 +210,16 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
         ),
         SizedBox(width: compact ? 6 : 10),
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text.rich(
-                TextSpan(
-                  style: TextStyle(
-                      fontSize: titleSize, fontWeight: FontWeight.bold),
-                  children: const [
-                    TextSpan(
-                        text: 'Rescue',
-                        style: TextStyle(color: Color(0xFF2563EB))),
-                    TextSpan(
-                        text: 'Link',
-                        style: TextStyle(color: Color(0xFFEF4444))),
-                  ],
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              Text(
-                'Emergency Response and Safety',
-                style: TextStyle(
-                    color: const Color(0xFF6B7280), fontSize: subtitleSize),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
+          child: Text.rich(
+            TextSpan(
+              style: TextStyle(fontSize: titleSize, fontWeight: FontWeight.bold),
+              children: [
+                TextSpan(text: 'Rescue', style: TextStyle(color: titleColor1)),
+                TextSpan(text: 'Link', style: TextStyle(color: titleColor2)),
+              ],
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ),
       ],
@@ -245,20 +231,16 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
       MaterialPageRoute<void>(
         builder: (context) => Scaffold(
           backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-          appBar: AppBar(
-            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-            elevation: 0,
-            leading: IconButton(
-              icon: Icon(Icons.arrow_back, color: Theme.of(context).colorScheme.onSurface),
-              onPressed: () => Navigator.of(context).pop(),
-            ),
-            title: Text(
-              'Notifications',
-              style: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.w600),
-            ),
+          body: Column(
+            children: [
+              GradientHeader(
+                title: 'Notifications',
+                onBack: () => Navigator.of(context).pop(),
+                transparentFade: true,
+              ),
+              const Expanded(child: SafeArea(top: false, child: NotificationsScreen())),
+            ],
           ),
-          body: const SafeArea(child: NotificationsScreen()),
         ),
       ),
     );
@@ -276,102 +258,138 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
           onRefresh: _loadHomeLocation,
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+            child: StaggeredFadeIn(
+              staggerDelayMs: 50,
+              trigger: _currentIndex == 0 ? _tabSwitchCounter : null,
               children: [
-              SizedBox(height: 16 * spacingScale),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(child: _buildLogo(width)),
-                  IconButton(
-                    icon: Icon(Icons.notifications_none,
-                        color: Theme.of(context).colorScheme.onSurface, size: 28),
-                    onPressed: () => _openNotifications(context),
-                    visualDensity: compact
-                        ? VisualDensity.compact
-                        : VisualDensity.standard,
+                SizedBox(height: 16 * spacingScale),
+                ClipRRect(
+                  borderRadius: const BorderRadius.only(
+                    bottomLeft: Radius.circular(24),
+                    bottomRight: Radius.circular(24),
                   ),
-                ],
-              ),
-              SizedBox(height: 20 * spacingScale),
-              GlassCard(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                borderRadius: 16,
-                blurSigma: 12,
-                child: Row(
-                  children: [
-                    Icon(Icons.location_on,
-                        color: Theme.of(context).colorScheme.onSurface, size: 26),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        _loadingLocation
-                            ? 'Loading...'
-                            : _locationTitle,
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.onSurface,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                  child: Container(
+                    width: double.infinity,
+                    padding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 20),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: Theme.of(context).brightness == Brightness.light
+                            ? [
+                                const Color(0xFFEF4444),
+                                const Color(0xFFDC2626),
+                                const Color(0xFFB91C1C),
+                              ]
+                            : [
+                                const Color(0xFFEF4444),
+                                const Color(0xB3EF4444),
+                                const Color(0x66EF4444),
+                                const Color(0x00EF4444),
+                              ],
                       ),
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.refresh, size: 20),
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      tooltip: 'Refresh location',
-                      onPressed: _loadingLocation ? null : _loadHomeLocation,
-                    ),
-                  ],
-                ),
-              ),
-              SizedBox(height: 16 * spacingScale),
-              GlassCard(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                borderRadius: 16,
-                blurSigma: 12,
-                child: Row(
-                  children: [
-                    const Icon(Icons.shield, color: Color(0xFF22C55E), size: 28),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'All Systems Active',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: theme.colorScheme.onSurface,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: _buildLogo(width, onRedGradient: true)),
+                        IconButton(
+                          icon: const Icon(Icons.notifications_none,
+                              color: Colors.white, size: 28),
+                          onPressed: () => _openNotifications(context),
+                          visualDensity: compact
+                              ? VisualDensity.compact
+                              : VisualDensity.standard,
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
-              ),
-              SizedBox(height: 28 * spacingScale),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  AnimatedFab(
-                    icon: Icons.report_problem,
-                    hintLabel: 'SOS',
-                    onPressed: _sosCountdown > 0 ? null : _startSosCountdown,
-                    onLongPress: _sosCountdown > 0 ? null : _startSosCountdown,
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      SizedBox(height: 20 * spacingScale),
+                      GlassCard(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                        borderRadius: 16,
+                        blurSigma: 12,
+                        child: Row(
+                          children: [
+                            Icon(Icons.location_on,
+                                color: Theme.of(context).colorScheme.onSurface, size: 26),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                _loadingLocation
+                                    ? 'Loading...'
+                                    : _locationTitle,
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
+                                  color: Theme.of(context).colorScheme.onSurface,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.refresh, size: 20),
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              tooltip: 'Refresh location',
+                              onPressed: _loadingLocation ? null : _loadHomeLocation,
+                            ),
+                          ],
+                        ),
+                      ),
+                      SizedBox(height: 16 * spacingScale),
+                      GlassCard(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        borderRadius: 16,
+                        blurSigma: 12,
+                        child: Row(
+                          children: [
+                            const Icon(Icons.shield, color: Color(0xFF22C55E), size: 28),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                'All Systems Active',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                  color: theme.colorScheme.onSurface,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      SizedBox(height: 28 * spacingScale),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          AnimatedFab(
+                            icon: Icons.report_problem,
+                            hintLabel: 'SOS',
+                            onPressed: _sosCountdown > 0 ? null : _startSosCountdown,
+                            onLongPress: _sosCountdown > 0 ? null : _startSosCountdown,
+                          ),
+                          AnimatedFab(
+                            icon: Icons.bar_chart,
+                            hintLabel: 'Report',
+                            onPressed: widget.onSosPressed,
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 28 * spacingScale),
+                      _safetyTipsAccordion(spacingScale),
+                      SizedBox(height: 24 * spacingScale),
+                    ],
                   ),
-                  AnimatedFab(
-                    icon: Icons.bar_chart,
-                    hintLabel: 'Report',
-                    onPressed: widget.onSosPressed,
-                  ),
-                ],
-              ),
-              SizedBox(height: 28 * spacingScale),
-              _safetyTipsAccordion(spacingScale),
-              SizedBox(height: 24 * spacingScale),
+                ),
               ],
             ),
           ),
@@ -458,14 +476,20 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
   }
 
   Widget _buildReportHistoryContent() {
-    return ReportHistoryScreen(
-      onReportTap: widget.onReportTap,
-      onReportIncidentTap: widget.onSosPressed,
+    return StaggeredFadeIn.single(
+      trigger: _currentIndex == 1 ? _tabSwitchCounter : null,
+      child: ReportHistoryScreen(
+        onReportTap: widget.onReportTap,
+        onReportIncidentTap: widget.onSosPressed,
+        onNotificationsTap: () => _openNotifications(context),
+      ),
     );
   }
 
   Widget _buildSettingsContent() {
-    return SettingsScreen(
+    return StaggeredFadeIn.single(
+      trigger: _currentIndex == 2 ? _tabSwitchCounter : null,
+      child: SettingsScreen(
         onThemeChanged: widget.onThemeChanged,
         onLogout: widget.onLogout,
         onPhoneNumberTap: widget.onPhoneNumberTap,
@@ -473,7 +497,10 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
         onEmergencyContactsTap: widget.onEmergencyContactsTap,
         onChangePasswordTap: widget.onChangePasswordTap,
         onPrivacySecurityTap: widget.onPrivacySecurityTap,
-        onAboutTap: widget.onAboutTap);
+        onAboutTap: widget.onAboutTap,
+        onNotificationsTap: () => _openNotifications(context),
+      ),
+    );
   }
 
   @override
@@ -532,7 +559,13 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
     final horizontalPadding = Responsive.navItemHorizontalPadding(screenWidth);
     final labelSize = Responsive.navLabelSize(screenWidth);
     return InkWell(
-      onTap: () => setState(() => _currentIndex = index),
+      onTap: () {
+        if (_currentIndex == index) return;
+        setState(() {
+          _currentIndex = index;
+          _tabSwitchCounter++;
+        });
+      },
       borderRadius: BorderRadius.circular(12),
       child: Padding(
         padding:

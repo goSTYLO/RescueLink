@@ -43,7 +43,7 @@ import Swal from 'sweetalert2';
 const ASSIGNMENTS_STORAGE_KEY = 'rescuelink_incident_personnel_assignments';
 const VEHICLE_ASSIGNMENTS_STORAGE_KEY = 'rescuelink_incident_vehicle_assignments';
 const AVAILABILITY_OPTIONS = ['available', 'standby', 'busy', 'off-duty'];
-const TASK_TYPES = ['fire', 'medical', 'police', 'disaster'];
+const TASK_TYPES = ['fire', 'medical', 'police', 'disaster', 'sos'];
 const teamsPerPage = 5;
 const respondersPerPage = 5;
 const teamMembersPerPage = 5;

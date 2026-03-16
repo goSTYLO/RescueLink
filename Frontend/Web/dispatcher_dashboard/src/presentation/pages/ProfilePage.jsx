@@ -271,7 +271,7 @@ export function ProfilePage() {
                       <div>
                         <p className="text-xs text-muted">Member since</p>
                         <p className="text-sm font-medium text-foreground">
-                          {profile.created_at ? new Date(profile.created_at).toLocaleString() : '—'}
+                          {profile.created_at ? new Date(profile.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : '—'}
                         </p>
                       </div>
                     </div>
@@ -317,7 +317,7 @@ export function ProfilePage() {
                 </span>
               </div>
               {profile?.created_at && (
-                <p className="text-sm text-muted pt-1">Member since {new Date(profile.created_at).toLocaleString()}</p>
+                <p className="text-sm text-muted pt-1">Member since {new Date(profile.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}</p>
               )}
             </div>
           </div>

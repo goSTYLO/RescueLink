@@ -67,12 +67,14 @@ const authLimiterGlobal = rateLimit({
 });
 
 // Per-account auth rate limit: 10 requests per 15 minutes per IP+account (login, register, OTP, etc.)
+// Skip for GET /me (profile) - read-only, higher traffic from settings and other screens
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 10,
   message: { message: 'Too many attempts. Please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => req.method === 'GET' && req.path.endsWith('/me'),
   keyGenerator: (req) => {
     const ipPart = ipKeyGenerator(req.ip || 'unknown');
     const accountKey = getAuthAccountKey(req);

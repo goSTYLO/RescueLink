@@ -26,7 +26,7 @@ import {
   units
 } from '@/data/mock/mockData';
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { getIncidentById, getIncidentAudioUrl, getIncidentWithAi, reclassifyIncident, updateIncidentStatus, verifyIncident, getCoordinationNotes, addCoordinationNote, getIncidentDuplicates, getPotentialDuplicates, linkDuplicate, unlinkDuplicate } from '@/data/api/incidents.api';
+import { getIncidentById, getIncidentAudioUrl, getIncidentMediaUrl, getIncidentWithAi, reclassifyIncident, updateIncidentStatus, verifyIncident, getCoordinationNotes, addCoordinationNote, getIncidentDuplicates, getPotentialDuplicates, linkDuplicate, unlinkDuplicate } from '@/data/api/incidents.api';
 import { getResponders, getResponderTeams, updateResponderStatus, updateResponderTeamStatus, getTeamMembers } from '@/data/api/responders.api';
 import { createDispatch, undoDepartmentNotification } from '@/data/api/dispatches.api';
 import { getDepartments } from '@/data/api/departments.api';
@@ -68,7 +68,7 @@ function mapApiToIncidentDetails(api, aiClassification = null) {
     ? [firstName, lastName].filter(Boolean).join(' ').trim()
     : `User #${api.user_id}`;
 
-  const typeMap = { fire: 'Fire', medical: 'Medical', police: 'Police', disaster: 'Disaster', other: 'Other' };
+  const typeMap = { fire: 'Fire', medical: 'Medical', police: 'Police', disaster: 'Disaster', other: 'Other', sos: 'SOS' };
   const emergencyType = typeMap[api.incident_type?.toLowerCase()] || (api.incident_type ? String(api.incident_type).charAt(0).toUpperCase() + String(api.incident_type).slice(1) : '—');
 
   const normalizedSeverity = normalizeSeverityToDbLevel(api.severity_level);
@@ -119,7 +119,17 @@ function mapApiToIncidentDetails(api, aiClassification = null) {
     severityRaw: normalizedSeverity || null,
     transcription: api.transcription || null,
     audioPath: api.audio_path || null,
-    mediaPaths: Array.isArray(api.media_paths) ? api.media_paths : [],
+    mediaPaths: (() => {
+      const raw = api.media_paths;
+      if (Array.isArray(raw)) return raw;
+      if (typeof raw === 'string' && raw.trim()) {
+        try {
+          const parsed = JSON.parse(raw);
+          return Array.isArray(parsed) ? parsed : [];
+        } catch { return []; }
+      }
+      return [];
+    })(),
     verified: api.verified ?? false,
     reporterConfirmedAt: api.reporter_confirmed_at || null,
     reporterConfirmedByUserId: api.reporter_confirmed_by_user_id ?? null,
@@ -149,6 +159,8 @@ function mapApiToIncidentDetails(api, aiClassification = null) {
     assignedTeamName: api.assigned_team_name || null,
     assignedTeamDepartmentCode: api.assigned_team_department_code || api.assigned_department_code || null,
     timeline: api.timeline || [],
+    estimatedEtaMinutes: api.estimated_eta_minutes != null ? Number(api.estimated_eta_minutes) : null,
+    estimatedArrivalAt: api.estimated_arrival_at || null,
   };
 }
 
@@ -238,6 +250,78 @@ export function IncidentDetailsPage() {
       setAudioUrl(null);
     };
   }, [id, incident?.audioPath, incident?.id]);
+
+  // Fetch media files when incident has mediaPaths
+  const [mediaUrls, setMediaUrls] = useState([]);
+  const [mediaLoading, setMediaLoading] = useState(false);
+  const [mediaError, setMediaError] = useState(null);
+  const [mediaLightboxIndex, setMediaLightboxIndex] = useState(null);
+  const [mediaRetryingIndex, setMediaRetryingIndex] = useState(null);
+  const mediaUrlRefs = useRef([]);
+
+  useEffect(() => {
+    const numericId = /^\d+$/.test(String(id));
+    if (!numericId || !id || !incident?.mediaPaths?.length) {
+      setMediaUrls([]);
+      setMediaLoading(false);
+      return;
+    }
+    setMediaLoading(true);
+    setMediaError(null);
+    const mediaCount = incident.mediaPaths.length;
+    const loadedUrls = new Array(mediaCount).fill(null);
+    let loadedCount = 0;
+
+    incident.mediaPaths.forEach((path, idx) => {
+      getIncidentMediaUrl(id, idx)
+        .then(({ url, contentType }) => {
+          loadedUrls[idx] = { url, contentType, path };
+          mediaUrlRefs.current[idx] = url;
+          loadedCount++;
+          if (loadedCount === mediaCount) {
+            setMediaUrls([...loadedUrls]);
+            setMediaLoading(false);
+          }
+        })
+        .catch((err) => {
+          loadedUrls[idx] = { error: err.message || 'Failed to load', path };
+          loadedCount++;
+          if (loadedCount === mediaCount) {
+            setMediaUrls([...loadedUrls]);
+            setMediaLoading(false);
+          }
+        });
+    });
+
+    return () => {
+      mediaUrlRefs.current.forEach((url) => {
+        if (url) URL.revokeObjectURL(url);
+      });
+      mediaUrlRefs.current = [];
+    };
+  }, [id, incident?.mediaPaths]);
+
+  const retryMediaFetch = useCallback(async (idx) => {
+    if (!id || !incident?.mediaPaths?.[idx]) return;
+    setMediaRetryingIndex(idx);
+    try {
+      const { url, contentType } = await getIncidentMediaUrl(id, idx);
+      setMediaUrls((prev) => {
+        const next = [...prev];
+        next[idx] = { url, contentType, path: incident.mediaPaths[idx] };
+        return next;
+      });
+      mediaUrlRefs.current[idx] = url;
+    } catch (err) {
+      setMediaUrls((prev) => {
+        const next = [...prev];
+        next[idx] = { error: err.message || 'Failed to load', path: incident.mediaPaths[idx] };
+        return next;
+      });
+    } finally {
+      setMediaRetryingIndex(null);
+    }
+  }, [id, incident?.mediaPaths]);
 
   // Use API timeline for numeric IDs, mock for non-numeric IDs
   const isNumericId = /^\d+$/.test(String(id));
@@ -351,6 +435,7 @@ export function IncidentDetailsPage() {
   const [duplicateDialogLoading, setDuplicateDialogLoading] = useState(false);
   const [linkDuplicateInProgress, setLinkDuplicateInProgress] = useState(false);
   const [relatedReportsExpanded, setRelatedReportsExpanded] = useState(false);
+  const [mediaEvidenceExpanded, setMediaEvidenceExpanded] = useState(true);
 
   const displayDuplicates = incident?.isDuplicate ? duplicateCluster : potentialDuplicatesList;
   const closedRelatedReport = duplicateCluster.find((r) => r.report_id !== incident?.id && String(r.status || '').toLowerCase() === 'closed');
@@ -1545,23 +1630,120 @@ export function IncidentDetailsPage() {
                     )}
                   </div>
 
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-muted font-semibold mb-2">Media & Evidence</p>
-                    <div className="space-y-3">
-                      <div className="grid grid-cols-2 gap-3">
-                        {(incident.mediaPaths || []).length > 0 ? (
-                          (incident.mediaPaths || []).map((path, idx) => (
-                            <div key={idx} className="aspect-video bg-muted/30 rounded-xl flex items-center justify-center border border-border">
-                              <p className="text-sm text-muted">Photo {idx + 1}</p>
-                            </div>
-                          ))
+                  <div className={`rounded-xl border ${isLight ? 'bg-gray-50/70 border-gray-200/80' : 'bg-white/5 border-white/10'}`}>
+                    <button
+                      type="button"
+                      className="flex w-full items-center justify-between gap-2 p-3 text-left hover:opacity-90 transition-opacity"
+                      onClick={() => setMediaEvidenceExpanded((v) => !v)}
+                    >
+                      <div className="flex items-center gap-2">
+                        {mediaEvidenceExpanded ? <ChevronUp className="w-4 h-4 text-muted" /> : <ChevronDown className="w-4 h-4 text-muted" />}
+                        <p className="text-xs uppercase tracking-wide text-muted font-semibold">Media & Evidence</p>
+                      </div>
+                    </button>
+                    {mediaEvidenceExpanded && (
+                    <div className="px-3 pb-3 pt-0 space-y-3">
+                      <div className="flex flex-wrap gap-3 justify-center">
+                        {mediaLoading ? (
+                          <div className="w-full p-6 bg-muted/20 rounded-xl border border-border flex items-center justify-center">
+                            <p className="text-sm text-muted">Loading media...</p>
+                          </div>
+                        ) : mediaError ? (
+                          <div className="w-full p-6 bg-muted/20 rounded-xl border border-dashed border-border flex items-center justify-center">
+                            <p className="text-sm text-muted">{mediaError}</p>
+                          </div>
+                        ) : (incident.mediaPaths || []).length > 0 ? (
+                          <>
+                            {mediaUrls.map((media, idx) => {
+                              const isImageByContentType = media?.contentType?.startsWith('image/');
+                              const isImageByPath = /\.(jpg|jpeg|png|gif|webp)$/i.test(String(media?.path || ''));
+                              const isImage = isImageByContentType || (media?.url && isImageByPath);
+                              const isVideoByContentType = media?.contentType?.startsWith('video/');
+                              const isVideoByPath = /\.(mp4|webm|mov|avi)$/i.test(String(media?.path || ''));
+                              const isVideo = isVideoByContentType || (media?.url && isVideoByPath);
+                              return (
+                                <div key={idx} className="aspect-square w-32 bg-muted/30 rounded-xl flex items-center justify-center border border-border overflow-hidden">
+                                  {media?.url ? (
+                                    isImage ? (
+                                      <button
+                                        type="button"
+                                        className="w-full h-full cursor-zoom-in focus:outline-none focus:ring-2 focus:ring-primary/50 flex items-center justify-center p-1"
+                                        onClick={() => setMediaLightboxIndex(idx)}
+                                      >
+                                        <img
+                                          src={media.url}
+                                          alt={`Media ${idx + 1}`}
+                                          className="w-full h-full object-cover rounded-lg"
+                                        />
+                                      </button>
+                                    ) : isVideo ? (
+                                      <video
+                                        src={media.url}
+                                        controls
+                                        className="w-full h-full object-cover rounded-lg"
+                                      />
+                                    ) : (
+                                      <a
+                                        href={media.url}
+                                        download
+                                        className="text-sm text-primary hover:underline"
+                                      >
+                                        Download File {idx + 1}
+                                      </a>
+                                    )
+                                  ) : media?.error ? (
+                                    <div className="flex flex-col items-center gap-2 p-4">
+                                      <p className="text-sm text-muted">Failed to load</p>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={mediaRetryingIndex === idx}
+                                        onClick={() => retryMediaFetch(idx)}
+                                      >
+                                        {mediaRetryingIndex === idx ? 'Retrying...' : 'Retry'}
+                                      </Button>
+                                    </div>
+                                  ) : (
+                                    <p className="text-sm text-muted">Photo {idx + 1}</p>
+                                  )}
+                                </div>
+                              );
+                            })}
+                            <Dialog open={mediaLightboxIndex != null} onOpenChange={(open) => !open && setMediaLightboxIndex(null)} zIndex={9999}>
+                              <DialogContent className="max-w-[480px] max-h-[420px] p-0 overflow-hidden flex flex-col">
+                                {mediaLightboxIndex != null && mediaUrls[mediaLightboxIndex]?.url && (mediaUrls[mediaLightboxIndex]?.contentType?.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp)$/i.test(String(mediaUrls[mediaLightboxIndex]?.path || ''))) && (
+                                  <>
+                                    <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+                                      <p className="text-sm font-medium text-foreground">Media & Evidence</p>
+                                      <button
+                                        type="button"
+                                        onClick={() => setMediaLightboxIndex(null)}
+                                        className="rounded-full p-2 hover:bg-muted transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                        aria-label="Close"
+                                      >
+                                        <X className="w-5 h-5 text-muted-foreground" />
+                                      </button>
+                                    </div>
+                                    <div className="flex-1 overflow-auto flex items-center justify-center p-4 min-h-0">
+                                      <img
+                                        src={mediaUrls[mediaLightboxIndex].url}
+                                        alt={`Media ${mediaLightboxIndex + 1}`}
+                                        className="max-w-full max-h-[320px] object-contain"
+                                      />
+                                    </div>
+                                  </>
+                                )}
+                              </DialogContent>
+                            </Dialog>
+                          </>
                         ) : (
-                          <div className="col-span-2 p-6 bg-muted/20 rounded-xl border border-dashed border-border flex items-center justify-center">
+                          <div className="w-full p-6 bg-muted/20 rounded-xl border border-dashed border-border flex items-center justify-center">
                             <p className="text-sm text-muted">No photos provided for this incident</p>
                           </div>
                         )}
                       </div>
                     </div>
+                    )}
                   </div>
 
                   <div className={`p-3 rounded-xl border ${isLight ? 'bg-gray-50/70 border-gray-200/80' : 'bg-white/5 border-white/10'}`}>
@@ -1587,6 +1769,18 @@ export function IncidentDetailsPage() {
                             <div className={`p-2 rounded-lg border ${isLight ? 'bg-white/50 border-blue-200/50' : 'bg-white/5 border-blue-500/20'}`}>
                               <p className="text-sm font-medium text-foreground">{incident.assignedTeamName}</p>
                             </div>
+                          </div>
+                        )}
+                        {(incident?.estimatedEtaMinutes != null || incident?.estimatedArrivalAt) && (
+                          <div>
+                            <p className="text-xs text-muted mb-1">Estimated Arrival</p>
+                            <p className="text-sm font-medium text-foreground">
+                              {incident?.estimatedEtaMinutes != null
+                                ? `~${incident.estimatedEtaMinutes} min${incident?.estimatedArrivalAt ? ` (${new Date(incident.estimatedArrivalAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })})` : ''}`
+                                : incident?.estimatedArrivalAt
+                                  ? new Date(incident.estimatedArrivalAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+                                  : '—'}
+                            </p>
                           </div>
                         )}
                         {!incident?.assignedTeamName && assignedDepartmentCodeForTeamActions && !isIncidentClosed && (
@@ -2560,7 +2754,7 @@ export function IncidentDetailsPage() {
                       {dup.description && <p className="text-sm text-foreground mt-1 line-clamp-2">{dup.description}</p>}
                       {dup.created_at && (
                         <p className="text-xs text-muted mt-1">
-                          {new Date(dup.created_at).toLocaleString()}
+                          {new Date(dup.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
                         </p>
                       )}
                     </div>

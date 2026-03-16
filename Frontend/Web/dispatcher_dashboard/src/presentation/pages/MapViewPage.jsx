@@ -17,9 +17,9 @@ const ACTIVE_STATUSES = new Set(['pending', 'verified', 'in_progress']);
 const DAGUPAN_CENTER = [16.043, 120.333];
 
 function mapApiIncidentToMap(api) {
-  const typeMap = { fire: 'Fire', medical: 'Medical', police: 'Police', disaster: 'Disaster' };
+  const typeMap = { fire: 'Fire', medical: 'Medical', police: 'Police', disaster: 'Disaster', sos: 'SOS', other: 'Other' };
   const emergencyType = typeMap[api.incident_type?.toLowerCase()] || (api.incident_type ? String(api.incident_type).charAt(0).toUpperCase() + String(api.incident_type).slice(1) : 'Unknown');
-  const severityMap = { high: 'Critical', medium: 'Warning', low: 'Low' };
+  const severityMap = { high: 'Critical', critical: 'Critical', medium: 'Warning', low: 'Low' };
   const severity = severityMap[api.severity_level?.toLowerCase()] || 'Warning';
   const canonicalStatus = normalizeIncidentStatus(api.status);
   let timeReported = '-';
@@ -183,7 +183,7 @@ export function MapViewPage() {
                 <p className="text-sm text-muted">Active incidents across Dagupan City</p>
               </div>
               <span className="ml-auto text-xs text-muted">
-                {lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Loading latest data...'}
+                {lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}` : 'Loading latest data...'}
               </span>
             </div>
           </div>
