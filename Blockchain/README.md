@@ -16,6 +16,10 @@ The blockchain verify flow was updated during the latest performance session wit
 
 This keeps functional behavior for verification while reducing unnecessary repeated on-chain writes.
 
+## Gas Cost Estimation (PHP/Pesos)
+
+The optimized contract uses approximately 23,425 gas per incident verification. Cost in pesos depends on gas price and ETH rate. At 1 ETH = ₱168,000: at 20 gwei each verification costs about ₱79; at 30 gwei about ₱118; at 50 gwei about ₱197. Duplicate verifications cost ₱0 (no new transaction). Use `npm run test:gas` in `Blockchain/tests` to measure current gas and generate reports.
+
 ## Setup
 
 1. Install dependencies:
