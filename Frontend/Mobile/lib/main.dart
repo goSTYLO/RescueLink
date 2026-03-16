@@ -1,5 +1,6 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show SystemNavigator;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'firebase_options.dart';
@@ -36,6 +37,7 @@ import 'screens/home/privacy_security_screen.dart';
 import 'screens/home/logout_confirmation_screen.dart';
 import 'screens/home/about_screen.dart';
 import 'services/incident_service.dart';
+import 'services/websocket_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -159,8 +161,11 @@ class _AuthNavigatorState extends State<AuthNavigator> {
       _showDashboard = hasValidToken;
       _checkingSession = false;
     });
-    if (!hasValidToken) {
+    if (hasValidToken) {
+      WebSocketService().connect();
+    } else {
       await authService.clearToken();
+      WebSocketService().disconnect();
     }
   }
 
@@ -220,6 +225,7 @@ class _AuthNavigatorState extends State<AuthNavigator> {
   }
 
   Future<void> _performLogout() async {
+    WebSocketService().disconnect();
     await AuthService().logout();
     if (!mounted) return;
     _backToLogin();
@@ -310,6 +316,10 @@ class _AuthNavigatorState extends State<AuthNavigator> {
           context.read<AuthBloc>().add(const AuthReset());
         }
         if (state is LoginSuccess) {
+          // Brief delay so token is fully persisted before WebSocket connects
+          Future.delayed(const Duration(milliseconds: 200), () {
+            if (mounted) WebSocketService().connect();
+          });
           setState(() {
             _showDashboard = true;
             _showLoginAfterPhoneVerified = false;
@@ -355,6 +365,10 @@ class _AuthNavigatorState extends State<AuthNavigator> {
             _incidentDetailsInitialIncident = null;
             _returnToReportsTab = _incidentDetailsFromHistory;
             _incidentDetailsFromHistory = false;
+          }),
+          onReportTap: (reportId) => setState(() {
+            _incidentDetailsReportId = reportId;
+            _incidentDetailsInitialIncident = null;
           }),
         );
       }
@@ -466,9 +480,36 @@ class _AuthNavigatorState extends State<AuthNavigator> {
           onConfirm: _performLogout,
         );
       }
-      return Stack(
-        children: [
-          HomePlaceholderScreen(
+      return PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, _) async {
+          if (didPop) return;
+          final confirmed = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('Exit RescueLink?'),
+              content: const Text(
+                'Are you sure you want to exit the app?',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(false),
+                  child: const Text('Cancel'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(true),
+                  child: const Text('Exit'),
+                ),
+              ],
+            ),
+          );
+          if (confirmed == true && mounted) {
+            SystemNavigator.pop();
+          }
+        },
+        child: Stack(
+          children: [
+            HomePlaceholderScreen(
             onThemeChanged: widget.onThemeChanged,
             initialTabIndex: _returnToSettingsTab
                 ? 2
@@ -508,6 +549,7 @@ class _AuthNavigatorState extends State<AuthNavigator> {
               ),
             ),
         ],
+        ),
       );
     }
 
@@ -631,6 +673,9 @@ class _AuthNavigatorState extends State<AuthNavigator> {
         onSignUpTap: _toggleView,
         onForgotPasswordTap: _showForgotPassword,
         onLoginSuccess: () {
+          Future.delayed(const Duration(milliseconds: 200), () {
+            if (mounted) WebSocketService().connect();
+          });
           setState(() {
             _showLoginAfterPhoneVerified = false;
             _showDashboard = true;
@@ -659,6 +704,9 @@ class _AuthNavigatorState extends State<AuthNavigator> {
                 _verificationStep = null;
                 _showResidencyCheck = false;
                 _showDashboard = true;
+              });
+              Future.delayed(const Duration(milliseconds: 200), () {
+                if (mounted) WebSocketService().connect();
               });
             },
             onBack: () => setState(() => _verificationStep = 'human'),
@@ -773,6 +821,9 @@ class _AuthNavigatorState extends State<AuthNavigator> {
       onSignUpTap: _toggleView,
       onForgotPasswordTap: _showForgotPassword,
       onLoginSuccess: () {
+        Future.delayed(const Duration(milliseconds: 200), () {
+          if (mounted) WebSocketService().connect();
+        });
         setState(() => _showDashboard = true);
       },
     );

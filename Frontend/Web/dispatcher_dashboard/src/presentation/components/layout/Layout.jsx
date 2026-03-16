@@ -1,4 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useIncidentWebSocket } from '@/data/api/useIncidentWebSocket';
+import { getNotifications, getUnreadCount, markAllAsRead } from '@/data/api/notifications.api';
+import { IncidentWebSocketContext } from '@/presentation/context/IncidentWebSocketContext';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Home, Map, User, FileText, Settings, Shield, ShieldCheck, Building2, LogOut, PanelLeftClose, PanelLeft, Search, Bell, HelpCircle, ChevronDown, AlertCircle, CheckCircle, Info, X, Users, Truck, ClipboardList } from 'lucide-react';
 import { signOut } from 'firebase/auth';
@@ -14,6 +17,18 @@ import { DEV_MODE } from '@/core/config/app.config';
 import { clearAuthSession } from '@/core/auth/session';
 
 const SIDEBAR_STORAGE_KEY = 'rescuelink_sidebar_collapsed';
+
+function formatNotificationTime(sentAt) {
+  if (!sentAt) return '';
+  const d = new Date(sentAt);
+  return d.toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
 
 const NAV_SUPER_ADMIN = [
   { title: 'OVERVIEW', items: [
@@ -96,11 +111,83 @@ export function Layout({ children }) {
   const profileRef = useRef(null);
   const notificationsRef = useRef(null);
 
-  const mockNotifications = [
-    { id: '1', type: 'alert', title: 'New incident reported', body: 'Fire incident in Barangay Poblacion', time: '2 min ago', unread: true },
-    { id: '2', type: 'success', title: 'Dispatch completed', body: 'Unit BFP-01 has been assigned', time: '15 min ago', unread: true },
-    { id: '3', type: 'info', title: 'System update', body: 'Scheduled maintenance tonight 2–4 AM', time: '1 hour ago', unread: false },
-  ];
+  const { status: wsStatus, notifications: wsNotifications, clearNotifications, lastHighSeverity, clearLastHighSeverity, lastDispatched, clearLastDispatched } = useIncidentWebSocket();
+  const [apiNotifications, setApiNotifications] = useState([]);
+  const [apiUnreadCount, setApiUnreadCount] = useState(0);
+
+  const fetchApiNotifications = useCallback(async () => {
+    try {
+      const [list, count] = await Promise.all([getNotifications({ limit: 50 }), getUnreadCount()]);
+      setApiNotifications(list);
+      setApiUnreadCount(count);
+    } catch {
+      // Ignore fetch errors (e.g. no token, network)
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchApiNotifications();
+  }, [fetchApiNotifications]);
+
+  useEffect(() => {
+    if (notificationsOpen) {
+      fetchApiNotifications();
+    }
+  }, [notificationsOpen, fetchApiNotifications]);
+
+  const mapApiToUi = (n) => {
+    const eventType = n.event_type || ((n.message || '').toLowerCase().includes('assigned') ? 'dispatched' : null);
+    return {
+      id: `api-${n.notification_id}`,
+      eventType: eventType ? `incident:${eventType}` : null,
+      type: (n.message || '').toLowerCase().includes('resolved') ? 'success' : (n.message || '').toLowerCase().includes('reported') ? 'alert' : 'info',
+      title: (n.message || 'Notification').slice(0, 80),
+      body: n.message || '',
+      time: formatNotificationTime(n.sent_at),
+      unread: !n.is_read,
+      reportId: n.report_id,
+    };
+  };
+
+  useEffect(() => {
+    if (!lastHighSeverity?.data) return;
+    const d = lastHighSeverity.data;
+    const title = `New ${d.severity_level || 'high'}-severity incident`;
+    const body = `${d.incident_type || 'Incident'} in ${d.barangay || 'your area'}`;
+    Swal.fire({
+      icon: 'warning',
+      title,
+      text: body,
+      timer: 5000,
+      showConfirmButton: true,
+      timerProgressBar: true,
+      toast: true,
+      position: 'top-end',
+    });
+    clearLastHighSeverity();
+  }, [lastHighSeverity]);
+
+  useEffect(() => {
+    if (!lastDispatched?.data) return;
+    const roleNow = normalizeRole((JSON.parse(sessionStorage.getItem('user') || '{}') || {}).role);
+    const isDept = [ROLES.DEPARTMENT_ADMIN, ROLES.DEPARTMENT_HEAD, ROLES.PERSONNEL].includes(roleNow);
+    if (!isDept) return;
+    const d = lastDispatched.data;
+    const reportId = d.report_id ?? d.reportId;
+    const title = reportId ? `Incident #${reportId} assigned to your department` : 'Incident assigned to your department';
+    const body = `${d.incident_type || 'Incident'} in ${d.barangay || 'your area'}`;
+    Swal.fire({
+      icon: 'info',
+      title,
+      text: body,
+      timer: 5000,
+      showConfirmButton: true,
+      timerProgressBar: true,
+      toast: true,
+      position: 'top-end',
+    });
+    clearLastDispatched();
+  }, [lastDispatched]);
 
   useEffect(() => {
     localStorage.setItem(SIDEBAR_STORAGE_KEY, JSON.stringify(isCollapsed));
@@ -124,6 +211,26 @@ export function Layout({ children }) {
   const role = normalizeRole(currentUser.role);
   const isSuperAdmin = role === ROLES.SUPER_ADMIN;
   const isAdmin = isSuperAdmin; // legacy: Admin Actions / full access
+  const isDeptRole = [ROLES.DEPARTMENT_ADMIN, ROLES.DEPARTMENT_HEAD, ROLES.PERSONNEL].includes(role);
+
+  const filteredWs = isDeptRole
+    ? wsNotifications.filter((n) => n.eventType === 'incident:dispatched')
+    : wsNotifications;
+
+  const filteredApi = isDeptRole
+    ? apiNotifications.filter((n) => n.event_type === 'dispatched' || (n.message || '').toLowerCase().includes('assigned'))
+    : apiNotifications;
+
+  const merged = [...filteredWs, ...filteredApi.map(mapApiToUi)];
+  const seen = new Set();
+  const notifications = merged.filter((n) => {
+    const rid = n.reportId ?? n.report_id ?? 'unknown';
+    const etype = n.eventType ?? n.event_type ?? 'unknown';
+    const key = `${rid}-${etype}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 
   const userName = currentUser.name ||
     ([currentUser.firstName, currentUser.lastName].filter(Boolean).join(' ') || null) ||
@@ -206,6 +313,7 @@ export function Layout({ children }) {
   };
 
   return (
+    <IncidentWebSocketContext.Provider value={{ status: wsStatus, isConnected: wsStatus === 'connected' }}>
     <div className="flex min-h-screen h-full flex-1 bg-background">
       <aside
         className={`flex flex-col overflow-hidden transition-[width] duration-300 ease-out border-r border-border border-l-2 border-l-primary/40 shadow-sm ${
@@ -367,7 +475,14 @@ export function Layout({ children }) {
                 aria-expanded={notificationsOpen}
               >
                 <Bell className="w-5 h-5" strokeWidth={2} />
-                <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-primary" aria-hidden />
+                {(apiUnreadCount > 0 || (notifications || []).some((n) => n.unread)) && (
+                  <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-primary text-[10px] font-semibold text-primary-foreground flex items-center justify-center" aria-hidden>
+                    {apiUnreadCount > 0 ? Math.min(apiUnreadCount, 99) : '1'}
+                  </span>
+                )}
+                {wsStatus === 'connected' && (
+                  <span className="absolute bottom-1 right-1 w-1.5 h-1.5 rounded-full bg-green-500" title="Live updates connected" aria-hidden />
+                )}
               </button>
               {notificationsOpen && (
                 <div
@@ -404,7 +519,7 @@ export function Layout({ children }) {
                     </button>
                   </div>
                   <div className={`max-h-[min(70vh,320px)] overflow-y-auto ${isLight ? 'bg-white' : 'bg-card'}`}>
-                    {mockNotifications.length === 0 ? (
+                    {(notifications || []).length === 0 ? (
                       <div className="py-10 px-4 text-center">
                         <span
                           className={`inline-flex w-12 h-12 rounded-xl items-center justify-center mb-3 ${
@@ -417,7 +532,7 @@ export function Layout({ children }) {
                       </div>
                     ) : (
                       <ul>
-                        {mockNotifications.map((n) => {
+                        {(notifications || []).map((n) => {
                           const Icon = n.type === 'alert' ? AlertCircle : n.type === 'success' ? CheckCircle : Info;
                           const iconBox = isLight
                             ? 'neumorphic-light-inset bg-gray-100 text-primary'
@@ -425,7 +540,14 @@ export function Layout({ children }) {
                           return (
                             <li key={n.id}>
                               <div
-                                className={`flex gap-3 px-4 py-3 transition-colors ${
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => {
+                                  if (n.reportId) navigate(`/incidents/${n.reportId}`);
+                                  setNotificationsOpen(false);
+                                }}
+                                onKeyDown={(e) => e.key === 'Enter' && n.reportId && navigate(`/incidents/${n.reportId}`)}
+                                className={`flex gap-3 px-4 py-3 transition-colors cursor-pointer ${
                                   n.unread ? (isLight ? 'bg-primary/5' : 'bg-primary/10') : isLight ? 'hover:bg-gray-50/80' : 'hover:bg-white/5'
                                 }`}
                               >
@@ -444,18 +566,30 @@ export function Layout({ children }) {
                       </ul>
                     )}
                   </div>
-                  {mockNotifications.length > 0 && (
+                  {(notifications || []).length > 0 && (
                     <div
-                      className={`px-4 py-2.5 border-t ${
+                      className={`px-4 py-2.5 border-t flex justify-between items-center ${
                         isLight ? 'bg-gray-50/90 border-gray-200' : 'bg-white/[0.03] border-white/10'
                       }`}
                     >
                       <button
                         type="button"
-                        onClick={() => setNotificationsOpen(false)}
+                        onClick={async () => {
+                          try {
+                            await markAllAsRead();
+                            fetchApiNotifications();
+                          } catch (_) {}
+                        }}
                         className="text-xs font-medium text-primary hover:underline"
                       >
                         Mark all as read
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { clearNotifications(); setNotificationsOpen(false); }}
+                        className="text-xs font-medium text-muted hover:underline"
+                      >
+                        Clear
                       </button>
                     </div>
                   )}
@@ -522,5 +656,6 @@ export function Layout({ children }) {
         </main>
       </div>
     </div>
+    </IncidentWebSocketContext.Provider>
   );
 }

@@ -1,0 +1,50 @@
+import { API_URL } from '@/core/config/app.config';
+import { getAuthHeaders, parseJsonOrEmpty } from '@/data/api/http';
+
+/**
+ * Fetch persisted notifications for the current user
+ * @param {Object} params
+ * @param {number} [params.limit=50]
+ * @param {number} [params.offset=0]
+ * @returns {Promise<Array>} Array of notification objects
+ */
+export async function getNotifications({ limit = 50, offset = 0 } = {}) {
+  const url = `${API_URL}/api/notifications?limit=${limit}&offset=${offset}`;
+  const res = await fetch(url, { headers: getAuthHeaders() });
+  if (!res.ok) {
+    const data = await parseJsonOrEmpty(res);
+    throw new Error(data?.error || res.statusText || 'Failed to fetch notifications');
+  }
+  const body = await res.json();
+  return Array.isArray(body) ? body : [];
+}
+
+/**
+ * Mark all notifications as read for the current user
+ * @returns {Promise<number>} Number of notifications marked
+ */
+export async function markAllAsRead() {
+  const url = `${API_URL}/api/notifications/mark-all-read`;
+  const res = await fetch(url, { method: 'POST', headers: getAuthHeaders() });
+  if (!res.ok) {
+    const data = await parseJsonOrEmpty(res);
+    throw new Error(data?.error || res.statusText || 'Failed to mark as read');
+  }
+  const data = await res.json();
+  return typeof data?.marked === 'number' ? data.marked : 0;
+}
+
+/**
+ * Fetch unread notification count for badge display
+ * @returns {Promise<number>}
+ */
+export async function getUnreadCount() {
+  const url = `${API_URL}/api/notifications/unread-count`;
+  const res = await fetch(url, { headers: getAuthHeaders() });
+  if (!res.ok) {
+    const data = await parseJsonOrEmpty(res);
+    throw new Error(data?.error || res.statusText || 'Failed to fetch unread count');
+  }
+  const data = await res.json();
+  return typeof data?.count === 'number' ? data.count : 0;
+}

@@ -46,6 +46,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
+import { useIncidentWebSocketStatus } from '@/presentation/context/IncidentWebSocketContext';
 import { Breadcrumb } from '@/presentation/components/common/Breadcrumb';
 
 const DEPARTMENT_TYPES = [
@@ -78,9 +79,13 @@ function inferDepartmentSectorCode(dept) {
   return 'drrmo';
 }
 
+const POLLING_INTERVAL_MS = 60000;
+const POLLING_WHEN_WS_CONNECTED_MS = 120000;
+
 export function DepartmentsPage() {
   const navigate = useNavigate();
   const { theme } = useTheme();
+  const { isConnected: wsConnected } = useIncidentWebSocketStatus();
   const isLight = theme === 'light';
   const [departments, setDepartments] = useState([]);
   const [isLoadingDepartments, setIsLoadingDepartments] = useState(true);
@@ -147,14 +152,15 @@ export function DepartmentsPage() {
   useEffect(() => {
     loadDepartments();
     loadResponderResources();
-    const intervalId = setInterval(loadDepartments, 60000);
+    const intervalMs = wsConnected ? POLLING_WHEN_WS_CONNECTED_MS : POLLING_INTERVAL_MS;
+    const intervalId = setInterval(loadDepartments, intervalMs);
     const handleIncidentUpdated = () => loadDepartments();
     window.addEventListener('incident:updated', handleIncidentUpdated);
     return () => {
       clearInterval(intervalId);
       window.removeEventListener('incident:updated', handleIncidentUpdated);
     };
-  }, [loadDepartments, loadResponderResources]);
+  }, [loadDepartments, loadResponderResources, wsConnected]);
   const [form, setForm] = useState({
     name: '',
     type: 'Fire',

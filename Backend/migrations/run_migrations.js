@@ -15,6 +15,8 @@ const MIGRATIONS_DIR = path.join(__dirname);
 const MIGRATION_ORDER = [
   'add_duplicate_detection.sql',
   'add_flagged_for_review.sql',
+  'add_notifications_is_read.sql',
+  'add_notification_event_type.sql',
 ];
 
 async function runMigrations() {

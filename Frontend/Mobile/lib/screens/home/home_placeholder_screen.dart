@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'report_history_screen.dart';
+import '../../services/websocket_service.dart';
+import '../../services/notification_service.dart';
 import 'notifications_screen.dart';
 import 'settings_screen.dart';
 import '../../services/auth_service.dart';
@@ -50,6 +52,9 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
   Timer? _sosTimer;
   int _sosCountdown = 0;
   bool _loadingLocation = true;
+  int _unreadReportsCount = 0;
+  int _apiUnreadCount = 0;
+  StreamSubscription<IncidentEvent>? _wsSubscription;
   bool _safetyTipsExpanded = false;
   String? _locationError;
   String _locationTitle = 'Dagupan City, Pangasinan';
@@ -59,6 +64,31 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
   void initState() {
     super.initState();
     _loadHomeLocation();
+    _fetchUnreadCount();
+    _wsSubscription = WebSocketService().eventStream.listen((event) {
+      if (!mounted) return;
+      final title = _formatNotificationTitle(event);
+      if (_currentIndex != 1) {
+        setState(() => _unreadReportsCount++);
+      }
+      if (title != null && title.isNotEmpty) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+            SnackBar(
+              content: Text(title),
+              behavior: SnackBarBehavior.floating,
+              action: event.reportId != null && widget.onReportTap != null
+                  ? SnackBarAction(
+                      label: 'View',
+                      onPressed: () => widget.onReportTap!(event.reportId!),
+                    )
+                  : null,
+            ),
+          );
+        });
+      }
+    });
     if (widget.initialTabIndex != null) {
       _currentIndex = widget.initialTabIndex!;
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -69,8 +99,16 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
 
   @override
   void dispose() {
+    _wsSubscription?.cancel();
     _sosTimer?.cancel();
     super.dispose();
+  }
+
+  Future<void> _fetchUnreadCount() async {
+    try {
+      final count = await NotificationService().getUnreadCount();
+      if (mounted) setState(() => _apiUnreadCount = count);
+    } catch (_) {}
   }
 
   Future<void> _loadHomeLocation() async {
@@ -130,6 +168,25 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
     _sosTimer?.cancel();
     _sosTimer = null;
     setState(() => _sosCountdown = 0);
+  }
+
+  String? _formatNotificationTitle(IncidentEvent event) {
+    final reportId = event.reportId;
+    final prefix = reportId != null ? 'Report #$reportId: ' : '';
+    switch (event.event) {
+      case 'incident:created':
+        return '${prefix}New incident reported';
+      case 'incident:status_updated':
+        return '${prefix}Status: ${event.status ?? 'updated'}';
+      case 'incident:verified':
+        return '${prefix}Verified';
+      case 'incident:dispatched':
+        return '${prefix}Dispatched';
+      case 'incident:resolution_confirmed':
+        return '${prefix}Resolved';
+      default:
+        return reportId != null ? '${prefix}Updated' : null;
+    }
   }
 
   int _currentIndex = 0;
@@ -229,21 +286,33 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
   void _openNotifications(BuildContext context) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (context) => Scaffold(
-          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        builder: (ctx) => Scaffold(
+          backgroundColor: Theme.of(ctx).scaffoldBackgroundColor,
           body: Column(
             children: [
               GradientHeader(
                 title: 'Notifications',
-                onBack: () => Navigator.of(context).pop(),
+                onBack: () => Navigator.of(ctx).pop(),
                 transparentFade: true,
               ),
-              const Expanded(child: SafeArea(top: false, child: NotificationsScreen())),
+              Expanded(
+                child: SafeArea(
+                  top: false,
+                  child: NotificationsScreen(
+                    onNotificationTap: (reportId) {
+                      Navigator.of(ctx).pop();
+                      if (reportId != null) {
+                        widget.onReportTap?.call(reportId);
+                      }
+                    },
+                  ),
+                ),
+              ),
             ],
           ),
         ),
       ),
-    );
+    ).then((_) => _fetchUnreadCount());
   }
 
   Widget _buildHomeContent() {
@@ -293,13 +362,20 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Expanded(child: _buildLogo(width, onRedGradient: true)),
-                        IconButton(
-                          icon: const Icon(Icons.notifications_none,
-                              color: Colors.white, size: 28),
-                          onPressed: () => _openNotifications(context),
-                          visualDensity: compact
-                              ? VisualDensity.compact
-                              : VisualDensity.standard,
+                        Badge(
+                          isLabelVisible: _apiUnreadCount > 0 || _unreadReportsCount > 0,
+                          label: Text(
+                            '${_apiUnreadCount + _unreadReportsCount}',
+                            style: const TextStyle(fontSize: 10, color: Colors.white),
+                          ),
+                          child: IconButton(
+                            icon: const Icon(Icons.notifications_none,
+                                color: Colors.white, size: 28),
+                            onPressed: () => _openNotifications(context),
+                            visualDensity: compact
+                                ? VisualDensity.compact
+                                : VisualDensity.standard,
+                          ),
                         ),
                       ],
                     ),
@@ -478,10 +554,11 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
   Widget _buildReportHistoryContent() {
     return StaggeredFadeIn.single(
       trigger: _currentIndex == 1 ? _tabSwitchCounter : null,
-      child: ReportHistoryScreen(
+        child: ReportHistoryScreen(
         onReportTap: widget.onReportTap,
         onReportIncidentTap: widget.onSosPressed,
         onNotificationsTap: () => _openNotifications(context),
+        unreadNotificationCount: _apiUnreadCount + _unreadReportsCount,
       ),
     );
   }
@@ -544,7 +621,7 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 _navItem(0, Icons.home, 'Home', screenWidth),
-                _navItem(1, Icons.bar_chart, 'Reports', screenWidth),
+                _navItem(1, Icons.bar_chart, 'Reports', screenWidth, badgeCount: _unreadReportsCount),
                 _navItem(2, Icons.settings, 'Settings', screenWidth),
               ],
             ),
@@ -554,7 +631,7 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
     );
   }
 
-  Widget _navItem(int index, IconData icon, String label, double screenWidth) {
+  Widget _navItem(int index, IconData icon, String label, double screenWidth, {int badgeCount = 0}) {
     final isSelected = _currentIndex == index;
     final horizontalPadding = Responsive.navItemHorizontalPadding(screenWidth);
     final labelSize = Responsive.navLabelSize(screenWidth);
@@ -564,6 +641,7 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
         setState(() {
           _currentIndex = index;
           _tabSwitchCounter++;
+          if (index == 1) _unreadReportsCount = 0;
         });
       },
       borderRadius: BorderRadius.circular(12),
@@ -573,12 +651,38 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              icon,
-              size: 24,
-              color: isSelected
-                  ? const Color(0xFFEF4444)
-                  : Theme.of(context).colorScheme.onSurfaceVariant,
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Icon(
+                  icon,
+                  size: 24,
+                  color: isSelected
+                      ? const Color(0xFFEF4444)
+                      : Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+                if (badgeCount > 0)
+                  Positioned(
+                    top: -4,
+                    right: -8,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFEF4444),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Text(
+                        badgeCount > 99 ? '99+' : '$badgeCount',
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
             const SizedBox(height: 4),
             Text(

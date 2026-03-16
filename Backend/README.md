@@ -2,6 +2,23 @@
 
 Node.js + Express backend for RescueLink, using PostgreSQL. Handles authentication, incident reporting, dispatcher workflows, AI-powered incident classification, and audit logging.
 
+## Session Updates (Rate Limit, Notifications, Incident Closure)
+
+Recent backend updates:
+
+- **API rate limit relaxation**:
+  - Default: 2000 requests per 15 min (dev), 500 (production).
+  - Override via `API_RATE_LIMIT_MAX` env var.
+  - Reduces 429 errors during normal dashboard usage.
+- **Notifications enrichment**:
+  - `GET /api/notifications` now joins `incident_reports` and returns `incident_type` and `incident_status` per notification.
+  - Fallback query when schema lacks these columns.
+- **Incident status update**:
+  - `PATCH /api/incidents/:id/status` now accepts `closed` for admin/dispatcher (force-close without reporter confirmation).
+  - `allow_force_close` passed to Incident model when actor is admin/dispatcher.
+- **Resource release on closed**:
+  - `releaseIncidentResources` continues to run on `resolved` and `closed`, releasing teams, responders, and department units.
+
 ## Session Updates (Mobile + Backend Incident Integration)
 
 Recent backend changes aligned with current mobile integration:
@@ -178,6 +195,7 @@ Latest reliability fixes applied:
 | `JWT_SECRET` | Secret for signing JWTs (32+ chars in production) | Yes |
 | `SALT_ROUNDS` | bcrypt salt rounds (default: 10) | No |
 | `PORT` | Server port (default: 3000) | No |
+| `API_RATE_LIMIT_MAX` | Max API requests per 15 min per IP (default: 2000 dev, 500 prod) | No |
 | `NODE_ENV` | `production` or `development` | Yes in production |
 | `FIREBASE_SERVICE_ACCOUNT_PATH` | Path to Firebase service account JSON | For phone auth |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` | SMTP for password reset emails | For dispatcher forgot-password |

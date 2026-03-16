@@ -10,6 +10,15 @@ Duplicate incident linking is a **dispatcher-only** feature available on the web
 
 Recent mobile updates:
 
+- **Incident Details notification access**:
+  - notification bell icon added to the Incident Details header (next to logo).
+  - tapping opens the Notifications screen, consistent with Report History and Settings.
+  - optional `onNotificationsTap` callback allows parent override; default pushes Notifications screen.
+- **Exit confirmation**:
+  - `PopScope` on home shows confirmation dialog when user attempts to exit the app.
+- **Logout confirmation UX**:
+  - "Log out from all devices" copy updated to "End all active sessions on your phone and tablet" (removed "and web browser").
+  - Cancel button uses `theme.colorScheme.onSurface` and `theme.colorScheme.outline` for correct visibility in dark mode.
 - **Unified incident experience**:
   - `Emergency Tracking` and `Report Details` were merged into a single `Incident Details` screen.
   - incident layout is tracking-first (status, timeline, responder availability/location placeholders, then details/evidence).
@@ -26,8 +35,11 @@ Recent mobile updates:
   - attached videos currently use download flow (inline video preview/playback is pending).
 - **Notifications integration**:
   - notifications screen is backend-driven via `/api/notifications`.
-  - pull-to-refresh, loading/error/empty states, and dynamic card styling by `sent_via` are now implemented.
-  - mark-as-read is intentionally shown as unavailable until backend contract is added.
+  - pull-to-refresh, loading/error/empty states, and dynamic card styling by `sent_via`.
+  - **Mark all as read** supported via `POST /api/notifications/mark-all-read`.
+  - **Notification badge** on Report History, Incident Details, and Home screens.
+  - **Richer notification cards**: collapsed view shows incident type + preview (e.g. "Fire • Status updated to In Progress"); expanded view shows incident type, status update, full message, and View button.
+  - Tap to expand/collapse; View button navigates to incident details.
 - **API error handling hardening**:
   - `ApiService` now rethrows `ApiException` consistently so screen-level messages preserve backend context.
   - incident detail loading now handles `/with-ai` fallback more strictly (falls back only when endpoint is unavailable).
@@ -225,7 +237,6 @@ flutter build ios --release
 
 - Implement authentication BLoC
 - Extend inline incident evidence support to video preview/playback
-- Add notification read-state lifecycle once backend endpoint is available
 - Add location services
 - Implement push notifications
 

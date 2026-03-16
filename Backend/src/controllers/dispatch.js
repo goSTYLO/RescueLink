@@ -6,6 +6,29 @@ const Department = require('../models/department');
 const { validateInteger, validateOptionalString, validatePagination } = require('../utils/validation');
 const { logDispatcherAction } = require('../utils/auditLog');
 const { ROLES } = require('../config/roles');
+const { persistIncidentNotifications } = require('../services/notificationPersistence');
+
+function emitDispatchEvent(req, event, reportId, incident = null) {
+  const wss = req.app?.locals?.wss;
+  if (!reportId) return;
+  const data = incident
+    ? {
+        report_id: reportId,
+        reporter_id: incident.user_id ?? incident.userId ?? incident.reporter_id,
+        status: incident.status,
+        incident_type: incident.incident_type,
+        severity_level: incident.severity_level,
+        barangay: incident.barangay,
+        updated_at: incident.updated_at ?? incident.created_at ?? new Date().toISOString(),
+      }
+    : { report_id: reportId, updated_at: new Date().toISOString() };
+  if (wss?.broadcast) {
+    wss.broadcast(event, data).catch(() => {});
+  }
+  persistIncidentNotifications(event, data).catch((err) =>
+    console.error('[emitDispatchEvent] Notification persistence failed:', err.message)
+  );
+}
 
 const dispatchController = {
   // Create new dispatch
@@ -142,7 +165,8 @@ const dispatchController = {
           team_name: validatedTeamName,
         });
 
-        if (dispatches.length > 0 && existingDispatchCount === 0) {
+        // Transition to in_progress when team/responders assigned (including dept admin adding team to department-only)
+        if (dispatches.length > 0) {
           try {
             await Incident.transitionStatus(validatedReportId, {
               next_status: 'in_progress',
@@ -153,6 +177,10 @@ const dispatchController = {
             // Best-effort lifecycle hook; keep dispatch creation successful.
           }
         }
+
+        const updatedIncident = await Incident.findById(validatedReportId);
+        emitDispatchEvent(req, 'incident:dispatched', validatedReportId, updatedIncident);
+        emitDispatchEvent(req, 'incident:status_updated', validatedReportId, updatedIncident);
 
         return res.status(201).json({
           assignment_group_id: assignmentGroupId,
@@ -188,17 +216,11 @@ const dispatchController = {
           department_code: validatedDepartmentCode,
         });
 
-        if (existingDispatchCount === 0) {
-          try {
-            await Incident.transitionStatus(validatedReportId, {
-              next_status: 'in_progress',
-              actor_user_id: assignedByUserId,
-              actor_role: req.user?.role || null,
-            });
-          } catch (_) {
-            // Best-effort lifecycle hook; keep dispatch creation successful.
-          }
-        }
+        // Do NOT transition to in_progress here - only when dept admin assigns a team
+
+        const updatedIncident = await Incident.findById(validatedReportId);
+        emitDispatchEvent(req, 'incident:dispatched', validatedReportId, updatedIncident);
+        emitDispatchEvent(req, 'incident:status_updated', validatedReportId, updatedIncident);
 
         return res.status(201).json({
           assignment_group_id: assignmentGroupId,
@@ -249,7 +271,8 @@ const dispatchController = {
           });
         }
 
-        if (autoAssignment.dispatches.length > 0 && existingDispatchCount === 0) {
+        // Transition to in_progress when team assigned (including dept admin adding team to department-only)
+        if (autoAssignment.dispatches.length > 0) {
           try {
             await Incident.transitionStatus(validatedReportId, {
               next_status: 'in_progress',
@@ -260,6 +283,10 @@ const dispatchController = {
             // Best-effort lifecycle hook; keep dispatch creation successful.
           }
         }
+
+        const updatedIncident = await Incident.findById(validatedReportId);
+        emitDispatchEvent(req, 'incident:dispatched', validatedReportId, updatedIncident);
+        emitDispatchEvent(req, 'incident:status_updated', validatedReportId, updatedIncident);
 
         return res.status(201).json({
           assignment_group_id: assignmentGroupId,
@@ -318,17 +345,19 @@ const dispatchController = {
         team_name: validatedTeamName,
       });
 
-      if (existingDispatchCount === 0) {
-        try {
-          await Incident.transitionStatus(validatedReportId, {
-            next_status: 'in_progress',
-            actor_user_id: assignedByUserId,
-            actor_role: req.user?.role || null,
-          });
-        } catch (_) {
-          // Best-effort lifecycle hook; keep dispatch creation successful.
-        }
+      // Transition to in_progress when responder assigned (legacy path)
+      try {
+        await Incident.transitionStatus(validatedReportId, {
+          next_status: 'in_progress',
+          actor_user_id: assignedByUserId,
+          actor_role: req.user?.role || null,
+        });
+      } catch (_) {
+        // Best-effort lifecycle hook; keep dispatch creation successful.
       }
+      const updatedIncident = await Incident.findById(validatedReportId);
+      emitDispatchEvent(req, 'incident:dispatched', validatedReportId, updatedIncident);
+      emitDispatchEvent(req, 'incident:status_updated', validatedReportId, updatedIncident);
       res.status(201).json(dispatch);
     } catch (error) {
       console.error('Error creating dispatch:', error);
@@ -454,6 +483,8 @@ const dispatchController = {
         responder_id: validatedResponderId,
         response_status: validatedResponseStatus
       });
+      const incident = await Incident.findById(validatedReportId);
+      emitDispatchEvent(req, 'incident:status_updated', validatedReportId, incident);
       res.json(updated);
     } catch (error) {
       console.error('Error updating dispatch:', error);
@@ -480,6 +511,8 @@ const dispatchController = {
         report_id: deleted.report_id,
         responder_id: deleted.responder_id
       });
+      const incident = await Incident.findById(deleted.report_id);
+      emitDispatchEvent(req, 'incident:status_updated', deleted.report_id, incident);
       res.json({ message: 'Dispatch deleted successfully', dispatch: deleted });
     } catch (error) {
       console.error('Error deleting dispatch:', error);
@@ -540,6 +573,9 @@ const dispatchController = {
         department_code: validatedDepartmentCode,
         deleted_count: deletedDispatches.length,
       });
+
+      const incident = await Incident.findById(validatedReportId);
+      emitDispatchEvent(req, 'incident:dispatched', validatedReportId, incident);
 
       return res.json({
         message: 'Department notification undone',

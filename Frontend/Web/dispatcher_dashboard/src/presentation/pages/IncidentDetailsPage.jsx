@@ -220,6 +220,25 @@ export function IncidentDetailsPage() {
     fetchIncident();
   }, [fetchIncident]);
 
+  const [justUpdatedAt, setJustUpdatedAt] = useState(null);
+  useEffect(() => {
+    const handleUpdated = (e) => {
+      const incidentId = e?.detail?.incidentId ?? e?.detail?.report_id;
+      if (incidentId != null && String(incidentId) === String(id)) {
+        fetchIncident({ silent: true });
+        setJustUpdatedAt(Date.now());
+      }
+    };
+    window.addEventListener('incident:updated', handleUpdated);
+    return () => window.removeEventListener('incident:updated', handleUpdated);
+  }, [id, fetchIncident]);
+
+  useEffect(() => {
+    if (!justUpdatedAt) return;
+    const t = setTimeout(() => setJustUpdatedAt(null), 4000);
+    return () => clearTimeout(t);
+  }, [justUpdatedAt]);
+
   // Fetch audio when incident has audio and we're viewing API-sourced incident
   useEffect(() => {
     const numericId = /^\d+$/.test(String(id));
@@ -531,6 +550,13 @@ export function IncidentDetailsPage() {
 
   useEffect(() => {
     let cancelled = false;
+    const u = JSON.parse(sessionStorage.getItem('user') || '{}');
+    const role = normalizeRole(u.role);
+    const canListDepartments = [ROLES.SUPER_ADMIN, ROLES.DISPATCHER].includes(role);
+    if (!canListDepartments) {
+      setDepartmentList([]);
+      return;
+    }
     getDepartments()
       .then((rows) => {
         if (cancelled) return;
@@ -1319,7 +1345,12 @@ export function IncidentDetailsPage() {
   return (
     <Layout>
       <div className="p-4 md:p-6">
-        <Breadcrumb items={[{ label: 'Home', path: '/dashboard' }, { label: 'Incidents', path: '/dashboard' }, { label: `Incident #${incident?.id ?? id}` }]} />
+        <div className="flex items-center gap-3 flex-wrap">
+          <Breadcrumb items={[{ label: 'Home', path: '/dashboard' }, { label: 'Incidents', path: '/dashboard' }, { label: `Incident #${incident?.id ?? id}` }]} />
+          {justUpdatedAt && (
+            <span className="text-xs text-muted animate-pulse">Updated just now</span>
+          )}
+        </div>
         <div className={`sticky top-2 z-30 mb-3 rounded-2xl border px-3 py-2 ${isLight ? 'bg-white/95 border-gray-200/80 backdrop-blur' : 'bg-card/90 border-white/10 backdrop-blur'}`}>
           <div className="flex flex-wrap items-center gap-2">
             {renderPrimaryActions({ compact: true })}

@@ -65,6 +65,61 @@ class NotificationService {
         .toList();
   }
 
+  /// Marks all notifications as read for the current user.
+  Future<int> markAllAsRead() async {
+    final uri = Uri.parse('${AppConfig.apiBaseUrl}/api/notifications/mark-all-read');
+
+    http.Response response;
+    try {
+      response = await _client
+          .post(uri, headers: _headers())
+          .timeout(AppConfig.apiTimeout);
+    } on SocketException {
+      throw NotificationServiceException('Unable to connect to ${AppConfig.apiBaseUrl}.');
+    }
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw NotificationServiceException(
+        _extractErrorMessage(response),
+        statusCode: response.statusCode,
+      );
+    }
+
+    try {
+      final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+      final marked = decoded['marked'];
+      return marked is int ? marked : 0;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  /// Fetches unread notification count for badge display.
+  Future<int> getUnreadCount() async {
+    final uri = Uri.parse('${AppConfig.apiBaseUrl}/api/notifications/unread-count');
+
+    http.Response response;
+    try {
+      response = await _client
+          .get(uri, headers: _headers())
+          .timeout(AppConfig.apiTimeout);
+    } on SocketException {
+      return 0;
+    }
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      return 0;
+    }
+
+    try {
+      final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+      final count = decoded['count'];
+      return count is int ? count : 0;
+    } catch (_) {
+      return 0;
+    }
+  }
+
   String _extractErrorMessage(http.Response response) {
     try {
       final decoded = jsonDecode(response.body) as Map<String, dynamic>;

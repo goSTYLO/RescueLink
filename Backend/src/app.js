@@ -93,10 +93,13 @@ app.use((req, res, next) => {
 
 app.use(requestTimingMiddleware);
 
-// General API rate limit: 200 requests per 15 minutes per IP
+// General API rate limit: configurable via API_RATE_LIMIT_MAX (default 2000/15min for dev, 500 for prod)
+const apiRateLimitMax = process.env.API_RATE_LIMIT_MAX
+  ? parseInt(process.env.API_RATE_LIMIT_MAX, 10)
+  : (process.env.NODE_ENV === 'production' ? 500 : 2000);
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 200,
+  max: apiRateLimitMax,
   message: { message: 'Too many requests. Please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -146,6 +149,7 @@ app.use((err, req, res, next) => {
 });
 
 // Start AI classification retry service
+console.log(`\n🔒 API rate limit: ${apiRateLimitMax} requests per 15 min (set API_RATE_LIMIT_MAX to override)`);
 console.log('\n🤖 Initializing AI services...');
 const retryTask = startRetryService();
 const scanRetryTask = startFileScanRetryService();

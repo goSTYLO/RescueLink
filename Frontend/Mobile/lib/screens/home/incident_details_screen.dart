@@ -8,6 +8,8 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:path_provider/path_provider.dart';
 import '../../services/incident_service.dart';
+import '../../services/notification_service.dart';
+import '../../services/websocket_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/report_ui.dart';
 import '../../widgets/glass_card.dart';
@@ -20,6 +22,7 @@ class IncidentDetailsScreen extends StatefulWidget {
   final Map<String, dynamic>? initialIncident;
   final VoidCallback? onBack;
   final VoidCallback? onNotificationsTap;
+  final void Function(int reportId)? onReportTap;
 
   const IncidentDetailsScreen({
     super.key,
@@ -27,6 +30,7 @@ class IncidentDetailsScreen extends StatefulWidget {
     this.initialIncident,
     this.onBack,
     this.onNotificationsTap,
+    this.onReportTap,
   });
 
   @override
@@ -38,6 +42,7 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
   Map<String, dynamic>? _aiClassification;
   final IncidentService _incidentService = IncidentService();
   final AudioPlayer _audioPlayer = AudioPlayer();
+  StreamSubscription<IncidentEvent>? _wsSubscription;
   final List<StreamSubscription<dynamic>> _audioSubscriptions =
       <StreamSubscription<dynamic>>[];
   bool _loading = true;
@@ -53,6 +58,7 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
   Duration _audioDuration = Duration.zero;
   String? _loadError;
   final Set<String> _expandedSections = {'timeline', 'summary'};
+  int _apiUnreadCount = 0;
 
   @override
   void initState() {
@@ -87,15 +93,44 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
       }),
     );
 
+    _fetchUnreadCount();
     if (_resolvedReportId != null) {
       _loadIncident();
+      _wsSubscription = WebSocketService().eventStream.listen((event) {
+        if (!mounted) return;
+        final rid = event.reportId ?? event.data['report_id'];
+        if (rid != null && rid == _resolvedReportId) {
+          _loadIncident();
+        }
+      });
     } else {
       setState(() => _loading = false);
     }
   }
 
   @override
+  void didUpdateWidget(IncidentDetailsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.reportId != widget.reportId && widget.reportId != null) {
+      setState(() {
+        _incident = null;
+        _aiClassification = null;
+        _loading = true;
+      });
+      _loadIncident();
+    }
+  }
+
+  Future<void> _fetchUnreadCount() async {
+    try {
+      final count = await NotificationService().getUnreadCount();
+      if (mounted) setState(() => _apiUnreadCount = count);
+    } catch (_) {}
+  }
+
+  @override
   void dispose() {
+    _wsSubscription?.cancel();
     for (final subscription in _audioSubscriptions) {
       subscription.cancel();
     }
@@ -545,11 +580,18 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                IconButton(
-                  icon: const Icon(Icons.notifications_none, color: Colors.white, size: 28),
-                  onPressed: widget.onNotificationsTap ?? _openNotifications,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
+                Badge(
+                  isLabelVisible: _apiUnreadCount > 0,
+                  label: Text(
+                    '$_apiUnreadCount',
+                    style: const TextStyle(fontSize: 10, color: Colors.white),
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.notifications_none, color: Colors.white, size: 28),
+                    onPressed: widget.onNotificationsTap ?? _openNotifications,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
                 ),
                 const SizedBox(width: 8),
                 Image.asset(
@@ -636,17 +678,30 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
                                       _incident?['status'] as String?) &&
                                   _reporterConfirmed) ...[
                                 const SizedBox(height: 12),
-                                Row(
-                                  children: [
-                                    const Icon(Icons.check_circle, color: Color(0xFF22C55E), size: 20),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      ReportStatusUi.isClosed(_incident?['status'] as String?)
-                                          ? 'You confirmed this resolution. Incident is now closed.'
-                                          : 'You confirmed this resolution.',
-                                      style: const TextStyle(fontSize: 13, color: Color(0xFF15803D)),
-                                    ),
-                                  ],
+                                LayoutBuilder(
+                                  builder: (context, constraints) {
+                                    return Row(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        const Icon(Icons.check_circle, color: Color(0xFF22C55E), size: 20),
+                                        const SizedBox(width: 8),
+                                        SizedBox(
+                                          width: constraints.maxWidth.isFinite
+                                              ? (constraints.maxWidth - 28).clamp(0.0, double.infinity)
+                                              : 300,
+                                          child: Text(
+                                            ReportStatusUi.isClosed(_incident?['status'] as String?)
+                                                ? 'You confirmed this resolution. Incident is now closed.'
+                                                : 'You confirmed this resolution.',
+                                            style: const TextStyle(fontSize: 13, color: Color(0xFF15803D)),
+                                            maxLines: 3,
+                                            overflow: TextOverflow.ellipsis,
+                                            softWrap: true,
+                                          ),
+                                        ),
+                                      ],
+                                    );
+                                  },
                                 ),
                               ],
                               const SizedBox(height: 16),
@@ -1054,21 +1109,33 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
   void _openNotifications() {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (context) => Scaffold(
-          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        builder: (ctx) => Scaffold(
+          backgroundColor: Theme.of(ctx).scaffoldBackgroundColor,
           body: Column(
             children: [
               GradientHeader(
                 title: 'Notifications',
-                onBack: () => Navigator.of(context).pop(),
+                onBack: () => Navigator.of(ctx).pop(),
                 transparentFade: true,
               ),
-              const Expanded(child: SafeArea(top: false, child: NotificationsScreen())),
+              Expanded(
+                child: SafeArea(
+                  top: false,
+                  child: NotificationsScreen(
+                    onNotificationTap: (reportId) {
+                      Navigator.of(ctx).pop();
+                      if (reportId != null) {
+                        widget.onReportTap?.call(reportId);
+                      }
+                    },
+                  ),
+                ),
+              ),
             ],
           ),
         ),
       ),
-    );
+    ).then((_) => _fetchUnreadCount());
   }
 
   Widget _timelineItem({

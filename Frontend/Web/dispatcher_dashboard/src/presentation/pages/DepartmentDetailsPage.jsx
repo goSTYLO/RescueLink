@@ -162,6 +162,15 @@ export function DepartmentDetailsPage() {
     loadResponderResources();
   }, [loadDepartment, loadResponderResources]);
 
+  useEffect(() => {
+    const handleIncidentUpdated = () => {
+      loadDepartment();
+      loadResponderResources();
+    };
+    window.addEventListener('incident:updated', handleIncidentUpdated);
+    return () => window.removeEventListener('incident:updated', handleIncidentUpdated);
+  }, [loadDepartment, loadResponderResources]);
+
   const departmentTeams = useMemo(() => {
     if (!departmentCode) return [];
     return teams.filter((team) => String(team?.department_code || '').trim().toLowerCase() === departmentCode);

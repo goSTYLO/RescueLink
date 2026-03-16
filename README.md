@@ -44,6 +44,6 @@ Use this as the primary entry point for setup, run, and testing docs across the 
 
 ## Recent session highlights
 
-- AI pipeline updates: startup warmup controls, improved m4a reliability, and text-only long-report benchmark scenario.
-- Backend updates: optional AI precheck gating, with-audio deep-scan deduplication, and richer blockchain verify metadata.
-- Blockchain updates: gas metrics returned in API responses and duplicate verification write prevention (`already_recorded`).
+- **Mobile:** Notifications screen enhanced with richer collapsed preview (incident type, status update), expanded details (incident type, status updated to X), tap-to-expand with View button; smaller "Mark all as read"; exit confirmation on app close; notification badge on Report History and Incident Details.
+- **Web:** Notification deduplication (by reportId + eventType); breadcrumb routing aligned with RBAC (department users navigate to correct home); `getDepartments` skipped for department roles (fixes 403); team/responder/unit refetch on `incident:updated` when incident closed; MapViewPage `wsConnected` fix.
+- **Backend:** API rate limit relaxed (2000/15min dev, 500 prod; `API_RATE_LIMIT_MAX` env override); notifications now include `incident_type` and `incident_status` via join; `PATCH /incidents/:id/status` accepts `closed` for admin/dispatcher (force-close); resource release on resolved/closed confirmed.

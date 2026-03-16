@@ -666,7 +666,7 @@ const Incident = {
     return res.rows[0];
   },
 
-  async transitionStatus(report_id, { next_status, actor_user_id = null, actor_role = null } = {}) {
+  async transitionStatus(report_id, { next_status, actor_user_id = null, actor_role = null, allow_force_close = false } = {}) {
     const normalizedNext = normalizeIncidentStatus(next_status);
     let currentResult;
     try {
@@ -722,7 +722,7 @@ const Incident = {
       );
     }
 
-    if (normalizedNext === 'closed' && !incident.reporter_confirmed_at) {
+    if (normalizedNext === 'closed' && !incident.reporter_confirmed_at && !allow_force_close) {
       throw createIncidentStateError(
         'INCIDENT_CLOSE_CONFIRMATION_REQUIRED',
         'Incident can only be closed after reporter confirmation.',

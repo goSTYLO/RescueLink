@@ -9,10 +9,12 @@ import { useNavigate } from 'react-router-dom';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
 import { getIncidents, normalizeIncidentStatus } from '@/data/api/incidents.api';
 import { DEV_MODE } from '@/core/config/app.config';
+import { useIncidentWebSocketStatus } from '@/presentation/context/IncidentWebSocketContext';
 import { MapContainer, Marker, Popup, TileLayer, Tooltip } from 'react-leaflet';
 import L from 'leaflet';
 
 const POLLING_INTERVAL_MS = 60000;
+const POLLING_WHEN_WS_CONNECTED_MS = 120000;
 const ACTIVE_STATUSES = new Set(['pending', 'verified', 'in_progress']);
 const DAGUPAN_CENTER = [16.043, 120.333];
 
@@ -73,6 +75,7 @@ function buildMapLinks(latitude, longitude) {
 export function MapViewPage() {
   const navigate = useNavigate();
   const { theme } = useTheme();
+  const { isConnected: wsConnected } = useIncidentWebSocketStatus();
   const isLight = theme === 'light';
   const [incidents, setIncidents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -116,14 +119,15 @@ export function MapViewPage() {
 
   useEffect(() => {
     fetchIncidents();
-    const interval = setInterval(fetchIncidents, POLLING_INTERVAL_MS);
+    const intervalMs = wsConnected ? POLLING_WHEN_WS_CONNECTED_MS : POLLING_INTERVAL_MS;
+    const interval = setInterval(fetchIncidents, intervalMs);
     const handleIncidentUpdated = () => fetchIncidents();
     window.addEventListener('incident:updated', handleIncidentUpdated);
     return () => {
       clearInterval(interval);
       window.removeEventListener('incident:updated', handleIncidentUpdated);
     };
-  }, [fetchIncidents]);
+  }, [fetchIncidents, wsConnected]);
 
   const filteredIncidents = useMemo(() => {
     return incidents.filter((inc) => {

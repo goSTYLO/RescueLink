@@ -21,6 +21,9 @@ http://localhost:3000/api
 - Notification ownership behavior for role `user`:
   - list endpoint always returns only the authenticated user's notifications (even if `user_id` query is provided)
   - detail endpoint returns `403` when accessing another user's notification
+- Notification list response includes `incident_type` and `incident_status` (from joined incident_reports) when available.
+- `POST /api/notifications/mark-all-read` marks all notifications as read for the authenticated user. Returns `{ marked: number }`.
+- `GET /api/notifications/unread-count` returns `{ count: number }` for badge display.
 
 ## Authentication
 
@@ -37,6 +40,18 @@ To obtain a JWT token, use the `/api/auth/login` or `/api/auth/register` endpoin
 - `401 Unauthorized` - Missing authorization header
 - `401 Unauthorized` - Invalid authorization format (must be "Bearer <token>")
 - `401 Unauthorized` - Invalid or expired token
+
+---
+
+## Rate Limiting
+
+General API endpoints are rate-limited per IP:
+
+- **Default (development):** 2000 requests per 15 minutes
+- **Default (production):** 500 requests per 15 minutes
+- **Override:** Set `API_RATE_LIMIT_MAX` environment variable to customize
+
+When the limit is exceeded, the API returns `429 Too Many Requests`. The response may include `Retry-After` header. Auth endpoints have separate, stricter limits.
 
 ---
 
@@ -880,6 +895,8 @@ GET /api/notifications?limit=10&offset=0&user_id=1&sent_via=SMS
 
 **Response:** `200 OK`
 
+Each notification may include `incident_type` and `incident_status` (from joined `incident_reports`) when available:
+
 ```json
 [
   {
@@ -888,7 +905,10 @@ GET /api/notifications?limit=10&offset=0&user_id=1&sent_via=SMS
     "report_id": 1,
     "message": "Emergency dispatch in your area",
     "sent_via": "SMS",
-    "sent_at": "2026-01-20T10:30:00.000Z"
+    "sent_at": "2026-01-20T10:30:00.000Z",
+    "event_type": "dispatched",
+    "incident_type": "fire",
+    "incident_status": "in_progress"
   },
   {
     "notification_id": 2,
@@ -896,7 +916,10 @@ GET /api/notifications?limit=10&offset=0&user_id=1&sent_via=SMS
     "report_id": 2,
     "message": "Update on incident #2",
     "sent_via": "Email",
-    "sent_at": "2026-01-20T11:00:00.000Z"
+    "sent_at": "2026-01-20T11:00:00.000Z",
+    "event_type": "status_updated",
+    "incident_type": "medical",
+    "incident_status": "resolved"
   }
 ]
 ```
@@ -1298,9 +1321,11 @@ Update incident lifecycle status (guarded transitions only).
 
 ```json
 {
-  "status": "verified" // allowed: verified, in_progress, resolved
+  "status": "verified" // allowed: verified, in_progress, resolved, closed
 }
 ```
+
+- `closed`: Admin/dispatcher only; allows force-close without reporter confirmation. Department users must use reporter confirmation flow.
 
 **Response:** `200 OK`
 

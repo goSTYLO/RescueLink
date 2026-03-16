@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../../services/notification_service.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/skeleton_placeholder.dart';
 
 class NotificationsScreen extends StatefulWidget {
-  final VoidCallback? onNotificationTap;
+  /// Called when a notification is tapped. Passes reportId if the notification has one.
+  final void Function(int? reportId)? onNotificationTap;
 
   const NotificationsScreen({super.key, this.onNotificationTap});
 
@@ -74,23 +76,83 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     return DateTime.tryParse(raw);
   }
 
-  String _timeAgo(Map<String, dynamic> notification) {
+  String _formatTimestamp(Map<String, dynamic> notification) {
     final sentAt = _sentAt(notification);
     if (sentAt == null) {
       return 'Unknown time';
     }
+    final local = sentAt.toLocal();
+    return DateFormat('MMM d, y h:mm a').format(local);
+  }
 
-    final diff = DateTime.now().difference(sentAt.toLocal());
-    if (diff.inMinutes < 1) {
-      return 'Just now';
+  String _eventTypeLabel(String? eventType) {
+    if (eventType == null || eventType.isEmpty) return 'Update';
+    switch (eventType) {
+      case 'created':
+        return 'Created';
+      case 'dispatched':
+        return 'Dispatched';
+      case 'status_updated':
+        return 'Status Updated';
+      case 'verified':
+        return 'Verified';
+      case 'resolution_confirmed':
+        return 'Resolved';
+      case 'note_added':
+        return 'Note Added';
+      case 'reclassified':
+        return 'Reclassified';
+      case 'duplicate_changed':
+        return 'Duplicate Updated';
+      default:
+        return eventType.replaceAll('_', ' ').split(' ').map((w) => w.isEmpty ? '' : '${w[0].toUpperCase()}${w.length > 1 ? w.substring(1).toLowerCase() : ''}').join(' ');
     }
-    if (diff.inMinutes < 60) {
-      return '${diff.inMinutes} minutes ago';
+  }
+
+  String _incidentTypeLabel(String? type) {
+    if (type == null || type.isEmpty) return 'Incident';
+    final t = type.toString().toLowerCase();
+    switch (t) {
+      case 'fire': return 'Fire';
+      case 'medical': return 'Medical';
+      case 'police': return 'Police';
+      case 'disaster': return 'Disaster';
+      case 'sos': return 'SOS';
+      case 'other': return 'Other';
+      default: return type[0].toUpperCase() + type.substring(1).toLowerCase();
     }
-    if (diff.inHours < 24) {
-      return '${diff.inHours} hours ago';
+  }
+
+  String _statusLabel(String? status) {
+    if (status == null || status.isEmpty) return '';
+    final s = status.toString().toLowerCase().replaceAll('-', '_');
+    switch (s) {
+      case 'pending': return 'Pending';
+      case 'verified': return 'Verified';
+      case 'in_progress': return 'In Progress';
+      case 'resolved': return 'Resolved';
+      case 'closed': return 'Closed';
+      default: return status[0].toUpperCase() + status.substring(1).toLowerCase().replaceAll('_', ' ');
     }
-    return '${sentAt.month}/${sentAt.day}/${sentAt.year}';
+  }
+
+  /// Build a short collapsed preview: "Fire • Status updated to In Progress"
+  String _collapsedPreview(Map<String, dynamic> item, String? eventType, String? incidentType) {
+    final incidentLabel = _incidentTypeLabel(incidentType);
+    final eventLabel = _eventTypeLabel(eventType);
+    if (eventType == 'status_updated') {
+      final status = item['incident_status'] as String?;
+      if (status != null && status.isNotEmpty) {
+        return '$incidentLabel • Status updated to ${_statusLabel(status)}';
+      }
+    }
+    if (eventType == 'dispatched') {
+      return '$incidentLabel • Assigned to department';
+    }
+    if (eventType == 'verified') return '$incidentLabel • Verified';
+    if (eventType == 'resolution_confirmed') return '$incidentLabel • Resolved';
+    if (eventType == 'created') return '$incidentLabel • New report';
+    return '$incidentLabel • $eventLabel';
   }
 
   bool _isNew(Map<String, dynamic> notification) {
@@ -101,12 +163,34 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     return DateTime.now().difference(sentAt.toLocal()).inHours < 1;
   }
 
-  void _showUnavailableMarkReadMessage() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Mark-as-read is not yet available in the current backend contract.'),
-      ),
-    );
+  Future<void> _markAllAsRead() async {
+    try {
+      await _notificationService.markAllAsRead();
+      if (!mounted) return;
+      await _loadNotifications();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('All notifications marked as read.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } on NotificationServiceException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.message),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Unable to mark as read.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   ({IconData icon, Color iconBg, Color iconColor}) _notificationStyle(
@@ -154,7 +238,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
           const SizedBox(height: 16),
-          // Notifications banner (no logo, no subtitle)
+          // Notifications banner with Mark all as read
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             decoration: BoxDecoration(
@@ -171,6 +255,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
+                ),
+                TextButton(
+                  onPressed: _loading ? null : _markAllAsRead,
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    textStyle: const TextStyle(fontSize: 12),
+                  ),
+                  child: const Text('Mark all as Read'),
                 ),
                 const Icon(Icons.notifications, color: Colors.white, size: 28),
               ],
@@ -230,6 +325,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 final style = _notificationStyle(item);
                 final message = (item['message'] as String?) ?? 'Notification update';
                 final reportId = item['report_id'];
+                final reportIdInt = reportId is num ? reportId.toInt() : null;
+                final eventType = item['event_type'] as String?;
+                final incidentType = item['incident_type'] as String?;
                 final key = 'new_${reportId}_${item['sent_at']}';
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 12),
@@ -238,12 +336,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     icon: style.icon,
                     iconBg: style.iconBg,
                     iconColor: style.iconColor,
-                    title: reportId is num
-                        ? 'Incident Update #DGP-${reportId.toInt()}'
+                    title: reportIdInt != null
+                        ? 'Incident #DGP-$reportIdInt'
                         : 'Incident Update',
                     description: message,
-                    time: _timeAgo(item),
+                    time: _formatTimestamp(item),
+                    eventType: eventType,
+                    incidentType: incidentType,
+                    incidentStatus: item['incident_status'] as String?,
+                    collapsedPreview: _collapsedPreview(item, eventType, incidentType),
                     showUnreadDot: true,
+                    reportId: reportIdInt,
                     onTap: widget.onNotificationTap,
                   ),
                 );
@@ -264,6 +367,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 final style = _notificationStyle(item);
                 final message = (item['message'] as String?) ?? 'Notification update';
                 final reportId = item['report_id'];
+                final reportIdInt = reportId is num ? reportId.toInt() : null;
+                final eventType = item['event_type'] as String?;
+                final incidentType = item['incident_type'] as String?;
                 final key = 'earlier_${reportId}_${item['sent_at']}';
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 12),
@@ -272,34 +378,23 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     icon: style.icon,
                     iconBg: style.iconBg,
                     iconColor: style.iconColor,
-                    title: reportId is num
-                        ? 'Incident Update #DGP-${reportId.toInt()}'
+                    title: reportIdInt != null
+                        ? 'Incident #DGP-$reportIdInt'
                         : 'Incident Update',
                     description: message,
-                    time: _timeAgo(item),
+                    time: _formatTimestamp(item),
+                    eventType: eventType,
+                    incidentType: incidentType,
+                    incidentStatus: item['incident_status'] as String?,
+                    collapsedPreview: _collapsedPreview(item, eventType, incidentType),
                     showUnreadDot: false,
+                    reportId: reportIdInt,
                     onTap: widget.onNotificationTap,
                   ),
                 );
               }),
             ],
           ],
-          const SizedBox(height: 24),
-          // Mark all as Read button
-          Center(
-            child: OutlinedButton(
-              onPressed: _showUnavailableMarkReadMessage,
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                side: const BorderSide(color: Color(0xFFE5E7EB)),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: const Text(
-                'Mark all as Read',
-                style: TextStyle(color: Color(0xFF374151), fontWeight: FontWeight.w500),
-              ),
-            ),
-          ),
           const SizedBox(height: 24),
         ],
         ),
@@ -315,8 +410,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     required String title,
     required String description,
     required String time,
+    String? eventType,
+    String? incidentType,
+    String? incidentStatus,
+    required String collapsedPreview,
     required bool showUnreadDot,
-    VoidCallback? onTap,
+    int? reportId,
+    void Function(int? reportId)? onTap,
   }) {
     final isExpanded = _expandedKeys.contains(expandKey);
     return GlassCard(
@@ -345,16 +445,84 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
+                      ),
+                    ),
+                    if (eventType != null && eventType.isNotEmpty)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.5),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          _eventTypeLabel(eventType),
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            color: Theme.of(context).colorScheme.onPrimaryContainer,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 4),
                 Text(
-                  title,
+                  collapsedPreview,
                   style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: Theme.of(context).colorScheme.onSurface,
+                    fontSize: 12,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    height: 1.25,
                   ),
                 ),
                 if (isExpanded) ...[
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 10),
+                  if (incidentType != null && incidentType.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Incident type: ',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                          Expanded(
+                            child: Text(
+                              _incidentTypeLabel(incidentType),
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Theme.of(context).colorScheme.onSurface,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  if (eventType == 'status_updated' && incidentStatus != null && incidentStatus.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Text(
+                        'Status updated to ${_statusLabel(incidentStatus)}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
                   Text(
                     description,
                     style: TextStyle(
@@ -363,6 +531,22 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       height: 1.3,
                     ),
                   ),
+                  if (reportId != null && onTap != null) ...[
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: () => onTap(reportId),
+                        icon: const Icon(Icons.visibility, size: 16),
+                        label: const Text('View'),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
                 const SizedBox(height: 4),
                 Text(

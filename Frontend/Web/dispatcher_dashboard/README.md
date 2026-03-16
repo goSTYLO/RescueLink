@@ -102,6 +102,12 @@ Config source is centralized in:
 - Department API rate-limit hardening:
   - read endpoints in `departments.api.js` and `responders.api.js` use short-lived dedupe/cache windows.
   - client-side cooldown on `429` (`Retry-After` aware) prevents burst refetch loops and repeated console floods.
+- **Session updates (notifications, RBAC, incident closure)**:
+  - **Notification deduplication**: merged WebSocket + API notifications deduped by `reportId` + `eventType`.
+  - **Breadcrumb RBAC routing**: "Home" and `/dashboard` links resolve to `getDefaultRouteByRole` so department users navigate to their allowed home (e.g. `/department/dashboard`, `/department/assigned-incidents`).
+  - **Departments 403 fix**: `getDepartments()` only called for Super Admin and Dispatcher; department users skip the call to avoid 403.
+  - **Incident closed resource refresh**: `DepartmentPersonnelPage` and `DepartmentDashboardPage` refetch teams, responders, and units on `incident:updated` so status returns to "available" after incident is closed/resolved.
+  - **MapViewPage**: fixed `wsConnected` reference (destructure from `useIncidentWebSocketStatus`).
 
 ## Backend contract and sync docs
 

@@ -15,6 +15,7 @@ const duplicateConfig = require('../config/duplicateDetection');
 const { saveAudioFile, saveMediaFiles, deleteIncidentFiles, fileExists, getAbsolutePath } = require('../utils/fileValidation');
 const { logDispatcherAction, logUserAction } = require('../utils/auditLog');
 const { ROLES } = require('../config/roles');
+const { persistIncidentNotifications } = require('../services/notificationPersistence');
 const { isResourceOwner, getOwnershipFilter } = require('../utils/ownership');
 const path = require('path');
 const fs = require('fs').promises;
@@ -68,6 +69,26 @@ async function logIncidentAction(req, action, resourceId, details) {
   } catch (err) {
     console.error('Audit logging error:', err.message);
   }
+}
+
+function emitIncidentEvent(req, event, incident) {
+  const wss = req.app?.locals?.wss;
+  if (!incident) return;
+  const data = {
+    report_id: incident.report_id ?? incident.reportId,
+    reporter_id: incident.user_id ?? incident.userId ?? incident.reporter_id,
+    status: incident.status,
+    incident_type: incident.incident_type,
+    severity_level: incident.severity_level,
+    barangay: incident.barangay,
+    updated_at: incident.updated_at ?? incident.created_at ?? new Date().toISOString(),
+  };
+  if (wss?.broadcast) {
+    wss.broadcast(event, data).catch(() => {});
+  }
+  persistIncidentNotifications(event, data).catch((err) =>
+    console.error('[emitIncidentEvent] Notification persistence failed:', err.message)
+  );
 }
 
 async function getDispatchesForReport(reportId, limit = 50) {
@@ -403,6 +424,8 @@ const incidentController = {
       await logIncidentAction(req, 'incident_create', incident.report_id, { type: 'emergency', severity_level: 'critical' });
 
       const duplicateInfo = await runRealtimeDuplicateCheck(incident);
+
+      emitIncidentEvent(req, 'incident:created', incident);
 
       res.status(201).json({
         success: true,
@@ -770,6 +793,8 @@ const incidentController = {
 
         console.log(`[backend][incident][createWithAudio] request_id=${requestId} report_id=${reportId} status=success latency_ms=${Date.now() - startedAt} ai_pending=false`);
 
+        emitIncidentEvent(req, 'incident:created', updatedIncident);
+
         res.status(201).json({
           success: true,
           message: 'Incident reported successfully with AI classification',
@@ -814,6 +839,8 @@ const incidentController = {
         const duplicateInfo = await runRealtimeDuplicateCheck({ ...incident, report_id: reportId });
 
         console.log(`[backend][incident][createWithAudio] request_id=${requestId} report_id=${reportId} status=pending_ai_retry latency_ms=${Date.now() - startedAt}`);
+
+        emitIncidentEvent(req, 'incident:created', { ...incident, report_id: reportId });
 
         res.status(201).json({
           success: true,
@@ -1018,6 +1045,8 @@ const incidentController = {
         already_recorded: Boolean(blockchainResult.already_recorded)
       });
 
+      emitIncidentEvent(req, 'incident:verified', { ...incident, status: 'verified', updated_at: new Date().toISOString() });
+
       res.json({
         success: true,
         verified: true,
@@ -1048,9 +1077,16 @@ const incidentController = {
     try {
       const { id } = req.params;
       const validatedId = validateInteger(id, 'report_id');
-      const nextStatus = validateAllowedValue(req.body?.status, ['verified', 'in_progress', 'resolved'], 'status');
+      const nextStatus = validateAllowedValue(req.body?.status, ['verified', 'in_progress', 'resolved', 'closed'], 'status');
       if (!nextStatus) {
         return res.status(400).json({ error: 'status is required' });
+      }
+
+      const r = String(req.user?.role || '').toLowerCase();
+      const isAdminOrDispatcher = [ROLES.ADMIN, ROLES.DISPATCHER, 'super-admin', 'superadmin'].includes(r) || r === 'admin';
+      const allowForceClose = nextStatus === 'closed' && isAdminOrDispatcher;
+      if (nextStatus === 'closed' && !allowForceClose) {
+        return res.status(403).json({ error: 'Only admin or dispatcher can close incidents directly. Use reporter confirmation for standard closure.' });
       }
 
       if (nextStatus === 'resolved') {
@@ -1084,6 +1120,7 @@ const incidentController = {
         next_status: nextStatus,
         actor_user_id: req.user?.user_id || null,
         actor_role: req.user?.role || null,
+        allow_force_close: allowForceClose,
       });
 
       if (!updatedIncident) {
@@ -1097,6 +1134,7 @@ const incidentController = {
       await logIncidentAction(req, 'incident_status_update', validatedId, {
         next_status: nextStatus,
       });
+      emitIncidentEvent(req, 'incident:status_updated', updatedIncident);
       res.json({
         success: true,
         incident: updatedIncident,
@@ -1132,6 +1170,9 @@ const incidentController = {
       }
 
       await logIncidentAction(req, 'incident_reporter_confirm_resolution', validatedId, {});
+
+      emitIncidentEvent(req, 'incident:resolution_confirmed', updatedIncident);
+
       res.json({
         success: true,
         incident: updatedIncident,
@@ -1201,6 +1242,8 @@ const incidentController = {
         previous_confidence_score: previousClassification?.confidence_score ?? null,
         was_low_confidence: Boolean(previousClassification?.low_confidence_flag),
       });
+
+      emitIncidentEvent(req, 'incident:reclassified', { ...updatedIncident, report_id: validatedId });
 
       res.json({
         success: true,
@@ -1355,6 +1398,8 @@ const incidentController = {
         author: authorName,
         role: req.user.role,
       });
+
+      emitIncidentEvent(req, 'incident:note_added', { ...incident, report_id: validatedId });
 
       // Return formatted note for frontend compatibility
       const formattedNote = {
@@ -1550,6 +1595,8 @@ const incidentController = {
 
       await logIncidentAction(req, 'incident_link_duplicate', validatedId, { parent_report_id: validatedParentId, reason: reason || null });
 
+      emitIncidentEvent(req, 'incident:duplicate_changed', incident);
+
       res.json({ success: true, is_duplicate: true, parent_report_id: validatedParentId });
     } catch (error) {
       console.error('Error linking duplicate:', error);
@@ -1571,6 +1618,8 @@ const incidentController = {
       await unlinkDup(validatedId);
 
       await logIncidentAction(req, 'incident_unlink_duplicate', validatedId, {});
+
+      emitIncidentEvent(req, 'incident:duplicate_changed', incident);
 
       res.json({ success: true, is_duplicate: false });
     } catch (error) {

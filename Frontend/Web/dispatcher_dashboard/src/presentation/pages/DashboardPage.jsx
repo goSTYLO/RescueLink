@@ -17,9 +17,11 @@ import { mapIncidentTypeFilterToApi } from '@/core/utils/incidentClassification'
 import { mapApiIncidentToDisplay } from '@/core/utils/incidentDisplay';
 import { SelectParentIncidentDialog } from '@/presentation/components/common/SelectParentIncidentDialog';
 import { Breadcrumb } from '@/presentation/components/common/Breadcrumb';
+import { useIncidentWebSocketStatus } from '@/presentation/context/IncidentWebSocketContext';
 import Swal from 'sweetalert2';
 
 const POLLING_INTERVAL_MS = 60000;
+const POLLING_WHEN_WS_CONNECTED_MS = 120000;
 
 function mapStatusFilterToApi(value) {
   if (value === 'Pending') return 'pending';
@@ -58,6 +60,7 @@ function dedupeIncidentsById(items) {
 export function DashboardPage() {
   const rateLimitUntilRef = useRef(0);
   const navigate = useNavigate();
+  const { isConnected: wsConnected } = useIncidentWebSocketStatus();
   const { theme } = useTheme();
   const isLight = theme === 'light';
   const [incidents, setIncidents] = useState([]);
@@ -150,14 +153,15 @@ export function DashboardPage() {
 
   useEffect(() => {
     fetchIncidents();
-    const intervalId = setInterval(fetchIncidents, POLLING_INTERVAL_MS);
+    const intervalMs = wsConnected ? POLLING_WHEN_WS_CONNECTED_MS : POLLING_INTERVAL_MS;
+    const intervalId = setInterval(fetchIncidents, intervalMs);
     const handleIncidentUpdated = () => fetchIncidents();
     window.addEventListener('incident:updated', handleIncidentUpdated);
     return () => {
       clearInterval(intervalId);
       window.removeEventListener('incident:updated', handleIncidentUpdated);
     };
-  }, [fetchIncidents]);
+  }, [fetchIncidents, wsConnected]);
 
   useEffect(() => {
     sessionStorage.setItem(DASHBOARD_FILTER_STATE_KEY, JSON.stringify({

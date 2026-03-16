@@ -161,6 +161,27 @@ export function DepartmentPersonnelPage() {
     loadResponderResources();
   }, [loadResponderResources]);
 
+  useEffect(() => {
+    const handleIncidentUpdated = () => {
+      loadResponderResources();
+      if (departmentId) {
+        getDepartmentUnits(departmentId)
+          .then((rows) => {
+            const list = (Array.isArray(rows) ? rows : []).map((u) => ({
+              id: u.unit_id,
+              name: u.name,
+              type: u.type,
+              status: u.status || 'Available',
+            }));
+            setUnitsList(list);
+          })
+          .catch(() => {});
+      }
+    };
+    window.addEventListener('incident:updated', handleIncidentUpdated);
+    return () => window.removeEventListener('incident:updated', handleIncidentUpdated);
+  }, [loadResponderResources, departmentId]);
+
   const deptTeams = useMemo(() => {
     if (!inferredSectorCode) return [];
     return teams.filter((team) => normalizeSectorCode(team.department_code) === inferredSectorCode);

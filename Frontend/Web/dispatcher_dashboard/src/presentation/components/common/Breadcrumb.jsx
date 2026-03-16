@@ -1,5 +1,6 @@
 import { ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { getDefaultRouteByRole } from '@/core/constants';
 
 /**
  * Breadcrumb navigation component.
@@ -11,11 +12,24 @@ export function Breadcrumb({ items = [] }) {
 
   if (!items.length) return null;
 
+  const resolvePath = (item) => {
+    if (!item.path) return item.path;
+    try {
+      const u = JSON.parse(sessionStorage.getItem('user') || '{}');
+      const homePath = getDefaultRouteByRole(u.role);
+      if (item.label === 'Home' || item.path === '/dashboard') return homePath;
+    } catch {
+      // fall through to item.path
+    }
+    return item.path;
+  };
+
   return (
     <nav className="flex items-center gap-1.5 text-sm text-muted mb-3" aria-label="Breadcrumb">
       {items.map((item, index) => {
         const isLast = index === items.length - 1;
-        const isClickable = !isLast && item.path;
+        const path = resolvePath(item);
+        const isClickable = !isLast && path;
 
         return (
           <span key={index} className="flex items-center gap-1.5">
@@ -25,7 +39,7 @@ export function Breadcrumb({ items = [] }) {
             {isClickable ? (
               <button
                 type="button"
-                onClick={() => navigate(item.path)}
+                onClick={() => navigate(path)}
                 className="hover:text-foreground transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50 focus:ring-offset-2 rounded px-1 -mx-1"
               >
                 {item.label}

@@ -80,6 +80,12 @@ export function DepartmentVehiclesPage() {
     }
   }, [departmentId, user.role, fetchUnits]);
 
+  useEffect(() => {
+    const handleIncidentUpdated = () => fetchUnits();
+    window.addEventListener('incident:updated', handleIncidentUpdated);
+    return () => window.removeEventListener('incident:updated', handleIncidentUpdated);
+  }, [fetchUnits]);
+
   const list = units;
   const availableCount = list.filter((u) => u.status === 'Available').length;
   const deployedCount = list.filter((u) => u.status === 'On Dispatch' || u.status === 'Busy').length;

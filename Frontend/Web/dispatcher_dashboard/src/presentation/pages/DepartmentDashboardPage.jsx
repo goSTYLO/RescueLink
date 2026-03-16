@@ -15,12 +15,16 @@ import { inferDepartmentSectorCode, normalizeSectorCode } from '@/core/utils/dep
 import { mapApiIncidentToDisplay } from '@/core/utils/incidentDisplay';
 import { ROLES } from '@/core/constants';
 import { useTheme } from '@/presentation/context/ThemeContext';
+import { useIncidentWebSocketStatus } from '@/presentation/context/IncidentWebSocketContext';
 import { Breadcrumb } from '@/presentation/components/common/Breadcrumb';
 import Swal from 'sweetalert2';
 
 function mapApiIncidentToRow(api) {
   return mapApiIncidentToDisplay(api);
 }
+
+const POLLING_INTERVAL_MS = 30000;
+const POLLING_WHEN_WS_CONNECTED_MS = 120000;
 
 const ASSIGNMENTS_STORAGE_KEY = 'rescuelink_incident_personnel_assignments';
 
@@ -36,6 +40,7 @@ function getStoredAssignments() {
 export function DepartmentDashboardPage() {
   const navigate = useNavigate();
   const { theme } = useTheme();
+  const { isConnected: wsConnected } = useIncidentWebSocketStatus();
   const isLight = theme === 'light';
   const user = JSON.parse(sessionStorage.getItem('user') || '{}');
   const departmentId = user.departmentId || user.department_id;
@@ -82,17 +87,49 @@ export function DepartmentDashboardPage() {
     }
   }, [user.role, navigate]);
 
+  const refetchTeamsAndUnits = useCallback(() => {
+    if (user.role !== ROLES.DEPARTMENT_ADMIN && user.role !== ROLES.PERSONNEL) return;
+    setTeamsLoading(true);
+    getResponderTeams({ limit: 200 })
+      .then((list) => {
+        const arr = Array.isArray(list) ? list : [];
+        if (departmentSectorCode) {
+          const filtered = arr.filter((t) => normalizeSectorCode(t.department_code) === departmentSectorCode);
+          setTeams(filtered);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setTeamsLoading(false));
+    if (departmentId) {
+      getDepartmentUnits(departmentId)
+        .then((rows) => {
+          const list = (Array.isArray(rows) ? rows : []).map((u) => ({
+            id: u.unit_id,
+            name: u.name,
+            type: u.type,
+            status: u.status || 'Available',
+          }));
+          setUnitsList(list);
+        })
+        .catch(() => {});
+    }
+  }, [user.role, departmentId, departmentSectorCode]);
+
   useEffect(() => {
     if (user.role !== ROLES.DEPARTMENT_ADMIN && user.role !== ROLES.PERSONNEL) return;
     fetchIncidents();
-    const intervalId = setInterval(fetchIncidents, 30000);
-    const handleUpdated = () => fetchIncidents();
+    const intervalMs = wsConnected ? POLLING_WHEN_WS_CONNECTED_MS : POLLING_INTERVAL_MS;
+    const intervalId = setInterval(fetchIncidents, intervalMs);
+    const handleUpdated = () => {
+      fetchIncidents();
+      refetchTeamsAndUnits();
+    };
     window.addEventListener('incident:updated', handleUpdated);
     return () => {
       clearInterval(intervalId);
       window.removeEventListener('incident:updated', handleUpdated);
     };
-  }, [user.role, fetchIncidents]);
+  }, [user.role, fetchIncidents, wsConnected, refetchTeamsAndUnits]);
 
   useEffect(() => {
     if (!departmentId || (user.role !== ROLES.DEPARTMENT_ADMIN && user.role !== ROLES.PERSONNEL)) return;

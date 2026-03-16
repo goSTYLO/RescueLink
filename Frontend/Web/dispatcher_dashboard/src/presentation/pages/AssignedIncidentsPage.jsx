@@ -9,15 +9,20 @@ import { getIncidents } from '@/data/api/incidents.api';
 import { mapApiIncidentToDisplay } from '@/core/utils/incidentDisplay';
 import { ROLES } from '@/core/constants';
 import { useTheme } from '@/presentation/context/ThemeContext';
+import { useIncidentWebSocketStatus } from '@/presentation/context/IncidentWebSocketContext';
 import { Breadcrumb } from '@/presentation/components/common/Breadcrumb';
 
 function mapApiIncidentToRow(api) {
   return mapApiIncidentToDisplay(api);
 }
 
+const POLLING_INTERVAL_MS = 30000;
+const POLLING_WHEN_WS_CONNECTED_MS = 120000;
+
 export function AssignedIncidentsPage() {
   const navigate = useNavigate();
   const { theme } = useTheme();
+  const { isConnected: wsConnected } = useIncidentWebSocketStatus();
   const isLight = theme === 'light';
   const user = JSON.parse(sessionStorage.getItem('user') || '{}');
   const [incidents, setIncidents] = useState([]);
@@ -48,14 +53,15 @@ export function AssignedIncidentsPage() {
   useEffect(() => {
     if (user.role !== ROLES.DEPARTMENT_HEAD) return;
     fetchIncidents();
-    const intervalId = setInterval(fetchIncidents, 30000);
+    const intervalMs = wsConnected ? POLLING_WHEN_WS_CONNECTED_MS : POLLING_INTERVAL_MS;
+    const intervalId = setInterval(fetchIncidents, intervalMs);
     const handleUpdated = () => fetchIncidents();
     window.addEventListener('incident:updated', handleUpdated);
     return () => {
       clearInterval(intervalId);
       window.removeEventListener('incident:updated', handleUpdated);
     };
-  }, [user.role, fetchIncidents]);
+  }, [user.role, fetchIncidents, wsConnected]);
 
   const getSeverityColor = (severity) => {
     switch (String(severity).toLowerCase()) {

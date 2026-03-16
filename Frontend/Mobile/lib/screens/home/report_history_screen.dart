@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../services/incident_service.dart';
+import '../../services/websocket_service.dart';
 import '../../utils/report_ui.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/skeleton_placeholder.dart';
@@ -10,8 +12,15 @@ class ReportHistoryScreen extends StatefulWidget {
   final void Function(int reportId)? onReportTap;
   final VoidCallback? onReportIncidentTap;
   final VoidCallback? onNotificationsTap;
+  final int unreadNotificationCount;
 
-  const ReportHistoryScreen({super.key, this.onReportTap, this.onReportIncidentTap, this.onNotificationsTap});
+  const ReportHistoryScreen({
+    super.key,
+    this.onReportTap,
+    this.onReportIncidentTap,
+    this.onNotificationsTap,
+    this.unreadNotificationCount = 0,
+  });
 
   @override
   State<ReportHistoryScreen> createState() => _ReportHistoryScreenState();
@@ -30,11 +39,16 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
+  StreamSubscription<IncidentEvent>? _wsSubscription;
 
   @override
   void initState() {
     super.initState();
     _loadIncidents();
+    _wsSubscription = WebSocketService().eventStream.listen((event) {
+      if (!mounted) return;
+      _loadIncidents();
+    });
     _searchController.addListener(() {
       if (mounted) setState(() => _searchQuery = _searchController.text.trim());
     });
@@ -42,6 +56,7 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
 
   @override
   void dispose() {
+    _wsSubscription?.cancel();
     _searchController.dispose();
     _searchFocusNode.dispose();
     super.dispose();
@@ -246,11 +261,18 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                 children: [
                   Expanded(child: _buildLogo()),
                   if (widget.onNotificationsTap != null)
-                    IconButton(
-                      icon: const Icon(Icons.notifications_none, color: Colors.white, size: 28),
-                      onPressed: widget.onNotificationsTap,
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
+                    Badge(
+                      isLabelVisible: widget.unreadNotificationCount > 0,
+                      label: Text(
+                        '${widget.unreadNotificationCount}',
+                        style: const TextStyle(fontSize: 10, color: Colors.white),
+                      ),
+                      child: IconButton(
+                        icon: const Icon(Icons.notifications_none, color: Colors.white, size: 28),
+                        onPressed: widget.onNotificationsTap,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
                     ),
                 ],
               ),

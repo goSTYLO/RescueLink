@@ -77,6 +77,40 @@ const notificationController = {
     }
   },
 
+  // Mark all notifications as read for current user
+  async markAllAsRead(req, res) {
+    try {
+      const userId = req.user?.user_id;
+      if (!userId) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+      const count = await Notification.markAllAsReadByUserId(userId);
+      res.json({ marked: count });
+    } catch (error) {
+      if (error.message?.includes('must be')) {
+        return res.status(400).json({ error: error.message });
+      }
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+
+  // Get unread count for badge display (current user)
+  async getUnreadCount(req, res) {
+    try {
+      const userId = req.user?.user_id;
+      if (!userId) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+      const count = await Notification.countUnreadByUserId(userId);
+      res.json({ count });
+    } catch (error) {
+      if (error.message?.includes('must be')) {
+        return res.status(400).json({ error: error.message });
+      }
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+
   // Get all notifications with pagination and filters
   async getAll(req, res) {
     try {
@@ -108,6 +142,11 @@ const notificationController = {
         report_id: validatedReportId,
         sent_via: validatedSentVia
       });
+
+      const unreadCount = validatedUserId
+        ? await Notification.countUnreadByUserId(validatedUserId)
+        : 0;
+      res.set('X-Unread-Count', String(unreadCount));
 
       res.json(notifications);
     } catch (error) {
