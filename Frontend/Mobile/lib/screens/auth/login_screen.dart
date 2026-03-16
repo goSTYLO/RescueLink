@@ -51,7 +51,7 @@ class _LoginScreenState extends State<LoginScreen> {
       final localAuth = LocalAuthentication();
       final canCheck = await localAuth.canCheckBiometrics;
       final isAvailable = await localAuth.isDeviceSupported();
-      if (mounted && canCheck && isAvailable) {
+      if (mounted && (canCheck || isAvailable)) {
         setState(() => _showBiometricButton = true);
       }
     } catch (_) {
@@ -64,6 +64,11 @@ class _LoginScreenState extends State<LoginScreen> {
       final localAuth = LocalAuthentication();
       final authenticated = await localAuth.authenticate(
         localizedReason: 'Authenticate to log in to RescueLink',
+        options: const AuthenticationOptions(
+          biometricOnly: true,
+          stickyAuth: true,
+          useErrorDialogs: true,
+        ),
       );
       if (!mounted) return;
       if (authenticated) {
@@ -407,22 +412,49 @@ class _LoginScreenState extends State<LoginScreen> {
 
                           // Biometric login (show only when enabled and token stored)
                           if (_showBiometricButton) ...[
-                            OutlinedButton.icon(
-                              onPressed: isLoading ? null : () => _handleBiometricLogin(context),
-                              icon: const Icon(Icons.fingerprint, size: 24, color: Color(0xFF2563EB)),
-                              label: const Text(
-                                'Use biometrics to log in',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                  color: Color(0xFF2563EB),
-                                ),
-                              ),
-                              style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 14),
-                                side: const BorderSide(color: Color(0xFF2563EB)),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
+                            SizedBox(
+                              width: double.infinity,
+                              child: InkWell(
+                                onTap: isLoading
+                                    ? null
+                                    : () => _handleBiometricLogin(context),
+                                borderRadius: BorderRadius.circular(999),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 10,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF3F4F6),
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(6),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: const Icon(
+                                          Icons.fingerprint,
+                                          size: 18,
+                                          color: Colors.black,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      const Text(
+                                        'Log in with Fingerprint',
+                                        style: TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.black,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),

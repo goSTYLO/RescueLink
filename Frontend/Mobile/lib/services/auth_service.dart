@@ -39,10 +39,14 @@ class AuthService {
     await _prefs.setString('jwt_token', token);
   }
 
-  // Clear token on logout
+  // Clear session token on logout. Keep biometric token if biometric login
+  // is still enabled so the fingerprint option remains available on login.
   Future<void> logout() async {
     await _prefs.remove('jwt_token');
-    await clearBiometricToken();
+    final biometricEnabled = await isBiometricLoginEnabled();
+    if (!biometricEnabled) {
+      await clearBiometricToken();
+    }
     await _firebaseAuth.signOut();
   }
 

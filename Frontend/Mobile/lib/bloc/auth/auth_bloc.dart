@@ -168,6 +168,14 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   ) async {
     emit(const AuthLoading());
     try {
+      final biometricEnabled = await _authService.isBiometricLoginEnabled();
+      if (!biometricEnabled) {
+        emit(const LoginError(
+          'Biometric login is turned off. Enable it in Privacy & Security settings.',
+        ));
+        return;
+      }
+
       final token = await _authService.getTokenForBiometric();
       if (token == null || token.isEmpty) {
         emit(const LoginError('Biometric login not set up. Log in with phone and password first.'));
