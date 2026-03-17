@@ -406,6 +406,25 @@ export async function unlinkDuplicate(id, reason) {
 }
 
 /**
+ * Clear duplicate-review flag (dispatcher confirms "Not a Duplicate")
+ * @param {number|string} id - Incident report ID
+ * @returns {Promise<Object>} { success, flagged_for_review }
+ */
+export async function clearDuplicateFlag(id) {
+  const requestId = createRequestId('web-clear-duplicate-flag');
+  const response = await fetch(`${API_URL}/api/incidents/${id}/clear-duplicate-flag`, {
+    method: 'POST',
+    headers: getAuthHeaders({ requestId }),
+    body: JSON.stringify({}),
+  });
+  const data = await parseJsonOrEmpty(response);
+  if (!response.ok) {
+    throw new Error(parseErrorMessage(data, 'Failed to clear duplicate flag'));
+  }
+  return data;
+}
+
+/**
  * Fetch incident media (photo/video) by index and return a blob URL
  * @param {number|string} id - Incident report ID
  * @param {number} index - Media file index (0-based)

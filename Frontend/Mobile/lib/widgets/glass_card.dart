@@ -29,7 +29,7 @@ class GlassCard extends StatelessWidget {
     final border = borderColor ??
         (isDark
             ? Colors.white.withOpacity(0.12)
-            : Color(0xFFD4D4D4).withOpacity(0.6));
+            : const Color(0xFFD4D4D4).withOpacity(0.6));
 
     final gradientColors = isDark
         ? [
@@ -37,8 +37,8 @@ class GlassCard extends StatelessWidget {
             Colors.white.withOpacity(0.04),
           ]
         : [
-            Color(0xFFEEEEEE).withOpacity(0.98),
-            Color(0xFFE5E5E5).withOpacity(0.85),
+            const Color(0xFFEEEEEE).withOpacity(0.98),
+            const Color(0xFFE5E5E5).withOpacity(0.85),
           ];
     Widget content = ClipRRect(
       borderRadius: BorderRadius.circular(borderRadius),

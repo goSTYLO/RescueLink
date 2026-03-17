@@ -35,7 +35,7 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
   bool _hasMore = true;
   String? _error;
   String? _filterStatus; // null = All; pending, verified, in_progress, resolved, closed
-  String? _filterType;   // null = All; fire, medical, police, disaster
+  String? _filterType;   // null = All; fire, medical, police, disaster, sos
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
@@ -148,10 +148,10 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
           fit: BoxFit.contain,
         ),
         const SizedBox(width: 10),
-        Text.rich(
+        const Text.rich(
           TextSpan(
-            style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-            children: const [
+            style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+            children: [
               TextSpan(text: 'Rescue', style: TextStyle(color: Color(0xFF2563EB))),
               TextSpan(text: 'Link', style: TextStyle(color: Color(0xFFEF4444))),
             ],
@@ -164,8 +164,9 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
   IconData _iconForType(String? type) {
     if (type == null) return Icons.emergency;
     final t = type.toLowerCase();
+    if (t == 'sos') return Icons.emergency;
     if (t.contains('fire')) return Icons.local_fire_department;
-    if (t.contains('medical') || t.contains('health')) return Icons.favorite_border;
+    if (t.contains('medical') || t.contains('health') || t.contains('accident')) return Icons.favorite_border;
     if (t.contains('police')) return Icons.shield_outlined;
     if (t.contains('disaster') || t.contains('flood')) return Icons.water_drop_outlined;
     return Icons.emergency;
@@ -174,8 +175,9 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
   Color _iconColorForType(String? type) {
     if (type == null) return const Color(0xFFEF4444);
     final t = type.toLowerCase();
+    if (t == 'sos') return const Color(0xFFEF4444);
     if (t.contains('fire')) return const Color(0xFFEA580C);
-    if (t.contains('medical') || t.contains('health')) return const Color(0xFFEC4899);
+    if (t.contains('medical') || t.contains('health') || t.contains('accident')) return const Color(0xFFEC4899);
     if (t.contains('police')) return const Color(0xFF2563EB);
     if (t.contains('disaster') || t.contains('flood')) return const Color(0xFF0EA5E9);
     return const Color(0xFFEF4444);
@@ -403,7 +405,7 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                     ),
                     const SizedBox(height: 4),
                     DropdownButtonFormField<String?>(
-                      value: _filterStatus,
+                      initialValue: _filterStatus,
                       decoration: InputDecoration(
                         filled: true,
                         fillColor: Theme.of(context).colorScheme.surface,
@@ -447,7 +449,7 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                     ),
                     const SizedBox(height: 4),
                     DropdownButtonFormField<String?>(
-                      value: _filterType,
+                      initialValue: _filterType,
                       decoration: InputDecoration(
                         filled: true,
                         fillColor: Theme.of(context).colorScheme.surface,
@@ -464,6 +466,9 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                         DropdownMenuItem<String?>(value: 'medical', child: Text('Medical')),
                         DropdownMenuItem<String?>(value: 'police', child: Text('Police')),
                         DropdownMenuItem<String?>(value: 'disaster', child: Text('Disaster')),
+                        DropdownMenuItem<String?>(value: 'sos', child: Text('SOS')),
+                        DropdownMenuItem<String?>(value: 'accident', child: Text('Accident')),
+                        DropdownMenuItem<String?>(value: 'other', child: Text('Other')),
                       ],
                       onChanged: (String? value) {
                         setState(() {

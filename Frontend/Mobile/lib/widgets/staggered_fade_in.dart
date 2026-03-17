@@ -28,10 +28,10 @@ class StaggeredFadeIn extends StatefulWidget {
   }) {
     return StaggeredFadeIn(
       key: key,
-      children: [child],
       staggerDelayMs: staggerDelayMs,
       fadeDuration: fadeDuration,
       trigger: trigger,
+      children: [child],
     );
   }
 

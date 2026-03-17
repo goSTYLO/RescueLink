@@ -211,25 +211,25 @@ class _BarangayInformationScreenState extends State<BarangayInformationScreen> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       if (_loadingProfile)
-                        Column(
+                        const Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            const SkeletonFormField(inputHeight: 48),
-                            const SizedBox(height: 12),
-                            const SkeletonPlaceholder(
+                            SkeletonFormField(inputHeight: 48),
+                            SizedBox(height: 12),
+                            SkeletonPlaceholder(
                               width: double.infinity,
                               height: 48,
                               borderRadius: 12,
                             ),
-                            const SizedBox(height: 20),
-                            const SkeletonMapPlaceholder(height: 180),
-                            const SizedBox(height: 16),
-                            const SkeletonPlaceholder(
+                            SizedBox(height: 20),
+                            SkeletonMapPlaceholder(height: 180),
+                            SizedBox(height: 16),
+                            SkeletonPlaceholder(
                               width: double.infinity,
                               height: 48,
                               borderRadius: 12,
                             ),
-                            const SizedBox(height: 24),
+                            SizedBox(height: 24),
                             SkeletonPlaceholder(
                               width: double.infinity,
                               height: 100,

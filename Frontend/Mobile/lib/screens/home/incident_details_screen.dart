@@ -171,7 +171,9 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
 
   Future<void> _loadThumbnail(int mediaIndex) async {
     if (_previewingMedia.contains(mediaIndex) ||
-        _mediaPreviewBytes.containsKey(mediaIndex)) return;
+        _mediaPreviewBytes.containsKey(mediaIndex)) {
+      return;
+    }
     if (mediaIndex < 0 || mediaIndex >= _mediaPaths.length) return;
     if (!_isImagePath(_mediaPaths[mediaIndex])) return;
     final reportId = _resolvedReportId;

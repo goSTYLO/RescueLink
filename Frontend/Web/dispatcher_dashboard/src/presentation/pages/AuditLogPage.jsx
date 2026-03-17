@@ -537,19 +537,26 @@ export function AuditLogPage() {
                               {log.resource_id != null ? log.resource_id : '—'}
                             </td>
                             {activeTab === 'blockchain' ? (
-                              <>
-                                <td className="py-4 px-4 text-sm font-mono text-muted">
-                                  {log.details?.block_number != null ? `#${log.details.block_number}` : '—'}
-                                </td>
-                                <td className="py-4 px-4 text-sm font-mono text-muted" title={log.details?.tx_hash || ''}>
-                                  {log.details?.tx_hash ? truncateHash(log.details.tx_hash) : '—'}
-                                </td>
-                                <td className="py-4 px-4">
-                                  <Badge variant="outline" className="rounded-lg border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                                    Blockchain Verified
-                                  </Badge>
-                                </td>
-                              </>
+                              (() => {
+                                const d = parseDetails(log.details) || log.details;
+                                const blockNum = d?.block_number;
+                                const txHash = d?.tx_hash;
+                                return (
+                                  <>
+                                    <td className="py-4 px-4 text-sm font-mono text-muted">
+                                      {blockNum != null ? `#${blockNum}` : '—'}
+                                    </td>
+                                    <td className="py-4 px-4 text-sm font-mono text-muted" title={txHash || ''}>
+                                      {txHash ? truncateHash(txHash) : '—'}
+                                    </td>
+                                    <td className="py-4 px-4">
+                                      <Badge variant="outline" className="rounded-lg border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                                        Blockchain Verified
+                                      </Badge>
+                                    </td>
+                                  </>
+                                );
+                              })()
                             ) : (
                               <td className="py-4 px-4 text-sm text-muted max-w-[200px] truncate" title={log.details ? JSON.stringify(log.details) : ''}>
                                 {formatDetailsForDisplay(log)}

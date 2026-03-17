@@ -510,7 +510,7 @@ const incidentController = {
       const { limit: validatedLimit, offset: validatedOffset } = validatePagination(limit, offset);
       const validatedSeverityLevel = validateAllowedValue(severity_level, ['low', 'medium', 'high'], 'severity_level');
       const validatedStatus = validateAllowedValue(status, ['pending', 'verified', 'in_progress', 'resolved', 'closed'], 'status');
-      const validatedIncidentType = validateAllowedValue(incident_type, ['fire', 'medical', 'police', 'disaster', 'sos', 'other'], 'incident_type');
+      const validatedIncidentType = validateAllowedValue(incident_type, ['fire', 'medical', 'police', 'disaster', 'sos', 'other', 'accident'], 'incident_type');
       const validatedBarangay = validateOptionalString(barangay, 'barangay', 150);
       const validatedSearch = validateOptionalString(search, 'search', 200);
       const validatedExcludeReportId = exclude_report_id != null && /^\d+$/.test(String(exclude_report_id)) ? parseInt(exclude_report_id, 10) : null;
@@ -610,7 +610,7 @@ const incidentController = {
       const { limit, offset, status, incident_type } = req.query;
       const { limit: validatedLimit, offset: validatedOffset } = validatePagination(limit, offset);
       const validatedStatus = validateAllowedValue(status, ['pending', 'verified', 'in_progress', 'resolved', 'closed'], 'status');
-      const validatedIncidentType = validateAllowedValue(incident_type, ['fire', 'medical', 'police', 'disaster', 'sos', 'other'], 'incident_type');
+      const validatedIncidentType = validateAllowedValue(incident_type, ['fire', 'medical', 'police', 'disaster', 'sos', 'other', 'accident'], 'incident_type');
 
       const incidents = await Incident.findByUserId(user_id, {
         limit: validatedLimit,
@@ -1624,6 +1624,30 @@ const incidentController = {
       res.json({ success: true, is_duplicate: false });
     } catch (error) {
       console.error('Error unlinking duplicate:', error);
+      if (error.message?.includes('must be')) return res.status(400).json({ error: error.message });
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+
+  // Clear duplicate-review flag (dispatcher confirms "Not a Duplicate")
+  async clearDuplicateFlag(req, res) {
+    try {
+      const { id } = req.params;
+      const validatedId = validateInteger(id, 'report_id');
+
+      const incident = await Incident.findById(validatedId);
+      if (!incident) return res.status(404).json({ error: 'Incident not found' });
+
+      const { clearDuplicateFlag: clearFlag } = require('../services/duplicateDetectionService');
+      await clearFlag(validatedId);
+
+      await logIncidentAction(req, 'incident_clear_duplicate_flag', validatedId, {});
+
+      emitIncidentEvent(req, 'incident:duplicate_changed', { ...incident, flagged_for_review: false });
+
+      res.json({ success: true, flagged_for_review: false });
+    } catch (error) {
+      console.error('Error clearing duplicate flag:', error);
       if (error.message?.includes('must be')) return res.status(400).json({ error: error.message });
       res.status(500).json({ error: 'Internal server error' });
     }

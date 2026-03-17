@@ -269,17 +269,20 @@ class IncidentService {
     }
 
     final decoded = jsonDecode(response.body);
-    if (decoded is List) return decoded;
-    if (decoded is Map && decoded['data'] is List) {
-      return decoded['data'] as List;
+    List<dynamic> result;
+    if (decoded is List) {
+      result = decoded;
+    } else if (decoded is Map && decoded['data'] is List) {
+      result = decoded['data'] as List;
+    } else if (decoded is Map && decoded['incidents'] is List) {
+      result = decoded['incidents'] as List;
+    } else {
+      throw IncidentServiceException(
+        'Unexpected incidents response format from server.',
+        statusCode: response.statusCode,
+      );
     }
-    if (decoded is Map && decoded['incidents'] is List) {
-      return decoded['incidents'] as List;
-    }
-    throw IncidentServiceException(
-      'Unexpected incidents response format from server.',
-      statusCode: response.statusCode,
-    );
+    return result;
   }
 
   /// Get incident by ID. Set [withAi] true for AI classification details.

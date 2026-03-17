@@ -26,7 +26,7 @@ import {
   units
 } from '@/data/mock/mockData';
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { getIncidentById, getIncidentAudioUrl, getIncidentMediaUrl, getIncidentWithAi, reclassifyIncident, updateIncidentStatus, verifyIncident, getCoordinationNotes, addCoordinationNote, getIncidentDuplicates, getPotentialDuplicates, linkDuplicate, unlinkDuplicate } from '@/data/api/incidents.api';
+import { getIncidentById, getIncidentAudioUrl, getIncidentMediaUrl, getIncidentWithAi, reclassifyIncident, updateIncidentStatus, verifyIncident, getCoordinationNotes, addCoordinationNote, getIncidentDuplicates, getPotentialDuplicates, linkDuplicate, unlinkDuplicate, clearDuplicateFlag } from '@/data/api/incidents.api';
 import { getResponders, getResponderTeams, updateResponderStatus, updateResponderTeamStatus, getTeamMembers } from '@/data/api/responders.api';
 import { createDispatch, undoDepartmentNotification } from '@/data/api/dispatches.api';
 import { getDepartments } from '@/data/api/departments.api';
@@ -2847,7 +2847,26 @@ export function IncidentDetailsPage() {
                   Unlink from duplicate
                 </Button>
               )}
-              <Button variant="outline" onClick={() => setDuplicateDialogOpen(false)}>
+              <Button variant="outline" onClick={async () => {
+                if (!incident?.isDuplicate && incident?.flaggedForReview) {
+                  const numericId = /^\d+$/.test(String(id));
+                  if (numericId) {
+                    try {
+                      await clearDuplicateFlag(id);
+                      setDuplicateDialogOpen(false);
+                      await fetchIncident({ silent: true });
+                      window.dispatchEvent(new CustomEvent('incident:updated', { detail: { incidentId: id } }));
+                      Swal.fire({ icon: 'success', title: 'Marked as not a duplicate', timer: 1500, showConfirmButton: false });
+                    } catch (err) {
+                      Swal.fire({ icon: 'error', title: 'Failed', text: err.message || 'Could not clear duplicate flag' });
+                    }
+                  } else {
+                    setDuplicateDialogOpen(false);
+                  }
+                } else {
+                  setDuplicateDialogOpen(false);
+                }
+              }}>
                 {incident?.isDuplicate ? 'Close' : 'Not a Duplicate'}
               </Button>
             </DialogFooter>

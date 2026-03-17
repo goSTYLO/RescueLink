@@ -76,6 +76,7 @@ router.get('/:id/duplicates', authMiddleware, incidentController.getDuplicates);
 router.get('/:id/potential-duplicates', authMiddleware, incidentController.getPotentialDuplicates);
 router.post('/:id/link-duplicate', authMiddleware, authorize([ROLES.DISPATCHER, ROLES.ADMIN]), incidentController.linkDuplicate);
 router.post('/:id/unlink-duplicate', authMiddleware, authorize([ROLES.DISPATCHER, ROLES.ADMIN]), incidentController.unlinkDuplicate);
+router.post('/:id/clear-duplicate-flag', authMiddleware, authorize([ROLES.DISPATCHER, ROLES.ADMIN]), incidentController.clearDuplicateFlag);
 
 // Get current user's incidents (always filtered to own)
 router.get('/user/my', authMiddleware, incidentController.getMyIncidents);

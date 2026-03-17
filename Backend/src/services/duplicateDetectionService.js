@@ -176,8 +176,18 @@ async function unlinkDuplicate(reportId) {
   await pool.query(
     `UPDATE incident_reports
      SET parent_report_id = NULL, duplicate_confidence_score = NULL, duplicate_detected_at = NULL,
-         duplicate_detection_method = NULL, is_duplicate = FALSE
+         duplicate_detection_method = NULL, is_duplicate = FALSE, flagged_for_review = FALSE
      WHERE report_id = $1`,
+    [reportId]
+  );
+}
+
+/**
+ * Clear the duplicate-review flag (when dispatcher confirms "Not a Duplicate")
+ */
+async function clearDuplicateFlag(reportId) {
+  await pool.query(
+    'UPDATE incident_reports SET flagged_for_review = FALSE WHERE report_id = $1',
     [reportId]
   );
 }
@@ -218,5 +228,6 @@ module.exports = {
   getDuplicateCluster,
   getPrimaryReportId,
   unlinkDuplicate,
+  clearDuplicateFlag,
   getDuplicateInfo,
 };

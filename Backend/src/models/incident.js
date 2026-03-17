@@ -230,7 +230,7 @@ const Incident = {
 
     if (incident_type) {
       paramCount++;
-      query += ` AND ir.incident_type = $${paramCount}`;
+      query += ` AND LOWER(ir.incident_type) = LOWER($${paramCount})`;
       params.push(incident_type);
     }
 
@@ -298,7 +298,7 @@ const Incident = {
 
     if (incident_type) {
       paramCount++;
-      query += ` AND incident_type = $${paramCount}`;
+      query += ` AND LOWER(incident_type) = LOWER($${paramCount})`;
       params.push(incident_type);
     }
 
@@ -345,7 +345,7 @@ const Incident = {
 
     if (incident_type) {
       paramCount++;
-      query += ` AND incident_type = $${paramCount}`;
+      query += ` AND LOWER(incident_type) = LOWER($${paramCount})`;
       params.push(incident_type);
     }
 
