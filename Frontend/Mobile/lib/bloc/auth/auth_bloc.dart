@@ -176,6 +176,26 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         return;
       }
 
+      // Prefer stored credentials to obtain a fresh token (handles blacklisted/expired
+      // tokens after app exit)
+      final credentials = await _authService.getCredentialsForBiometric();
+      if (credentials != null) {
+        final result = await _authService.login(
+          phone: credentials.phone,
+          password: credentials.password,
+        );
+        if (result['success'] == true && result['user'] != null && result['token'] != null) {
+          final user = (result['user'] as Map<String, dynamic>?) ?? {};
+          emit(LoginSuccess(user: user, token: result['token'] as String));
+          return;
+        }
+        emit(LoginError(
+          result['error']?.toString() ?? 'Incorrect password or number. Please log in manually.',
+        ));
+        return;
+      }
+
+      // Fallback: try stored token (legacy or when credentials not yet saved)
       final token = await _authService.getTokenForBiometric();
       if (token == null || token.isEmpty) {
         emit(const LoginError('Biometric login not set up. Log in with phone and password first.'));
@@ -187,7 +207,11 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         final user = (profile['user'] as Map<String, dynamic>?) ?? {};
         emit(LoginSuccess(user: user, token: token));
       } else {
-        emit(LoginError(profile['error']?.toString() ?? 'Session expired. Please log in again.'));
+        // Token is blacklisted/expired; clear it so user uses phone+password (which saves credentials)
+        await _authService.clearBiometricToken();
+        emit(const LoginError(
+          'Session expired. Please log in with your phone number and password. Biometric login will work again after that.',
+        ));
       }
     } catch (e) {
       emit(LoginError(e.toString()));

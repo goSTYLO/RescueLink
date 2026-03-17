@@ -70,14 +70,82 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _onBiometricToggle(bool value) async {
-    await AuthService().setBiometricLoginEnabled(value);
-    if (value) {
-      final token = AuthService().getToken();
-      if (token != null && token.isNotEmpty) {
-        await AuthService().saveTokenForBiometric(token);
+    if (!value) {
+      await AuthService().setBiometricLoginEnabled(false);
+      if (mounted) setState(() => _biometricLogin = false);
+      return;
+    }
+
+    // Enabling: need password to store credentials for fresh sessions
+    final phone = ((_profile ?? {})['phone'] ?? (_profile ?? {})['phone_number'] ?? '') as String;
+    if (phone.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not get phone number. Please try again.')),
+        );
+      }
+      return;
+    }
+
+    final password = await _showBiometricPasswordDialog();
+    if (password == null || !mounted) return;
+
+    await AuthService().setBiometricLoginEnabled(true);
+    final result = await AuthService().login(phone: phone, password: password);
+    if (!mounted) return;
+
+    if (result['success'] == true) {
+      if (mounted) setState(() => _biometricLogin = true);
+    } else {
+      await AuthService().setBiometricLoginEnabled(false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(result['error']?.toString() ?? 'Invalid password.')),
+        );
       }
     }
-    if (mounted) setState(() => _biometricLogin = value);
+  }
+
+  Future<String?> _showBiometricPasswordDialog() async {
+    final controller = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Enable Biometric Login'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Enter your password to store it securely. It will be used to start a new session when you use biometrics after exiting the app.',
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: controller,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: 'Password',
+                  border: OutlineInputBorder(),
+                ),
+                onSubmitted: (_) => Navigator.of(ctx).pop(controller.text),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(controller.text),
+            child: const Text('Continue'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _loadProfile() async {
@@ -650,6 +718,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(width: 12),
           Expanded(
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
@@ -659,11 +728,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     fontWeight: FontWeight.w600,
                     color: Theme.of(context).colorScheme.onSurface,
                   ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                 ),
                 const SizedBox(height: 2),
                 Text(
                   subtitle,
                   style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 2,
                 ),
               ],
             ),

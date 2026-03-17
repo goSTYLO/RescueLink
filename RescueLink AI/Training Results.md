@@ -26,19 +26,18 @@
 - Evaluation time: `7.95s`
 - Notes: Auto-updated from notebook
 ## Seed 123
-- Incident F1 (micro): `0.999743`
-- Incident hamming loss: `0.000111`
-- Severity accuracy: `1.000000`
-- Selected threshold: `0.55`
-- Best blended score: `0.999807`
-- Last epoch F1@0.5: `0.999485`
-- Last epoch severity accuracy: `1.000000`
-- Epochs completed: `10`
-- Total train time: `2863.84s`
-- Average epoch time: `286.38s`
-- Evaluation time: `8.76s`
+- Incident F1 (micro): `0.924319`
+- Incident hamming loss: `0.041417`
+- Severity accuracy: `0.902000`
+- Selected threshold: `0.64`
+- Best blended score: `0.912877`
+- Last epoch F1@0.5: `0.925662`
+- Last epoch severity accuracy: `0.899500`
+- Epochs completed: `6`
+- Total train time: `1960.50s`
+- Average epoch time: `326.75s`
+- Evaluation time: `16.75s`
 - Notes: Auto-updated from notebook
-
 ## Seed 999
 - Incident F1 (micro): `0.259163`
 - Incident hamming loss: `0.411000`
@@ -68,10 +67,10 @@
 - Notes: Auto-updated from notebook
 
 ## Aggregation (Current Filled Seeds)
-- Incident F1 mean: `0.674567`
-- Incident F1 std: `0.304307`
-- Severity accuracy mean: `0.622250`
-- Severity accuracy std: `0.337750`
+- Incident F1 mean: `0.655711`
+- Incident F1 std: `0.285318`
+- Severity accuracy mean: `0.597750`
+- Severity accuracy std: `0.312036`
 - Pass/Fail (>= 0.99 on both metrics): `FAIL`
 
 ## Interpretation Notes

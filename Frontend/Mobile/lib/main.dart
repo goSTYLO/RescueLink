@@ -95,7 +95,7 @@ class AuthNavigator extends StatefulWidget {
   State<AuthNavigator> createState() => _AuthNavigatorState();
 }
 
-class _AuthNavigatorState extends State<AuthNavigator> {
+class _AuthNavigatorState extends State<AuthNavigator> with WidgetsBindingObserver {
   bool _checkingSession = true;
   bool _showSignUp = false;
   String? _forgotFlowScreen;
@@ -150,7 +150,23 @@ class _AuthNavigatorState extends State<AuthNavigator> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _restoreSession();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _showDashboard) {
+      if (!AuthService().hasValidToken()) {
+        _backToLogin();
+      }
+    }
   }
 
   Future<void> _restoreSession() async {
@@ -504,6 +520,11 @@ class _AuthNavigatorState extends State<AuthNavigator> {
             ),
           );
           if (confirmed == true && mounted) {
+            WebSocketService().disconnect();
+            await AuthService().logout();
+            if (!mounted) return;
+            await Future.delayed(const Duration(milliseconds: 150));
+            if (!mounted) return;
             SystemNavigator.pop();
           }
         },

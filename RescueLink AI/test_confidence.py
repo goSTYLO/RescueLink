@@ -9,18 +9,18 @@ from pathlib import Path
 
 import requests
 
-# Sample Filipino/Taglish emergency texts for testing
+# Sample Filipino/Taglish emergency texts for testing (humanized, less keyword-heavy)
 SAMPLE_TEXTS = [
-    "May sunog sa bahay, kailangan ng fire truck!",
-    "Holdap may baril, may nasaktan!",
-    "Motor naaksidente, nasugatan ang driver.",
-    "Hindi humihinga ang tao, CPR needed!",
-    "Baha na, tumataas ang tubig.",
-    "May bata nawawala, nakita na.",
-    "Pinatay ang biktima, deceased na.",
-    "Small fire sa labas, na-control na.",
-    "Heart attack, unconscious!",
-    "Landslide, may na-bury na tao!",
+    "Boss nasusunog yung bahay ng kapitbahay namin, may usok na tumataas at hindi makalabas ang mga tao. pls.",
+    "Sir may nag-holdap sa jeep kanina, may dala daw baril at may nagsaksak po sa isang pasahero.",
+    "Ma'am naaksidente ang motor sa kanto, yung driver may sugat sa ulo at hindi makabangon. Padala agad.",
+    "Tulong! May tao dito na hindi humihinga, wala na raw pulso. Kailangan ng ambulance agad.",
+    "Boss tumataas na yung tubig sa kalsada, may mga bahay na naabot na po. Hindi na makalabas ang iba.",
+    "Yung nawawalang bata kanina, nakita na po namin sa tindahan. Okay na po.",
+    "Sir nakita ang biktima na wala nang pulso, parang na-stab po. Hindi na humihinga.",
+    "Yung maliit na apoy sa labas kanina, na-control na namin. Walang nasaktan.",
+    "Ma'am may matanda dito na biglang bumagsak, hindi na gumagalaw. Parang atake sa puso.",
+    "Tulong! May natabunan ng lupa sa tabi ng bundok, may tao pa raw sa loob. Bilisan po!",
 ]
 
 LOW_CONFIDENCE_THRESHOLD = 0.7

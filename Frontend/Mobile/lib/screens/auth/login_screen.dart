@@ -47,7 +47,10 @@ class _LoginScreenState extends State<LoginScreen> {
       final enabled = await authService.isBiometricLoginEnabled();
       if (!enabled) return;
       final token = await authService.getTokenForBiometric();
-      if (token == null || token.isEmpty) return;
+      final credentials = await authService.getCredentialsForBiometric();
+      final hasToken = token != null && token.isNotEmpty;
+      final hasCredentials = credentials != null;
+      if (!hasToken && !hasCredentials) return;
       final localAuth = LocalAuthentication();
       final canCheck = await localAuth.canCheckBiometrics;
       final isAvailable = await localAuth.isDeviceSupported();

@@ -14,5 +14,5 @@
     "Black"
   ],
   "backbone": "xlm-roberta-base",
-  "threshold": 0.5
+  "threshold": 0.64
 }

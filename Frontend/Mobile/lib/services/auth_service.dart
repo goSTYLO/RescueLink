@@ -21,6 +21,8 @@ class AuthService {
   final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
   static const _keyBiometricEnabled = 'biometric_login_enabled';
   static const _keyBiometricToken = 'biometric_token';
+  static const _keyBiometricPhone = 'biometric_phone';
+  static const _keyBiometricPassword = 'biometric_password';
   String? _verificationId;
   int? _forceResendingToken;
 
@@ -42,10 +44,21 @@ class AuthService {
   // Clear session token on logout. Keep biometric token if biometric login
   // is still enabled so the fingerprint option remains available on login.
   Future<void> logout() async {
+    final token = getToken();
+    if (token != null) {
+      try {
+        await _apiService.post(
+          '/api/auth/logout',
+          headers: {'Authorization': 'Bearer $token'},
+        );
+      } catch (_) {
+        // Best-effort; proceed with local logout regardless
+      }
+    }
     await _prefs.remove('jwt_token');
     final biometricEnabled = await isBiometricLoginEnabled();
     if (!biometricEnabled) {
-      await clearBiometricToken();
+      await clearBiometricData();
     }
     await _firebaseAuth.signOut();
   }
@@ -58,7 +71,7 @@ class AuthService {
 
   Future<void> setBiometricLoginEnabled(bool enabled) async {
     await _prefs.setBool(_keyBiometricEnabled, enabled);
-    if (!enabled) await clearBiometricToken();
+    if (!enabled) await clearBiometricData();
   }
 
   /// Saves token to secure storage for biometric login. Call after successful
@@ -69,6 +82,31 @@ class AuthService {
     await _secureStorage.write(key: _keyBiometricToken, value: token);
   }
 
+  /// Saves credentials to secure storage for credential-based biometric login.
+  /// Used when token may be blacklisted (e.g. after app exit) — biometric login
+  /// will use these to obtain a fresh token.
+  Future<void> saveCredentialsForBiometric({
+    required String phone,
+    required String password,
+  }) async {
+    final enabled = await isBiometricLoginEnabled();
+    if (!enabled) return;
+    final formattedPhone = _formatPhoneNumberE164(phone);
+    await _secureStorage.write(key: _keyBiometricPhone, value: formattedPhone);
+    await _secureStorage.write(key: _keyBiometricPassword, value: password);
+  }
+
+  /// Reads stored credentials for biometric login. Call only after user has
+  /// passed local_auth biometric prompt.
+  Future<({String phone, String password})?> getCredentialsForBiometric() async {
+    final phone = await _secureStorage.read(key: _keyBiometricPhone);
+    final password = await _secureStorage.read(key: _keyBiometricPassword);
+    if (phone == null || password == null || phone.isEmpty || password.isEmpty) {
+      return null;
+    }
+    return (phone: phone, password: password);
+  }
+
   /// Reads token from secure storage. Call only after user has passed
   /// local_auth biometric prompt in the UI.
   Future<String?> getTokenForBiometric() async {
@@ -77,6 +115,13 @@ class AuthService {
 
   Future<void> clearBiometricToken() async {
     await _secureStorage.delete(key: _keyBiometricToken);
+  }
+
+  /// Clears all biometric data (token and credentials).
+  Future<void> clearBiometricData() async {
+    await _secureStorage.delete(key: _keyBiometricToken);
+    await _secureStorage.delete(key: _keyBiometricPhone);
+    await _secureStorage.delete(key: _keyBiometricPassword);
   }
 
   /// Stores token in session (SharedPreferences). Used after biometric
@@ -232,6 +277,16 @@ class AuthService {
         },
         headers: {'Authorization': 'Bearer $token'},
       );
+      // Update stored biometric credentials with new password
+      final profile = await getProfile();
+      if (profile['success'] == true) {
+        final user = profile['user'] as Map<String, dynamic>?;
+        final phone = (user?['phone'] ?? user?['phone_number'])?.toString();
+        if (phone != null && phone.isNotEmpty) {
+          await saveCredentialsForBiometric(phone: phone, password: newPassword);
+          await saveTokenForBiometric(token);
+        }
+      }
       return {'success': true};
     } catch (e) {
       if (e is ApiException) {
@@ -369,6 +424,7 @@ class AuthService {
       if (response['token'] != null) {
         await _storeToken(response['token']);
         await saveTokenForBiometric(response['token'] as String);
+        await saveCredentialsForBiometric(phone: formattedPhone, password: password);
         print('✅ Login successful, token stored');
       }
 
