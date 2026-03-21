@@ -362,7 +362,6 @@ export function IncidentDetailsPage() {
   const canVerifyIncident = (
     normalizedRole === ROLES.SUPER_ADMIN
     || normalizedRole === ROLES.DISPATCHER
-    || normalizedRole === ROLES.DEPARTMENT_ADMIN
   );
   const canNotifyDepartment = (
     normalizedRole === ROLES.SUPER_ADMIN
@@ -390,6 +389,9 @@ export function IncidentDetailsPage() {
     normalizedRole === ROLES.SUPER_ADMIN
     || normalizedRole === ROLES.DISPATCHER
   );
+  const canSaveToBlockchain = canVerifyIncident
+    && incident?.status === 'Closed'
+    && Boolean(incident?.reporterConfirmedAt);
 
   const getConfidencePercent = (score) => {
     if (score == null || Number.isNaN(Number(score))) return null;
@@ -520,8 +522,8 @@ export function IncidentDetailsPage() {
   const notifiedDepartmentCodes = new Set(notifiedDepartments.map((dept) => String(dept.code || '').toLowerCase()));
   const availableNotifyDepartments = departmentList.filter((dept) => !notifiedDepartmentCodes.has(String(dept.code || '').toLowerCase()));
   const assignedDepartmentCodeForTeamActions = incident?.assignedDepartmentId || notifiedDepartments[0]?.code || incident?.assignedTeamDepartmentCode || '';
-  const showNotifyDepartmentButton = canNotifyDepartment && incident?.verified && !isIncidentClosed && notifiedDepartments.length === 0 && availableNotifyDepartments.length > 0;
-  const showUndoNotifyButton = canNotifyDepartment && incident?.verified && !isIncidentClosed && notifiedDepartments.length > 0;
+  const showNotifyDepartmentButton = canNotifyDepartment && !isIncidentClosed && notifiedDepartments.length === 0 && availableNotifyDepartments.length > 0;
+  const showUndoNotifyButton = canNotifyDepartment && !isIncidentClosed && notifiedDepartments.length > 0;
 
   useEffect(() => {
     const token = sessionStorage.getItem('token');
@@ -803,16 +805,6 @@ export function IncidentDetailsPage() {
   };
 
   const handleNotifyDepartment = async () => {
-    if (!incident?.verified) {
-      await Swal.fire({
-        icon: 'warning',
-        title: 'Verification required',
-        text: 'Verify this incident before notifying a department.',
-        confirmButtonColor: '#134178',
-      });
-      return;
-    }
-
     const selectedCode = notifyDepartment;
     const selectedDept = departmentList.find((d) => String(d.code || '').toLowerCase() === String(selectedCode || '').toLowerCase());
     const selectedDepartment = selectedDept?.name || null;
@@ -1265,13 +1257,13 @@ export function IncidentDetailsPage() {
     : null;
   const renderPrimaryActions = ({ compact = false } = {}) => (
     <>
-      {!incident.verified && canVerifyIncident && (
+      {canSaveToBlockchain && (
         <Button
           className={`gap-2 bg-[#134178] hover:bg-[#0f3256] ${compact ? 'h-8 px-3 text-xs rounded-lg' : ''}`}
           onClick={() => setVerifyDialogOpen(true)}
         >
           <CheckCircle className="w-4 h-4" />
-          Verify Incident
+          Save to Blockchain
         </Button>
       )}
       {showNotifyDepartmentButton && (
@@ -2101,9 +2093,9 @@ export function IncidentDetailsPage() {
           <Dialog open={verifyDialogOpen} onOpenChange={setVerifyDialogOpen}>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Verify Incident</DialogTitle>
+                <DialogTitle>Save Incident to Blockchain</DialogTitle>
                 <DialogDescription>
-                  Are you sure you want to verify this incident? This will record it on the blockchain for tamper-proof audit. This action cannot be undone.
+                  Are you sure you want to save this closed and reporter-confirmed incident to the blockchain for tamper-proof audit? This action cannot be undone.
                 </DialogDescription>
               </DialogHeader>
               <DialogFooter>
@@ -2115,12 +2107,12 @@ export function IncidentDetailsPage() {
                   {verifyLoading ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      Verifying...
+                      Saving...
                     </>
                   ) : (
                     <>
                       <CheckCircle className="w-4 h-4" />
-                      Confirm Verify
+                      Confirm Save
                     </>
                   )}
                 </Button>

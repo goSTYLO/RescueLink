@@ -42,7 +42,7 @@ router.get('/:id/media/:index', authMiddleware, checkOwnership('user_id'), incid
 // Users can only view their own; dispatchers/admins can view any
 router.get('/:id/with-ai', authMiddleware, checkOwnership('user_id'), incidentController.getByIdWithAi);
 
-// Verify incident (record on blockchain)
+// Save incident to blockchain only after closure + reporter confirmation
 // Dispatcher and admin only
 router.post('/:id/verify', authMiddleware, authorize([ROLES.DISPATCHER, ROLES.ADMIN]), incidentController.verifyIncident);
 

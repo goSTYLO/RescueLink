@@ -109,6 +109,7 @@ CREATE TABLE IF NOT EXISTS incident_reports (
   duplicate_confidence_score DOUBLE PRECISION,
   duplicate_detected_at TIMESTAMP WITH TIME ZONE,
   duplicate_detection_method VARCHAR(50),
+  flagged_for_review BOOLEAN DEFAULT FALSE,
   is_duplicate BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -153,6 +154,7 @@ ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS parent_report_id INTEGER R
 ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS duplicate_confidence_score DOUBLE PRECISION;
 ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS duplicate_detected_at TIMESTAMP WITH TIME ZONE;
 ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS duplicate_detection_method VARCHAR(50);
+ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS flagged_for_review BOOLEAN DEFAULT FALSE;
 ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS is_duplicate BOOLEAN DEFAULT FALSE;
 CREATE INDEX IF NOT EXISTS idx_incident_reports_scan_status ON incident_reports(scan_status);
 CREATE INDEX IF NOT EXISTS idx_incident_reports_parent_id ON incident_reports(parent_report_id);

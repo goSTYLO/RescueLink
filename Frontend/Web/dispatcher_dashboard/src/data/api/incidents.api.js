@@ -173,9 +173,9 @@ export async function getIncidentWithAi(id) {
 }
 
 /**
- * Verify incident and record on blockchain
+ * Save closed incident snapshot to blockchain
  * @param {number|string} id - Incident report ID
- * @returns {Promise<Object>} { success, verified, blockchain }
+ * @returns {Promise<Object>} { success, saved_to_blockchain, blockchain }
  */
 export async function verifyIncident(id) {
   const requestId = createRequestId('web-verify');
@@ -189,7 +189,7 @@ export async function verifyIncident(id) {
 
   if (!response.ok) {
     logError(`[web][incidents][verifyIncident] request_id=${requestId} report_id=${id} status=${response.status}`);
-    throw new Error(parseErrorMessage(data, 'Failed to verify incident'));
+    throw new Error(parseErrorMessage(data, 'Failed to save incident to blockchain'));
   }
 
   logInfo(`[web][incidents][verifyIncident] request_id=${requestId} report_id=${id} status=${response.status} latency_ms=${Math.round(performance.now() - start)}`);

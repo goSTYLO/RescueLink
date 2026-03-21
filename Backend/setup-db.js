@@ -28,6 +28,7 @@ const MIGRATION_ORDER = [
   'add_incident_coordination_notes.sql',
   'add_incident_resolved_at.sql',
   'add_duplicate_detection.sql',
+  'add_flagged_for_review.sql',
 ];
 
 console.log('🔧 Setting up database...');

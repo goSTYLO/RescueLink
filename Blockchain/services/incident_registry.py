@@ -56,6 +56,71 @@ def _create_incident_hash(report_id: int, incident_data: dict) -> str:
     return hashlib.sha256(payload.encode()).hexdigest()
 
 
+def _extract_event_hash(log: Any) -> Optional[str]:
+    """Extract normalized (non-0x) hashValue from an IncidentVerified event log."""
+    args = (log or {}).get("args") or {}
+    event_hash = args.get("hashValue")
+    if isinstance(event_hash, bytes):
+        event_hash = event_hash.hex()
+    elif hasattr(event_hash, "hex"):
+        event_hash = event_hash.hex()
+    if isinstance(event_hash, str) and event_hash.startswith("0x"):
+        event_hash = event_hash[2:]
+    return event_hash if isinstance(event_hash, str) else None
+
+
+def _find_existing_log(contract: Any, report_id: int, hash_bytes: bytes):
+    """
+    Find an existing IncidentVerified log for this incident hash.
+
+    Supports both schemas:
+    - New: IncidentVerified(bytes32 indexed hashValue)
+    - Legacy: IncidentVerified(uint256 indexed reportId, bytes32 hashValue)
+    """
+    # New contract schema (hashValue indexed) - cheapest and most selective lookup.
+    try:
+        logs = contract.events.IncidentVerified().get_logs(
+            from_block=0,
+            to_block="latest",
+            argument_filters={"hashValue": hash_bytes},
+        )
+        if logs:
+            return logs[-1]
+    except Exception:
+        pass
+
+    # Legacy schema (reportId indexed).
+    try:
+        logs = contract.events.IncidentVerified().get_logs(
+            from_block=0,
+            to_block="latest",
+            argument_filters={"reportId": report_id},
+        )
+        if logs:
+            return logs[-1]
+    except Exception:
+        pass
+
+    # Fallback for mixed/unexpected ABI or provider quirks.
+    try:
+        logs = contract.events.IncidentVerified().get_logs(
+            from_block=0,
+            to_block="latest",
+        )
+        target_hash = hash_bytes.hex()
+        for log in reversed(logs):
+            event_hash = _extract_event_hash(log)
+            if event_hash == target_hash:
+                return log
+            args = (log or {}).get("args") or {}
+            if args.get("reportId") == report_id:
+                return log
+    except Exception:
+        return None
+
+    return None
+
+
 def record_incident_on_blockchain(
     report_id: int, incident_data: dict
 ) -> dict[str, Any]:
@@ -88,22 +153,12 @@ def record_incident_on_blockchain(
     contract = get_contract(w3)
     account = w3.eth.account.from_key(PRIVATE_KEY)
 
-    existing_logs = contract.events.IncidentVerified().get_logs(
-        from_block=0,
-        to_block="latest",
-        argument_filters={"reportId": report_id},
-    )
-    if existing_logs:
-        last_log = existing_logs[-1]
+    existing_log = _find_existing_log(contract, report_id, hash_bytes)
+    if existing_log:
+        last_log = existing_log
         existing_tx_hash = last_log["transactionHash"].hex()
         existing_block = int(last_log["blockNumber"])
-        existing_hash_value = last_log["args"].get("hashValue")
-        if isinstance(existing_hash_value, bytes):
-            existing_hash_value = existing_hash_value.hex()
-        elif hasattr(existing_hash_value, "hex"):
-            existing_hash_value = existing_hash_value.hex()
-        if isinstance(existing_hash_value, str) and existing_hash_value.startswith("0x"):
-            existing_hash_value = existing_hash_value[2:]
+        existing_hash_value = _extract_event_hash(last_log)
 
         return {
             "hash_value": existing_hash_value or hash_value,
@@ -115,10 +170,14 @@ def record_incident_on_blockchain(
             "already_recorded": True,
         }
 
-    tx_hash = contract.functions.recordIncident(
-        report_id,
-        hash_bytes,
-    ).transact({"from": account.address})
+    record_call = contract.functions.recordIncident(hash_bytes)
+
+    # Set a tight gas limit from estimate to avoid highly over-provisioned tx gas limits.
+    estimated_gas = int(record_call.estimate_gas({"from": account.address}))
+    tx_hash = record_call.transact({
+        "from": account.address,
+        "gas": estimated_gas + 2000,
+    })
 
     receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
 

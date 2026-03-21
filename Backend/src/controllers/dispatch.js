@@ -216,6 +216,19 @@ const dispatchController = {
           department_code: validatedDepartmentCode,
         });
 
+        // Department assignment should move lifecycle out of pending even before team assignment.
+        if (String(incident?.status || '').toLowerCase() === 'pending') {
+          try {
+            await Incident.transitionStatus(validatedReportId, {
+              next_status: 'verified',
+              actor_user_id: assignedByUserId,
+              actor_role: req.user?.role || null,
+            });
+          } catch (_) {
+            // Best-effort lifecycle hook; keep dispatch creation successful.
+          }
+        }
+
         // Do NOT transition to in_progress here - only when dept admin assigns a team
 
         const updatedIncident = await Incident.findById(validatedReportId);
