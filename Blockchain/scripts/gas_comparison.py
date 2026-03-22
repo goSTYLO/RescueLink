@@ -79,7 +79,7 @@ def main():
         address = deploy_receipt["contractAddress"]
 
         contract_instance = w3.eth.contract(address=address, abi=abi)
-        call_tx = contract_instance.functions.recordIncident(report_id, hash_bytes).transact(
+        call_tx = contract_instance.functions.recordIncident(hash_bytes).transact(
             {"from": account.address}
         )
         call_receipt = w3.eth.wait_for_transaction_receipt(call_tx)

@@ -91,7 +91,7 @@ export function DashboardPage() {
   const [itemsPerPage, setItemsPerPage] = useState(Number(persistedFilterState.itemsPerPage) || 5);
   const [pageSizeSelectOpen, setPageSizeSelectOpen] = useState(false);
 
-  // Verify-only modal (incident verification on blockchain)
+  // Save-to-blockchain modal (closed + reporter-confirmed incidents)
   const [verifyModalOpen, setVerifyModalOpen] = useState(false);
   const [verifyIncidentTarget, setVerifyIncidentTarget] = useState(null);
   const [verifyInProgress, setVerifyInProgress] = useState(false);
@@ -295,7 +295,6 @@ export function DashboardPage() {
   const canVerify = (
     normalizedRole === ROLES.SUPER_ADMIN
     || normalizedRole === ROLES.DISPATCHER
-    || normalizedRole === ROLES.DEPARTMENT_ADMIN
   );
   const canManageDuplicates = normalizedRole === ROLES.SUPER_ADMIN || normalizedRole === ROLES.DISPATCHER;
   const [browseDuplicateDialogOpen, setBrowseDuplicateDialogOpen] = useState(false);
@@ -315,28 +314,21 @@ export function DashboardPage() {
   const submitVerifyOnly = async () => {
     if (!verifyIncidentTarget) return;
     const confirm = await Swal.fire({
-      title: 'Verify incident',
-      html: `Verify incident <strong>${verifyIncidentTarget.id}</strong> on the blockchain?`,
+      title: 'Save to blockchain',
+      html: `Save incident <strong>${verifyIncidentTarget.id}</strong> to the blockchain?`,
       icon: 'question',
       showCancelButton: true,
       confirmButtonColor: '#134178',
       cancelButtonColor: '#6b7280',
-      confirmButtonText: 'Verify',
+      confirmButtonText: 'Save',
       cancelButtonText: 'Cancel',
       customClass: { popup: 'rounded-2xl shadow-xl', title: 'text-foreground text-xl', htmlContainer: 'text-muted' },
     });
 
     if (!confirm.isConfirmed) return;
 
-    let rollbackSnapshot = null;
     setVerifyInProgress(true);
     try {
-      rollbackSnapshot = incidents;
-      setIncidents((prev) =>
-        prev.map((inc) =>
-          inc.id === verifyIncidentTarget.id ? { ...inc, verified: true, status: 'Verified' } : inc
-        )
-      );
       const numericId = /^\d+$/.test(String(verifyIncidentTarget.id));
       const token = sessionStorage.getItem('token');
       if (numericId && token) {
@@ -344,24 +336,22 @@ export function DashboardPage() {
       }
 
       closeVerifyModal();
+      await fetchIncidents();
       window.dispatchEvent(new CustomEvent('incident:updated', { detail: { incidentId: verifyIncidentTarget.id } }));
       Swal.fire({
         icon: 'success',
-        title: 'Incident verified',
-        text: 'Incident has been verified on the blockchain.',
+        title: 'Saved to blockchain',
+        text: 'Incident has been saved to the blockchain.',
         timer: 2500,
         showConfirmButton: false,
         timerProgressBar: true,
         customClass: { popup: 'rounded-2xl shadow-xl' },
       });
     } catch (err) {
-      if (rollbackSnapshot) {
-        setIncidents(rollbackSnapshot);
-      }
       await Swal.fire({
         icon: 'error',
-        title: 'Verification failed',
-        text: err.message || 'Unable to verify incident.',
+        title: 'Save failed',
+        text: err.message || 'Unable to save incident to blockchain.',
         confirmButtonColor: '#134178',
       });
     } finally {
@@ -737,16 +727,16 @@ export function DashboardPage() {
                                 <ExternalLink className="w-4 h-4" strokeWidth={2} />
                                 View
                               </Button>
-                              {canVerify && !incident.verified && (
+                              {canVerify && incident.status === 'Closed' && Boolean(incident.reporterConfirmedAt) && (
                                 <Button
                                   size="sm"
                                   variant="default"
                                   className="h-9 px-3 rounded-lg bg-severity-resolved hover:bg-severity-resolved/90 text-white border-0 gap-1.5"
                                   onClick={(e) => { e.stopPropagation(); openVerifyModal(incident); }}
-                                  title="Verify Incident"
+                                  title="Save to Blockchain"
                                 >
                                   <CircleCheck className="w-4 h-4" strokeWidth={2} />
-                                  Verify
+                                  Save
                                 </Button>
                               )}
                               {canManageDuplicates && !incident.isDuplicate && /^\d+$/.test(String(incident.id)) && (
@@ -778,13 +768,13 @@ export function DashboardPage() {
           </div>
         </div>
 
-        {/* Verify Modal — incident verification on blockchain */}
+        {/* Save Modal — incident blockchain persistence */}
         <Dialog open={verifyModalOpen} onOpenChange={(open) => !open && closeVerifyModal()} className="max-w-md">
           <DialogContent className="max-w-md">
             <DialogHeader>
-              <DialogTitle>Verify Incident</DialogTitle>
+              <DialogTitle>Save Incident to Blockchain</DialogTitle>
               <DialogDescription>
-                Verify this incident on the blockchain. This records the incident for audit and authenticity.
+                Save this closed and reporter-confirmed incident on the blockchain for audit and authenticity.
               </DialogDescription>
             </DialogHeader>
             {verifyIncidentTarget && (
@@ -797,7 +787,7 @@ export function DashboardPage() {
                 <DialogFooter>
                   <Button onClick={submitVerifyOnly} disabled={verifyInProgress} className="bg-primary text-white hover:bg-primary-hover">
                     {verifyInProgress ? <Loader2 className="w-4 h-4 animate-spin" /> : <CircleCheck className="w-4 h-4" />}
-                    {verifyInProgress ? 'Verifying...' : 'Verify'}
+                    {verifyInProgress ? 'Saving...' : 'Save'}
                   </Button>
                   <Button variant="outline" onClick={closeVerifyModal} disabled={verifyInProgress}>Cancel</Button>
                 </DialogFooter>

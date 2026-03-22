@@ -31,7 +31,8 @@ const ACTION_OPTIONS = [
   { value: 'dispatch_create', label: 'Dispatch created' },
   { value: 'dispatch_update', label: 'Dispatch updated' },
   { value: 'dispatch_delete', label: 'Dispatch deleted' },
-  { value: 'incident_verify', label: 'Blockchain verified' },
+  { value: 'incident_blockchain_finalize', label: 'Saved to blockchain' },
+  { value: 'incident_verify', label: 'Blockchain verified (legacy)' },
 ];
 
 const RESOURCE_OPTIONS = [
@@ -40,6 +41,8 @@ const RESOURCE_OPTIONS = [
   { value: 'dispatch', label: 'Dispatch' },
   { value: 'incident', label: 'Incident' },
 ];
+
+const BLOCKCHAIN_ACTIONS = new Set(['incident_verify', 'incident_blockchain_finalize']);
 
 function formatTimestamp(ts) {
   if (!ts) return '—';
@@ -57,6 +60,7 @@ function formatTimestamp(ts) {
 }
 
 function formatActionLabel(action) {
+  if (action === 'incident_blockchain_finalize') return 'Saved to blockchain';
   const opt = ACTION_OPTIONS.find((o) => o.value === action);
   return opt ? opt.label : (action || '—').replace(/_/g, ' ');
 }
@@ -90,12 +94,12 @@ function formatDetailsForDisplay(log) {
   if (!details || typeof details !== 'object') {
     return log.details != null && typeof log.details === 'string' ? log.details : '—';
   }
-  const isBlockchain = log.action === 'incident_verify' && (details.tx_hash || details.block_number != null);
+  const isBlockchain = BLOCKCHAIN_ACTIONS.has(log.action) && (details.tx_hash || details.block_number != null);
   if (isBlockchain) {
     const parts = [];
     if (details.block_number != null) parts.push(`Block #${details.block_number}`);
     if (details.tx_hash) parts.push(truncateHash(details.tx_hash));
-    parts.push('Blockchain Verified');
+    parts.push('Saved to blockchain');
     return parts.join(' · ');
   }
   const entries = Object.entries(details).filter(([, v]) => v != null && v !== '');
@@ -145,7 +149,7 @@ export function AuditLogPage() {
     fetchLogs();
   }, [fetchLogs]);
 
-  const blockchainLogs = logs.filter((l) => l.action === 'incident_verify');
+  const blockchainLogs = logs.filter((l) => BLOCKCHAIN_ACTIONS.has(l.action));
   const allLogsForTab = activeTab === 'blockchain' ? blockchainLogs : logs;
   const totalPages = Math.ceil(allLogsForTab.length / itemsPerPage) || 1;
   const startIndex = (currentPage - 1) * itemsPerPage;
@@ -512,7 +516,7 @@ export function AuditLogPage() {
                       {paginatedLogs.length === 0 ? (
                         <tr>
                           <td colSpan={activeTab === 'blockchain' ? 9 : 6} className="py-12 text-center text-muted">
-                            {activeTab === 'blockchain' ? 'No blockchain verification logs found.' : 'No audit log entries found.'}
+                            {activeTab === 'blockchain' ? 'No blockchain save logs found.' : 'No audit log entries found.'}
                           </td>
                         </tr>
                       ) : (
@@ -551,7 +555,7 @@ export function AuditLogPage() {
                                     </td>
                                     <td className="py-4 px-4">
                                       <Badge variant="outline" className="rounded-lg border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                                        Blockchain Verified
+                                        Saved to blockchain
                                       </Badge>
                                     </td>
                                   </>

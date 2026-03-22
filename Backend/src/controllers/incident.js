@@ -993,7 +993,7 @@ const incidentController = {
     }
   },
 
-  // Verify incident and record on blockchain
+  // Save closed and reporter-confirmed incident snapshot to blockchain
   async verifyIncident(req, res) {
     const startedAt = Date.now();
     const requestId = req.requestId || 'none';
@@ -1001,16 +1001,23 @@ const incidentController = {
       const { id } = req.params;
       const validatedId = validateInteger(id, 'report_id');
 
-      console.log(`[backend][incident][verify] request_id=${requestId} report_id=${validatedId} status=start`);
+      console.log(`[backend][incident][blockchain_finalize] request_id=${requestId} report_id=${validatedId} status=start`);
 
       const incident = await Incident.findById(validatedId);
       if (!incident) {
         return res.status(404).json({ error: 'Incident not found' });
       }
 
-      if (incident.verified) {
-        return res.status(400).json({ error: 'Incident is already verified' });
+      const normalizedStatus = String(incident.status || '').toLowerCase();
+      if (normalizedStatus !== 'closed') {
+        return res.status(409).json({ error: 'Incident must be closed before saving to blockchain' });
       }
+
+      if (!incident.reporter_confirmed_at) {
+        return res.status(409).json({ error: 'Reporter confirmation is required before saving to blockchain' });
+      }
+
+      const existingBlockchainRecord = await Incident.getBlockchainRecord(validatedId);
 
       const incidentData = {
         report_id: incident.report_id,
@@ -1021,21 +1028,29 @@ const incidentController = {
         longitude: incident.longitude,
         barangay: incident.barangay,
         status: incident.status,
-        created_at: incident.created_at
+        created_at: incident.created_at,
+        resolved_at: incident.resolved_at || null,
+        closed_at: incident.closed_at || null,
+        closure_method: incident.closure_method || null,
+        closure_notes: incident.closure_notes || null,
+        reporter_confirmed_at: incident.reporter_confirmed_at || null,
+        reporter_confirmed_by_user_id: incident.reporter_confirmed_by_user_id || null,
       };
 
       const blockchainResult = await verifyIncidentOnBlockchain(validatedId, incidentData, { requestId });
 
       const networkReference = `${blockchainResult.tx_hash}#block${blockchainResult.block_number}`;
-      await Incident.createBlockchainRecord({
-        report_id: validatedId,
-        hash_value: blockchainResult.hash_value,
-        network_reference: networkReference
-      });
+      if (!existingBlockchainRecord) {
+        await Incident.createBlockchainRecord({
+          report_id: validatedId,
+          hash_value: blockchainResult.hash_value,
+          network_reference: networkReference
+        });
+      }
 
       await Incident.setVerified(validatedId);
 
-      await logIncidentAction(req, 'incident_verify', validatedId, {
+      await logIncidentAction(req, 'incident_blockchain_finalize', validatedId, {
         tx_hash: blockchainResult.tx_hash,
         block_number: blockchainResult.block_number,
         hash_value: blockchainResult.hash_value,
@@ -1045,11 +1060,11 @@ const incidentController = {
         already_recorded: Boolean(blockchainResult.already_recorded)
       });
 
-      emitIncidentEvent(req, 'incident:verified', { ...incident, status: 'verified', updated_at: new Date().toISOString() });
+      emitIncidentEvent(req, 'incident:blockchain_saved', { ...incident, updated_at: new Date().toISOString() });
 
       res.json({
         success: true,
-        verified: true,
+        saved_to_blockchain: true,
         blockchain: {
           tx_hash: blockchainResult.tx_hash,
           block_number: blockchainResult.block_number,
@@ -1060,16 +1075,16 @@ const incidentController = {
           already_recorded: Boolean(blockchainResult.already_recorded)
         }
       });
-      console.log(`[backend][incident][verify] request_id=${requestId} report_id=${validatedId} status=success latency_ms=${Date.now() - startedAt} block_number=${blockchainResult.block_number}`);
+      console.log(`[backend][incident][blockchain_finalize] request_id=${requestId} report_id=${validatedId} status=success latency_ms=${Date.now() - startedAt} block_number=${blockchainResult.block_number}`);
     } catch (error) {
-      console.error(`[backend][incident][verify] request_id=${requestId} status=error latency_ms=${Date.now() - startedAt} error=${error.message}`);
+      console.error(`[backend][incident][blockchain_finalize] request_id=${requestId} status=error latency_ms=${Date.now() - startedAt} error=${error.message}`);
       if (error.message.includes('must be') || error.message.includes('must not')) {
         return res.status(400).json({ error: error.message });
       }
       if (error.message.includes('Blockchain')) {
         return res.status(503).json({ error: error.message });
       }
-      res.status(500).json({ error: 'Failed to verify incident' });
+      res.status(500).json({ error: 'Failed to save incident to blockchain' });
     }
   },
 

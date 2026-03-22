@@ -1,6 +1,6 @@
 /**
  * Blockchain Service Integration
- * Communicates with RescueLink Blockchain FastAPI service to record verified incidents on Ganache.
+ * Communicates with RescueLink Blockchain FastAPI service to persist finalized incidents on Ganache.
  */
 
 const axios = require('axios');
@@ -10,7 +10,7 @@ const BLOCKCHAIN_SERVICE_URL = process.env.BLOCKCHAIN_SERVICE_URL || 'http://loc
 const REQUEST_TIMEOUT = 15000;
 
 /**
- * Record verified incident hash on blockchain.
+ * Record finalized incident hash on blockchain.
  * @param {number} reportId - Incident report ID
  * @param {Object} incidentData - Incident payload (type, severity, location, etc.)
  * @returns {Promise<{ hash_value: string, tx_hash: string, block_number: number, gas_used?: number, effective_gas_price?: string, gas_cost_wei?: string, already_recorded?: boolean }>}
