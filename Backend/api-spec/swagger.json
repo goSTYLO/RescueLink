@@ -1,0 +1,1147 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "RescueLink Backend API",
+    "version": "1.0.0",
+    "description": "OpenAPI specification for RescueLink backend routes. Designed for security scanning and API contract testing."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Local development"
+    }
+  ],
+  "tags": [
+    { "name": "Health" },
+    { "name": "Auth" },
+    { "name": "Responders" },
+    { "name": "Dispatches" },
+    { "name": "Notifications" },
+    { "name": "Location" },
+    { "name": "Incidents" },
+    { "name": "Audit Logs" },
+    { "name": "Admin" },
+    { "name": "Departments" },
+    { "name": "Metrics" }
+  ],
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "parameters": {
+      "IdPathParam": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "integer" }
+      },
+      "TeamIdPathParam": {
+        "name": "teamId",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "integer" }
+      },
+      "ResponderIdPathParam": {
+        "name": "responderId",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "integer" }
+      },
+      "UnitIdPathParam": {
+        "name": "unitId",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "integer" }
+      },
+      "PersonnelIdPathParam": {
+        "name": "personnelId",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "integer" }
+      },
+      "MediaIndexPathParam": {
+        "name": "index",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "responses": {
+      "Unauthorized": {
+        "description": "Unauthorized",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "message": { "type": "string", "example": "Invalid or expired token" }
+              }
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "Forbidden",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "message": { "type": "string", "example": "Insufficient permissions" }
+              }
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "Not found",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "message": { "type": "string", "example": "Resource not found" }
+              }
+            }
+          }
+        }
+      },
+      "ValidationError": {
+        "description": "Bad request",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "message": { "type": "string", "example": "Validation failed" },
+                "error": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": ["Health"],
+        "summary": "Health check",
+        "responses": {
+          "200": {
+            "description": "Service is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string", "example": "ok" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "/api/auth/register": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Register user",
+        "responses": {
+          "201": { "description": "Created" },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "409": { "description": "Conflict" }
+        }
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Login user",
+        "responses": {
+          "200": { "description": "OK" },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/api/auth/dispatcher/login": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Dispatcher login",
+        "responses": {
+          "200": { "description": "OK" },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/api/auth/dispatcher/verify-otp": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Verify dispatcher OTP",
+        "responses": {
+          "200": { "description": "OK" },
+          "400": { "$ref": "#/components/responses/ValidationError" }
+        }
+      }
+    },
+    "/api/auth/dispatcher/signup": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Dispatcher signup",
+        "responses": {
+          "201": { "description": "Created" },
+          "400": { "$ref": "#/components/responses/ValidationError" }
+        }
+      }
+    },
+    "/api/auth/onboard-phone": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Onboard via phone verification token",
+        "responses": {
+          "200": { "description": "OK" },
+          "400": { "$ref": "#/components/responses/ValidationError" }
+        }
+      }
+    },
+    "/api/auth/reset-password": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Reset password",
+        "responses": {
+          "200": { "description": "OK" },
+          "400": { "$ref": "#/components/responses/ValidationError" }
+        }
+      }
+    },
+    "/api/auth/forgot-password": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Request password reset",
+        "responses": {
+          "200": { "description": "OK" },
+          "400": { "$ref": "#/components/responses/ValidationError" }
+        }
+      }
+    },
+    "/api/auth/reset-password-with-token": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Reset password with token",
+        "responses": {
+          "200": { "description": "OK" },
+          "400": { "$ref": "#/components/responses/ValidationError" }
+        }
+      }
+    },
+    "/api/auth/me": {
+      "get": {
+        "tags": ["Auth"],
+        "summary": "Get current user",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      },
+      "patch": {
+        "tags": ["Auth"],
+        "summary": "Update current user",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/api/auth/change-password": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Change password",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Logout",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+
+    "/api/responders/teams": {
+      "get": {
+        "tags": ["Responders"],
+        "summary": "List teams",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" }
+        }
+      },
+      "post": {
+        "tags": ["Responders"],
+        "summary": "Create team",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "201": { "description": "Created" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" }
+        }
+      }
+    },
+    "/api/responders/teams/{teamId}": {
+      "parameters": [{ "$ref": "#/components/parameters/TeamIdPathParam" }],
+      "get": {
+        "tags": ["Responders"],
+        "summary": "Get team by id",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "put": {
+        "tags": ["Responders"],
+        "summary": "Update team",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "delete": {
+        "tags": ["Responders"],
+        "summary": "Delete team",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "204": { "description": "No content" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/api/responders/teams/{teamId}/status": {
+      "parameters": [{ "$ref": "#/components/parameters/TeamIdPathParam" }],
+      "patch": {
+        "tags": ["Responders"],
+        "summary": "Update team status",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" }
+        }
+      }
+    },
+    "/api/responders/teams/{teamId}/members": {
+      "parameters": [{ "$ref": "#/components/parameters/TeamIdPathParam" }],
+      "get": {
+        "tags": ["Responders"],
+        "summary": "List team members",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      },
+      "post": {
+        "tags": ["Responders"],
+        "summary": "Add team member",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "201": { "description": "Created" }
+        }
+      }
+    },
+    "/api/responders/teams/{teamId}/members/{responderId}": {
+      "parameters": [
+        { "$ref": "#/components/parameters/TeamIdPathParam" },
+        { "$ref": "#/components/parameters/ResponderIdPathParam" }
+      ],
+      "delete": {
+        "tags": ["Responders"],
+        "summary": "Remove team member",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "204": { "description": "No content" }
+        }
+      }
+    },
+    "/api/responders": {
+      "get": {
+        "tags": ["Responders"],
+        "summary": "List responders",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      },
+      "post": {
+        "tags": ["Responders"],
+        "summary": "Create responder",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "201": { "description": "Created" }
+        }
+      }
+    },
+    "/api/responders/{id}": {
+      "parameters": [{ "$ref": "#/components/parameters/IdPathParam" }],
+      "get": {
+        "tags": ["Responders"],
+        "summary": "Get responder",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "put": {
+        "tags": ["Responders"],
+        "summary": "Update responder",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      },
+      "delete": {
+        "tags": ["Responders"],
+        "summary": "Delete responder",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "204": { "description": "No content" }
+        }
+      }
+    },
+    "/api/responders/{id}/status": {
+      "parameters": [{ "$ref": "#/components/parameters/IdPathParam" }],
+      "patch": {
+        "tags": ["Responders"],
+        "summary": "Update responder status",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      }
+    },
+
+    "/api/dispatches": {
+      "get": {
+        "tags": ["Dispatches"],
+        "summary": "List dispatches",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      },
+      "post": {
+        "tags": ["Dispatches"],
+        "summary": "Create dispatch",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "201": { "description": "Created" }
+        }
+      }
+    },
+    "/api/dispatches/undo-department": {
+      "post": {
+        "tags": ["Dispatches"],
+        "summary": "Undo department notification",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      }
+    },
+    "/api/dispatches/{id}": {
+      "parameters": [{ "$ref": "#/components/parameters/IdPathParam" }],
+      "get": {
+        "tags": ["Dispatches"],
+        "summary": "Get dispatch",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "put": {
+        "tags": ["Dispatches"],
+        "summary": "Update dispatch",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      },
+      "delete": {
+        "tags": ["Dispatches"],
+        "summary": "Delete dispatch",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "204": { "description": "No content" }
+        }
+      }
+    },
+
+    "/api/notifications": {
+      "get": {
+        "tags": ["Notifications"],
+        "summary": "List notifications",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      },
+      "post": {
+        "tags": ["Notifications"],
+        "summary": "Create notification",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "201": { "description": "Created" }
+        }
+      }
+    },
+    "/api/notifications/unread-count": {
+      "get": {
+        "tags": ["Notifications"],
+        "summary": "Get unread count",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      }
+    },
+    "/api/notifications/mark-all-read": {
+      "post": {
+        "tags": ["Notifications"],
+        "summary": "Mark all notifications as read",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      }
+    },
+    "/api/notifications/{id}": {
+      "parameters": [{ "$ref": "#/components/parameters/IdPathParam" }],
+      "get": {
+        "tags": ["Notifications"],
+        "summary": "Get notification",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "put": {
+        "tags": ["Notifications"],
+        "summary": "Update notification",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      },
+      "delete": {
+        "tags": ["Notifications"],
+        "summary": "Delete notification",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "204": { "description": "No content" }
+        }
+      }
+    },
+
+    "/api/location/check": {
+      "post": {
+        "tags": ["Location"],
+        "summary": "Check coordinates against city boundary",
+        "responses": {
+          "200": { "description": "OK" },
+          "400": { "$ref": "#/components/responses/ValidationError" }
+        }
+      }
+    },
+    "/api/location/barangay": {
+      "get": {
+        "tags": ["Location"],
+        "summary": "Get barangay from coordinates",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      }
+    },
+    "/api/location/search": {
+      "get": {
+        "tags": ["Location"],
+        "summary": "Search geocoding",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      }
+    },
+    "/api/location/reverse": {
+      "get": {
+        "tags": ["Location"],
+        "summary": "Reverse geocode",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      }
+    },
+    "/api/location/closest-units": {
+      "post": {
+        "tags": ["Location"],
+        "summary": "Get closest responder units",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      }
+    },
+    "/api/location/geofence-alerts": {
+      "post": {
+        "tags": ["Location"],
+        "summary": "Compute geofence alerts",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      }
+    },
+    "/api/location/heatmap": {
+      "get": {
+        "tags": ["Location"],
+        "summary": "Get incident heatmap",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      }
+    },
+
+    "/api/incidents": {
+      "get": {
+        "tags": ["Incidents"],
+        "summary": "List incidents",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      }
+    },
+    "/api/incidents/emergency": {
+      "post": {
+        "tags": ["Incidents"],
+        "summary": "Create emergency incident",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "201": { "description": "Created" },
+          "429": { "description": "Too many requests" }
+        }
+      }
+    },
+    "/api/incidents/with-audio": {
+      "post": {
+        "tags": ["Incidents"],
+        "summary": "Create incident with audio/media",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "latitude": { "type": "number" },
+                  "longitude": { "type": "number" },
+                  "description": { "type": "string" },
+                  "audio": { "type": "string", "format": "binary" },
+                  "media": {
+                    "type": "array",
+                    "items": { "type": "string", "format": "binary" }
+                  }
+                },
+                "required": ["latitude", "longitude", "audio"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Created" },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "429": { "description": "Too many requests" }
+        }
+      }
+    },
+    "/api/incidents/user/my": {
+      "get": {
+        "tags": ["Incidents"],
+        "summary": "Get current user incidents",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      }
+    },
+    "/api/incidents/{id}": {
+      "parameters": [{ "$ref": "#/components/parameters/IdPathParam" }],
+      "get": {
+        "tags": ["Incidents"],
+        "summary": "Get incident by id",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/api/incidents/{id}/audio": {
+      "parameters": [{ "$ref": "#/components/parameters/IdPathParam" }],
+      "get": {
+        "tags": ["Incidents"],
+        "summary": "Download incident audio",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Audio stream" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/api/incidents/{id}/media/{index}": {
+      "parameters": [
+        { "$ref": "#/components/parameters/IdPathParam" },
+        { "$ref": "#/components/parameters/MediaIndexPathParam" }
+      ],
+      "get": {
+        "tags": ["Incidents"],
+        "summary": "Download incident media",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Media stream" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/api/incidents/{id}/with-ai": {
+      "parameters": [{ "$ref": "#/components/parameters/IdPathParam" }],
+      "get": {
+        "tags": ["Incidents"],
+        "summary": "Get incident with AI details",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      }
+    },
+    "/api/incidents/{id}/verify": {
+      "parameters": [{ "$ref": "#/components/parameters/IdPathParam" }],
+      "post": {
+        "tags": ["Incidents"],
+        "summary": "Verify incident to blockchain",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      }
+    },
+    "/api/incidents/{id}/status": {
+      "parameters": [{ "$ref": "#/components/parameters/IdPathParam" }],
+      "patch": {
+        "tags": ["Incidents"],
+        "summary": "Update incident status",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      }
+    },
+    "/api/incidents/{id}/confirm-resolution": {
+      "parameters": [{ "$ref": "#/components/parameters/IdPathParam" }],
+      "post": {
+        "tags": ["Incidents"],
+        "summary": "Confirm resolution",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      }
+    },
+    "/api/incidents/{id}/reclassify": {
+      "parameters": [{ "$ref": "#/components/parameters/IdPathParam" }],
+      "post": {
+        "tags": ["Incidents"],
+        "summary": "Reclassify incident",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      }
+    },
+    "/api/incidents/{id}/coordination-notes": {
+      "parameters": [{ "$ref": "#/components/parameters/IdPathParam" }],
+      "get": {
+        "tags": ["Incidents"],
+        "summary": "Get coordination notes",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      },
+      "post": {
+        "tags": ["Incidents"],
+        "summary": "Add coordination note",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "201": { "description": "Created" }
+        }
+      }
+    },
+    "/api/incidents/{id}/duplicates": {
+      "parameters": [{ "$ref": "#/components/parameters/IdPathParam" }],
+      "get": {
+        "tags": ["Incidents"],
+        "summary": "Get linked duplicates",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      }
+    },
+    "/api/incidents/{id}/potential-duplicates": {
+      "parameters": [{ "$ref": "#/components/parameters/IdPathParam" }],
+      "get": {
+        "tags": ["Incidents"],
+        "summary": "Get potential duplicates",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      }
+    },
+    "/api/incidents/{id}/link-duplicate": {
+      "parameters": [{ "$ref": "#/components/parameters/IdPathParam" }],
+      "post": {
+        "tags": ["Incidents"],
+        "summary": "Link duplicate",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      }
+    },
+    "/api/incidents/{id}/unlink-duplicate": {
+      "parameters": [{ "$ref": "#/components/parameters/IdPathParam" }],
+      "post": {
+        "tags": ["Incidents"],
+        "summary": "Unlink duplicate",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      }
+    },
+    "/api/incidents/{id}/clear-duplicate-flag": {
+      "parameters": [{ "$ref": "#/components/parameters/IdPathParam" }],
+      "post": {
+        "tags": ["Incidents"],
+        "summary": "Clear duplicate flag",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      }
+    },
+
+    "/api/audit-logs": {
+      "get": {
+        "tags": ["Audit Logs"],
+        "summary": "List audit logs",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      }
+    },
+    "/api/audit-logs/admin": {
+      "get": {
+        "tags": ["Audit Logs"],
+        "summary": "List admin-only audit logs",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      }
+    },
+
+    "/api/admin/users": {
+      "get": {
+        "tags": ["Admin"],
+        "summary": "List users",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      },
+      "post": {
+        "tags": ["Admin"],
+        "summary": "Create user",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "201": { "description": "Created" }
+        }
+      }
+    },
+    "/api/admin/users/{id}": {
+      "parameters": [{ "$ref": "#/components/parameters/IdPathParam" }],
+      "get": {
+        "tags": ["Admin"],
+        "summary": "Get user by id",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "delete": {
+        "tags": ["Admin"],
+        "summary": "Delete user",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "204": { "description": "No content" }
+        }
+      }
+    },
+    "/api/admin/users/{id}/role": {
+      "parameters": [{ "$ref": "#/components/parameters/IdPathParam" }],
+      "put": {
+        "tags": ["Admin"],
+        "summary": "Update user role",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      }
+    },
+    "/api/admin/users/{id}/deactivate": {
+      "parameters": [{ "$ref": "#/components/parameters/IdPathParam" }],
+      "put": {
+        "tags": ["Admin"],
+        "summary": "Deactivate user",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      }
+    },
+    "/api/admin/stats": {
+      "get": {
+        "tags": ["Admin"],
+        "summary": "Get admin stats",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      }
+    },
+
+    "/api/departments": {
+      "get": {
+        "tags": ["Departments"],
+        "summary": "List departments",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      },
+      "post": {
+        "tags": ["Departments"],
+        "summary": "Create department",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "201": { "description": "Created" }
+        }
+      }
+    },
+    "/api/departments/{id}": {
+      "parameters": [{ "$ref": "#/components/parameters/IdPathParam" }],
+      "get": {
+        "tags": ["Departments"],
+        "summary": "Get department",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "put": {
+        "tags": ["Departments"],
+        "summary": "Update department",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      },
+      "delete": {
+        "tags": ["Departments"],
+        "summary": "Delete department",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "204": { "description": "No content" }
+        }
+      }
+    },
+    "/api/departments/{id}/metrics": {
+      "parameters": [{ "$ref": "#/components/parameters/IdPathParam" }],
+      "get": {
+        "tags": ["Departments"],
+        "summary": "Department metrics",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      }
+    },
+    "/api/departments/{id}/units": {
+      "parameters": [{ "$ref": "#/components/parameters/IdPathParam" }],
+      "get": {
+        "tags": ["Departments"],
+        "summary": "List units",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      },
+      "post": {
+        "tags": ["Departments"],
+        "summary": "Create unit",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "201": { "description": "Created" }
+        }
+      }
+    },
+    "/api/departments/{id}/units/{unitId}": {
+      "parameters": [
+        { "$ref": "#/components/parameters/IdPathParam" },
+        { "$ref": "#/components/parameters/UnitIdPathParam" }
+      ],
+      "put": {
+        "tags": ["Departments"],
+        "summary": "Update unit",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      },
+      "delete": {
+        "tags": ["Departments"],
+        "summary": "Delete unit",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "204": { "description": "No content" }
+        }
+      }
+    },
+    "/api/departments/{id}/units/{unitId}/assign": {
+      "parameters": [
+        { "$ref": "#/components/parameters/IdPathParam" },
+        { "$ref": "#/components/parameters/UnitIdPathParam" }
+      ],
+      "post": {
+        "tags": ["Departments"],
+        "summary": "Assign unit",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      }
+    },
+    "/api/departments/{id}/personnel": {
+      "parameters": [{ "$ref": "#/components/parameters/IdPathParam" }],
+      "get": {
+        "tags": ["Departments"],
+        "summary": "List personnel",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      },
+      "post": {
+        "tags": ["Departments"],
+        "summary": "Create personnel",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "201": { "description": "Created" }
+        }
+      }
+    },
+    "/api/departments/{id}/personnel/{personnelId}": {
+      "parameters": [
+        { "$ref": "#/components/parameters/IdPathParam" },
+        { "$ref": "#/components/parameters/PersonnelIdPathParam" }
+      ],
+      "put": {
+        "tags": ["Departments"],
+        "summary": "Update personnel",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      },
+      "delete": {
+        "tags": ["Departments"],
+        "summary": "Delete personnel",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "204": { "description": "No content" }
+        }
+      }
+    },
+
+    "/api/metrics": {
+      "get": {
+        "tags": ["Metrics"],
+        "summary": "Metrics summary",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      }
+    },
+    "/api/metrics/reset": {
+      "post": {
+        "tags": ["Metrics"],
+        "summary": "Reset metrics",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      }
+    }
+  }
+}
