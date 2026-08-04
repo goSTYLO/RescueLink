@@ -1,16 +1,15 @@
-# Graph Report - RescueLink  (2026-08-05)
+# Graph Report - .  (2026-07-21)
 
 ## Corpus Check
-- 385 files · ~1,800,205 words
-- Verdict: corpus is large enough that graph structure adds value.
+- cluster-only mode — file stats not available
 
 ## Summary
-- 2972 nodes · 4280 edges · 247 communities (211 shown, 36 thin omitted)
+- 2970 nodes · 4279 edges · 250 communities (215 shown, 35 thin omitted)
 - Extraction: 95% EXTRACTED · 5% INFERRED · 0% AMBIGUOUS · INFERRED: 202 edges (avg confidence: 0.55)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `d12709e7`
+- Built from commit: `3711b5ea`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -186,6 +185,7 @@
 - Login.interaction.test.jsx
 - add_humanized_reports.py
 - test_confidence.py
+- multer
 - express
 - express-rate-limit
 - fluent-ffmpeg
@@ -193,9 +193,11 @@
 - jsonwebtoken
 - nodemailer
 - ws
+- _RescueLinkAppState
 - identity-obj-proxy
 - jest
 - jest-environment-jsdom
+- postcss
 - tailwindcss
 - @testing-library/react
 - vite.config.js
@@ -229,7 +231,7 @@
 ## Import Cycles
 - None detected.
 
-## Communities (247 total, 36 thin omitted)
+## Communities (250 total, 35 thin omitted)
 
 ### Community 0 - "main.dart"
 Cohesion: 0.02
@@ -237,7 +239,7 @@ Nodes (81): firebase_options.dart, _backToLogin, _checkingSession, createState, 
 
 ### Community 1 - "incident_details_screen.dart"
 Cohesion: 0.03
-Nodes (65): AudioPlayer, _aiClassification, _aiConfidenceLabel, _apiUnreadCount, _audioDuration, _audioLoaded, _audioPlayer, _audioPosition (+57 more)
+Nodes (63): AudioPlayer, _aiClassification, _aiConfidenceLabel, _apiUnreadCount, _audioDuration, _audioLoaded, _audioPlayer, _audioPosition (+55 more)
 
 ### Community 2 - "Path"
 Cohesion: 0.07
@@ -257,7 +259,7 @@ Nodes (47): barangay, _channel, _cleanup, connect, data, disconnect, dispose, _d
 
 ### Community 6 - "home_placeholder_screen.dart"
 Cohesion: 0.04
-Nodes (44): _apiUnreadCount, build, _buildHomeContent, _buildLogo, _buildReportHistoryContent, _buildSettingsContent, _buildSosCountdownOverlay, _cancelSosCountdown (+36 more)
+Nodes (46): _apiUnreadCount, build, _buildHomeContent, _buildLogo, _buildReportHistoryContent, _buildSettingsContent, _buildSosCountdownOverlay, _cancelSosCountdown (+38 more)
 
 ### Community 7 - "record_incident_on_blockchain"
 Cohesion: 0.08
@@ -273,7 +275,7 @@ Nodes (38): api_service.dart, _apiService, _authHeaders, _authService, bytes, _c
 
 ### Community 10 - "auth_bloc.dart"
 Cohesion: 0.07
-Nodes (39): auth_event.dart, auth_state.dart, Equatable, _authService, _onAuthReset, _onBiometricLoginRequested, _onLocationCheckRequested, _onLoginRequested (+31 more)
+Nodes (36): auth_event.dart, auth_state.dart, _authService, _onAuthReset, _onBiometricLoginRequested, _onLocationCheckRequested, _onLoginRequested, _onOtpRequested (+28 more)
 
 ### Community 11 - "settings_screen.dart"
 Cohesion: 0.06
@@ -288,12 +290,12 @@ Cohesion: 0.05
 Nodes (36): assigned, assignedDepartmentDisplayName, badgeBackground, badgeBorder, badgeIcon, badgeText, departmentFromIncidentType, formatIncidentCode (+28 more)
 
 ### Community 14 - "otp_verification_screen.dart"
-Cohesion: 0.11
-Nodes (19): _authService, build, _captureLocationAndVerify, createState, dispose, _getOTPCode, _handleOTPInput, _handleResendOTP (+11 more)
+Cohesion: 0.06
+Nodes (33): _authService, build, _captureLocationAndVerify, createState, dispose, _getOTPCode, _handleOTPInput, _handleResendOTP (+25 more)
 
 ### Community 15 - "emergency_report_screen.dart"
 Cohesion: 0.06
-Nodes (35): AudioRecorder, dart:typed_data, _additionalDetailsExpanded, _audioBytes, _barangay, build, _buildDisabledMediaButton, _buildMediaAddButton (+27 more)
+Nodes (33): AudioRecorder, dart:typed_data, _additionalDetailsExpanded, _audioBytes, _barangay, build, _buildDisabledMediaButton, _buildMediaAddButton (+25 more)
 
 ### Community 16 - "controllers/incident.js"
 Cohesion: 0.07
@@ -304,8 +306,8 @@ Cohesion: 0.12
 Nodes (26): AuditLog, getAdminLogs(), getAll(), { ROLES }, { validatePagination, validateOptionalString, validateOptionalDate }, Department, departmentController, { isPointInDagupan } (+18 more)
 
 ### Community 18 - "State"
-Cohesion: 0.13
-Nodes (23): RescueLinkApp, _RescueLinkAppState, CreateNewPasswordScreen, _CreateNewPasswordScreenState, ForgotPasswordScreen, _ForgotPasswordScreenState, SignUpScreen, _SignUpScreenState (+15 more)
+Cohesion: 0.09
+Nodes (32): AuthNavigator, _AuthNavigatorState, CreateNewPasswordScreen, _CreateNewPasswordScreenState, VerifyNumberScreen, _VerifyNumberScreenState, AboutScreen, _AboutScreenState (+24 more)
 
 ### Community 19 - "controllers/location.js"
 Cohesion: 0.11
@@ -333,7 +335,7 @@ Nodes (22): dart:convert, dart:io, main, main, main, main, main, main (+14 more)
 
 ### Community 25 - "barangay_information_screen.dart"
 Cohesion: 0.07
-Nodes (28): _addressController, _addressFocusNode, _applySuggestion, BarangayInformationScreen, _BarangayInformationScreenState, build, createState, _displayAddress (+20 more)
+Nodes (26): _addressController, _addressFocusNode, _applySuggestion, build, createState, _displayAddress, dispose, initState (+18 more)
 
 ### Community 26 - "seed-incidents-from-audio.js"
 Cohesion: 0.11
@@ -341,7 +343,7 @@ Nodes (25): args, AUDIO_EXTENSIONS, BARANGAYS, { checkAiHealth, processIncidentW
 
 ### Community 27 - "example_bloc.dart"
 Cohesion: 0.13
-Nodes (23): Bloc, example_event.dart, example_state.dart, ExampleBloc, _onDecrement, _onIncrement, _onReset, ExampleDecrementEvent (+15 more)
+Nodes (23): Bloc, Equatable, example_event.dart, example_state.dart, ExampleBloc, _onDecrement, _onIncrement, _onReset (+15 more)
 
 ### Community 28 - "gas_optimization_test.js"
 Cohesion: 0.11
@@ -349,7 +351,7 @@ Nodes (22): axios, checkBackend(), checkBlockchainService(), checkGanache(), dot
 
 ### Community 29 - "signup_screen.dart"
 Cohesion: 0.08
-Nodes (23): build, _buildIllustration, _buildLogo, _confirmPasswordController, createState, dagupanBarangays, dispose, _firstNameController (+15 more)
+Nodes (25): build, _buildIllustration, _buildLogo, _confirmPasswordController, createState, dagupanBarangays, dispose, _firstNameController (+17 more)
 
 ### Community 30 - "constants.dart"
 Cohesion: 0.08
@@ -357,7 +359,7 @@ Nodes (25): apiAuth, apiDispatches, apiIncidents, apiLocation, apiNotifications,
 
 ### Community 31 - "seed-db.js"
 Cohesion: 0.11
-Nodes (24): AUDIO_EXTENSIONS, bcryptjs, collectAudioFiles(), DAGUPAN_LOCATION_FIXTURES, DEPARTMENTS, { encrypt }, encryptNullable(), estimateEncryptedHexLength() (+16 more)
+Nodes (23): AUDIO_EXTENSIONS, bcryptjs, collectAudioFiles(), DAGUPAN_LOCATION_FIXTURES, DEPARTMENTS, { encrypt }, encryptNullable(), estimateEncryptedHexLength() (+15 more)
 
 ### Community 32 - "fileScanService.js"
 Cohesion: 0.13
@@ -365,7 +367,7 @@ Nodes (22): BLOCKED_SIGNATURES, CLAMAV_PORT, CLAMAV_TIMEOUT_MS, detectSimulatedT
 
 ### Community 33 - "notifications_screen.dart"
 Cohesion: 0.08
-Nodes (26): build, _collapsedPreview, createState, dispose, _error, _eventTypeLabel, _expandedKeys, _formatTimestamp (+18 more)
+Nodes (24): build, _collapsedPreview, createState, dispose, _error, _eventTypeLabel, _expandedKeys, _formatTimestamp (+16 more)
 
 ### Community 34 - "mod12_spam_performance_runner.py"
 Cohesion: 0.16
@@ -384,8 +386,8 @@ Cohesion: 0.08
 Nodes (23): AppTheme, baseFontSize, _buildTextTheme, darkBackground, darkBorder, darkCard, darkSurface, darkTextMuted (+15 more)
 
 ### Community 38 - "duplicateDetectionService.js"
-Cohesion: 0.19
-Nodes (9): { calculateDistance }, calculateDuplicateConfidence(), duplicateConfig, getDuplicateCluster(), getDuplicateInfo(), getPrimaryReportId(), pool, { tryDecryptValue } (+1 more)
+Cohesion: 0.13
+Nodes (18): { linkAsDuplicate }, main(), pool, { tryDecryptValue }, runRealtimeDuplicateCheck(), { calculateDistance }, calculateDuplicateConfidence(), duplicateConfig (+10 more)
 
 ### Community 39 - "mod12_spam_security_runner.py"
 Cohesion: 0.14
@@ -393,27 +395,27 @@ Nodes (22): ai_headers(), case_s1_authorization(), case_s2_invalid_input(), case
 
 ### Community 40 - "login_screen.dart"
 Cohesion: 0.10
-Nodes (19): FormState, build, _buildIllustration, _buildLogo, _checkBiometricAvailability, createState, dispose, _formKey (+11 more)
+Nodes (21): FormState, build, _buildIllustration, _buildLogo, _checkBiometricAvailability, createState, dispose, _formKey (+13 more)
 
 ### Community 41 - "package:flutter/material.dart"
-Cohesion: 0.06
-Nodes (32): build, IdentityErrorScreen, onTryAgain, build, _buildLogo, onBackToLogin, PasswordUpdatedScreen, build (+24 more)
+Cohesion: 0.10
+Nodes (18): build, IdentityErrorScreen, onTryAgain, build, _buildLogo, onBackToLogin, PasswordUpdatedScreen, build (+10 more)
 
 ### Community 42 - "verify_new_phone_otp_screen.dart"
-Cohesion: 0.12
-Nodes (16): build, _canResend, _controllers, createState, dispose, _focusNodes, initState, onBack (+8 more)
+Cohesion: 0.09
+Nodes (20): build, createState, dispose, _numberController, onBack, build, _canResend, _controllers (+12 more)
 
 ### Community 43 - "privacy_security_screen.dart"
 Cohesion: 0.10
 Nodes (21): _aiIncidentAnalysis, _autoLogoutOption, _autoLogoutSheet, _biometricLogin, build, createState, initState, _loadBiometricPreference (+13 more)
 
 ### Community 44 - "verification_otp_screen.dart"
-Cohesion: 0.06
-Nodes (33): bloc/auth/auth_bloc.dart, bloc/auth/auth_event.dart, bloc/auth/auth_state.dart, build, _buildLogo, _canResend, cityRegion, _controllers (+25 more)
+Cohesion: 0.10
+Nodes (21): build, _buildLogo, _canResend, cityRegion, _controllers, createState, _defaultLat, _defaultLng (+13 more)
 
 ### Community 45 - "AuthBloc"
-Cohesion: 0.15
-Nodes (26): AuthBloc, OtpVerified, ResendOtpRequested, AuthError, AuthInitial, AuthLoading, AuthState, isInDagupan (+18 more)
+Cohesion: 0.21
+Nodes (20): AuthBloc, AuthError, AuthInitial, AuthLoading, AuthState, isInDagupan, LocationError, LocationVerified (+12 more)
 
 ### Community 46 - "change_password_screen.dart"
 Cohesion: 0.10
@@ -433,19 +435,19 @@ Nodes (19): autoprefixer, babel-jest, @babel/preset-env, @babel/preset-react, de
 
 ### Community 50 - "dependencies"
 Cohesion: 0.11
-Nodes (19): dependencies, axios, bcryptjs, cors, dotenv, firebase-admin, multer, node-cron (+11 more)
+Nodes (19): dependencies, axios, bcryptjs, cors, dotenv, ffmpeg-static, firebase-admin, node-cron (+11 more)
 
 ### Community 51 - "scripts"
 Cohesion: 0.11
 Nodes (19): scripts, analyze-duplicates, backup-db, dev, link-seed-duplicates, migrate, seed-db, seed-db:full (+11 more)
 
 ### Community 52 - "websocketManager.js"
-Cohesion: 0.07
-Nodes (33): crypto, pool, TokenBlacklist, app, http, { init: initWebSocket }, pool, DEPARTMENT_SCOPED_ROLES (+25 more)
+Cohesion: 0.12
+Nodes (16): app, http, { init: initWebSocket }, pool, DEPARTMENT_SCOPED_ROLES, GLOBAL_EVENT_ROLES, init(), jwt (+8 more)
 
 ### Community 53 - "verification_screen.dart"
-Cohesion: 0.13
-Nodes (15): _authService, build, createState, initState, _isLoading, _obscureConfirmPassword, _obscurePassword, onBackTap (+7 more)
+Cohesion: 0.12
+Nodes (18): bloc/auth/auth_bloc.dart, bloc/auth/auth_event.dart, bloc/auth/auth_state.dart, OtpRequested, build, _buildLogo, cityRegion, createState (+10 more)
 
 ### Community 54 - "dependencies"
 Cohesion: 0.11
@@ -468,16 +470,16 @@ Cohesion: 0.11
 Nodes (17): description, devDependencies, axios, chai, dotenv, mocha, web3, axios (+9 more)
 
 ### Community 59 - "String?"
-Cohesion: 0.22
-Nodes (8): actionLabel, build, EmptyStateIllustration, icon, onAction, subtitle, title, IconData
+Cohesion: 0.11
+Nodes (16): AccountCreatedScreen, build, _goBack, onBackToLogin, onContinueToVerifyPhone, onDone, registeredPhone, actionLabel (+8 more)
 
 ### Community 60 - "logout_confirmation_screen.dart"
-Cohesion: 0.22
-Nodes (9): build, _bullet, createState, LogoutConfirmationScreen, _LogoutConfirmationScreenState, _logOutFromAllDevices, onBack, onCancel (+1 more)
+Cohesion: 0.11
+Nodes (15): build, ChangePhoneNumberScreen, onBack, onChangePhoneNumber, build, _bullet, createState, _logOutFromAllDevices (+7 more)
 
 ### Community 61 - "staggered_fade_in.dart"
 Cohesion: 0.12
-Nodes (15): Duration, _animations, build, children, _controller, createState, didUpdateWidget, dispose (+7 more)
+Nodes (16): AnimationController, Duration, _animations, build, children, _controller, createState, didUpdateWidget (+8 more)
 
 ### Community 62 - "notification_service.dart"
 Cohesion: 0.12
@@ -492,8 +494,8 @@ Cohesion: 0.18
 Nodes (13): latencyMetrics, metricsController, { recordRequest, normalizePath }, VERBOSE_TIMING_LOGS, aggregateSamples(), endpointSamples, getSummary(), keyFor() (+5 more)
 
 ### Community 65 - "models/incident.js"
-Cohesion: 0.19
-Nodes (9): decodeReporterFields(), { encrypt, decrypt }, Incident, INCIDENT_STATUS_FLOW, looksEncryptedValue(), pool, { ROLES }, tryDecryptValue() (+1 more)
+Cohesion: 0.15
+Nodes (12): decodeReporterFields(), { encrypt, decrypt }, Incident, INCIDENT_STATUS_FLOW, looksEncryptedValue(), pool, { ROLES }, tryDecryptValue() (+4 more)
 
 ### Community 66 - "api_service.dart"
 Cohesion: 0.12
@@ -504,8 +506,8 @@ Cohesion: 0.20
 Nodes (13): Dataset, best_threshold_from_probs(), build_label_maps(), detect_device(), EmergencyDataset, evaluate(), load_df(), make_dataloaders() (+5 more)
 
 ### Community 68 - "animated_fab.dart"
-Cohesion: 0.06
-Nodes (31): Animation, AnimationController, backgroundColor, build, _controller, createState, dispose, _handleLongPress (+23 more)
+Cohesion: 0.12
+Nodes (16): backgroundColor, build, _controller, createState, dispose, _handleLongPress, _handleTap, hintLabel (+8 more)
 
 ### Community 69 - "controllers/responder.js"
 Cohesion: 0.14
@@ -516,12 +518,12 @@ Cohesion: 0.12
 Nodes (13): jwt, { JWT_SECRET }, TokenBlacklist, authController, authMiddleware, express, router, authMiddleware (+5 more)
 
 ### Community 71 - "encryption.js"
-Cohesion: 0.19
-Nodes (16): AuditLog, decodeAuditRow(), decodeAuditUserFields(), { decrypt }, looksEncryptedValue(), pool, { recursivelyDecrypt }, tryDecryptValue() (+8 more)
+Cohesion: 0.20
+Nodes (14): AuditLog, decodeAuditRow(), decodeAuditUserFields(), { decrypt }, looksEncryptedValue(), pool, { recursivelyDecrypt }, tryDecryptValue() (+6 more)
 
 ### Community 72 - "websocket.integration.test.js"
-Cohesion: 0.40
-Nodes (5): { linkAsDuplicate }, main(), pool, { tryDecryptValue }, linkAsDuplicate()
+Cohesion: 0.19
+Nodes (14): app, connectWebSocket(), connectWebSocketExpectReject(), createDispatch(), createEmergencyIncident(), getWsUrl(), http, { init: initWebSocket } (+6 more)
 
 ### Community 73 - "create_new_password_screen.dart"
 Cohesion: 0.12
@@ -529,11 +531,15 @@ Nodes (15): bool get, build, _buildLogo, _confirmController, createState, dispos
 
 ### Community 74 - "verify_number_screen.dart"
 Cohesion: 0.12
-Nodes (17): build, _buildLogo, _code, _controllers, createState, dispose, _focusNodes, initState (+9 more)
+Nodes (15): build, _buildLogo, _code, _controllers, createState, dispose, _focusNodes, initState (+7 more)
 
 ### Community 75 - "app_config.dart"
 Cohesion: 0.12
 Nodes (15): apiBaseUrl, apiTimeout, AppConfig, defaultLatitude, defaultLongitude, defaultPageSize, enableApiLogging, enableDebugLogging (+7 more)
+
+### Community 76 - "premium_card.dart"
+Cohesion: 0.13
+Nodes (14): Animation, borderRadius, build, _buildSolidCard, child, _controller, createState, dispose (+6 more)
 
 ### Community 77 - "department.integration.test.js"
 Cohesion: 0.13
@@ -548,8 +554,8 @@ Cohesion: 0.13
 Nodes (14): dart:math, calculateDistance, checkLocationPermission, _dagupanPolygon, _distanceToLineSegment, GeolocationService, getCurrentPosition, isPointInDagupan (+6 more)
 
 ### Community 80 - "forgot_password_screen.dart"
-Cohesion: 0.09
-Nodes (21): build, _buildLogo, createState, dispose, _handleRequestCode, _isLoading, onBackToLogin, _phoneController (+13 more)
+Cohesion: 0.14
+Nodes (14): build, _buildLogo, createState, dispose, ForgotPasswordScreen, _ForgotPasswordScreenState, _handleRequestCode, _isLoading (+6 more)
 
 ### Community 81 - "mockData.js"
 Cohesion: 0.13
@@ -584,10 +590,10 @@ Cohesion: 0.25
 Nodes (13): ai_headers(), main(), now_ms(), Test Case 2: Audio Report Validation          BEFORE: No validation, all audio, Test Case 3: Report Audit Trail (Blockchain Integration)          BEFORE: Repo, Write results in markdown format for easy reading., Run a test case and return structured results for Before vs After table., Test Case 1: Text Report Spam Detection          BEFORE: Manual review of all (+5 more)
 
 ### Community 89 - "duplicateBackgroundAnalyzer.js"
-Cohesion: 0.18
-Nodes (12): main(), pool, { runDuplicateAnalysis }, runRealtimeDuplicateCheck(), cron, duplicateConfig, {
+Cohesion: 0.21
+Nodes (10): main(), pool, { runDuplicateAnalysis }, cron, duplicateConfig, {
   findPotentialDuplicates,
-}, getRecentReportsToAnalyze() (+4 more)
+}, getRecentReportsToAnalyze(), pool (+2 more)
 
 ### Community 90 - "models/responder.js"
 Cohesion: 0.17
@@ -598,8 +604,8 @@ Cohesion: 0.15
 Nodes (12): Color, dart:ui, EdgeInsetsGeometry?, backgroundColor, blurSigma, borderColor, borderRadius, build (+4 more)
 
 ### Community 92 - "List"
-Cohesion: 0.17
-Nodes (11): addIncidentsResponse, addLoginResponse, addNotificationsResponse, addProfileResponse, addResponse, MockHttpClient, requests, _responses (+3 more)
+Cohesion: 0.15
+Nodes (12): addIncidentsResponse, addLoginResponse, addNotificationsResponse, addProfileResponse, addResponse, MockHttpClient, requests, _responses (+4 more)
 
 ### Community 93 - "SelectParentIncidentDialog.jsx"
 Cohesion: 0.19
@@ -638,12 +644,24 @@ Cohesion: 0.27
 Nodes (9): compressVideo(), createTempPath(), crypto, getVideoMetadata(), os, path, PHOTO_EXTENSIONS, transcodeVideo() (+1 more)
 
 ### Community 102 - "bottom_sheet_wrapper.dart"
-Cohesion: 0.07
-Nodes (26): double?, AccountCreatedScreen, build, _goBack, onBackToLogin, onContinueToVerifyPhone, onDone, registeredPhone (+18 more)
+Cohesion: 0.20
+Nodes (9): double?, BottomSheetWrapper, build, child, height, isScrollControlled, showDragHandle, title (+1 more)
+
+### Community 103 - "about_screen.dart"
+Cohesion: 0.20
+Nodes (9): _aboutRow, _appVersion, build, createState, onBack, onPrivacySecurityTap, static const String, ../../widgets/glass_card.dart (+1 more)
 
 ### Community 104 - "theme_service.dart"
 Cohesion: 0.20
 Nodes (8): getThemeMode, setThemeMode, _themeKey, ThemeService, load, setupIntegrationTest, package:flutter_dotenv/flutter_dotenv.dart, package:shared_preferences/shared_preferences.dart
+
+### Community 105 - "gradient_header.dart"
+Cohesion: 0.20
+Nodes (9): build, GradientHeader, leading, onBack, subtitle, title, trailing, transparentFade (+1 more)
+
+### Community 106 - "db.js"
+Cohesion: 0.22
+Nodes (6): { Pool }, IncidentCoordinationNote, pool, crypto, pool, TokenBlacklist
 
 ### Community 107 - "incidentController.security.test.js"
 Cohesion: 0.22
@@ -694,8 +712,8 @@ Cohesion: 0.29
 Nodes (5): fs, MIGRATION_ORDER, MIGRATIONS_DIR, path, { Pool }
 
 ### Community 120 - "dispatcherOtp.js"
-Cohesion: 0.13
-Nodes (8): { Pool }, crypto, DispatcherOtp, pool, IncidentCoordinationNote, pool, Incident, pool
+Cohesion: 0.29
+Nodes (3): crypto, DispatcherOtp, pool
 
 ### Community 121 - "routes/admin.js"
 Cohesion: 0.29
@@ -834,24 +852,24 @@ Cohesion: 0.67
 Nodes (3): _openNotifications, _openNotifications, MaterialPageRoute
 
 ## Knowledge Gaps
-- **1514 isolated node(s):** `graphify`, `fs`, `path`, `pool`, `MIGRATIONS_DIR` (+1509 more)
+- **1513 isolated node(s):** `fs`, `path`, `pool`, `MIGRATIONS_DIR`, `MIGRATION_ORDER` (+1508 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **36 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **35 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `AuthBloc` connect `AuthBloc` to `main.dart`, `login_screen.dart`, `auth_bloc.dart`, `verification_otp_screen.dart`, `State`, `example_bloc.dart`?**
-  _High betweenness centrality (0.010) - this node is a cross-community bridge._
 - **Why does `ROLES` connect `ROLES` to `controllers/auth.js`, `controllers/incident.js`, `controllers/department.js`, `seed-incidents-from-audio.js`, `seed-db.js`, `controllers/dispatch.js`, `websocketManager.js`, `roles.js`, `models/incident.js`, `controllers/responder.js`, `middleware/auth.js`, `department.integration.test.js`, `rbac.js`, `controllers/admin.js`, `routes/incident.js`, `routes/admin.js`, `routes/auditLog.js`, `routes/department.js`, `routes/dispatch.js`, `routes/metrics.js`, `routes/responder.js`?**
-  _High betweenness centrality (0.009) - this node is a cross-community bridge._
-- **Why does `_AuthNavigatorState` connect `auth_bloc.dart` to `main.dart`, `State`, `AuthBloc`?**
-  _High betweenness centrality (0.005) - this node is a cross-community bridge._
-- **What connects `graphify`, `fs`, `path` to the rest of the system?**
-  _1514 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _High betweenness centrality (0.010) - this node is a cross-community bridge._
+- **Why does `AuthBloc` connect `AuthBloc` to `main.dart`, `login_screen.dart`, `auth_bloc.dart`, `verification_otp_screen.dart`, `_RescueLinkAppState`, `State`, `verification_screen.dart`, `example_bloc.dart`, `signup_screen.dart`?**
+  _High betweenness centrality (0.008) - this node is a cross-community bridge._
+- **Why does `AuthService` connect `otp_verification_screen.dart` to `incident_service.dart`, `auth_bloc.dart`, `auth_service.dart`, `notification_service.dart`?**
+  _High betweenness centrality (0.002) - this node is a cross-community bridge._
+- **What connects `fs`, `path`, `pool` to the rest of the system?**
+  _1513 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `main.dart` be split into smaller, more focused modules?**
   _Cohesion score 0.024390243902439025 - nodes in this community are weakly interconnected._
 - **Should `incident_details_screen.dart` be split into smaller, more focused modules?**
-  _Cohesion score 0.03076923076923077 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.03125 - nodes in this community are weakly interconnected._
 - **Should `Path` be split into smaller, more focused modules?**
   _Cohesion score 0.06663141195134849 - nodes in this community are weakly interconnected._
