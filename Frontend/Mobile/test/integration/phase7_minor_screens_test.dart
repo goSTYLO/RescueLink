@@ -39,7 +39,7 @@ void main() {
           home: BarangayInformationScreen(onBack: () {}),
         ),
       );
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 500));
       expect(find.byType(BarangayInformationScreen), findsOneWidget);
     });
 

@@ -137,18 +137,25 @@ class _VerifyDagupanResidencyScreenState
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Image.asset('assets/logo/logo2.png', width: 64, height: 64, fit: BoxFit.contain),
+        Image.asset('assets/logo/icon.png', width: 104, height: 104, fit: BoxFit.contain),
         const SizedBox(width: 0),
         Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
           children: [
             RichText(
-              text: const TextSpan(
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+              text: TextSpan(
+                style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
                 children: [
-                  TextSpan(text: 'Rescue', style: TextStyle(color: Color(0xFF2563EB))),
-                  TextSpan(text: 'Link', style: TextStyle(color: Color(0xFFEF4444))),
+                  TextSpan(
+                      text: 'Rescue',
+                      style: TextStyle(
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? Colors.white
+                              : const Color(0xFF0F172A))),
+                  const TextSpan(
+                      text: 'Link',
+                      style: TextStyle(color: Color(0xFFFF6B6B))),
                 ],
               ),
             ),

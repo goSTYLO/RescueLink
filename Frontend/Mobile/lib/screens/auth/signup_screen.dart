@@ -172,42 +172,49 @@ class _SignUpScreenState extends State<SignUpScreen> {
     final logoSize = Responsive.logoSize(width);
     final titleSize = Responsive.brandTitleSize(width);
     final compact = Responsive.isCompact(width);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Row(
-      mainAxisSize: MainAxisSize.max,
+      mainAxisSize: MainAxisSize.min,
       mainAxisAlignment: MainAxisAlignment.center,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Image.asset(
-          'assets/logo/logo2.png',
+          'assets/logo/icon.png',
           width: logoSize,
           height: logoSize,
           fit: BoxFit.contain,
         ),
-        SizedBox(width: compact ? 6 : 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text.rich(
-                TextSpan(
-                  style: TextStyle(
-                      fontSize: titleSize, fontWeight: FontWeight.bold),
-                  children: const [
-                    TextSpan(
-                        text: 'Rescue',
-                        style: TextStyle(color: Color(0xFF2563EB))),
-                    TextSpan(
-                        text: 'Link',
-                        style: TextStyle(color: Color(0xFFEF4444))),
-                  ],
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+        SizedBox(width: compact ? 8 : 12),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text.rich(
+              TextSpan(
+                style: TextStyle(
+                    fontSize: titleSize, fontWeight: FontWeight.bold),
+                children: [
+                  TextSpan(
+                      text: 'Rescue',
+                      style: TextStyle(color: isDark ? Colors.white : const Color(0xFF0F172A))),
+                  const TextSpan(
+                      text: 'Link',
+                      style: TextStyle(color: Color(0xFFFF6B6B))),
+                ],
               ),
-            ],
-          ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            Text(
+              'Your Safety Companion',
+              style: TextStyle(
+                fontSize: compact ? 10 : 12,
+                color: isDark ? const Color(0xFFB0B8CC) : const Color(0xFF64748B),
+                fontWeight: FontWeight.w400,
+              ),
+            ),
+          ],
         ),
       ],
     );

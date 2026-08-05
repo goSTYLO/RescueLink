@@ -7,7 +7,7 @@ class MockHttpClient extends http.BaseClient {
   final Map<String, http.StreamedResponse> _responses = {};
   final List<http.BaseRequest> requests = [];
 
-  void addResponse(String method, String path, int statusCode, Map<String, dynamic> body) {
+  void addResponse(String method, String path, int statusCode, dynamic body) {
     final key = '$method $path';
     _responses[key] = http.StreamedResponse(
       Stream.value(utf8.encode(jsonEncode(body))),

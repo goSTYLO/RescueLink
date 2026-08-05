@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import { AtSign } from 'lucide-react';
-import logo from '@/presentation/assets/logo.svg';
+import { BrandLogo } from '@/presentation/components/common/BrandLogo';
 import illustration from '@/presentation/assets/forgot-password-illustration.svg';
 import { API_URL } from '@/core/config/app.config';
 import { AuthCardLayout } from '@/presentation/components/layout/AuthCardLayout';
@@ -79,8 +79,8 @@ export default function ForgotPassword({ onSuccess, onBackToLogin }) {
       illustration={illustration}
       tagline="For security reasons, password reset links expire after a limited time."
     >
-      <div className="mb-8">
-        <img src={logo} alt="RescueLink Logo" className="h-12 w-auto" />
+      <div className="mb-6">
+        <BrandLogo size="lg" />
       </div>
       <div className="mb-8">
         <h2 className="text-3xl font-bold text-foreground mb-2 transition-all duration-300">Forgot Your Password?</h2>

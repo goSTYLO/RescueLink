@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import Login from '@/presentation/pages/Login';
 
-jest.mock('@/presentation/assets/logo.svg', () => 'logo.svg');
+jest.mock('@/presentation/assets/logo_new.png', () => 'logo_new.png');
 jest.mock('@/presentation/assets/illustration.svg', () => 'illustration.svg');
 jest.mock('@/presentation/components/layout/AuthCardLayout', () => ({
   AuthCardLayout: ({ children }) => <div>{children}</div>,

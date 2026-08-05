@@ -20,14 +20,14 @@ class AppTheme {
   static const Color lightTextSecondary = Color(0xFF6B7280);
   static const Color lightTextMuted = Color(0xFF9CA3AF);
 
-  // Dark mode colors (following web color scheme)
-  static const Color darkBackground = Color(0xFF111827);
-  static const Color darkSurface = Color(0xFF1F2937);
-  static const Color darkCard = Color(0xFF1F2937);
-  static const Color darkBorder = Color(0xFF374151);
+  // Dark mode colors (following new home screen dark slate color scheme)
+  static const Color darkBackground = Color(0xFF0F1420);
+  static const Color darkSurface = Color(0xFF1A2035);
+  static const Color darkCard = Color(0xFF1A2035);
+  static const Color darkBorder = Color(0xFF252D40);
   static const Color darkTextPrimary = Color(0xFFF9FAFB);
-  static const Color darkTextSecondary = Color(0xFFD1D5DB);
-  static const Color darkTextMuted = Color(0xFF9CA3AF);
+  static const Color darkTextSecondary = Color(0xFF94A3B8);
+  static const Color darkTextMuted = Color(0xFF64748B);
 
   /// Base font size - UDPS: 16px minimum for body text
   static const double baseFontSize = 16.0;

@@ -476,9 +476,9 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
                   onBack: _isSubmitting ? null : widget.onBack,
                   transparentFade: true,
                   trailing: Image.asset(
-                    'assets/logo/logo2.png',
-                    width: 32,
-                    height: 32,
+                    'assets/logo/icon.png',
+                    width: 64,
+                    height: 64,
                     fit: BoxFit.contain,
                     color: Colors.white,
                     colorBlendMode: BlendMode.srcIn,

@@ -72,6 +72,8 @@ flutter:
     - .env
     - assets/logo/logo.png
     - assets/logo/logo2.png
+    - assets/logo/logo_new.png
+    - assets/logo/icon.png
     - assets/images/login_illustrations.png
     - assets/images/createaccount_illustration.png
     - assets/images/forgotpassword_illustration.png
@@ -81,4 +83,5 @@ flutter:
     - assets/images/maps_illustration.png
     - assets/images/outsidearea_illustration.png
     - assets/images/accountcreateddone_-illustration.png
+    - assets/images/profilepicture_illustration.png
     - assets/geojson/dagupan.geojson

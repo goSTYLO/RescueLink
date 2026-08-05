@@ -139,23 +139,48 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
 
   Widget _buildLogo() {
     return Row(
+      mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Image.asset(
-          'assets/logo/logo2.png',
-          width: 64,
-          height: 64,
+          'assets/logo/icon.png',
+          width: 72,
+          height: 72,
           fit: BoxFit.contain,
-        ),
-        const SizedBox(width: 10),
-        const Text.rich(
-          TextSpan(
-            style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-            children: [
-              TextSpan(text: 'Rescue', style: TextStyle(color: Color(0xFF2563EB))),
-              TextSpan(text: 'Link', style: TextStyle(color: Color(0xFFEF4444))),
-            ],
+          errorBuilder: (_, __, ___) => const Icon(
+            Icons.health_and_safety,
+            color: Colors.white,
+            size: 72,
           ),
+        ),
+        const SizedBox(width: 12),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: const [
+            Text.rich(
+              TextSpan(
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, height: 1.1),
+                children: [
+                  TextSpan(
+                      text: 'Rescue',
+                      style: TextStyle(color: Colors.white)),
+                  TextSpan(
+                      text: 'Link',
+                      style: TextStyle(color: Color(0xFFFF6B6B))),
+                ],
+              ),
+            ),
+            SizedBox(height: 2),
+            Text(
+              'Your Safety Companion',
+              style: TextStyle(
+                fontSize: 12,
+                color: Color(0xFF94A3B8),
+                fontWeight: FontWeight.w400,
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -232,51 +257,64 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
           const SizedBox(height: 16),
-          ClipRRect(
-            borderRadius: const BorderRadius.only(
-              bottomLeft: Radius.circular(24),
-              bottomRight: Radius.circular(24),
+          Container(
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? const Color(0xFF111827)
+                  : const Color(0xFF0F172A),
             ),
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: Theme.of(context).brightness == Brightness.light
-                      ? [
-                          const Color(0xFFEF4444),
-                          const Color(0xFFDC2626),
-                          const Color(0xFFB91C1C),
-                        ]
-                      : [
-                          const Color(0xFFEF4444),
-                          const Color(0xB3EF4444),
-                          const Color(0x66EF4444),
-                          const Color(0x00EF4444),
+            child: SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                child: Row(
+                  children: [
+                    Expanded(child: _buildLogo()),
+                    if (widget.onNotificationsTap != null)
+                      Stack(
+                        children: [
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: IconButton(
+                              padding: EdgeInsets.zero,
+                              icon: const Icon(Icons.notifications_outlined, color: Colors.white, size: 22),
+                              onPressed: widget.onNotificationsTap,
+                            ),
+                          ),
+                          if (widget.unreadNotificationCount > 0)
+                            Positioned(
+                              top: 2,
+                              right: 2,
+                              child: Container(
+                                width: 14,
+                                height: 14,
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFFEF4444),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    widget.unreadNotificationCount > 9
+                                        ? '9+'
+                                        : '${widget.unreadNotificationCount}',
+                                    style: const TextStyle(
+                                        fontSize: 8,
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                              ),
+                            ),
                         ],
+                      ),
+                  ],
                 ),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Expanded(child: _buildLogo()),
-                  if (widget.onNotificationsTap != null)
-                    Badge(
-                      isLabelVisible: widget.unreadNotificationCount > 0,
-                      label: Text(
-                        '${widget.unreadNotificationCount}',
-                        style: const TextStyle(fontSize: 10, color: Colors.white),
-                      ),
-                      child: IconButton(
-                        icon: const Icon(Icons.notifications_none, color: Colors.white, size: 28),
-                        onPressed: widget.onNotificationsTap,
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                      ),
-                    ),
-                ],
               ),
             ),
           ),

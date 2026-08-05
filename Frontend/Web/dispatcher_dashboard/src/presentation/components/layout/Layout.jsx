@@ -7,8 +7,7 @@ import { Home, Map, User, FileText, Settings, Shield, ShieldCheck, Building2, Lo
 import { signOut } from 'firebase/auth';
 import { auth } from '@/infrastructure/firebase';
 import { logout as logoutApi } from '@/data/api/auth.api';
-import logo from '@/presentation/assets/logo.svg';
-import logoDark from '@/presentation/assets/logo-dark.svg';
+import { BrandLogo } from '@/presentation/components/common/BrandLogo';
 import Swal from 'sweetalert2';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
 import { ThemeToggle } from '@/presentation/components/common/ThemeToggle';
@@ -328,13 +327,7 @@ export function Layout({ children }) {
         <div className={`flex items-center border-b border-border/80 transition-all duration-300 ${
           isLight ? 'bg-white' : 'bg-secondary'
         } ${isCollapsed ? 'justify-center p-4' : 'gap-3 p-5 pl-5'}`}>
-          <img
-            src={isLight ? logo : logoDark}
-            alt="RescueLink"
-            className={`flex-shrink-0 object-contain transition-[height] duration-300 ${
-              isCollapsed ? 'h-8 w-8' : 'h-12 w-auto max-h-12'
-            }`}
-          />
+          <BrandLogo iconOnly={isCollapsed} size={isCollapsed ? 'md' : 'lg'} />
           {!isCollapsed && (
             <button
               onClick={() => setIsCollapsed(true)}

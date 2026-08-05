@@ -28,17 +28,17 @@ class GlassCard extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final border = borderColor ??
         (isDark
-            ? Colors.white.withOpacity(0.12)
-            : const Color(0xFFD4D4D4).withOpacity(0.6));
+            ? const Color(0xFF252D40)
+            : const Color(0xFFE2E8F0));
 
     final gradientColors = isDark
         ? [
-            Colors.white.withOpacity(0.18),
-            Colors.white.withOpacity(0.04),
+            const Color(0xFF1A2035),
+            const Color(0xFF161B2E),
           ]
         : [
-            const Color(0xFFEEEEEE).withOpacity(0.98),
-            const Color(0xFFE5E5E5).withOpacity(0.85),
+            Colors.white,
+            const Color(0xFFF8FAFC),
           ];
     Widget content = ClipRRect(
       borderRadius: BorderRadius.circular(borderRadius),
@@ -56,7 +56,7 @@ class GlassCard extends StatelessWidget {
             border: Border.all(color: border, width: 1),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(isDark ? 0.3 : 0.08),
+                color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.06),
                 blurRadius: 16,
                 offset: const Offset(0, 4),
               ),

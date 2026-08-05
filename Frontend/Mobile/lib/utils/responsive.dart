@@ -35,11 +35,11 @@ class Responsive {
   static double logoSize(double width) {
     switch (sizeClass(width)) {
       case ScreenSizeClass.compact:
-        return 50;
+        return 90;
       case ScreenSizeClass.regular:
-        return 58;
+        return 105;
       case ScreenSizeClass.expanded:
-        return 64;
+        return 120;
     }
   }
 

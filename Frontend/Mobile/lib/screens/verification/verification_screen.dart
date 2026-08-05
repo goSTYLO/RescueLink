@@ -100,7 +100,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
       mainAxisSize: MainAxisSize.max,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Image.asset('assets/logo/logo2.png',
+        Image.asset('assets/logo/icon.png',
             width: logoSize, height: logoSize, fit: BoxFit.contain),
         SizedBox(width: compact ? 6 : 10),
         Expanded(
@@ -112,13 +112,16 @@ class _VerificationScreenState extends State<VerificationScreen> {
                 TextSpan(
                   style: TextStyle(
                       fontSize: titleSize, fontWeight: FontWeight.bold),
-                  children: const [
+                  children: [
                     TextSpan(
                         text: 'Rescue',
-                        style: TextStyle(color: Color(0xFF2563EB))),
-                    TextSpan(
+                        style: TextStyle(
+                            color: Theme.of(context).brightness == Brightness.dark
+                                ? Colors.white
+                                : const Color(0xFF0F172A))),
+                    const TextSpan(
                         text: 'Link',
-                        style: TextStyle(color: Color(0xFFEF4444))),
+                        style: TextStyle(color: Color(0xFFFF6B6B))),
                   ],
                 ),
                 maxLines: 1,

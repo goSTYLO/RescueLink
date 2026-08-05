@@ -1,6 +1,5 @@
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
-import logo from '@/presentation/assets/logo.svg';
-import logoDark from '@/presentation/assets/logo-dark.svg';
+import { BrandLogo } from '@/presentation/components/common/BrandLogo';
 import { ThemeToggle } from '@/presentation/components/common/ThemeToggle.jsx';
 
 /**
@@ -89,12 +88,8 @@ export function AuthCardLayout({ children, illustration, tagline = 'One Tap. One
               </div>
             )}
           </div>
-          <div className="relative z-10 mt-6 flex items-center gap-2">
-            <img
-              src={isLight ? logo : logoDark}
-              alt="RescueLink"
-              className="h-8 w-auto opacity-90"
-            />
+          <div className="relative z-10 mt-6 flex items-center justify-center">
+            <BrandLogo size="lg" />
           </div>
           <p className="relative z-10 mt-3 text-center text-sm font-medium text-foreground/90 max-w-[200px]">
             {tagline}

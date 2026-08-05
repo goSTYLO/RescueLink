@@ -173,6 +173,55 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  Widget _buildHeaderLogo() {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Image.asset(
+          'assets/logo/icon.png',
+          width: 72,
+          height: 72,
+          fit: BoxFit.contain,
+          errorBuilder: (_, __, ___) => const Icon(
+            Icons.health_and_safety,
+            color: Colors.white,
+            size: 72,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: const [
+            Text.rich(
+              TextSpan(
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, height: 1.1),
+                children: [
+                  TextSpan(
+                      text: 'Rescue',
+                      style: TextStyle(color: Colors.white)),
+                  TextSpan(
+                      text: 'Link',
+                      style: TextStyle(color: Color(0xFFFF6B6B))),
+                ],
+              ),
+            ),
+            SizedBox(height: 2),
+            Text(
+              'Your Safety Companion',
+              style: TextStyle(
+                fontSize: 12,
+                color: Color(0xFF94A3B8),
+                fontWeight: FontWeight.w400,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final profile = _profile ?? {};
@@ -193,43 +242,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          ClipRRect(
-            borderRadius: const BorderRadius.only(
-              bottomLeft: Radius.circular(24),
-              bottomRight: Radius.circular(24),
+          Container(
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? const Color(0xFF111827)
+                  : const Color(0xFF0F172A),
             ),
-            child: Container(
-              width: double.infinity,
-              padding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 20),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: Theme.of(context).brightness == Brightness.light
-                      ? [
-                          const Color(0xFFEF4444),
-                          const Color(0xFFDC2626),
-                          const Color(0xFFB91C1C),
-                        ]
-                      : [
-                          const Color(0xFFEF4444),
-                          const Color(0xB3EF4444),
-                          const Color(0x66EF4444),
-                          const Color(0x00EF4444),
-                        ],
+            child: SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 16),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(child: _buildHeaderLogo()),
+                    if (widget.onNotificationsTap != null)
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: IconButton(
+                          padding: EdgeInsets.zero,
+                          icon: const Icon(Icons.notifications_outlined, color: Colors.white, size: 22),
+                          onPressed: widget.onNotificationsTap,
+                        ),
+                      ),
+                  ],
                 ),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Expanded(child: _buildSettingsHeaderLogo(width)),
-                  if (widget.onNotificationsTap != null)
-                    IconButton(
-                      icon: const Icon(Icons.notifications_none, color: Colors.white, size: 28),
-                      onPressed: widget.onNotificationsTap,
-                      visualDensity: compact ? VisualDensity.compact : VisualDensity.standard,
-                    ),
-                ],
               ),
             ),
           ),
@@ -600,7 +643,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Image.asset(
-          'assets/logo/logo2.png',
+          'assets/logo/icon.png',
           width: logoSize,
           height: logoSize,
           fit: BoxFit.contain,

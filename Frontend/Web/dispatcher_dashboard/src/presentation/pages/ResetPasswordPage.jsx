@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import { Eye, EyeOff } from 'lucide-react';
-import logo from '@/presentation/assets/logo.svg';
+import { BrandLogo } from '@/presentation/components/common/BrandLogo';
 import illustration from '@/presentation/assets/create-password-illustration.svg';
 import { API_URL } from '@/core/config/app.config';
 import { AuthCardLayout } from '@/presentation/components/layout/AuthCardLayout';
@@ -106,8 +106,8 @@ export default function ResetPasswordPage() {
   if (!hasValidToken) {
     return (
       <AuthCardLayout illustration={illustration} tagline="Request a new link from the forgot password page.">
-        <div className="mb-8">
-          <img src={logo} alt="RescueLink Logo" className="h-12 w-auto" />
+        <div className="mb-6">
+          <BrandLogo size="lg" />
         </div>
         <div className="mb-8">
           <h2 className="text-3xl font-bold text-foreground mb-2">Invalid or expired link</h2>
@@ -135,8 +135,8 @@ export default function ResetPasswordPage() {
 
   return (
     <AuthCardLayout illustration={illustration} tagline="Create a strong password to secure your account.">
-      <div className="mb-8">
-        <img src={logo} alt="RescueLink Logo" className="h-12 w-auto" />
+      <div className="mb-6">
+        <BrandLogo size="lg" />
       </div>
       <div className="mb-8">
         <h2 className="text-3xl font-bold text-foreground mb-2 transition-all duration-300">Set new password</h2>

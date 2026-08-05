@@ -114,9 +114,9 @@ class _VerifyNewPhoneOtpScreenState extends State<VerifyNewPhoneOtpScreen> {
                     ),
                   ),
                   Image.asset(
-                    'assets/logo/logo2.png',
-                    width: 32,
-                    height: 32,
+                    'assets/logo/icon.png',
+                    width: 64,
+                    height: 64,
                     fit: BoxFit.contain,
                     color: Colors.white,
                     colorBlendMode: BlendMode.srcIn,

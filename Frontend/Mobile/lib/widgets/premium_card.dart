@@ -82,17 +82,19 @@ class _PremiumCardState extends State<PremiumCard>
 
   Widget _buildSolidCard() {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final cardBg = isDark ? const Color(0xFF1A2035) : theme.colorScheme.surface;
+    final cardBorder = isDark ? const Color(0xFF252D40) : theme.colorScheme.outline.withValues(alpha: 0.2);
+
     return Container(
       padding: widget.padding ?? const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
+        color: cardBg,
         borderRadius: BorderRadius.circular(widget.borderRadius),
-        border: Border.all(
-          color: theme.colorScheme.outline.withOpacity(0.2),
-        ),
+        border: Border.all(color: cardBorder),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),

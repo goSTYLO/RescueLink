@@ -193,9 +193,9 @@ class _BarangayInformationScreenState extends State<BarangayInformationScreen> {
               onBack: widget.onBack,
               transparentFade: true,
               trailing: Image.asset(
-                'assets/logo/logo2.png',
-                width: 32,
-                height: 32,
+                'assets/logo/icon.png',
+                width: 64,
+                height: 64,
                 fit: BoxFit.contain,
                 color: const Color(0xFF93C5FD),
                 colorBlendMode: BlendMode.srcIn,
