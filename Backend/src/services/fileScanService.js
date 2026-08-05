@@ -29,6 +29,7 @@ const SIGNATURES = {
   '.jpg': [Buffer.from([0xff, 0xd8, 0xff])],
   '.jpeg': [Buffer.from([0xff, 0xd8, 0xff])],
   '.png': [Buffer.from([0x89, 0x50, 0x4e, 0x47])],
+  '.pdf': [Buffer.from([0x25, 0x50, 0x44, 0x46])], // %PDF
   '.wav': [Buffer.from([0x52, 0x49, 0x46, 0x46])], // RIFF
   '.flac': [Buffer.from([0x66, 0x4c, 0x61, 0x43])], // fLaC
   '.mp3': [Buffer.from([0x49, 0x44, 0x33]), Buffer.from([0xff, 0xfb]), Buffer.from([0xff, 0xf3]), Buffer.from([0xff, 0xf2])],
@@ -234,9 +235,25 @@ const scanFileWithClamAv = async (absolutePath) => {
 };
 
 const normalizeIncomingFiles = (filesObj = {}) => {
-  const audioFiles = (filesObj.audio || []).map((file) => ({ ...file, extension: require('path').extname(file.originalname).toLowerCase() }));
-  const mediaFiles = (filesObj.media || []).map((file) => ({ ...file, extension: require('path').extname(file.originalname).toLowerCase() }));
-  return [...audioFiles, ...mediaFiles];
+  if (Array.isArray(filesObj)) {
+    return filesObj.map((file) => ({
+      ...file,
+      extension: path.extname(file.originalname || '').toLowerCase(),
+    }));
+  }
+  const allFiles = [];
+  for (const fieldName of Object.keys(filesObj)) {
+    const list = Array.isArray(filesObj[fieldName]) ? filesObj[fieldName] : [filesObj[fieldName]];
+    for (const file of list) {
+      if (file && file.originalname) {
+        allFiles.push({
+          ...file,
+          extension: path.extname(file.originalname).toLowerCase(),
+        });
+      }
+    }
+  }
+  return allFiles;
 };
 
 const runUploadSecurityChecks = (filesObj = {}) => {

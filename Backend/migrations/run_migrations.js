@@ -17,6 +17,7 @@ const MIGRATION_ORDER = [
   'add_flagged_for_review.sql',
   'add_notifications_is_read.sql',
   'add_notification_event_type.sql',
+  'add_responder_applications.sql',
 ];
 
 async function runMigrations() {

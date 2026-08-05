@@ -2,6 +2,19 @@
 
 Flutter mobile application for RescueLink built with BLoC architecture.
 
+## Volunteer Responder Onboarding (Credential-Based)
+
+Citizens can apply to become Volunteer First Responders directly from the settings screen in the mobile app:
+- **Entry Point**: `Apply as First Responder` item in `Settings` under Account Information.
+- **Multi-Tab Application Flow (`ResponderOnboardingScreen`)**:
+  - **Tab 1: Terms & Conditions**: Scrollable program terms with mandatory agreement checkbox.
+  - **Tab 2: Role Overview**: Responsibilities and safety expectations for volunteer responders.
+  - **Tab 3: Requirements Checklist**: Mandatory Government ID upload plus optional Training Certificates and Supporting Documents (supports images and PDFs via `file_picker`).
+  - **Tab 4: Application Form**: Pre-filled personal details and required emergency contact person details with application submit action.
+- **Status & Transparency Screen (`ApplicationStatusScreen`)**:
+  - Displays application status (`Pending Review`, `Approved`, or `Not Approved`).
+  - Upon rejection, reviewer notes are displayed to the user for full transparency with an option to submit a new application.
+
 ## Duplicate Incident Management
 
 Duplicate incident linking is a **dispatcher-only** feature available on the web dashboard. The mobile app does not include duplicate management UI. When creating an incident, the backend may return a response indicating a potential related incident; that is informational only. Dispatchers verify and link duplicates via the web app.

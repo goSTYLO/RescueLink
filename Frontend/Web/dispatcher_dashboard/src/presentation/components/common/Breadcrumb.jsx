@@ -13,15 +13,16 @@ export function Breadcrumb({ items = [] }) {
   if (!items.length) return null;
 
   const resolvePath = (item) => {
-    if (!item.path) return item.path;
+    const rawPath = item.path || item.href;
+    if (!rawPath) return rawPath;
     try {
       const u = JSON.parse(sessionStorage.getItem('user') || '{}');
       const homePath = getDefaultRouteByRole(u.role);
-      if (item.label === 'Home' || item.path === '/dashboard') return homePath;
+      if (item.label === 'Home' || rawPath === '/dashboard') return homePath;
     } catch {
-      // fall through to item.path
+      // fall through
     }
-    return item.path;
+    return rawPath;
   };
 
   return (

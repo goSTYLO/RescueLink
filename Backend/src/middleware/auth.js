@@ -3,13 +3,19 @@ const { JWT_SECRET } = require('../config/jwt');
 const TokenBlacklist = require('../models/tokenBlacklist');
 
 module.exports = async function (req, res, next) {
-  const auth = req.headers.authorization;
-  if (!auth) return res.status(401).json({ message: 'Missing authorization header' });
+  let token = null;
 
-  const parts = auth.split(' ');
-  if (parts.length !== 2 || parts[0] !== 'Bearer') return res.status(401).json({ message: 'Invalid authorization format' });
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.split(' ')[1];
+  } else if (req.query && req.query.token) {
+    token = req.query.token;
+  }
 
-  const token = parts[1];
+  if (!token) {
+    return res.status(401).json({ message: 'Missing authorization token' });
+  }
+
   try {
     const payload = jwt.verify(token, JWT_SECRET);
     const isBlacklisted = await TokenBlacklist.isBlacklisted(token);

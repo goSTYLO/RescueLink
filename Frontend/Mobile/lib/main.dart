@@ -143,6 +143,22 @@ class _AuthNavigatorState extends State<AuthNavigator> with WidgetsBindingObserv
   bool _returnToReportsTab = false;
   String _newPhoneNumberForOtp = '';
 
+  // ── Phase 2 Placeholder: Responder Module ────────────────────────────────
+  // Uncomment and implement these in Phase 2 when the Responder Module is built.
+  //
+  // Route: /apply-responder
+  //   Screen: ApplyResponderScreen — citizen submits application to become a first responder.
+  //   Add import: 'screens/responder/apply_responder_screen.dart'
+  //   Add bool _showApplyResponder = false;
+  //
+  // Route: /incident-acceptance
+  //   Screen: IncidentAcceptanceScreen — approved responder accepts/declines an incident assignment.
+  //   Add import: 'screens/responder/incident_acceptance_screen.dart'
+  //   Add bool _showIncidentAcceptance = false;
+  //   Add int? _incidentAcceptanceReportId;
+  // ─────────────────────────────────────────────────────────────────────────
+
+
   // Login path verification flow (after login): Request OTP -> Enter OTP -> dashboard
   String? _verificationStep;
   static const String _verificationPhone = '+63 917 123 4567';

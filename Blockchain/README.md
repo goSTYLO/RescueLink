@@ -1,6 +1,11 @@
 # RescueLink Blockchain Service
 
+> ⚠️ **Optional Module** — Disabled by default.
+> Set `USE_BLOCKCHAIN=true` in `Backend/.env` and `VITE_USE_BLOCKCHAIN=true` in `Frontend/Web/dispatcher_dashboard/.env` to enable.
+> When disabled, incident finalization falls back to audit trail logging (no Ganache required).
+
 FastAPI service that records verified incident hashes on Ganache via the IncidentRegistry Solidity contract.
+
 
 ## Session Updates (Performance & Gas Optimization)
 

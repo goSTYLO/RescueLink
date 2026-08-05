@@ -20,6 +20,8 @@ import { TeamPage } from '@/presentation/pages/TeamPage';
 import { DepartmentDashboardPage } from '@/presentation/pages/DepartmentDashboardPage';
 import { AssignedIncidentsPage } from '@/presentation/pages/AssignedIncidentsPage';
 import { DepartmentPersonnelPage } from '@/presentation/pages/DepartmentPersonnelPage';
+import { ResponderApplicationsPage } from '@/presentation/pages/ResponderApplicationsPage';
+import { ResponderApplicationDetailPage } from '@/presentation/pages/ResponderApplicationDetailPage';
 import ForgotPassword from '@/presentation/pages/ForgotPassword';
 import EnterCode from '@/presentation/pages/EnterCode';
 import CreateNewPassword from '@/presentation/pages/CreateNewPassword';
@@ -231,6 +233,16 @@ export default function App() {
           <Route path="/department/personnel" element={
             <ProtectedRoute allowedRoles={DEPARTMENT_AND_UP}>
               <DepartmentPersonnelPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/responder-applications" element={
+            <ProtectedRoute allowedRoles={DASHBOARD_OPERATIONS_ROLES}>
+              <ResponderApplicationsPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/responder-applications/:id" element={
+            <ProtectedRoute allowedRoles={DASHBOARD_OPERATIONS_ROLES}>
+              <ResponderApplicationDetailPage />
             </ProtectedRoute>
           } />
           <Route path="/profile" element={

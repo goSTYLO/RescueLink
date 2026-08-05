@@ -339,3 +339,23 @@ CREATE TABLE IF NOT EXISTS dispatcher_login_otp (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_dispatcher_login_otp_expires ON dispatcher_login_otp(expires_at);
+
+-- Responder Applications Table
+CREATE TABLE IF NOT EXISTS responder_applications (
+  id                SERIAL PRIMARY KEY,
+  user_id           INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+  status            VARCHAR(20) NOT NULL DEFAULT 'pending',
+  gov_id_path       VARCHAR(500),
+  certificate_paths JSONB DEFAULT '[]'::jsonb,
+  other_doc_paths   JSONB DEFAULT '[]'::jsonb,
+  personal_details  JSONB DEFAULT '{}'::jsonb,
+  notes             TEXT,
+  submitted_at      TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  reviewed_at       TIMESTAMP WITH TIME ZONE,
+  reviewed_by       INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
+  CONSTRAINT chk_responder_app_status CHECK (status IN ('pending', 'approved', 'rejected'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_responder_apps_user_id ON responder_applications(user_id);
+CREATE INDEX IF NOT EXISTS idx_responder_apps_status ON responder_applications(status);
+

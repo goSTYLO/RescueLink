@@ -13,6 +13,9 @@ import { useTheme } from '@/presentation/context/ThemeContext.jsx';
 import { getIncidents, verifyIncident, linkDuplicate } from '@/data/api/incidents.api';
 import { DEV_MODE } from '@/core/config/app.config';
 import { normalizeRole, ROLES } from '@/core/constants';
+
+// Feature flag — mirrors USE_BLOCKCHAIN in Backend/.env
+const USE_BLOCKCHAIN = import.meta.env.VITE_USE_BLOCKCHAIN === 'true';
 import { mapIncidentTypeFilterToApi } from '@/core/utils/incidentClassification';
 import { mapApiIncidentToDisplay } from '@/core/utils/incidentDisplay';
 import { SelectParentIncidentDialog } from '@/presentation/components/common/SelectParentIncidentDialog';
@@ -91,7 +94,8 @@ export function DashboardPage() {
   const [itemsPerPage, setItemsPerPage] = useState(Number(persistedFilterState.itemsPerPage) || 5);
   const [pageSizeSelectOpen, setPageSizeSelectOpen] = useState(false);
 
-  // Save-to-blockchain modal (closed + reporter-confirmed incidents)
+  // Incident finalization modal (closed + reporter-confirmed incidents)
+  // Label: "Save to Blockchain" when USE_BLOCKCHAIN=true, "Create Audit Entry" when false
   const [verifyModalOpen, setVerifyModalOpen] = useState(false);
   const [verifyIncidentTarget, setVerifyIncidentTarget] = useState(null);
   const [verifyInProgress, setVerifyInProgress] = useState(false);
@@ -314,8 +318,10 @@ export function DashboardPage() {
   const submitVerifyOnly = async () => {
     if (!verifyIncidentTarget) return;
     const confirm = await Swal.fire({
-      title: 'Save to blockchain',
-      html: `Save incident <strong>${verifyIncidentTarget.id}</strong> to the blockchain?`,
+      title: USE_BLOCKCHAIN ? 'Save to blockchain' : 'Create audit entry',
+      html: USE_BLOCKCHAIN
+        ? `Save incident <strong>${verifyIncidentTarget.id}</strong> to the blockchain?`
+        : `Create an audit log entry for incident <strong>${verifyIncidentTarget.id}</strong>?`,
       icon: 'question',
       showCancelButton: true,
       confirmButtonColor: '#134178',
@@ -340,8 +346,10 @@ export function DashboardPage() {
       window.dispatchEvent(new CustomEvent('incident:updated', { detail: { incidentId: verifyIncidentTarget.id } }));
       Swal.fire({
         icon: 'success',
-        title: 'Saved to blockchain',
-        text: 'Incident has been saved to the blockchain.',
+        title: USE_BLOCKCHAIN ? 'Saved to blockchain' : 'Audit entry created',
+        text: USE_BLOCKCHAIN
+          ? 'Incident has been saved to the blockchain.'
+          : 'Audit log entry has been created for this incident.',
         timer: 2500,
         showConfirmButton: false,
         timerProgressBar: true,
@@ -350,8 +358,8 @@ export function DashboardPage() {
     } catch (err) {
       await Swal.fire({
         icon: 'error',
-        title: 'Save failed',
-        text: err.message || 'Unable to save incident to blockchain.',
+        title: USE_BLOCKCHAIN ? 'Save failed' : 'Audit entry failed',
+        text: err.message || (USE_BLOCKCHAIN ? 'Unable to save incident to blockchain.' : 'Unable to create audit log entry.'),
         confirmButtonColor: '#134178',
       });
     } finally {
@@ -733,7 +741,7 @@ export function DashboardPage() {
                                   variant="default"
                                   className="h-9 px-3 rounded-lg bg-severity-resolved hover:bg-severity-resolved/90 text-white border-0 gap-1.5"
                                   onClick={(e) => { e.stopPropagation(); openVerifyModal(incident); }}
-                                  title="Save to Blockchain"
+                                  title={USE_BLOCKCHAIN ? 'Save to Blockchain' : 'Create Audit Entry'}
                                 >
                                   <CircleCheck className="w-4 h-4" strokeWidth={2} />
                                   Save
@@ -768,13 +776,17 @@ export function DashboardPage() {
           </div>
         </div>
 
-        {/* Save Modal — incident blockchain persistence */}
+        {/* Finalization Modal — blockchain or audit trail depending on USE_BLOCKCHAIN flag */}
         <Dialog open={verifyModalOpen} onOpenChange={(open) => !open && closeVerifyModal()} className="max-w-md">
           <DialogContent className="max-w-md">
             <DialogHeader>
-              <DialogTitle>Save Incident to Blockchain</DialogTitle>
+              <DialogTitle>
+                {USE_BLOCKCHAIN ? 'Save Incident to Blockchain' : 'Create Audit Entry'}
+              </DialogTitle>
               <DialogDescription>
-                Save this closed and reporter-confirmed incident on the blockchain for audit and authenticity.
+                {USE_BLOCKCHAIN
+                  ? 'Save this closed and reporter-confirmed incident on the blockchain for audit and authenticity.'
+                  : 'Create an audit log entry for this closed and reporter-confirmed incident.'}
               </DialogDescription>
             </DialogHeader>
             {verifyIncidentTarget && (

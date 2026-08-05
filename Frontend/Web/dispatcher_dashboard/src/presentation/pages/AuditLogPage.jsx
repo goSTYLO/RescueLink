@@ -21,6 +21,9 @@ import { Breadcrumb } from '@/presentation/components/common/Breadcrumb';
 import { useState, useEffect, useCallback } from 'react';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
 
+// Feature flag — mirrors USE_BLOCKCHAIN in Backend/.env
+const USE_BLOCKCHAIN = import.meta.env.VITE_USE_BLOCKCHAIN === 'true';
+
 const ACTION_OPTIONS = [
   { value: '', label: 'All Actions' },
   { value: 'dispatcher_login', label: 'Login' },
@@ -31,8 +34,8 @@ const ACTION_OPTIONS = [
   { value: 'dispatch_create', label: 'Dispatch created' },
   { value: 'dispatch_update', label: 'Dispatch updated' },
   { value: 'dispatch_delete', label: 'Dispatch deleted' },
-  { value: 'incident_blockchain_finalize', label: 'Saved to blockchain' },
-  { value: 'incident_verify', label: 'Blockchain verified (legacy)' },
+  { value: 'incident_blockchain_finalize', label: USE_BLOCKCHAIN ? 'Saved to blockchain' : 'Incident finalized' },
+  { value: 'incident_verify', label: USE_BLOCKCHAIN ? 'Blockchain verified (legacy)' : 'Incident verified (legacy)' },
 ];
 
 const RESOURCE_OPTIONS = [
@@ -60,7 +63,12 @@ function formatTimestamp(ts) {
 }
 
 function formatActionLabel(action) {
-  if (action === 'incident_blockchain_finalize') return 'Saved to blockchain';
+  if (action === 'incident_blockchain_finalize') {
+    return USE_BLOCKCHAIN ? 'Saved to blockchain' : 'Incident finalized';
+  }
+  if (action === 'incident_verify') {
+    return USE_BLOCKCHAIN ? 'Blockchain verified (legacy)' : 'Incident verified (legacy)';
+  }
   const opt = ACTION_OPTIONS.find((o) => o.value === action);
   return opt ? opt.label : (action || '—').replace(/_/g, ' ');
 }
@@ -95,7 +103,7 @@ function formatDetailsForDisplay(log) {
     return log.details != null && typeof log.details === 'string' ? log.details : '—';
   }
   const isBlockchain = BLOCKCHAIN_ACTIONS.has(log.action) && (details.tx_hash || details.block_number != null);
-  if (isBlockchain) {
+  if (isBlockchain && USE_BLOCKCHAIN) {
     const parts = [];
     if (details.block_number != null) parts.push(`Block #${details.block_number}`);
     if (details.tx_hash) parts.push(truncateHash(details.tx_hash));
@@ -150,7 +158,7 @@ export function AuditLogPage() {
   }, [fetchLogs]);
 
   const blockchainLogs = logs.filter((l) => BLOCKCHAIN_ACTIONS.has(l.action));
-  const allLogsForTab = activeTab === 'blockchain' ? blockchainLogs : logs;
+  const allLogsForTab = activeTab === 'blockchain' && USE_BLOCKCHAIN ? blockchainLogs : logs;
   const totalPages = Math.ceil(allLogsForTab.length / itemsPerPage) || 1;
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedLogs = allLogsForTab.slice(startIndex, startIndex + itemsPerPage);
@@ -361,25 +369,29 @@ export function AuditLogPage() {
               <ListChecks className="w-5 h-5" strokeWidth={2} />
             </span>
             <span className="font-medium text-foreground flex-1">
-              {activeTab === 'blockchain' ? `Blockchain logs (${blockchainLogs.length})` : `Activity log (${logs.length})`}
+              {activeTab === 'blockchain' && USE_BLOCKCHAIN
+                ? `Blockchain logs (${blockchainLogs.length})`
+                : `Activity log (${logs.length})`}
             </span>
-            <div className={`flex rounded-xl p-1 gap-1 ${isLight ? 'bg-gray-100/80' : 'bg-white/10'}`}>
-              <button
-                type="button"
-                onClick={() => setActiveTab('all')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 ${activeTab === 'all' ? (isLight ? 'bg-white text-foreground shadow-sm' : 'bg-white/20 text-foreground') : 'text-muted hover:text-foreground'}`}
-              >
-                All Logs
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab('blockchain')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 ${activeTab === 'blockchain' ? (isLight ? 'bg-white text-foreground shadow-sm' : 'bg-white/20 text-foreground') : 'text-muted hover:text-foreground'}`}
-              >
-                <Link2 className="w-4 h-4" strokeWidth={2} />
-                Blockchain Logs
-              </button>
-            </div>
+            {USE_BLOCKCHAIN && (
+              <div className={`flex rounded-xl p-1 gap-1 ${isLight ? 'bg-gray-100/80' : 'bg-white/10'}`}>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('all')}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 ${activeTab === 'all' ? (isLight ? 'bg-white text-foreground shadow-sm' : 'bg-white/20 text-foreground') : 'text-muted hover:text-foreground'}`}
+                >
+                  All Logs
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('blockchain')}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 ${activeTab === 'blockchain' ? (isLight ? 'bg-white text-foreground shadow-sm' : 'bg-white/20 text-foreground') : 'text-muted hover:text-foreground'}`}
+                >
+                  <Link2 className="w-4 h-4" strokeWidth={2} />
+                  Blockchain Logs
+                </button>
+              </div>
+            )}
           </div>
           <div className="p-4">
             {error && (
@@ -501,7 +513,7 @@ export function AuditLogPage() {
                         <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider text-muted">Action</th>
                         <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider text-muted">Resource</th>
                         <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider text-muted">Resource ID</th>
-                        {activeTab === 'blockchain' ? (
+                        {activeTab === 'blockchain' && USE_BLOCKCHAIN ? (
                           <>
                             <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider text-muted">Block</th>
                             <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider text-muted">Tx Hash</th>
@@ -515,8 +527,10 @@ export function AuditLogPage() {
                     <tbody>
                       {paginatedLogs.length === 0 ? (
                         <tr>
-                          <td colSpan={activeTab === 'blockchain' ? 9 : 6} className="py-12 text-center text-muted">
-                            {activeTab === 'blockchain' ? 'No blockchain save logs found.' : 'No audit log entries found.'}
+                          <td colSpan={activeTab === 'blockchain' && USE_BLOCKCHAIN ? 9 : 6} className="py-12 text-center text-muted">
+                            {activeTab === 'blockchain' && USE_BLOCKCHAIN
+                              ? 'No blockchain save logs found.'
+                              : 'No audit log entries found.'}
                           </td>
                         </tr>
                       ) : (
@@ -540,7 +554,7 @@ export function AuditLogPage() {
                             <td className="py-4 px-4 text-sm font-mono text-muted">
                               {log.resource_id != null ? log.resource_id : '—'}
                             </td>
-                            {activeTab === 'blockchain' ? (
+                            {activeTab === 'blockchain' && USE_BLOCKCHAIN ? (
                               (() => {
                                 const d = parseDetails(log.details) || log.details;
                                 const blockNum = d?.block_number;

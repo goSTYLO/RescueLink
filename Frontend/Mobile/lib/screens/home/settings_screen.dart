@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import '../../services/auth_service.dart';
 import '../../services/theme_service.dart';
+import '../../services/responder_application_service.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/skeleton_placeholder.dart';
+import 'responder_application/responder_onboarding_screen.dart';
+import 'responder_application/application_status_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   final Future<void> Function(ThemeMode mode)? onThemeChanged;
@@ -434,6 +437,54 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 subtitle: address.isNotEmpty ? address : 'Not set',
                 showArrow: true,
                 onTap: widget.onBarangayTap,
+              ),
+              _settingsRow(
+                icon: Icons.health_and_safety_outlined,
+                iconBg: const Color(0xFFFEE2E2),
+                iconColor: const Color(0xFFEF4444),
+                title: 'Volunteer First Responder',
+                subtitle: 'Apply or check application status',
+                showArrow: true,
+                onTap: () async {
+                  try {
+                    final res = await ResponderApplicationService().getMyApplication();
+                    if (!mounted) return;
+                    if (res['hasApplication'] == true && res['application'] != null) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ApplicationStatusScreen(
+                            application: res['application'],
+                            onReapply: () {
+                              Navigator.pop(context);
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => ResponderOnboardingScreen(initialProfile: _profile),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      );
+                    } else {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ResponderOnboardingScreen(initialProfile: _profile),
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    if (!mounted) return;
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ResponderOnboardingScreen(initialProfile: _profile),
+                      ),
+                    );
+                  }
+                },
               ),
             ],
           ),

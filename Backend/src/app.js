@@ -17,6 +17,7 @@ const requestTimingMiddleware = require('./middleware/requestTiming');
 const { startRetryService } = require('./services/retryAiClassification');
 const { startFileScanRetryService } = require('./services/retryFileScan');
 const { startDuplicateAnalyzer } = require('./services/duplicateBackgroundAnalyzer');
+const responderApplicationRoutes = require('./routes/responderApplications');
 
 const app = express();
 
@@ -138,6 +139,8 @@ app.use('/api/audit-logs', auditLogRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/departments', departmentRoutes);
 app.use('/api/metrics', metricsRoutes);
+// Phase 2 placeholder — Responder Applications (returns 501 until implemented)
+app.use('/api/responder-applications', responderApplicationRoutes);
 
 // Basic health route
 app.get('/health', (req, res) => res.json({ status: 'ok' }));

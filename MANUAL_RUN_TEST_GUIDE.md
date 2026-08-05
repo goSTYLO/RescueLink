@@ -23,9 +23,13 @@ Place these `.env` files in the named folders (examples):
 DATABASE_URL=postgresql://user:password@localhost:5432/rescuelink
 PORT=3000
 FIREBASE_SERVICE_ACCOUNT_PATH=src/serviceAccountKey.json
+
+# Blockchain feature flag (disabled by default — no Ganache required when false)
+USE_BLOCKCHAIN=false
+BLOCKCHAIN_SERVICE_URL=http://localhost:8001
 ```
 
-- `Blockchain/.env`:
+- `Blockchain/.env` (**only needed when `USE_BLOCKCHAIN=true`**):
 ```
 GANACHE_URL=http://127.0.0.1:8545
 PRIVATE_KEY=0x<first_ganache_account_private_key>
@@ -234,6 +238,22 @@ Troubleshooting & common blockers
 - Lifecycle endpoint auth:
   - `PATCH /api/incidents/:id/status` requires dispatcher/admin token.
   - `POST /api/incidents/:id/confirm-resolution` requires the owning reporter token.
+
+Testing Responder Application Flow (Phase 2)
+------------------------------------------
+1. **Submit Application (Mobile / API)**:
+   - Open Mobile Settings -> tap `Volunteer First Responder` -> complete 4-tab onboarding form.
+   - Upload Government ID photo (required) + optional certificates/supporting documents.
+   - Click `Submit Application`. Endpoint: `POST /api/responder-applications`.
+2. **Review Application (Dispatcher Dashboard)**:
+   - Login to Web Dashboard as Dispatcher / Super Admin.
+   - Navigate to `Responder Applications` in sidebar (`/responder-applications`).
+   - View pending submissions list and tap `Review`.
+3. **Approve / Reject Application**:
+   - Check applicant personal details and credential documents (`/api/responder-applications/:id/documents/:filename`).
+   - Add reviewer notes.
+   - Tap `Approve & Promote to Responder` -> updates `users.role = 'responder'`, creates responder pool entry, and sends in-app notification.
+   - Or tap `Reject Application` -> sends in-app notification with reviewer notes to applicant for transparency.
 
 Web API base URL configuration
 ------------------------------

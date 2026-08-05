@@ -2,6 +2,19 @@
 
 Node.js + Express backend for RescueLink, using PostgreSQL. Handles authentication, incident reporting, dispatcher workflows, AI-powered incident classification, and audit logging.
 
+## Phase 2: Volunteer Responder Onboarding (Credential-Based)
+
+Implemented full backend module for credential-based volunteer responder applications:
+- **Database Table**: `responder_applications` (`id`, `user_id`, `status`, `gov_id_path`, `certificate_paths`, `other_doc_paths`, `personal_details`, `notes`, `submitted_at`, `reviewed_at`, `reviewed_by`).
+- **File Storage**: Local secure storage in `uploads/responder-applications/<user_id>/` with memory storage security validation (`documentUploadMiddleware`).
+- **Endpoints (`/api/responder-applications`)**:
+  - `POST /api/responder-applications`: Submit application with multipart credential uploads.
+  - `GET /api/responder-applications/me`: Get current user's application status.
+  - `GET /api/responder-applications`: List all applications (Dispatcher/Admin, filterable by `status`).
+  - `GET /api/responder-applications/:id`: View application details.
+  - `PATCH /api/responder-applications/:id/status`: Approve or reject application with notes. On approval, automatically promotes `users.role = 'responder'` and adds applicant to `responders` pool.
+  - `GET /api/responder-applications/:id/documents/:filename`: Protected access-controlled document file serving.
+
 ## Session Updates (Rate Limit, Notifications, Incident Closure)
 
 Recent backend updates:

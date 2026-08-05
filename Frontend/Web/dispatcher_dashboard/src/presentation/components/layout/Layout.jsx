@@ -3,7 +3,7 @@ import { useIncidentWebSocket } from '@/data/api/useIncidentWebSocket';
 import { getNotifications, getUnreadCount, markAllAsRead } from '@/data/api/notifications.api';
 import { IncidentWebSocketContext } from '@/presentation/context/IncidentWebSocketContext';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Home, Map, User, FileText, Settings, Shield, ShieldCheck, Building2, LogOut, PanelLeftClose, PanelLeft, Search, Bell, HelpCircle, ChevronDown, AlertCircle, CheckCircle, Info, X, Users, Truck, ClipboardList } from 'lucide-react';
+import { Home, Map, User, FileText, Settings, Shield, ShieldCheck, Building2, LogOut, PanelLeftClose, PanelLeft, Search, Bell, HelpCircle, ChevronDown, AlertCircle, CheckCircle, Info, X, Users, Truck, ClipboardList, UserCheck } from 'lucide-react';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/infrastructure/firebase';
 import { logout as logoutApi } from '@/data/api/auth.api';
@@ -36,6 +36,7 @@ const NAV_SUPER_ADMIN = [
     { icon: Map, label: 'Map View', path: '/map' },
   ]},
   { title: 'OPERATIONS', items: [
+    { icon: UserCheck, label: 'Responder Applications', path: '/responder-applications' },
     { icon: Building2, label: 'Departments', path: '/departments' },
     { icon: FileText, label: 'Audit Log', path: '/audit' },
     { icon: ShieldCheck, label: 'Admin Actions', path: '/adminactions' },
@@ -78,6 +79,9 @@ const NAV_DISPATCHER = [
   { title: 'OVERVIEW', items: [
     { icon: Home, label: 'Dashboard', path: '/dashboard' },
     { icon: Map, label: 'Map View', path: '/map' },
+  ]},
+  { title: 'OPERATIONS', items: [
+    { icon: UserCheck, label: 'Responder Applications', path: '/responder-applications' },
   ]},
   { title: 'GENERAL', items: [
     { icon: User, label: 'Profile', path: '/profile' },

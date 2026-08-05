@@ -38,6 +38,9 @@ import { useTheme } from '@/presentation/context/ThemeContext.jsx';
 import { Breadcrumb } from '@/presentation/components/common/Breadcrumb';
 import Swal from 'sweetalert2';
 
+// Feature flag — mirrors USE_BLOCKCHAIN in Backend/.env
+const USE_BLOCKCHAIN = import.meta.env.VITE_USE_BLOCKCHAIN === 'true';
+
 function normalizeSeverityToDbLevel(value) {
   const normalized = String(value || '').trim().toLowerCase();
   const map = {
@@ -1263,7 +1266,7 @@ export function IncidentDetailsPage() {
           onClick={() => setVerifyDialogOpen(true)}
         >
           <CheckCircle className="w-4 h-4" />
-          Save to Blockchain
+          {USE_BLOCKCHAIN ? 'Save to Blockchain' : 'Create Audit Entry'}
         </Button>
       )}
       {showNotifyDepartmentButton && (
@@ -1454,10 +1457,12 @@ export function IncidentDetailsPage() {
 
             {latestVerificationMeta?.tx_hash && (
               <div className={`p-3 rounded-xl border ${isLight ? 'bg-emerald-50/80 border-emerald-200/80' : 'bg-emerald-500/10 border-emerald-500/30'}`}>
-                <p className="text-xs uppercase tracking-wide text-muted font-semibold mb-1">Latest Blockchain Verification</p>
+                <p className="text-xs uppercase tracking-wide text-muted font-semibold mb-1">
+                  {USE_BLOCKCHAIN ? 'Latest Blockchain Verification' : 'Latest Audit Finalization'}
+                </p>
                 <div className="flex flex-wrap items-center gap-2 text-sm">
                   <Badge variant="outline" className="rounded-lg border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                    Blockchain Verified
+                    {USE_BLOCKCHAIN ? 'Blockchain Verified' : 'Audit Entry Created'}
                   </Badge>
                   {latestVerificationMeta.block_number != null && (
                     <span className="text-foreground">Block #{latestVerificationMeta.block_number}</span>
@@ -2093,9 +2098,13 @@ export function IncidentDetailsPage() {
           <Dialog open={verifyDialogOpen} onOpenChange={setVerifyDialogOpen}>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Save Incident to Blockchain</DialogTitle>
+                <DialogTitle>
+                  {USE_BLOCKCHAIN ? 'Save Incident to Blockchain' : 'Finalize & Create Audit Entry'}
+                </DialogTitle>
                 <DialogDescription>
-                  Are you sure you want to save this closed and reporter-confirmed incident to the blockchain for tamper-proof audit? This action cannot be undone.
+                  {USE_BLOCKCHAIN
+                    ? 'Are you sure you want to save this closed and reporter-confirmed incident to the blockchain for tamper-proof audit? This action cannot be undone.'
+                    : 'Create a permanent audit log entry for this closed and reporter-confirmed incident. This action cannot be undone.'}
                 </DialogDescription>
               </DialogHeader>
               <DialogFooter>

@@ -1039,7 +1039,11 @@ const incidentController = {
 
       const blockchainResult = await verifyIncidentOnBlockchain(validatedId, incidentData, { requestId });
 
-      const networkReference = `${blockchainResult.tx_hash}#block${blockchainResult.block_number}`;
+      const isDisabled = Boolean(blockchainResult.blockchain_disabled);
+      const networkReference = isDisabled
+        ? `audit:${blockchainResult.hash_value}`
+        : `${blockchainResult.tx_hash}#block${blockchainResult.block_number}`;
+
       if (!existingBlockchainRecord) {
         await Incident.createBlockchainRecord({
           report_id: validatedId,
@@ -1057,34 +1061,56 @@ const incidentController = {
         gas_used: blockchainResult.gas_used,
         effective_gas_price: blockchainResult.effective_gas_price,
         gas_cost_wei: blockchainResult.gas_cost_wei,
-        already_recorded: Boolean(blockchainResult.already_recorded)
+        already_recorded: Boolean(blockchainResult.already_recorded),
+        blockchain_disabled: isDisabled,
       });
 
       emitIncidentEvent(req, 'incident:blockchain_saved', { ...incident, updated_at: new Date().toISOString() });
 
-      res.json({
-        success: true,
-        saved_to_blockchain: true,
-        blockchain: {
-          tx_hash: blockchainResult.tx_hash,
-          block_number: blockchainResult.block_number,
-          hash_value: blockchainResult.hash_value,
-          gas_used: blockchainResult.gas_used,
-          effective_gas_price: blockchainResult.effective_gas_price,
-          gas_cost_wei: blockchainResult.gas_cost_wei,
-          already_recorded: Boolean(blockchainResult.already_recorded)
-        }
-      });
-      console.log(`[backend][incident][blockchain_finalize] request_id=${requestId} report_id=${validatedId} status=success latency_ms=${Date.now() - startedAt} block_number=${blockchainResult.block_number}`);
+      if (isDisabled) {
+        // Option A response: saved_to_blockchain=false + audit_id
+        res.json({
+          success: true,
+          saved_to_blockchain: false,
+          audit_id: blockchainResult.hash_value,
+          blockchain: null,
+        });
+        console.log(
+          `[backend][incident][blockchain_finalize] request_id=${requestId} report_id=${validatedId}` +
+          ` status=success_audit_fallback latency_ms=${Date.now() - startedAt} audit_id=${blockchainResult.hash_value}`
+        );
+      } else {
+        res.json({
+          success: true,
+          saved_to_blockchain: true,
+          audit_id: undefined,
+          blockchain: {
+            tx_hash: blockchainResult.tx_hash,
+            block_number: blockchainResult.block_number,
+            hash_value: blockchainResult.hash_value,
+            gas_used: blockchainResult.gas_used,
+            effective_gas_price: blockchainResult.effective_gas_price,
+            gas_cost_wei: blockchainResult.gas_cost_wei,
+            already_recorded: Boolean(blockchainResult.already_recorded)
+          }
+        });
+        console.log(
+          `[backend][incident][blockchain_finalize] request_id=${requestId} report_id=${validatedId}` +
+          ` status=success latency_ms=${Date.now() - startedAt} block_number=${blockchainResult.block_number}`
+        );
+      }
     } catch (error) {
-      console.error(`[backend][incident][blockchain_finalize] request_id=${requestId} status=error latency_ms=${Date.now() - startedAt} error=${error.message}`);
+      console.error(
+        `[backend][incident][blockchain_finalize] request_id=${requestId}` +
+        ` status=error latency_ms=${Date.now() - startedAt} error=${error.message}`
+      );
       if (error.message.includes('must be') || error.message.includes('must not')) {
         return res.status(400).json({ error: error.message });
       }
       if (error.message.includes('Blockchain')) {
         return res.status(503).json({ error: error.message });
       }
-      res.status(500).json({ error: 'Failed to save incident to blockchain' });
+      res.status(500).json({ error: 'Failed to finalize incident' });
     }
   },
 
