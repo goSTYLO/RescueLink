@@ -43,4 +43,39 @@ async function getAll(req, res) {
   }
 }
 
-module.exports = { getAll };
+/**
+ * GET /api/audit-logs/admin
+ * Admin-only endpoint. Returns audit logs for users with role = 'admin'.
+ * Query: action, from, to, limit, offset
+ */
+async function getAdminLogs(req, res) {
+  try {
+    if (!req.user || req.user.role !== ROLES.ADMIN) {
+      return res.status(403).json({ error: 'Access denied. Admin role required.' });
+    }
+
+    const { action, from, to, limit, offset } = req.query;
+    const { limit: validatedLimit, offset: validatedOffset } = validatePagination(limit, offset);
+    const validatedAction = action ? validateOptionalString(action, 'action', 80) : null;
+    const validatedFrom = validateOptionalDate(from, 'from');
+    const validatedTo = validateOptionalDate(to, 'to');
+
+    const logs = await AuditLog.findAdminLogs({
+      action: validatedAction,
+      from: validatedFrom,
+      to: validatedTo,
+      limit: validatedLimit,
+      offset: validatedOffset
+    });
+
+    res.json(logs);
+  } catch (error) {
+    console.error('Error fetching admin audit logs:', error);
+    if (error.message && (error.message.includes('must be') || error.message.includes('must not'))) {
+      return res.status(400).json({ error: error.message });
+    }
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+module.exports = { getAll, getAdminLogs };

@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """
-Test script to verify InferenceClient integration with Whisper
+Smoke tests for Whisper STT provider integration.
+
+Validates local-first Faster-Whisper configuration with optional
+HF API fallback availability.
 """
 
 import os
@@ -17,56 +20,54 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-def test_inference_client():
-    """Test InferenceClient import and initialization"""
+def test_provider_dependencies():
+    """Test optional provider dependencies are importable."""
     print("=" * 70)
-    print("TEST 1: InferenceClient Import and Initialization")
+    print("TEST 1: Provider Dependency Imports")
     print("=" * 70)
     
     try:
+        from faster_whisper import WhisperModel
+        print("✓ faster-whisper imported successfully")
+
         from huggingface_hub import InferenceClient
         print("✓ InferenceClient imported successfully")
-        
-        # Check HF token
-        hf_token = os.getenv("HF_API_TOKEN")
-        if not hf_token:
-            print("✗ HF_API_TOKEN not found in .env")
-            return False
-        
-        print(f"✓ HF_API_TOKEN found (length: {len(hf_token)})")
-        
-        # Initialize client
-        client = InferenceClient(token=hf_token)
-        print("✓ InferenceClient initialized with token")
+
+        # Avoid unused import warning in some linters
+        _ = WhisperModel
+        _ = InferenceClient
         
         return True
     except Exception as e:
         print(f"✗ Error: {e}")
         return False
 
-def test_whisper_handler():
-    """Test WhisperHandler with new InferenceClient"""
+def test_whisper_handler_local_mode():
+    """Test WhisperHandler initialization in local mode."""
     print("\n" + "=" * 70)
-    print("TEST 2: WhisperHandler Module Loading")
+    print("TEST 2: WhisperHandler Local-Mode Initialization")
     print("=" * 70)
     
     try:
-        from audio.whisper_handler import WhisperHandler, get_whisper_handler
+        from audio.whisper_handler import WhisperHandler
         print("✓ WhisperHandler imported successfully")
-        
-        # Test initialization
-        hf_token = os.getenv("HF_API_TOKEN")
+
+        os.environ["STT_PROVIDER"] = "local"
+        os.environ["STT_ENABLE_API_FALLBACK"] = "false"
+
         handler = WhisperHandler(
-            hf_api_token=hf_token,
-            model_id="openai/whisper-large-v3-turbo",
+            hf_api_token=os.getenv("HF_API_TOKEN"),
+            model_id=os.getenv("WHISPER_MODEL_ID", "openai/whisper-large-v3-turbo"),
             min_duration=15,
             max_duration=60,
         )
         print("✓ WhisperHandler instantiated")
-        print(f"  - Model: {handler.model_id}")
+        print(f"  - Provider mode: {handler.provider_mode}")
+        print(f"  - Local provider ready: {handler.local_provider is not None}")
+        print(f"  - API provider ready: {handler.api_provider is not None}")
         print(f"  - Min duration: {handler.min_duration}s")
         print(f"  - Max duration: {handler.max_duration}s")
-        print(f"  - Client type: {type(handler.client).__name__}")
+        print(f"  - Fallback enabled: {handler.enable_api_fallback}")
         
         return True
     except Exception as e:
@@ -106,13 +107,13 @@ def main():
     """Run all tests"""
     print("\n")
     print("╔════════════════════════════════════════════════════════════════════╗")
-    print("║  RESCUELINK AI - WHISPER + INFERENCECLIENT INTEGRATION TEST        ║")
+    print("║  RESCUELINK AI - LOCAL QUANTIZED STT INTEGRATION TEST              ║")
     print("╚════════════════════════════════════════════════════════════════════╝")
     
     results = []
     
-    results.append(("InferenceClient Setup", test_inference_client()))
-    results.append(("WhisperHandler Module", test_whisper_handler()))
+    results.append(("Provider Dependencies", test_provider_dependencies()))
+    results.append(("WhisperHandler Local Mode", test_whisper_handler_local_mode()))
     results.append(("FastAPI Imports", test_fastapi_imports()))
     
     # Summary

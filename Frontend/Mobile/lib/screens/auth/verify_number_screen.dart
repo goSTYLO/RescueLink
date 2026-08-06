@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../widgets/gradient_header.dart';
 
 class VerifyNumberScreen extends StatefulWidget {
   final String phoneNumber;
@@ -68,11 +69,34 @@ class _VerifyNumberScreenState extends State<VerifyNumberScreen> {
   }
 
   Widget _buildLogo() {
-    return Column(
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Image.asset('assets/logo/logo.png', width: 80, height: 80, fit: BoxFit.contain),
-        const SizedBox(height: 12),
-        const Text('Emergency Response & Safety', style: TextStyle(color: Color(0xFF6B7280), fontSize: 12)),
+        Image.asset('assets/logo/icon.png', width: 104, height: 104, fit: BoxFit.contain),
+        const SizedBox(width: 0),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            RichText(
+              text: TextSpan(
+                style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                children: [
+                  TextSpan(
+                      text: 'Rescue',
+                      style: TextStyle(
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? Colors.white
+                              : const Color(0xFF0F172A))),
+                  const TextSpan(
+                      text: 'Link',
+                      style: TextStyle(color: Color(0xFFFF6B6B))),
+                ],
+              ),
+            ),
+          ],
+        ),
       ],
     );
   }
@@ -80,22 +104,23 @@ class _VerifyNumberScreenState extends State<VerifyNumberScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF374151)),
-          onPressed: widget.onBack,
-        ),
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Column(
-            children: [
-              _buildLogo(),
-              const SizedBox(height: 20),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      body: Column(
+        children: [
+          GradientHeader(
+            title: 'Verify Your Number',
+            onBack: widget.onBack,
+            transparentFade: true,
+          ),
+          Expanded(
+            child: SafeArea(
+              top: false,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Column(
+                  children: [
+                    _buildLogo(),
+                    const SizedBox(height: 20),
               SizedBox(
                 height: 180,
                 child: Image.asset(
@@ -104,23 +129,9 @@ class _VerifyNumberScreenState extends State<VerifyNumberScreen> {
                 ),
               ),
               const SizedBox(height: 24),
-              const Text(
-                'Verify Your Number',
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF111827)),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Enter the code we sent you',
-                style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
-              ),
               const SizedBox(height: 20),
               const Icon(Icons.shield_outlined, color: Color(0xFF2563EB), size: 32),
               const SizedBox(height: 8),
-              const Text(
-                'Enter the 6-digit code sent to',
-                style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
-              ),
-              const SizedBox(height: 4),
               Text(
                 widget.phoneNumber,
                 style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF111827)),
@@ -191,9 +202,12 @@ class _VerifyNumberScreenState extends State<VerifyNumberScreen> {
                 ),
               ),
               const SizedBox(height: 40),
-            ],
+                  ],
+                ),
+              ),
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

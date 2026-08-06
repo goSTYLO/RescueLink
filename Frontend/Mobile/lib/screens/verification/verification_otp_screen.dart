@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../bloc/auth/auth_bloc.dart';
 import '../../bloc/auth/auth_event.dart';
 import '../../bloc/auth/auth_state.dart';
+import '../../utils/responsive.dart';
 
 /// Second step: Enter OTP Code + Verify & Continue.
 class VerificationOtpScreen extends StatefulWidget {
@@ -12,8 +13,10 @@ class VerificationOtpScreen extends StatefulWidget {
   final VoidCallback? onBack;
   final String? selectedBarangay;
   final String? cityRegion;
+
   /// When false (signup flow), backend sets phone_verified but app does not store token; navigate to Login.
   final bool storeTokenAfterVerify;
+
   /// Called when OTP verified and storeTokenAfterVerify is false (signup flow); navigate to Login.
   final VoidCallback? onPhoneVerified;
 
@@ -104,33 +107,52 @@ class _VerificationOtpScreenState extends State<VerificationOtpScreen> {
     _startResendTimer();
   }
 
-  Widget _buildLogo() {
-    return Column(
+  Widget _buildLogo(double width) {
+    final logoSize = Responsive.logoSize(width);
+    final titleSize = Responsive.brandTitleSize(width);
+    final subtitleSize = Responsive.brandSubtitleSize(width);
+    final compact = Responsive.isCompact(width);
+
+    return Row(
+      mainAxisSize: MainAxisSize.max,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Image.asset('assets/logo/logo.png',
-                width: 48, height: 48, fit: BoxFit.contain),
-            const SizedBox(width: 8),
-            RichText(
-              text: const TextSpan(
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                children: [
-                  TextSpan(
-                      text: 'Rescue',
-                      style: TextStyle(color: Color(0xFF2563EB))),
-                  TextSpan(
-                      text: 'Link', style: TextStyle(color: Color(0xFFEF4444))),
-                ],
+        Image.asset('assets/logo/icon.png',
+            width: logoSize, height: logoSize, fit: BoxFit.contain),
+        SizedBox(width: compact ? 6 : 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text.rich(
+                TextSpan(
+                  style: TextStyle(
+                      fontSize: titleSize, fontWeight: FontWeight.bold),
+                  children: [
+                    TextSpan(
+                        text: 'Rescue',
+                        style: TextStyle(
+                            color: Theme.of(context).brightness == Brightness.dark
+                                ? Colors.white
+                                : const Color(0xFF0F172A))),
+                    const TextSpan(
+                        text: 'Link',
+                        style: TextStyle(color: Color(0xFFFF6B6B))),
+                  ],
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 6),
-        const Text(
-          'Emergency Response & Safety',
-          style: TextStyle(color: Color(0xFF6B7280), fontSize: 12),
+              Text(
+                'Emergency Response and Safety',
+                style: TextStyle(
+                    color: const Color(0xFF6B7280), fontSize: subtitleSize),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
         ),
       ],
     );
@@ -161,12 +183,17 @@ class _VerificationOtpScreenState extends State<VerificationOtpScreen> {
         final isVerifying = authState is AuthLoading;
         final barangay = widget.selectedBarangay ?? 'Barangay Poblacion Oeste';
         final cityRegion = widget.cityRegion ?? 'Dagupan City, Pangasinan';
+        final screenWidth = MediaQuery.sizeOf(context).width;
+        final compact = Responsive.isCompact(screenWidth);
+        final horizontalPadding = Responsive.horizontalPadding(screenWidth);
+        final headingSize = compact ? 24.0 : 26.0;
+        final otpBoxWidth = compact ? 38.0 : 44.0;
 
         return Scaffold(
           backgroundColor: Colors.white,
           body: SafeArea(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
+              padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -182,23 +209,23 @@ class _VerificationOtpScreenState extends State<VerificationOtpScreen> {
                     ),
                   ],
                   const SizedBox(height: 12),
-                  _buildLogo(),
+                  _buildLogo(screenWidth),
                   const SizedBox(height: 20),
                   SizedBox(
-                    height: 160,
+                    height: compact ? 140 : 160,
                     child: Image.asset(
                       'assets/images/verificationdone_illustration.png',
                       fit: BoxFit.contain,
                     ),
                   ),
                   const SizedBox(height: 20),
-                  const Text(
+                  Text(
                     'Verification',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontSize: 26,
+                      fontSize: headingSize,
                       fontWeight: FontWeight.bold,
-                      color: Color(0xFF111827),
+                      color: const Color(0xFF111827),
                     ),
                   ),
                   const SizedBox(height: 6),
@@ -248,11 +275,15 @@ class _VerificationOtpScreenState extends State<VerificationOtpScreen> {
                                     cityRegion,
                                     style: const TextStyle(
                                         fontSize: 13, color: Color(0xFF6B7280)),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                   Text(
                                     barangay,
                                     style: const TextStyle(
                                         fontSize: 13, color: Color(0xFF6B7280)),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                   const SizedBox(height: 4),
                                   const Row(
@@ -260,12 +291,16 @@ class _VerificationOtpScreenState extends State<VerificationOtpScreen> {
                                       Icon(Icons.check_circle,
                                           color: Color(0xFF22C55E), size: 16),
                                       SizedBox(width: 4),
-                                      Text(
-                                        'Within city boundary',
-                                        style: TextStyle(
-                                            fontSize: 12,
-                                            color: Color(0xFF22C55E),
-                                            fontWeight: FontWeight.w500),
+                                      Expanded(
+                                        child: Text(
+                                          'Within city boundary',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                              fontSize: 12,
+                                              color: Color(0xFF22C55E),
+                                              fontWeight: FontWeight.w500),
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -325,11 +360,12 @@ class _VerificationOtpScreenState extends State<VerificationOtpScreen> {
                           ],
                         ),
                         const SizedBox(height: 20),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        Wrap(
+                          alignment: WrapAlignment.spaceBetween,
+                          runSpacing: 8,
                           children: List.generate(6, (i) {
                             return SizedBox(
-                              width: 44,
+                              width: otpBoxWidth,
                               child: TextField(
                                 controller: _controllers[i],
                                 focusNode: _focusNodes[i],

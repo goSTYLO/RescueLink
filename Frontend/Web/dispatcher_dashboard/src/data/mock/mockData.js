@@ -17,6 +17,17 @@ export const departments = [
   { id: "barangay", name: "Barangay Emergency Response", type: "Community", color: "purple" }
 ];
 
+// System users for role-based login (super-admin, department-admin, personnel)
+export const systemUsers = [
+  { id: "USR-001", name: "Super Admin", email: "admin@rescuelink.dagupan.gov.ph", role: "super-admin", department: "All", departmentId: null },
+  { id: "USR-002", name: "Fire Chief Mendoza", email: "mendoza@fire.dagupan.gov", role: "department-admin", department: "Bureau of Fire Protection (BFP Dagupan)", departmentId: "bfp" },
+  { id: "USR-003", name: "Health Director Santos", email: "santos@health.dagupan.gov", role: "department-admin", department: "City Health Office / Hospitals", departmentId: "health" },
+  { id: "USR-004", name: "Police Chief Ramos", email: "ramos@pnp.dagupan.gov", role: "department-admin", department: "Philippine National Police (PNP Dagupan)", departmentId: "pnp" },
+  { id: "USR-005", name: "DRRMO Director Garcia", email: "garcia@drrmo.dagupan.gov", role: "department-admin", department: "DRRMO Dagupan", departmentId: "drrmo" },
+  { id: "USR-006", name: "Officer Pedro Ramos", email: "pedro.ramos@pnp.dagupan.gov", role: "personnel", department: "Philippine National Police (PNP Dagupan)", departmentId: "pnp" },
+  { id: "USR-007", name: "EMT Juan Garcia", email: "juan.garcia@health.dagupan.gov", role: "personnel", department: "City Health Office / Hospitals", departmentId: "health" },
+];
+
 // Incident Timeline Events
 export const incidentTimelines = {
   "INC-2026-001": [
@@ -105,13 +116,17 @@ export const coordinationNotes = {
       timestamp: "2026-01-20 08:52:00",
       department: "BFP Dagupan",
       author: "SFO3 Ramon Cruz",
-      note: "Need medical standby for potential casualties"
+      note: "Need medical standby for potential casualties",
+      role: "department-admin",
+      roleLabel: "Dept Admin"
     },
     {
       timestamp: "2026-01-20 08:53:15",
       department: "City Health Office",
       author: "Dr. Elena Gomez",
-      note: "AMB-02 on standby at scene perimeter"
+      note: "AMB-02 on standby at scene perimeter",
+      role: "personnel",
+      roleLabel: "Personnel"
     }
   ]
 };
@@ -126,6 +141,7 @@ export const incidents = [
     severity: "Critical",
     timeReported: "2026-01-20 08:45 AM",
     assignedDepartment: "BFP Dagupan",
+    assignedDepartmentId: "bfp",
     assignedDepartments: ["BFP Dagupan", "City Health Office"],
     leadDepartment: "BFP Dagupan",
     status: "In Progress",
@@ -146,6 +162,7 @@ export const incidents = [
     severity: "Warning",
     timeReported: "2026-01-20 09:15 AM",
     assignedDepartment: "City Health Office",
+    assignedDepartmentId: "health",
     assignedDepartments: ["City Health Office"],
     leadDepartment: "City Health Office",
     status: "Verified",
@@ -166,6 +183,7 @@ export const incidents = [
     severity: "Warning",
     timeReported: "2026-01-20 10:00 AM",
     assignedDepartment: "PNP Dagupan",
+    assignedDepartmentId: "pnp",
     assignedDepartments: ["PNP Dagupan"],
     leadDepartment: "PNP Dagupan",
     status: "New",
@@ -186,6 +204,7 @@ export const incidents = [
     severity: "Warning",
     timeReported: "2026-01-20 07:30 AM",
     assignedDepartment: "DRRMO Dagupan",
+    assignedDepartmentId: "drrmo",
     assignedDepartments: ["DRRMO Dagupan", "Barangay Emergency Response"],
     leadDepartment: "DRRMO Dagupan",
     status: "In Progress",
@@ -206,6 +225,7 @@ export const incidents = [
     severity: "Resolved",
     timeReported: "2026-01-19 11:30 PM",
     assignedDepartment: "City Health Office",
+    assignedDepartmentId: "health",
     assignedDepartments: ["City Health Office"],
     leadDepartment: "City Health Office",
     status: "Resolved",
@@ -231,6 +251,7 @@ export const incidents = [
     severity: "Warning",
     timeReported: "2026-01-20 10:05 AM",
     assignedDepartment: "PNP Dagupan",
+    assignedDepartmentId: "pnp",
     assignedDepartments: ["PNP Dagupan"],
     leadDepartment: "PNP Dagupan",
     status: "Duplicate",

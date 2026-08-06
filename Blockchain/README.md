@@ -1,6 +1,29 @@
 # RescueLink Blockchain Service
 
+> ⚠️ **Optional Module** — Disabled by default.
+> Set `USE_BLOCKCHAIN=true` in `Backend/.env` and `VITE_USE_BLOCKCHAIN=true` in `Frontend/Web/dispatcher_dashboard/.env` to enable.
+> When disabled, incident finalization falls back to audit trail logging (no Ganache required).
+
 FastAPI service that records verified incident hashes on Ganache via the IncidentRegistry Solidity contract.
+
+
+## Session Updates (Performance & Gas Optimization)
+
+The blockchain verify flow was updated during the latest performance session with the following behavior:
+
+- **Gas observability in API response**: `/verify-incident` now returns `gas_used`, `effective_gas_price`, and `gas_cost_wei`
+- **Duplicate-write prevention**: before sending a new transaction, the service checks existing `IncidentVerified` logs for the same `report_id`
+- **No extra gas for duplicates**: when already recorded, the API returns the existing transaction reference with `already_recorded: true` and zero gas fields
+- **Contract gas optimizations** (see `contracts/IncidentRegistry.sol`):
+  - Events-only design (no on-chain storage): ~24k gas vs ~48k for storage-based
+  - Timestamp removed from event: derivable from `blockNumber`; saves ~256 gas/tx
+- **Solidity optimizer**: `contract.py` compiles with `optimize=True`, `optimize_runs=200` for smaller bytecode and lower execution gas
+
+This keeps functional behavior for verification while reducing unnecessary repeated on-chain writes.
+
+## Gas Cost Estimation (PHP/Pesos)
+
+The optimized contract uses approximately 23,425 gas per incident verification. Cost in pesos depends on gas price and ETH rate. At 1 ETH = ₱168,000: at 20 gwei each verification costs about ₱79; at 30 gwei about ₱118; at 50 gwei about ₱197. Duplicate verifications cost ₱0 (no new transaction). Use `npm run test:gas` in `Blockchain/tests` to measure current gas and generate reports.
 
 ## Setup
 
@@ -36,7 +59,14 @@ On the first POST to `/verify-incident` with no `CONTRACT_ADDRESS` in `.env`, th
 ## Endpoints
 
 - `GET /health` - Health check, verifies Ganache connection
-- `POST /verify-incident` - Body: `{ report_id: int, incident_data: object }` - Records hash on blockchain via IncidentRegistry, returns `{ hash_value, tx_hash, block_number }`
+- `POST /verify-incident` - Body: `{ report_id: int, incident_data: object }` - Records hash on blockchain via IncidentRegistry, returns:
+   - `hash_value`
+   - `tx_hash`
+   - `block_number`
+   - `gas_used`
+   - `effective_gas_price`
+   - `gas_cost_wei`
+   - `already_recorded`
 
 ## Automated test
 There is a Node.js Mocha test harness that verifies the FastAPI service can connect to Ganache and record an incident on-chain. The test is minimal and meant for local verification (not CI) unless you adapt the environment handling.

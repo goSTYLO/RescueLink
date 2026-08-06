@@ -2,13 +2,178 @@
 
 Node.js + Express backend for RescueLink, using PostgreSQL. Handles authentication, incident reporting, dispatcher workflows, AI-powered incident classification, and audit logging.
 
-**Security Features:**
-- 🔐 **Field-level encryption (AES-256-GCM)** for sensitive PII data at rest
-- 🔑 **Bcrypt password hashing** with configurable salt rounds
-- 🛡️ **Role-Based Access Control (RBAC)** with 3 roles and granular permissions
-- 📝 **Comprehensive audit logging** for all dispatcher actions
-- 🔒 **JWT authentication** with token blacklisting for secure logout
-- 🔐 **Multi-Factor Authentication (MFA)** via email OTP for dispatchers
+## Phase 3: Incident Acceptance Workflow (Manual Acceptance)
+
+Implemented responder incident acceptance and status tracking workflow:
+- **Database Additions**:
+  - `incident_reports`: `accepted_by_user_id` (FK users), `responder_status` (`Assigned`, `En Route`, `On Scene`, `Resolved`), `accepted_at`.
+  - `responders`: `user_id` (FK users).
+  - `users`: `responder_online` (Boolean toggle).
+  - `responder_status_history`: Audit trail for status changes (`report_id`, `updated_by_user_id`, `old_status`, `new_status`, `updated_at`).
+  - `backup_requests`: Field responder backup requests (`report_id`, `requested_by_user_id`, `target`, `notes`, `created_at`).
+  - `notifications`: `category` (`incident`, `application`, `responder_alert`, `backup_request`, `system`).
+- **Endpoints**:
+  - `POST /api/incidents/:id/accept`: Responders accept an unassigned pending/verified incident within alert radius.
+  - `POST /api/incidents/:id/decline`: Logs decline action.
+  - `PATCH /api/incidents/:id/responder-status`: Enforces state transition machine (`Assigned` -> `En Route` -> `On Scene` -> `Resolved`).
+  - `POST /api/incidents/:id/backup`: Request backup from CDRRMO, nearby responders, or both.
+  - `GET /api/incidents/:id/backup`: Fetch backup requests for an incident.
+  - `GET /api/incidents/responder/active`: List active assigned incidents for current responder.
+  - `GET /api/incidents/responder/history`: Paginated list of completed (Resolved) incidents.
+  - `PATCH /api/responders/me/online-status`: Server-persisted online/offline toggle for responders.
+  - `GET /api/responders/me/profile`: Retrieve responder self-profile.
+
+## Phase 2: Volunteer Responder Onboarding (Credential-Based)
+
+Implemented full backend module for credential-based volunteer responder applications:
+- **Database Table**: `responder_applications` (`id`, `user_id`, `status`, `gov_id_path`, `certificate_paths`, `other_doc_paths`, `personal_details`, `notes`, `submitted_at`, `reviewed_at`, `reviewed_by`).
+- **File Storage**: Local secure storage in `uploads/responder-applications/<user_id>/` with memory storage security validation (`documentUploadMiddleware`).
+- **Endpoints (`/api/responder-applications`)**:
+  - `POST /api/responder-applications`: Submit application with multipart credential uploads.
+  - `GET /api/responder-applications/me`: Get current user's application status.
+  - `GET /api/responder-applications`: List all applications (Dispatcher/Admin, filterable by `status`).
+  - `GET /api/responder-applications/:id`: View application details.
+  - `PATCH /api/responder-applications/:id/status`: Approve or reject application with notes. On approval, automatically promotes `users.role = 'responder'` and adds applicant to `responders` pool.
+  - `GET /api/responder-applications/:id/documents/:filename`: Protected access-controlled document file serving.
+
+## Session Updates (Rate Limit, Notifications, Incident Closure)
+
+Recent backend updates:
+
+- **API rate limit relaxation**:
+  - Default: 2000 requests per 15 min (dev), 500 (production).
+  - Override via `API_RATE_LIMIT_MAX` env var.
+  - Reduces 429 errors during normal dashboard usage.
+- **Notifications enrichment**:
+  - `GET /api/notifications` now joins `incident_reports` and returns `incident_type` and `incident_status` per notification.
+  - Fallback query when schema lacks these columns.
+- **Incident status update**:
+  - `PATCH /api/incidents/:id/status` now accepts `closed` for admin/dispatcher (force-close without reporter confirmation).
+  - `allow_force_close` passed to Incident model when actor is admin/dispatcher.
+- **Resource release on closed**:
+  - `releaseIncidentResources` continues to run on `resolved` and `closed`, releasing teams, responders, and department units.
+
+## Session Updates (Mobile + Backend Incident Integration)
+
+Recent backend changes aligned with current mobile integration:
+
+- **Notifications ownership enforcement for user role**:
+  - `GET /api/notifications` now forces `user_id = req.user.user_id` for role `user`.
+  - `GET /api/notifications/:id` returns `403` if a regular user tries to access another user's notification.
+- **Incident detail contract parity with mobile unified screen**:
+  - `GET /api/incidents/:id/with-ai` remains the primary detail source for combined tracking/details UI.
+  - mobile now supports AI confidence keys from both create and stored-classification paths (`confidence`, `confidence_score`, and incident `primary_confidence` fallback).
+- **Incident evidence download endpoints in active use by mobile**:
+  - `GET /api/incidents/:id/audio`
+  - `GET /api/incidents/:id/media/:index`
+  - both routes keep ownership protection for regular users through RBAC middleware.
+
+## Session Updates (Performance Session 2)
+
+Implemented updates during this session:
+
+- **AI request path optimization**: per-request AI health precheck can now be gated to avoid extra round-trip latency
+- **With-audio flow cleanup**: duplicate deep-scan invocation in AI-fallback path was removed
+- **Blockchain observability passthrough**: verify responses now include gas metrics from blockchain service
+- **Duplicate blockchain write awareness**: backend verify response now includes `already_recorded` when chain service skips duplicate writes
+
+These changes were validated in the latest local performance reruns.
+
+## Session Updates (Web + Backend Integration Alignment)
+
+Recent cross-stack updates completed for dispatcher web integration:
+
+- **Request correlation parity**: web clients now consistently send `x-request-id`; backend already echoes/uses this for logs.
+- **Incident contract hardening**: web incident client contract tests now cover list/detail/with-ai/verify/reclassify.
+- **Lifecycle consistency**: web side now enforces canonical lifecycle values (`pending`, `verified`, `in_progress`, `resolved`, `closed`) to match backend expectations.
+- **Post-action convergence**: verify/reclassify flows trigger cross-page refresh events in web (dashboard/map/details).
+- **Live API test script resilience**: `tests/integration.test.js` setup now handles "already registered" account messages more safely.
+
+## Session Updates (Assignment v2 + AI Top-2 Classification)
+
+Recent backend updates for dispatcher workflow simplification:
+
+- **Dispatch assignment v2 contract (backward compatible)**:
+  - `POST /api/dispatches` now supports grouped assignment payloads with `department_code`, `team_name`, and `responders[]`.
+  - Legacy single-responder payload (`report_id` + `responder_id`) is still supported.
+- **Backend-driven team auto-assignment**:
+  - `POST /api/dispatches` also accepts `report_id + department_code + team_name` without `responders[]`.
+  - server resolves eligible team members and assigns only responders marked `available` or `standby`.
+  - API returns `assignment_summary` with `assigned_count` and `unassigned_reason` (e.g. `no_available_team_members`).
+- **Hybrid responder model support**:
+  - responders can be tagged with `source_type` (`account` or `directory`).
+  - dispatch records persist responder source and assignment metadata.
+- **Top-2 AI classification persistence**:
+  - incident records now support explicit primary/secondary classification fields and confidence values.
+  - AI classification record supports secondary predicted type/confidence when available.
+
+## Session Updates (Responder Flow + RBAC Status Split)
+
+Recent backend updates for responder/team operations:
+
+- **Responder/team specialization schema**:
+  - responders now support `supported_incident_types`.
+  - responder teams now support `team_status` and `supported_incident_types`.
+- **RBAC split for responder management**:
+  - admin-only: create/update/delete responders and teams, plus team-member mapping.
+  - dispatcher + admin: status update endpoints for responder and team availability.
+- **Task-aware auto-assignment eligibility**:
+  - auto-assignment now checks:
+    - team status (`available`/`standby`)
+    - responder status (`available`/`standby`)
+    - incident-type compatibility when team/responder specialization is configured.
+  - assignment summary now includes requested incident type metadata.
+
+## Session Updates (Department Ops Integration Support)
+
+Backend endpoints continue to support the updated web department operations flow:
+
+- `GET /api/departments/:id` is used as the canonical detail source with numeric `department_id`.
+- Team/member assignment and status endpoints remain the source of truth for Department Details and Departments Teams tabs:
+  - team listing/status updates
+  - team-member list/add/remove
+  - responder status updates
+- This keeps department operations aligned with assignment v2 (team-first, status-aware workflows).
+
+## Session Updates (Incident Lifecycle + Reporter Confirmation)
+
+Implemented end-to-end lifecycle flow updates:
+
+- **Canonical status flow**:
+  - `pending -> verified -> in_progress -> resolved -> closed`
+  - guarded transitions enforced in backend model/controller path.
+- **Dispatcher/admin status endpoint**:
+  - `PATCH /api/incidents/:id/status`
+  - validates allowed transitions and rejects invalid jumps.
+- **Reporter confirmation endpoint**:
+  - `POST /api/incidents/:id/confirm-resolution`
+  - owner-only confirmation after incident is already `resolved`.
+  - auto-transitions incident from `resolved -> closed` on successful confirmation.
+  - persists `reporter_confirmed_at` + `reporter_confirmed_by_user_id` and closure metadata (`closed_at`, `closed_by_user_id`, `closure_method`).
+- **Resolve actor audit field**:
+  - `resolved_by_user_id` is persisted when dispatcher/admin marks resolved.
+- **Closure reconciliation**:
+  - on `resolved` and `closed`, assigned responder/team statuses and department units are reconciled back to available state.
+- **Auto-start lifecycle hook**:
+  - first successful dispatch assignment now attempts `verified -> in_progress`.
+
+## Session Updates (Lifecycle Reliability + Task Mapping Normalization)
+
+Latest reliability fixes applied:
+
+- **Auto-transition reliability fix**:
+  - fixed SQL parameter binding in incident status transition update path.
+  - resolves cases where assignment created a dispatch but incident status stayed `verified`.
+  - expected behavior is now consistent: first successful assignment moves `verified -> in_progress`.
+- **Task-to-incident normalization for assignment eligibility**:
+  - responder/team task matching now normalizes common synonyms into canonical task buckets:
+    - medical: `accident`, `vehicular accident`, `traffic accident`, `collision`, `injury`, `trauma`
+    - police: `crime`, `robbery`, `theft`, `assault`, `violence`
+    - disaster: `natural disaster`, `typhoon`, `flood`, `earthquake`, `landslide`
+    - fire: `fire`, `blaze`, `wildfire`
+- **Conflict semantics remain explicit**:
+  - `POST /api/dispatches` returns `409` when no eligible/available team members are found for the selected team.
+  - response includes `assignment_summary.unassigned_reason` to help client-side messaging.
 
 ## Quick start
 
@@ -31,18 +196,13 @@ Node.js + Express backend for RescueLink, using PostgreSQL. Handles authenticati
 
 3. **Run migrations** (for existing databases):
    ```bash
-   # Core migrations
    psql $DATABASE_URL -f migrations/add_dispatcher_audit_logs.sql
    psql $DATABASE_URL -f migrations/add_token_blacklist.sql
    psql $DATABASE_URL -f migrations/add_dispatcher_login_otp.sql
-   psql $DATABASE_URL -f migrations/add_rbac_system.sql
-   
-   # Encryption migrations (REQUIRED for encryption at rest)
-   node run-encrypted-fields-migration.js
-   # OR manually:
-   # psql $DATABASE_URL -f migrations/change_coordinates_to_text_for_encryption.sql
-   # psql $DATABASE_URL -f migrations/fix_encrypted_fields_varchar_to_text.sql
-   # psql $DATABASE_URL -f migrations/fix_audit_logs_details_to_text.sql
+   psql $DATABASE_URL -f migrations/add_dispatch_assignment_v2_and_secondary_ai.sql
+   psql $DATABASE_URL -f migrations/add_team_member_assignment_schema.sql
+   psql $DATABASE_URL -f migrations/add_responder_task_and_team_status.sql
+   psql $DATABASE_URL -f migrations/add_incident_resolution_confirmation_fields.sql
    ```
    Run other migrations in `migrations/` as needed for your schema version.
 
@@ -52,6 +212,15 @@ Node.js + Express backend for RescueLink, using PostgreSQL. Handles authenticati
    npm run dev
    ```
 
+5. **Seed test data (optional, local/dev only):**
+   ```bash
+   node scripts/seed-db.js
+   node scripts/seed-incidents-from-audio.js --reset
+   ```
+   `seed-db.js` seeds realistic core operational data (departments, users, 12 teams, 18 responders, team memberships).
+   `seed-incidents-from-audio.js` seeds 30 incidents (5 duplicates + 25 unique) using real audio files from `RescueLink AI/test` and `Backend/uploads/incidents`, distributed across a variety of Dagupan City locations.
+   Use `--count=N` to override the default (max: 30).
+
 ## Environment variables
 
 | Variable | Description | Required |
@@ -60,6 +229,7 @@ Node.js + Express backend for RescueLink, using PostgreSQL. Handles authenticati
 | `JWT_SECRET` | Secret for signing JWTs (32+ chars in production) | Yes |
 | `SALT_ROUNDS` | bcrypt salt rounds (default: 10) | No |
 | `PORT` | Server port (default: 3000) | No |
+| `API_RATE_LIMIT_MAX` | Max API requests per 15 min per IP (default: 2000 dev, 500 prod) | No |
 | `NODE_ENV` | `production` or `development` | Yes in production |
 | `FIREBASE_SERVICE_ACCOUNT_PATH` | Path to Firebase service account JSON | For phone auth |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` | SMTP for password reset emails | For dispatcher forgot-password |
@@ -70,112 +240,45 @@ Node.js + Express backend for RescueLink, using PostgreSQL. Handles authenticati
 | `MAX_AUDIO_SIZE` | Max audio file size in bytes (default: 25MB) | No |
 | `MAX_PHOTO_SIZE` | Max photo size in bytes (default: 10MB) | No |
 | `MAX_VIDEO_SIZE` | Max video size in bytes (default: 50MB) | No |
-| `ENCRYPTION_KEY` | 256-bit hex key for AES-256-GCM encryption (64 hex chars). Generate with: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` | Yes |
+| `AI_SERVICE_URL` | RescueLink AI service URL | No |
+| `AI_SERVICE_TOKEN` | Optional token sent as `x-ai-service-token` to AI service | No |
+| `AI_HEALTH_PRECHECK_ENABLED` | Enables per-request AI `/health` precheck before classification (`default: false`) | No |
+| `AI_CIRCUIT_FAILURE_THRESHOLD` | Consecutive AI request failures before opening circuit (`default: 3`) | No |
+| `AI_CIRCUIT_RESET_MS` | Circuit open duration in milliseconds (`default: 30000`) | No |
+| `FILE_SCAN_FAIL_OPEN` | If `true`, accepts uploads when deep scanner is unavailable and flags them (`default: true`) | No |
+| `FILE_DEEP_SCAN_ENABLED` | Enables async deep scan workflow (`default: true`) | No |
+| `FILE_DEEP_SCAN_ENGINE` | Deep scan engine identifier (`stub`, `clamav`, etc.) | No |
+| `FILE_SCANNER_AVAILABLE` | Marks scanner runtime availability (`default: false`) | No |
+| `CLAMAV_HOST` | ClamAV daemon host (`default: 127.0.0.1`) | No |
+| `CLAMAV_PORT` | ClamAV daemon port (`default: 3310`) | No |
+| `CLAMAV_TIMEOUT_MS` | ClamAV stream scan timeout (`default: 15000`) | No |
+| `FILE_SCAN_RETRY_CRON` | Cron schedule for scan retry worker (`default: */10 * * * *`) | No |
+| `FILE_SCAN_MAX_BATCH` | Max incidents processed per scan retry run (`default: 30`) | No |
+| `QUARANTINE_DIR` | Directory used for quarantined files (`default: uploads/quarantine`) | No |
+| `IMAGE_COMPRESSION_ENABLED` | Enables image compression before save (`default: true`) | No |
+| `VIDEO_COMPRESSION_ENABLED` | Enables video compression/transcoding before save (`default: true`) | No |
+| `IMAGE_MAX_WIDTH` | Max image width during compression (`default: 1920`) | No |
+| `IMAGE_JPEG_QUALITY` | JPEG compression quality (`default: 78`) | No |
+| `VIDEO_CRF` | FFmpeg CRF value for video compression (`default: 30`) | No |
 
 For production, use a secrets manager or vault for sensitive values. Never commit `.env` to version control.
 
-## Security Architecture
-
-### Role-Based Access Control (RBAC)
-
-The system implements a comprehensive RBAC system with three roles and granular permissions:
-
-| Role | Description | Access Level |
-|------|-------------|--------------|
-| **USER** | Mobile app users who report incidents | Can create/read/update/delete own incidents only |
-| **DISPATCHER** | Web app operators who manage dispatches | Full access to incidents, dispatches, responders, notifications |
-| **ADMIN** | Super-users with full system access | All permissions + user management, system settings, disaster control |
-
-**Permission Matrix:**
-- **Users**: `create`, `readOwn`, `updateOwn`, `deleteOwn` on own incidents
-- **Dispatchers**: `create`, `read`, `update`, `delete`, `list`, `manage` on incidents, dispatches, responders, notifications
-- **Admins**: `manage` (full access) on all resources + user management + audit log read access
-
-RBAC enforcement:
-- Middleware: `src/middleware/rbac.js` - `authorize([ROLES.DISPATCHER, ROLES.ADMIN])`
-- Configuration: `src/config/roles.js` - Role definitions and permissions
-- Routes: Per-route authorization based on role requirements
-
-### Encryption at Rest
-
-**Field-Level Encryption (AES-256-GCM):**
-
-All sensitive PII data is encrypted at rest using AES-256-GCM with authenticated encryption. Each encrypted value includes:
-- Random 96-bit IV (Initialization Vector)
-- 128-bit authentication tag for integrity verification
-- PBKDF2-derived key (100,000 iterations, SHA-256)
-
-**Encrypted Fields (16 total across 4 models):**
-
-| Model | Encrypted Fields | Format |
-|-------|------------------|--------|
-| **Users** (5) | `phone_number`, `email`, `first_name`, `last_name`, `address` | TEXT (hex, 190-270 chars) |
-| **Responders** (2) | `name`, `contact_number` | TEXT (hex, 190-210 chars) |
-| **Incidents** (7) | `latitude`, `longitude`, `description`, `transcription`, `audio_path`, `media_url`, `media_paths` | TEXT (hex, 190-340 chars) |
-| **Audit Logs** (2) | `ip_address`, `details` | TEXT (hex, 190-340 chars) |
-
-**Important:** Passwords use **bcrypt hashing** (one-way), NOT encryption.
-
-**How it works:**
-1. **Encryption:** `src/utils/encryptedField.js` - Transparent encryption before database writes
-2. **Decryption:** Automatic decryption on read operations in model layer
-3. **Storage:** All encrypted fields stored as TEXT columns containing hex-encoded ciphertext
-4. **Type Conversion:** Decrypted values automatically converted to original types (string/number/json)
-
-**Migration:** If upgrading from non-encrypted schema, run:
-```bash
-psql $DATABASE_URL -f migrations/change_coordinates_to_text_for_encryption.sql
-psql $DATABASE_URL -f migrations/fix_encrypted_fields_varchar_to_text.sql
-psql $DATABASE_URL -f migrations/fix_audit_logs_details_to_text.sql
-```
-
-### Password Security
-
-- **Algorithm:** bcrypt with configurable salt rounds (default: 10, configurable via `SALT_ROUNDS`)
-- **Storage:** One-way hashed (NOT encrypted or reversible)
-- **Verification:** `bcrypt.compare()` for login authentication
-- **Minimum Requirements:** 8+ characters (enforced by validation middleware)
-- **Implementation:** `src/utils/hash.js`
-
-For production, use `SALT_ROUNDS=12` or higher (balance security vs. performance).
-
 ## Authentication
 
-### User Registration & Login (Mobile)
-- **Register:** `POST /api/auth/register` - Phone + password + firstName + lastName
-  - Phone, email, names, and address are **encrypted** before storage
-  - Password is **hashed** with bcrypt (NOT encrypted)
-  - Optional geolocation validation (Dagupan City bounds)
-- **Login:** `POST /api/auth/login` - Phone + password
-  - Returns JWT token valid for 7 days
-  - User lookup requires decrypting all phone_number fields (no direct queries possible)
-- **Phone Verification:** `POST /api/auth/onboard-phone` - Firebase ID token
-  - Marks phone as verified after Firebase Phone Auth
-
-### Dispatcher Registration & Login (Web)
-- **Signup:** `POST /api/auth/dispatcher/signup` - Email + password + firstName + lastName
-  - Creates dispatcher account (role: `dispatcher`)
-  - Logs action to `dispatcher_audit_logs`
-- **Login:** `POST /api/auth/dispatcher/login` - Email + password
-  - **MFA Enabled** (default): Returns `sessionToken`, sends 6-digit OTP to email
-    - Complete with `POST /api/auth/dispatcher/verify-otp`
-  - **MFA Disabled** (`DISPATCHER_MFA_ENABLED=false`): Returns JWT directly
-  - Email lookup requires decrypting all email fields
-- **Forgot Password:** `POST /api/auth/forgot-password` - Email
-  - Sends password reset link (JWT-based) to email
-- **Reset Password:** `POST /api/auth/reset-password-with-token` - Token + newPassword
-
-### JWT & Protected Routes
-- **Header:** `Authorization: Bearer <token>`
-- **Payload:** `{ user_id, email/phone, role, iat, exp }`
-- **Expiry:** 7 days
-- **Middleware:** `src/middleware/auth.js` - Validates and decodes JWT
-- **Logout:** `POST /api/auth/logout` - Adds token to blacklist (cannot be reused)
-  - Blacklisted tokens stored in `token_blacklist` table
-
-**Note:** Encrypted email/phone fields mean lookups require full table scan + decrypt. For production scale, consider hashed identifiers or search indexes.
+- **Mobile (phone):** Register with phone + password, then verify via Firebase Phone Auth. Send Firebase ID token to `POST /api/auth/onboard-phone` to mark phone as verified.
+- **Web dispatcher:** Email + password via `POST /api/auth/dispatcher/login` or `POST /api/auth/dispatcher/signup`. When MFA is enabled (`DISPATCHER_MFA_ENABLED=true`), login returns a `sessionToken`; complete with `POST /api/auth/dispatcher/verify-otp` using the 6-digit code from email.
+- **JWT:** All protected routes require `Authorization: Bearer <token>`.
+- **Logout:** `POST /api/auth/logout` invalidates the token (blacklist) so it cannot be reused.
 
 See [API_DOCUMENTATION.md](API_DOCUMENTATION.md) for full endpoint details.
+
+## Seeded Test Accounts
+
+- Admin: `admin@rescuelink.test`, `admin2@rescuelink.test` (password: `admin123`)
+- Dispatcher: `dispatcher@rescuelink.test`, `dispatcher2@rescuelink.test` (password: `dispatcher123`)
+- Supervisor: `supervisor@rescuelink.test`, `supervisor2@rescuelink.test` (password: `supervisor123`)
+- Responder: `responder@rescuelink.test`, `responder2@rescuelink.test` (password: `responder123`)
+- User: `user@rescuelink.test`, `user2@rescuelink.test` (password: `user123`)
 
 ## File uploads
 
@@ -183,204 +286,88 @@ Incident reports can include audio and media. Use `POST /api/incidents/with-audi
 - `audio` – Single audio file (wav, mp3, m4a, flac), max 25MB
 - `media` – Up to 5 photos/videos (jpg, png, mp4, mov, avi)
 
-File type and size are validated server-side.
+Server-side upload protections and optimizations:
+- **Quick security gate (sync):** signature validation + blocked binary/script signatures + extension mismatch rejection
+- **Deep scan workflow (async):** queued scan status (`pending`, `clean`, `unscanned`, `quarantined`, `error`)
+- **Fail-open mode:** if scanner is unavailable and `FILE_SCAN_FAIL_OPEN=true`, incident is accepted but flagged for follow-up
+- **Quarantine support:** suspicious files are moved to `QUARANTINE_DIR` and blocked from download
+- **Compression:** photos are resized/compressed (Sharp), videos are transcoded/compressed (FFmpeg) before storage
+
+`/api/incidents/with-audio` responses now include `security_scan` metadata so clients can display scan status.
+
+### Incident verify response additions
+
+`POST /api/incidents/:id/verify` now includes blockchain metadata fields:
+- `gas_used`
+- `effective_gas_price`
+- `gas_cost_wei`
+- `already_recorded`
 
 ## Audit logging
 
-Dispatcher and admin actions are automatically logged to `dispatcher_audit_logs` for compliance and security monitoring.
-
-**Logged Actions:**
-- Authentication: `dispatcher_login`, `dispatcher_signup`, `password_reset`
-- User Management: `user_create`, `user_update`, `user_delete`, `users_list`
-- Incident Operations: `incident_create`, `incident_update`, `incident_verify`
-- Dispatches: `dispatch_create`, `dispatch_update`
-- Responder Management: `responder_create`, `responder_update`
-
-**Logged Fields:**
-- `user_id` - Who performed the action
-- `action` - Action type (see above)
-- `resource_type` - Resource affected (user, incident, dispatch, etc.)
-- `resource_id` - ID of affected resource (if applicable)
-- `details` - JSON object with action details (**encrypted**)
-- `ip_address` - Client IP (**encrypted**)
-- `user_agent` - Browser/client info
-- `created_at` - Timestamp
-
-**Encryption:** Both `ip_address` and `details` fields are encrypted at rest. When retrieved via `GET /api/audit-logs`, they are automatically decrypted.
-
-**Access:**
-- **Dispatchers:** Can read own audit logs (`GET /api/audit-logs?user_id=<own_id>`)
-- **Admins:** Can read all audit logs with filtering options
-
-**Query Parameters:**
-- `user_id` - Filter by user
-- `action` - Filter by action type
-- `resource_type` - Filter by resource
-- `from` / `to` - Date range filter (ISO 8601)
-- `limit` / `offset` - Pagination (max 100 per page)
-
-**Implementation:** `src/utils/auditLog.js` - Helper functions for logging actions
+Dispatcher actions (login, logout, signup, password change, dispatch, etc.) are logged to `dispatcher_audit_logs` with IP and user agent. Use `GET /api/audit-logs` (dispatcher only) to query.
 
 ## Migrations
 
-**Core Migrations** (for existing databases - new setups use `schema.sql`):
+| File | Purpose |
+|------|---------|
+| `add_dispatcher_audit_logs.sql` | Dispatcher audit log table |
+| `add_token_blacklist.sql` | Token blacklist for logout invalidation |
+| `add_dispatcher_login_otp.sql` | Dispatcher MFA OTP table |
+| `add_ai_fields.sql` | AI classification fields |
+| `add_incident_verified.sql` | Incident verification status |
+| `add_incident_barangay.sql` | Barangay field for incidents |
+| `add_dispatch_assignment_v2_and_secondary_ai.sql` | Assignment v2 metadata, hybrid responder fields, and top-2 AI fields |
+| `add_team_member_assignment_schema.sql` | Team and team-member mapping tables for auto-assignment |
+| `add_responder_task_and_team_status.sql` | Responder/team specialization fields and team status availability |
+| `add_incident_resolution_confirmation_fields.sql` | Incident resolve/confirmation metadata fields for reporter confirmation flow |
 
-| File | Purpose | Status |
-|------|---------|--------|
-| `add_dispatcher_audit_logs.sql` | Dispatcher audit log table | Core feature |
-| `add_token_blacklist.sql` | Token blacklist for logout invalidation | Core feature |
-| `add_dispatcher_login_otp.sql` | Dispatcher MFA OTP table | MFA feature |
-| `add_rbac_system.sql` | Role-based access control tables and permissions | **New - RBAC** |
-| `add_ai_fields.sql` | AI classification fields (ai_pending, ai_attempted) | AI feature |
-| `add_incident_verified.sql` | Incident verification status | Blockchain feature |
-| `add_incident_barangay.sql` | Barangay field for incidents | Location feature |
-
-**Encryption Migrations** (required for encryption at rest):
-
-| File | Purpose | Required For |
-|------|---------|--------------|
-| `change_coordinates_to_text_for_encryption.sql` | Convert latitude/longitude from DOUBLE PRECISION to TEXT | Coordinate encryption |
-| `fix_encrypted_fields_varchar_to_text.sql` | Convert all encrypted VARCHAR fields to TEXT (handles 200+ char hex) | All encrypted fields |
-| `fix_audit_logs_details_to_text.sql` | Convert audit log details from JSONB to TEXT | Audit log encryption |
-
-**Important:** Encryption migrations MUST be run in order:
-```bash
-# 1. Coordinates
-psql $DATABASE_URL -f migrations/change_coordinates_to_text_for_encryption.sql
-
-# 2. All encrypted fields (users, responders, incidents, audit logs)
-psql $DATABASE_URL -f migrations/fix_encrypted_fields_varchar_to_text.sql
-
-# 3. Audit log details (JSONB → TEXT)
-psql $DATABASE_URL -f migrations/fix_audit_logs_details_to_text.sql
-```
-
-**Automated Migration:**
-```bash
-# Run all encryption migrations automatically
-node run-encrypted-fields-migration.js
-```
-
-**Testing Migrations:**
-- `run-migration.js` - Test coordinate migration
-- `run-audit-rbac-fixes.js` - Test audit log + RBAC fixes
-- `run-encrypted-fields-migration.js` - Test all encrypted field migrations
-
-Run migrations in order for existing databases. New setups via `setup-db` use `schema.sql` which includes core tables with correct column types.
-
-## Database Seeding
-
-**Automated Seeding:**
-```bash
-npm run seed-db
-# OR
-node scripts/seed-db.js
-```
-
-**What Gets Seeded:**
-- **1 Admin** - `admin@rescuelink.test` / `admin123`
-- **2 Dispatchers** - `dispatcher@rescuelink.test`, `dispatcher2@rescuelink.test` / `dispatcher123`
-- **15 Regular Users** - `user@rescuelink.test`, `user1@rescuelink.test`, etc. / `user123`
-- **5 Responders** - Fire, Medical, Police, Red Cross, Civil Defense
-- **6 Incident Reports** - Various severities and types
-- **5 Dispatches** - Linking incidents to responders
-
-**All seed data is encrypted:**
-- User PII (phone, email, names, addresses)
-- Responder details (name, contact)
-- Incident data (coordinates, descriptions)
-- Passwords are bcrypt-hashed
-
-**Test Credentials:**
-| Role | Email | Password |
-|------|-------|----------|
-| Admin | admin@rescuelink.test | admin123 |
-| Dispatcher | dispatcher@rescuelink.test | dispatcher123 |
-| User (phone) | 639666666666 | user123 |
-
-**Important:** Seed script clears existing data. Use only for development/testing.
-
-## Testing
-
-**Test Scripts:**
-```bash
-# Encryption functionality tests
-node test-comprehensive-encryption.js
-node verify-encryption.js
-
-# Emergency incident creation test
-node test-emergency-incident.js
-
-# Encryption compatibility test (cross-platform)
-node test-encryption-compat.js
-
-# Login flow test
-node test-login.js
-```
-
-**Unit Tests:**
-```bash
-npm test
-
-# Specific test suites
-npm test -- encryption.test.js
-npm test -- rbac.test.js
-npm test -- integration.test.js
-```
-
-**Manual Testing:**
-- Postman collections in root directory:
-  - `ENCRYPTION_POSTMAN_COLLECTION.json` - Encryption endpoints
-  - `RBAC_POSTMAN_COLLECTION.json` - RBAC authorization tests
-- Import into Postman and test with live tokens
-- See `ENCRYPTION_POSTMAN_GUIDE.md` and `RBAC_POSTMAN_GUIDE.md`
-
-## Security Considerations
-
-### Production Checklist
-
-**Required:**
-- ✅ Set `NODE_ENV=production`
-- ✅ Use strong `JWT_SECRET` (32+ bytes, cryptographically random)
-- ✅ Use strong `ENCRYPTION_KEY` (32 bytes, 64 hex chars, cryptographically random)
-- ✅ Set `SALT_ROUNDS=12` or higher for bcrypt
-- ✅ Enable `DISPATCHER_MFA_ENABLED=true` with configured SMTP
-- ✅ Use HTTPS only (TLS 1.2+)
-- ✅ Configure CORS for production origins
-- ✅ Enable rate limiting on authentication endpoints
-- ✅ Use secrets manager (AWS Secrets Manager, Azure Key Vault, etc.)
-- ✅ Regular database backups (includes encrypted data)
-- ✅ Monitor audit logs for suspicious activity
-
-**Encryption at Rest:**
-- All PII data automatically encrypted with AES-256-GCM
-- Encryption key MUST be 32 bytes (64 hex characters)
-- Key rotation requires re-encryption of all data (not currently automated)
-- Database backups contain encrypted data (keys stored separately)
-- Decryption happens in application layer (never in database)
-
-**Performance Notes:**
-- Encrypted field lookups require full table scan + decrypt (no indexing)
-- User login by email/phone: O(n) where n = number of users
-- For production scale (10,000+ users), consider:
-  - Hashed identifier columns for fast lookups
-  - Caching strategies for frequently accessed encrypted data
-  - Read replicas for decryption operations
-
-**Key Management:**
-- Store `ENCRYPTION_KEY` separately from application code
-- Use different keys per environment (dev/staging/prod)
-- Implement key rotation strategy (requires data migration)
-- Never log or expose encryption keys
-- Use HSM (Hardware Security Module) for highest security
-
-**RBAC Best Practices:**
-- Review role assignments regularly
-- Use principle of least privilege
-- Audit logs track all admin/dispatcher actions
-- Dispatcher MFA required for production
-- Regular security audits of permission matrix
+Run migrations in order for existing databases. New setups via `setup-db` use `schema.sql` which includes core tables.
 
 ## Deployment
 
 See [DEPLOYMENT.md](DEPLOYMENT.md) for production deployment steps and checklist.
+
+## Security Runbook
+
+Operational scanner outage and quarantine procedures are documented in [SECURITY_RUNBOOK.md](SECURITY_RUNBOOK.md).
+
+## Security Test Runner
+
+- Backend-only suite: `npm run test:security`
+- Full security suite (Backend + AI fallback tests): run [run_security_integration_tests.ps1](../run_security_integration_tests.ps1) from the repository root.
+
+## Integration test commands
+
+From `Backend/`:
+
+```bash
+npm run test:all
+npm run test:endpoints
+npm run test:rbac
+npm run test:security
+npm run test:integration
+```
+
+Live API integration (requires backend running on `http://localhost:3000`):
+
+```bash
+node tests/integration.test.js
+```
+
+From repo root, cross-stack runner (web + backend focused):
+
+```bash
+powershell -ExecutionPolicy Bypass -File .\run_master_integration_tests.ps1 -SkipMobile -SkipAI -SkipBlockchain
+```
+
+## Security Trigger Logs
+
+Watch these backend logs to confirm security features are firing:
+- `🛡️ Upload quick scan status:` (quick scan executed)
+- `⛔ Upload blocked by quick scan findings:` (malicious/signature mismatch blocked)
+- `⚠️ Fail-open triggered:` (scanner unavailable but upload accepted)
+- `🛡️ Performing deep scan using engine=...` (deep scan execution)
+- `☣️ ClamAV detected threat...` / `✅ ClamAV clean result...` (deep scan outcomes)
+- `🗜️ Image compressed...` / `🗜️ Video compressed...` (compression applied)
+- `🚨 File moved to quarantine...` (quarantine action triggered)

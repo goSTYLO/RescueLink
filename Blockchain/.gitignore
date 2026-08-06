@@ -12,3 +12,7 @@ env/
 
 # py-solc-x / solc (if local)
 .solcx/
+
+# Gas test reports (generated)
+tests/reports/*.json
+tests/reports/*.md

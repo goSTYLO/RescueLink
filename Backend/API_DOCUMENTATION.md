@@ -6,6 +6,25 @@
 http://localhost:3000/api
 ```
 
+## Latest Integration Notes (Mobile + Backend)
+
+- **Duplicate management**: Incidents are never auto-linked as duplicates. Geospatial detection only sets `flagged_for_review`. Dispatchers manually link via `POST /api/incidents/:id/link-duplicate`. Incident payloads include `is_duplicate`, `flagged_for_review`, `parent_report_id`, `duplicate_cluster` when applicable. Cluster descriptions and reporter names are decrypted.
+- **Incidents list**: `GET /api/incidents` supports `search` (report ID or description/barangay ILIKE), `exclude_report_id`, `incident_type`, `barangay`, `exclude_duplicates`.
+- Mobile incident detail flow is now unified on a single screen that uses `GET /api/incidents/:id/with-ai` as its primary data source.
+- AI confidence values may appear under different keys depending on endpoint/path:
+  - `ai_classification.confidence` (create response path)
+  - `ai_classification.confidence_score` (stored classification path)
+  - `incident.primary_confidence` (incident-level fallback)
+- Incident evidence download endpoints used by mobile:
+  - `GET /api/incidents/:id/audio`
+  - `GET /api/incidents/:id/media/:index`
+- Notification ownership behavior for role `user`:
+  - list endpoint always returns only the authenticated user's notifications (even if `user_id` query is provided)
+  - detail endpoint returns `403` when accessing another user's notification
+- Notification list response includes `incident_type` and `incident_status` (from joined incident_reports) when available.
+- `POST /api/notifications/mark-all-read` marks all notifications as read for the authenticated user. Returns `{ marked: number }`.
+- `GET /api/notifications/unread-count` returns `{ count: number }` for badge display.
+
 ## Authentication
 
 All API endpoints **except** authentication endpoints require JWT authentication. Include a valid JWT token in the Authorization header:
@@ -21,6 +40,18 @@ To obtain a JWT token, use the `/api/auth/login` or `/api/auth/register` endpoin
 - `401 Unauthorized` - Missing authorization header
 - `401 Unauthorized` - Invalid authorization format (must be "Bearer <token>")
 - `401 Unauthorized` - Invalid or expired token
+
+---
+
+## Rate Limiting
+
+General API endpoints are rate-limited per IP:
+
+- **Default (development):** 2000 requests per 15 minutes
+- **Default (production):** 500 requests per 15 minutes
+- **Override:** Set `API_RATE_LIMIT_MAX` environment variable to customize
+
+When the limit is exceeded, the API returns `429 Too Many Requests`. The response may include `Retry-After` header. Auth endpoints have separate, stricter limits.
 
 ---
 
@@ -148,6 +179,72 @@ All endpoints under `/api/admin/*` require the `admin` role:
 ---
 
 ## Authentication API
+
+---
+
+## Incident Upload API (AI + Scan)
+
+### Create Incident with Audio + Media
+
+**POST** `/api/incidents/with-audio`
+
+Create a new incident with required audio and optional media files. Endpoint performs:
+- upload size/type validation,
+- quick security scan (signature + blocked binary/script detection),
+- optional compression (images/videos),
+- asynchronous deep-scan workflow with fail-open support when configured.
+
+**Auth Required:** Yes (`user`, `dispatcher`, `admin`)
+
+**Content-Type:** `multipart/form-data`
+
+**Form Fields:**
+- `latitude` (required)
+- `longitude` (required)
+- `description` (optional)
+- `audio` (required; single file)
+- `media` (optional; up to 5 files)
+
+**Response:** `201 Created`
+
+```json
+{
+  "success": true,
+  "message": "Incident reported successfully with AI classification",
+  "incident": {
+    "report_id": 123,
+    "scan_status": "pending"
+  },
+  "ai_classification": {
+    "primary_type": "Medical",
+    "low_confidence_flag": false
+  },
+  "security_scan": {
+    "quick_scan": {
+      "status": "clean",
+      "findings": []
+    },
+    "deep_scan": {
+      "status": "ready",
+      "engine": "stub",
+      "queued": true,
+      "job_id": "deep-scan-123-1700000000000"
+    },
+    "fail_open_flagged": false
+  }
+}
+```
+
+**Common Scan States**
+- `clean`: latest scan completed without threat
+- `pending`: queued for deep scan
+- `unscanned`: scanner unavailable but upload accepted (fail-open)
+- `quarantined`: threat found and files moved to quarantine storage
+- `error`: scanner processing failure
+
+**Security Error Responses**
+- `400 Bad Request`: quick scan blocked suspicious file
+- `503 Service Unavailable`: scanner unavailable and fail-open disabled
 
 ### Register
 
@@ -777,6 +874,11 @@ Create a new notification record. Validates that the user exists and optionally 
 
 Retrieve a paginated list of notifications with optional filtering.
 
+**Role-specific behavior:**
+
+- `user`: always scoped to authenticated user's notifications
+- `dispatcher`, `admin`: can query across users (including `user_id` filter)
+
 **Query Parameters:**
 
 - `limit` (integer, optional) - Number of records to return (default: 20, max: 100)
@@ -793,6 +895,8 @@ GET /api/notifications?limit=10&offset=0&user_id=1&sent_via=SMS
 
 **Response:** `200 OK`
 
+Each notification may include `incident_type` and `incident_status` (from joined `incident_reports`) when available:
+
 ```json
 [
   {
@@ -801,7 +905,10 @@ GET /api/notifications?limit=10&offset=0&user_id=1&sent_via=SMS
     "report_id": 1,
     "message": "Emergency dispatch in your area",
     "sent_via": "SMS",
-    "sent_at": "2026-01-20T10:30:00.000Z"
+    "sent_at": "2026-01-20T10:30:00.000Z",
+    "event_type": "dispatched",
+    "incident_type": "fire",
+    "incident_status": "in_progress"
   },
   {
     "notification_id": 2,
@@ -809,13 +916,18 @@ GET /api/notifications?limit=10&offset=0&user_id=1&sent_via=SMS
     "report_id": 2,
     "message": "Update on incident #2",
     "sent_via": "Email",
-    "sent_at": "2026-01-20T11:00:00.000Z"
+    "sent_at": "2026-01-20T11:00:00.000Z",
+    "event_type": "status_updated",
+    "incident_type": "medical",
+    "incident_status": "resolved"
   }
 ]
 ```
 
 **Error Responses:**
 
+- `401 Unauthorized` - Missing or invalid authentication token
+- `403 Forbidden` - Accessing notifications outside user ownership (regular users)
 - `500 Internal Server Error` - Server error
 
 ---
@@ -845,7 +957,124 @@ Retrieve a specific notification by ID.
 
 **Error Responses:**
 
+- `401 Unauthorized` - Missing or invalid authentication token
+- `403 Forbidden` - User cannot access this notification (ownership violation)
 - `404 Not Found` - Notification not found
+- `500 Internal Server Error` - Server error
+
+---
+
+### Get Incident by ID with AI
+
+**GET** `/api/incidents/:id/with-ai`
+
+Retrieve incident detail plus latest AI classification (if available).
+
+**Required Role:** `user`, `dispatcher`, `admin`
+
+**Ownership Rules:**
+
+- Regular users can only view incidents they created
+- Dispatchers and admins can view any incident
+
+**Parameters:**
+
+- `id` (integer) - Incident report ID
+
+**Response:** `200 OK`
+
+```json
+{
+  "incident": {
+    "report_id": 123,
+    "user_id": 9,
+    "incident_type": "medical",
+    "severity_level": "high",
+    "primary_confidence": 0.88,
+    "audio_path": "uploads/incidents/incident_123_audio.wav",
+    "media_paths": [
+      "uploads/incidents/incident_123_photo_1.jpg"
+    ],
+    "status": "in_progress"
+  },
+  "ai_classification": {
+    "classification_id": 55,
+    "report_id": 123,
+    "predicted_type": "medical",
+    "predicted_severity": "high",
+    "confidence_score": 0.88,
+    "secondary_predicted_type": "disaster",
+    "secondary_confidence_score": 0.41,
+    "low_confidence_flag": false
+  }
+}
+```
+
+**Error Responses:**
+
+- `400 Bad Request` - Invalid incident ID format
+- `401 Unauthorized` - Missing or invalid authentication token
+- `403 Forbidden` - User cannot access this incident (ownership violation)
+- `404 Not Found` - Incident not found
+- `500 Internal Server Error` - Server error
+
+---
+
+### Download Incident Audio
+
+**GET** `/api/incidents/:id/audio`
+
+Download the incident's audio evidence file.
+
+**Required Role:** `user`, `dispatcher`, `admin`
+
+**Ownership Rules:**
+
+- Regular users can only download from incidents they created
+- Dispatchers and admins can download from any incident
+
+**Parameters:**
+
+- `id` (integer) - Incident report ID
+
+**Response:** `200 OK` (binary file stream)
+
+**Error Responses:**
+
+- `400 Bad Request` - Invalid incident ID format
+- `401 Unauthorized` - Missing or invalid authentication token
+- `403 Forbidden` - User cannot access this incident (ownership violation)
+- `404 Not Found` - Incident or audio file not found
+- `500 Internal Server Error` - Server error
+
+---
+
+### Download Incident Media by Index
+
+**GET** `/api/incidents/:id/media/:index`
+
+Download a specific incident media file by index from `media_paths`.
+
+**Required Role:** `user`, `dispatcher`, `admin`
+
+**Ownership Rules:**
+
+- Regular users can only download from incidents they created
+- Dispatchers and admins can download from any incident
+
+**Parameters:**
+
+- `id` (integer) - Incident report ID
+- `index` (integer) - Zero-based media index
+
+**Response:** `200 OK` (binary file stream)
+
+**Error Responses:**
+
+- `400 Bad Request` - Invalid incident ID or media index
+- `401 Unauthorized` - Missing or invalid authentication token
+- `403 Forbidden` - User cannot access this incident (ownership violation)
+- `404 Not Found` - Incident, media index, or media file not found
 - `500 Internal Server Error` - Server error
 
 ---
@@ -1060,6 +1289,90 @@ Create an emergency incident report with only coordinates. This endpoint is opti
 - `user_id` is automatically extracted from JWT authentication token
 - Does NOT trigger AI classification (skips ai_classifications table)
 - Designed for fast reporting in time-critical situations
+
+### Incident Lifecycle and Closure
+
+Canonical lifecycle:
+
+`pending -> verified -> in_progress -> resolved -> closed`
+
+- `resolved` is set by dispatcher/admin/department-admin through status endpoint.
+- `closed` is set automatically when the reporting user confirms resolution.
+
+Lifecycle metadata fields returned in incident payloads:
+
+- `reporter_confirmed_at`
+- `reporter_confirmed_by_user_id`
+- `resolved_by_user_id`
+- `closed_at`
+- `closed_by_user_id`
+- `closure_method`
+- `closure_notes`
+
+### Update Incident Status
+
+**PATCH** `/api/incidents/:id/status`
+
+Update incident lifecycle status (guarded transitions only).
+
+**Required Role:** `dispatcher`, `admin`, `department_admin`
+
+**Request Body:**
+
+```json
+{
+  "status": "verified" // allowed: verified, in_progress, resolved, closed
+}
+```
+
+- `closed`: Admin/dispatcher only; allows force-close without reporter confirmation. Department users must use reporter confirmation flow.
+
+**Response:** `200 OK`
+
+```json
+{
+  "success": true,
+  "incident": {
+    "report_id": 1,
+    "status": "resolved",
+    "resolved_by_user_id": 25
+  }
+}
+```
+
+**Notes:**
+
+- Invalid transitions are rejected (for example `pending -> resolved`).
+- When incident becomes `resolved`, backend reconciles assigned team/responder/unit availability.
+
+### Confirm Incident Resolution (Reporter)
+
+**POST** `/api/incidents/:id/confirm-resolution`
+
+Reporter confirms that the incident is resolved on their side.
+
+**Required Role:** `user` (must be owner of incident)
+
+**Response:** `200 OK`
+
+```json
+{
+  "success": true,
+  "incident": {
+    "report_id": 1,
+    "status": "closed",
+    "reporter_confirmed_at": "2026-03-11T10:30:00.000Z",
+    "closed_at": "2026-03-11T10:30:00.000Z",
+    "closure_method": "auto_from_reporter_confirmation"
+  }
+}
+```
+
+**Notes:**
+
+- Only allowed when incident is already `resolved`.
+- On successful confirmation, incident auto-transitions to `closed`.
+- Backend re-runs responder/team/unit release reconciliation on close.
 ---
 
 ### Get Incident by ID
@@ -1091,9 +1404,20 @@ Retrieve a specific incident report by ID. Requires authentication.
   "longitude": 120.3337627,
   "media_url": null,
   "status": "pending",
-  "created_at": "2026-01-20T10:30:00.000Z"
+  "created_at": "2026-01-20T10:30:00.000Z",
+  "is_duplicate": false,
+  "flagged_for_review": false,
+  "parent_report_id": null,
+  "duplicate_cluster": []
 }
 ```
+
+**Duplicate-related fields (when applicable):**
+
+- `is_duplicate` (boolean) - True if manually linked as duplicate
+- `flagged_for_review` (boolean) - True if AI detected potential duplicate (dispatcher must verify)
+- `parent_report_id` (integer|null) - Parent incident ID when linked as duplicate
+- `duplicate_cluster` (array) - All reports in the cluster (primary + duplicates) with decrypted description, reporter_name, status
 
 **Error Responses:**
 
@@ -1122,12 +1446,19 @@ Retrieve a paginated list of all incident reports with optional filtering. Requi
 - `limit` (integer, optional) - Number of records to return (default: 20, max: 100)
 - `offset` (integer, optional) - Number of records to skip (default: 0)
 - `severity_level` (string, optional) - Filter by severity level (e.g., "high", "medium", "low")
-- `status` (string, optional) - Filter by status (e.g., "pending", "resolved")
+- `status` (string, optional) - Filter by status (e.g., "pending", "verified", "in_progress", "resolved", "closed")
+- `incident_type` (string, optional) - Filter by incident type (e.g., "fire", "medical", "police", "disaster")
+- `barangay` (string, optional) - Filter by barangay
+- `exclude_duplicates` (boolean, optional) - If `true`, excludes incidents marked as duplicates
+- `search` (string, optional) - Search by report ID (exact match if numeric) or by description/barangay (ILIKE)
+- `exclude_report_id` (integer, optional) - Exclude a specific report ID from results (e.g., when selecting parent for duplicate linking)
 
 **Example:**
 
 ```
 GET /api/incidents?limit=10&offset=0&severity_level=high&status=pending
+GET /api/incidents?search=582
+GET /api/incidents?search=fire&exclude_report_id=582
 ```
 
 **Response:** `200 OK`
@@ -1154,6 +1485,166 @@ GET /api/incidents?limit=10&offset=0&severity_level=high&status=pending
 - `400 Bad Request` - Invalid query parameters
 - `401 Unauthorized` - Missing or invalid authentication token
 - `500 Internal Server Error` - Server error
+
+**Response Headers:**
+
+- `x-total-count` - Total number of incidents matching the filters (for pagination)
+
+---
+
+### Duplicate Incident Management
+
+Duplicate detection uses geospatial + time-based clustering. Incidents are **never auto-linked** as duplicates; the system only flags potential duplicates for dispatcher review. Dispatchers verify and manually link incidents when correct.
+
+#### Get Duplicate Info
+
+**GET** `/api/incidents/:id/duplicates`
+
+Retrieve duplicate cluster info for an incident (if linked or has related reports).
+
+**Required Role:** `dispatcher`, `admin` (or department-head/department-admin if assigned)
+
+**Parameters:**
+
+- `id` (integer) - Incident report ID
+
+**Response:** `200 OK`
+
+```json
+{
+  "is_duplicate": true,
+  "parent_report_id": 595,
+  "duplicate_confidence": 0.95,
+  "cluster": [
+    {
+      "report_id": 595,
+      "status": "closed",
+      "created_at": "2026-03-14T08:00:00.000Z",
+      "description": "Fire near Poblacion Oeste",
+      "reporter_name": "Juan Dela Cruz",
+      "confidence": null
+    },
+    {
+      "report_id": 582,
+      "status": "pending",
+      "created_at": "2026-03-14T08:05:00.000Z",
+      "description": "Audio-reported fire incident",
+      "reporter_name": "Maria Santos",
+      "confidence": 0.95
+    }
+  ]
+}
+```
+
+**Notes:**
+
+- Cluster descriptions and reporter names are decrypted before return
+- `cluster` includes the primary report and all linked duplicates
+
+---
+
+#### Get Potential Duplicates
+
+**GET** `/api/incidents/:id/potential-duplicates`
+
+Retrieve AI/geospatial-detected potential duplicates for an incident (for "Mark as duplicate" flow).
+
+**Required Role:** `dispatcher`, `admin` (or department-head/department-admin if assigned)
+
+**Parameters:**
+
+- `id` (integer) - Incident report ID
+
+**Response:** `200 OK`
+
+```json
+{
+  "potential_duplicates": [
+    {
+      "report_id": 595,
+      "confidence": 0.92,
+      "status": "closed",
+      "description": "Fire near Poblacion Oeste",
+      "reporter_name": "Juan Dela Cruz",
+      "created_at": "2026-03-14T08:00:00.000Z"
+    }
+  ]
+}
+```
+
+**Notes:**
+
+- Descriptions and reporter names are decrypted
+- Used when dispatcher opens "Mark as Possible Duplicate" dialog
+
+---
+
+#### Link Incident as Duplicate
+
+**POST** `/api/incidents/:id/link-duplicate`
+
+Manually link an incident as a duplicate of another (parent).
+
+**Required Role:** `dispatcher`, `admin`
+
+**Parameters:**
+
+- `id` (integer) - Incident report ID (the one being linked as duplicate)
+
+**Request Body:**
+
+```json
+{
+  "parent_report_id": 595,
+  "reason": "Same location and time"
+}
+```
+
+**Response:** `200 OK`
+
+```json
+{
+  "success": true,
+  "is_duplicate": true,
+  "parent_report_id": 595
+}
+```
+
+**Error Responses:**
+
+- `400 Bad Request` - Cannot link incident to itself; invalid parent_report_id
+- `404 Not Found` - Incident or parent incident not found
+
+---
+
+#### Unlink Duplicate
+
+**POST** `/api/incidents/:id/unlink-duplicate`
+
+Unlink an incident from its duplicate (if falsely marked).
+
+**Required Role:** `dispatcher`, `admin`
+
+**Parameters:**
+
+- `id` (integer) - Incident report ID
+
+**Request Body:**
+
+```json
+{
+  "reason": "False positive"
+}
+```
+
+**Response:** `200 OK`
+
+```json
+{
+  "success": true,
+  "is_duplicate": false
+}
+```
 
 ---
 

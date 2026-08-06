@@ -1,12 +1,53 @@
 const pool = require('../config/db');
+const Responder = require('./responder');
 
 const Dispatch = {
-  async create({ report_id, responder_id, response_status = null }) {
-    const res = await pool.query(
-      'INSERT INTO dispatches(report_id, responder_id, response_status) VALUES($1, $2, $3) RETURNING *',
-      [report_id, responder_id, response_status]
-    );
-    return res.rows[0];
+  async create({
+    report_id,
+    responder_id,
+    response_status = null,
+    assignment_group_id = null,
+    department_code = null,
+    department_name = null,
+    team_name = null,
+    default_department_code = null,
+    was_default_department = null,
+    responder_source = 'account',
+    responder_name = null,
+    assigned_by_user_id = null,
+  }) {
+    try {
+      const res = await pool.query(
+        `INSERT INTO dispatches(
+           report_id, responder_id, response_status, assignment_group_id, department_code, department_name,
+           team_name, default_department_code, was_default_department, responder_source, responder_name, assigned_by_user_id
+         ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
+        [
+          report_id,
+          responder_id,
+          response_status,
+          assignment_group_id,
+          department_code,
+          department_name,
+          team_name,
+          default_department_code,
+          was_default_department,
+          responder_source,
+          responder_name,
+          assigned_by_user_id,
+        ]
+      );
+      return res.rows[0];
+    } catch (error) {
+      if (error.code === '42703' || /assignment_group_id|department_code|responder_source|assigned_by_user_id/i.test(error.message)) {
+        const fallback = await pool.query(
+          'INSERT INTO dispatches(report_id, responder_id, response_status) VALUES($1, $2, $3) RETURNING *',
+          [report_id, responder_id, response_status]
+        );
+        return fallback.rows[0];
+      }
+      throw error;
+    }
   },
 
   async findById(dispatch_id) {
@@ -17,7 +58,15 @@ const Dispatch = {
     return res.rows[0];
   },
 
-  async findAll({ limit = 20, offset = 0, report_id = null, responder_id = null, response_status = null } = {}) {
+  async findAll({
+    limit = 20,
+    offset = 0,
+    report_id = null,
+    responder_id = null,
+    response_status = null,
+    assignment_group_id = null,
+    department_code = null,
+  } = {}) {
     // Cap limit at 100
     const cappedLimit = Math.min(limit, 100);
     
@@ -43,6 +92,18 @@ const Dispatch = {
       params.push(response_status);
     }
 
+    if (assignment_group_id) {
+      paramCount++;
+      query += ` AND assignment_group_id = $${paramCount}`;
+      params.push(assignment_group_id);
+    }
+
+    if (department_code) {
+      paramCount++;
+      query += ` AND department_code = $${paramCount}`;
+      params.push(department_code);
+    }
+
     query += ` ORDER BY dispatched_at DESC LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}`;
     params.push(cappedLimit, offset);
 
@@ -50,10 +111,227 @@ const Dispatch = {
     return res.rows;
   },
 
-  async update(dispatch_id, { report_id, responder_id, response_status }) {
+  async createAssignmentGroup({
+    report_id,
+    department_code = null,
+    department_name = null,
+    team_name = null,
+    default_department_code = null,
+    was_default_department = null,
+    responders = [],
+    response_status = 'assigned',
+    assignment_group_id,
+    assigned_by_user_id = null,
+  }) {
+    const createdDispatches = [];
+    for (const responderInput of responders) {
+      const sourceType = String(responderInput?.source || 'account').toLowerCase() === 'directory' ? 'directory' : 'account';
+      let responderId = responderInput?.responder_id ?? null;
+      let responderName = null;
+
+      if (sourceType === 'directory') {
+        const directoryResponder = await Responder.findOrCreateDirectory({
+          name: String(responderInput?.responder_name || responderInput?.name || '').trim(),
+          organization: responderInput?.organization || department_name || null,
+          contact_number: responderInput?.contact_number || null,
+          team_name: responderInput?.team_name || team_name || null,
+        });
+        responderId = directoryResponder?.responder_id;
+        responderName = directoryResponder?.name || null;
+      } else {
+        responderName = responderInput?.responder_name || null;
+      }
+
+      const dispatch = await this.create({
+        report_id,
+        responder_id: responderId,
+        response_status,
+        assignment_group_id,
+        department_code,
+        department_name,
+        team_name,
+        default_department_code,
+        was_default_department,
+        responder_source: sourceType,
+        responder_name: responderName,
+        assigned_by_user_id,
+      });
+      createdDispatches.push(dispatch);
+      // Set assigned personnel status to busy so Personnel management shows them as busy
+      if (responderId) {
+        try {
+          await Responder.updateStatus(responderId, 'busy');
+        } catch (err) {
+          console.error('Failed to update responder status to busy:', err.message);
+        }
+      }
+    }
+    // Set team status to busy when department + team are present
+    if (createdDispatches.length > 0 && department_code && team_name) {
+      try {
+        const team = await Responder.findTeamByDepartmentAndName(department_code, team_name);
+        if (team && team.team_id) {
+          await Responder.updateTeamStatus(team.team_id, 'busy');
+        }
+      } catch (err) {
+        console.error('Failed to update team status to busy:', err.message);
+      }
+    }
+    return createdDispatches;
+  },
+
+  /**
+   * Create a single department-only dispatch (no responder, no team).
+   * Used when dispatcher notifies a department; department admin selects team later.
+   */
+  async createDepartmentOnly({
+    report_id,
+    department_code,
+    department_name = null,
+    default_department_code = null,
+    was_default_department = null,
+    response_status = 'assigned',
+    assignment_group_id,
+    assigned_by_user_id = null,
+  }) {
+    try {
+      const res = await pool.query(
+        `INSERT INTO dispatches(
+           report_id, responder_id, response_status, assignment_group_id, department_code, department_name,
+           team_name, default_department_code, was_default_department, responder_source, responder_name, assigned_by_user_id
+         ) VALUES($1, NULL, $2, $3, $4, $5, NULL, $6, $7, 'account', NULL, $8) RETURNING *`,
+        [
+          report_id,
+          response_status,
+          assignment_group_id,
+          department_code,
+          department_name,
+          default_department_code,
+          was_default_department,
+          assigned_by_user_id,
+        ]
+      );
+      return res.rows[0];
+    } catch (error) {
+      const responderIdIsRequired = error.code === '23502' && /responder_id/i.test(error.message || '');
+      if (!responderIdIsRequired) {
+        throw error;
+      }
+
+      // Legacy schema fallback: create a directory responder placeholder for department-only assignment.
+      const placeholder = await Responder.findOrCreateDirectory({
+        name: `${department_name || String(department_code || 'Department').toUpperCase()} Duty Desk`,
+        organization: department_name || String(department_code || 'Operations').toUpperCase(),
+        contact_number: null,
+        team_name: null,
+      });
+
+      return this.create({
+        report_id,
+        responder_id: placeholder?.responder_id,
+        response_status,
+        assignment_group_id,
+        department_code,
+        department_name,
+        team_name: null,
+        default_department_code,
+        was_default_department,
+        responder_source: 'directory',
+        responder_name: placeholder?.name || null,
+        assigned_by_user_id,
+      });
+    }
+  },
+
+  async createAutoAssignmentGroup({
+    report_id,
+    department_code,
+    department_name = null,
+    team_name,
+    incident_type = null,
+    default_department_code = null,
+    was_default_department = null,
+    response_status = 'assigned',
+    assignment_group_id,
+    assigned_by_user_id = null,
+  }) {
+    const eligibleResponders = await Responder.findEligibleByTeam({
+      department_code,
+      team_name,
+      incident_type,
+      limit: 100,
+    });
+
+    if (!Array.isArray(eligibleResponders) || eligibleResponders.length === 0) {
+      return {
+        dispatches: [],
+        assignment_summary: {
+          requested_department_code: department_code || null,
+          requested_team_name: team_name || null,
+          requested_incident_type: incident_type || null,
+          attempted_count: 0,
+          assigned_count: 0,
+          unassigned_reason: 'no_available_team_members',
+        },
+      };
+    }
+
+    const responders = eligibleResponders.map((responder) => ({
+      source: responder.source_type || 'account',
+      responder_id: responder.responder_id,
+      responder_name: responder.name || null,
+      team_name: responder.team_name || team_name || null,
+    }));
+
+    const dispatches = await this.createAssignmentGroup({
+      report_id,
+      department_code,
+      department_name,
+      team_name,
+      default_department_code,
+      was_default_department,
+      responders,
+      response_status,
+      assignment_group_id,
+      assigned_by_user_id,
+    });
+
+    // Set team status to busy when assignment succeeded
+    if (dispatches.length > 0 && department_code && team_name) {
+      try {
+        const team = await Responder.findTeamByDepartmentAndName(department_code, team_name);
+        if (team && team.team_id) {
+          await Responder.updateTeamStatus(team.team_id, 'busy');
+        }
+      } catch (err) {
+        console.error('Failed to update team status to busy:', err.message);
+      }
+    }
+
+    return {
+      dispatches,
+      assignment_summary: {
+        requested_department_code: department_code || null,
+        requested_team_name: team_name || null,
+        requested_incident_type: incident_type || null,
+        attempted_count: responders.length,
+        assigned_count: dispatches.length,
+        unassigned_reason: null,
+      },
+    };
+  },
+
+  async update(dispatch_id, {
+    report_id,
+    responder_id,
+    response_status,
+    estimated_eta_minutes = null,
+    estimated_arrival_at = null,
+    actual_arrival_at = null,
+  }) {
     const res = await pool.query(
-      'UPDATE dispatches SET report_id = $1, responder_id = $2, response_status = $3 WHERE dispatch_id = $4 RETURNING *',
-      [report_id, responder_id, response_status, dispatch_id]
+      'UPDATE dispatches SET report_id = $1, responder_id = $2, response_status = $3, estimated_eta_minutes = $4, estimated_arrival_at = $5, actual_arrival_at = $6 WHERE dispatch_id = $7 RETURNING *',
+      [report_id, responder_id, response_status, estimated_eta_minutes, estimated_arrival_at, actual_arrival_at, dispatch_id]
     );
     return res.rows[0];
   },
@@ -73,6 +351,22 @@ const Dispatch = {
       [report_id]
     );
     return res.rows.length > 0;
+  },
+
+  async getIncidentType(report_id) {
+    const res = await pool.query(
+      'SELECT incident_type FROM incident_reports WHERE report_id = $1 LIMIT 1',
+      [report_id]
+    );
+    return res.rows?.[0]?.incident_type ? String(res.rows[0].incident_type).toLowerCase() : null;
+  },
+
+  async countByReportId(report_id) {
+    const res = await pool.query(
+      'SELECT COUNT(*)::int AS total FROM dispatches WHERE report_id = $1',
+      [report_id]
+    );
+    return Number(res.rows?.[0]?.total || 0);
   },
 
   // Helper to check if responder exists

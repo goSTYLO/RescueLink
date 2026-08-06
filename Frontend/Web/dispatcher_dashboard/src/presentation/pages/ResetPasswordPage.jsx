@@ -1,9 +1,12 @@
 import { useState } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import Swal from 'sweetalert2';
-import logo from '@/presentation/assets/logo.svg';
+import { Eye, EyeOff } from 'lucide-react';
+import { BrandLogo } from '@/presentation/components/common/BrandLogo';
 import illustration from '@/presentation/assets/create-password-illustration.svg';
 import { API_URL } from '@/core/config/app.config';
+import { AuthCardLayout } from '@/presentation/components/layout/AuthCardLayout';
+import { AuthFloatingInput } from '@/presentation/components/ui/AuthFloatingInput';
 
 function validatePassword(password) {
   if (!password) return 'Password is required';
@@ -102,143 +105,96 @@ export default function ResetPasswordPage() {
 
   if (!hasValidToken) {
     return (
-      <div className="flex min-h-screen bg-white">
-        <div className="flex-1 flex flex-col justify-center px-12 py-8 max-w-2xl">
-          <div className="mb-12">
-            <img src={logo} alt="RescueLink Logo" className="h-20 w-auto" />
-          </div>
-          <div className="mb-8 text-center">
-            <h2 className="text-4xl font-bold text-gray-800 mb-3">Invalid or expired link</h2>
-            <p className="text-lg text-gray-600">
-              This password reset link is missing or has expired. Please request a new one.
-            </p>
-          </div>
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <Link
-              to="/forgot-password"
-              className="inline-flex justify-center px-6 py-3 rounded-xl font-semibold bg-[#FF4F52] text-white hover:bg-gray-800 transition-all"
-            >
-              Request new link
-            </Link>
-            <Link
-              to="/login"
-              className="inline-flex justify-center px-6 py-3 rounded-xl font-semibold border-2 border-gray-300 text-gray-800 hover:bg-gray-50 transition-all"
-            >
-              Back to login
-            </Link>
-          </div>
+      <AuthCardLayout illustration={illustration} tagline="Request a new link from the forgot password page.">
+        <div className="mb-6">
+          <BrandLogo size="lg" />
         </div>
-        <div className="flex-1 bg-[rgba(249,13,17,0.04)] flex items-center justify-center px-12 py-8">
-          {illustration ? (
-            <img src={illustration} alt="Reset password" className="w-full max-w-md object-contain" />
-          ) : null}
+        <div className="mb-8">
+          <h2 className="text-3xl font-bold text-foreground mb-2">Invalid or expired link</h2>
+          <p className="text-muted">
+            This password reset link is missing or has expired. Please request a new one.
+          </p>
         </div>
-      </div>
+        <div className="flex flex-col sm:flex-row gap-3 justify-center">
+          <Link
+            to="/forgot-password"
+            className="inline-flex justify-center px-6 py-3 rounded-xl font-semibold bg-primary text-white hover:bg-primary-hover transition-all"
+          >
+            Request new link
+          </Link>
+          <Link
+            to="/login"
+            className="inline-flex justify-center px-6 py-3 rounded-xl font-semibold border-2 border-border text-foreground hover:bg-muted/50 transition-all"
+          >
+            Back to login
+          </Link>
+        </div>
+      </AuthCardLayout>
     );
   }
 
   return (
-    <div className="flex min-h-screen bg-white">
-      <div className="flex-1 flex flex-col justify-center px-12 py-8 max-w-2xl">
-        <div className="mb-12">
-          <img src={logo} alt="RescueLink Logo" className="h-20 w-auto" />
-        </div>
-        <div className="mb-8 text-center">
-          <h2 className="text-4xl font-bold text-gray-800 mb-3 transition-all duration-300">Set new password</h2>
-          <p className="text-lg text-gray-600">Create a new password for your account.</p>
-        </div>
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div>
-            <label className="block text-sm font-semibold text-gray-800 mb-2">New Password</label>
-            <div className="relative">
-              <input
-                type={showNewPassword ? 'text' : 'password'}
-                placeholder="Enter a new password"
-                value={newPassword}
-                onChange={handleNewPasswordChange}
-                onBlur={() => setPasswordError(validatePassword(newPassword))}
-                className={`w-full px-4 py-3 pr-12 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-500/20 focus:border-gray-500 transition-all duration-300 text-gray-800 placeholder-gray-400 ${
-                  passwordError ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'
-                }`}
-              />
-              <button
-                type="button"
-                onClick={() => setShowNewPassword(!showNewPassword)}
-                className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-800 transition-colors duration-300"
-              >
-                {showNewPassword ? (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-                  </svg>
-                ) : (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                  </svg>
-                )}
-              </button>
-            </div>
-            {passwordError && (
-              <div className="mt-2 flex items-center gap-2 text-sm text-red-600">
-                <span>{passwordError}</span>
-              </div>
-            )}
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-800 mb-2">Confirm Password</label>
-            <div className="relative">
-              <input
-                type={showConfirmPassword ? 'text' : 'password'}
-                placeholder="Re-enter your new password"
-                value={confirmPassword}
-                onChange={handleConfirmPasswordChange}
-                onBlur={() => setConfirmPasswordError(validateConfirmPassword(confirmPassword, newPassword))}
-                className={`w-full px-4 py-3 pr-12 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-500/20 focus:border-gray-500 transition-all duration-300 text-gray-800 placeholder-gray-400 ${
-                  confirmPasswordError ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' : 'border-gray-300 hover:border-gray-400'
-                }`}
-              />
-              <button
-                type="button"
-                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-800 transition-colors duration-300"
-              >
-                {showConfirmPassword ? (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-                  </svg>
-                ) : (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                  </svg>
-                )}
-              </button>
-            </div>
-            {confirmPasswordError && (
-              <div className="mt-2 flex items-center gap-2 text-sm text-red-600">
-                <span>{confirmPasswordError}</span>
-              </div>
-            )}
-          </div>
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-[#FF4F52] text-white py-3 rounded-xl font-bold text-lg hover:bg-gray-800 disabled:bg-gray-400 transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] shadow-lg hover:shadow-xl"
-          >
-            {loading ? 'Resetting...' : 'Reset Password'}
-          </button>
-        </form>
-        <div className="mt-8 flex justify-center">
-          <Link to="/login" className="text-sm text-[#FF4F52] hover:text-gray-800 font-medium">
-            Back to login
-          </Link>
-        </div>
+    <AuthCardLayout illustration={illustration} tagline="Create a strong password to secure your account.">
+      <div className="mb-6">
+        <BrandLogo size="lg" />
       </div>
-      <div className="flex-1 bg-[rgba(249,13,17,0.04)] flex items-center justify-center px-12 py-8">
-        {illustration ? (
-          <img src={illustration} alt="Set new password" className="w-full max-w-md object-contain" />
-        ) : null}
+      <div className="mb-8">
+        <h2 className="text-3xl font-bold text-foreground mb-2 transition-all duration-300">Set new password</h2>
+        <p className="text-muted">Create a new password for your account.</p>
       </div>
-    </div>
+
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <AuthFloatingInput
+          label="New Password"
+          type={showNewPassword ? 'text' : 'password'}
+          value={newPassword}
+          onChange={handleNewPasswordChange}
+          onBlur={() => setPasswordError(validatePassword(newPassword))}
+          rightAction={
+            <button
+              type="button"
+              onClick={() => setShowNewPassword(!showNewPassword)}
+              className="p-1.5 rounded-lg text-muted hover:text-foreground transition-colors"
+              aria-label={showNewPassword ? 'Hide password' : 'Show password'}
+            >
+              {showNewPassword ? <EyeOff className="w-5 h-5" strokeWidth={2} /> : <Eye className="w-5 h-5" strokeWidth={2} />}
+            </button>
+          }
+          error={passwordError}
+        />
+        <AuthFloatingInput
+          label="Confirm Password"
+          type={showConfirmPassword ? 'text' : 'password'}
+          value={confirmPassword}
+          onChange={handleConfirmPasswordChange}
+          onBlur={() => setConfirmPasswordError(validateConfirmPassword(confirmPassword, newPassword))}
+          rightAction={
+            <button
+              type="button"
+              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+              className="p-1.5 rounded-lg text-muted hover:text-foreground transition-colors"
+              aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+            >
+              {showConfirmPassword ? <EyeOff className="w-5 h-5" strokeWidth={2} /> : <Eye className="w-5 h-5" strokeWidth={2} />}
+            </button>
+          }
+          error={confirmPasswordError}
+        />
+
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full bg-primary text-white py-3 rounded-xl font-bold text-lg hover:bg-primary-hover disabled:bg-muted/40 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] shadow-card focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background"
+        >
+          {loading ? 'Resetting...' : 'Reset Password'}
+        </button>
+      </form>
+
+      <div className="mt-8 flex justify-center">
+        <Link to="/login" className="text-sm text-primary hover:text-primary-hover font-medium">
+          Back to login
+        </Link>
+      </div>
+    </AuthCardLayout>
   );
 }

@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from '@/infrastructure/firebase';
 import { DEV_MODE } from '@/core/config/app.config';
+import { getDefaultRouteByRole, normalizeRole, ROLES } from '@/core/constants';
 import Login from '@/presentation/pages/Login';
 import Dashboard from '@/presentation/pages/Dashboard';
 import { DashboardPage } from '@/presentation/pages/DashboardPage';
@@ -10,45 +11,70 @@ import { IncidentDetailsPage } from '@/presentation/pages/IncidentDetailsPage';
 import { MapViewPage } from '@/presentation/pages/MapViewPage';
 import { DepartmentsPage } from '@/presentation/pages/DepartmentsPage';
 import { DepartmentDetailsPage } from '@/presentation/pages/DepartmentDetailsPage';
-import { TaskBoardPage } from '@/presentation/pages/TaskBoardPage';
 import { AuditLogPage } from '@/presentation/pages/AuditLogPage';
 import { AdminActionsPage } from '@/presentation/pages/AdminActionsPage';
 import { ProfilePage } from '@/presentation/pages/ProfilePage';
 import { SettingsPage } from '@/presentation/pages/SettingsPage';
+import { HelpSupportPage } from '@/presentation/pages/HelpSupportPage';
+import { TeamPage } from '@/presentation/pages/TeamPage';
+import { DepartmentDashboardPage } from '@/presentation/pages/DepartmentDashboardPage';
+import { AssignedIncidentsPage } from '@/presentation/pages/AssignedIncidentsPage';
+import { DepartmentPersonnelPage } from '@/presentation/pages/DepartmentPersonnelPage';
+import { ResponderApplicationsPage } from '@/presentation/pages/ResponderApplicationsPage';
+import { ResponderApplicationDetailPage } from '@/presentation/pages/ResponderApplicationDetailPage';
 import ForgotPassword from '@/presentation/pages/ForgotPassword';
 import EnterCode from '@/presentation/pages/EnterCode';
 import CreateNewPassword from '@/presentation/pages/CreateNewPassword';
 import ResetPasswordPage from '@/presentation/pages/ResetPasswordPage';
+import { AccessDeniedNotice } from '@/presentation/components/common/AccessDeniedNotice';
+import { clearAuthSession, hasRoleAccess } from '@/core/auth/session';
+import { logout as logoutDispatcher } from '@/data/api/auth.api';
+
+const SUPER_ADMIN_ONLY = [ROLES.SUPER_ADMIN];
+const DASHBOARD_OPERATIONS_ROLES = [ROLES.SUPER_ADMIN, ROLES.DISPATCHER];
+const DEPARTMENT_AND_UP = [ROLES.SUPER_ADMIN, ROLES.DEPARTMENT_ADMIN];
+const ANY_AUTH_ROLE = [ROLES.SUPER_ADMIN, ROLES.DISPATCHER, ROLES.DEPARTMENT_ADMIN, ROLES.DEPARTMENT_HEAD, ROLES.PERSONNEL];
 
 // Protected Route Component
-function ProtectedRoute({ children }) {
+function ProtectedRoute({ children, allowedRoles = [] }) {
   const [user, setUser] = useState(null);
+  const [userRole, setUserRole] = useState(ROLES.PERSONNEL);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     // In dev mode, set a mock user and skip auth
     if (DEV_MODE) {
-      // Set mock user in localStorage for Layout component
-      if (!localStorage.getItem('user')) {
-        localStorage.setItem('user', JSON.stringify({
-          username: 'designer',
-          email: 'designer@rescuelink.com',
-          role: 'Admin', // Set to Admin to see all menu items
-          department: 'All'
+      // Set mock user in sessionStorage for Layout component (Super Admin by default)
+      if (!sessionStorage.getItem('user')) {
+        sessionStorage.setItem('user', JSON.stringify({
+          username: 'Super Admin',
+          name: 'Super Admin',
+          email: 'admin@rescuelink.dagupan.gov.ph',
+          role: 'super-admin',
+          department: 'All',
+          departmentId: null
         }));
       }
-      setUser({ uid: 'dev-user' }); // Mock user object
+      setUser({ uid: 'dev-user' });
+      setUserRole(ROLES.SUPER_ADMIN);
       setLoading(false);
       return;
     }
 
-    // Production mode - check JWT token in localStorage
-    const token = localStorage.getItem('token');
-    const storedUser = localStorage.getItem('user');
+    // Production mode - check JWT token in sessionStorage
+    const token = sessionStorage.getItem('token');
+    const storedUser = sessionStorage.getItem('user');
     if (token && storedUser) {
+      try {
+        const parsedUser = JSON.parse(storedUser);
+        setUserRole(normalizeRole(parsedUser?.role));
+      } catch (_) {
+        setUserRole(ROLES.PERSONNEL);
+      }
       setUser({ authenticated: true });
     } else {
       setUser(null);
+      setUserRole(ROLES.PERSONNEL);
     }
     setLoading(false);
   }, []);
@@ -65,6 +91,17 @@ function ProtectedRoute({ children }) {
   // Production mode - require authentication
   if (!user) {
     return <Navigate to="/login" replace />;
+  }
+
+  if (!hasRoleAccess(userRole, allowedRoles)) {
+    const redirectPath = getDefaultRouteByRole(userRole);
+    return (
+      <AccessDeniedNotice
+        message="Your role does not allow access to this route."
+        redirectPath={redirectPath}
+        redirectLabel="Go to Allowed Page"
+      />
+    );
   }
 
   return children;
@@ -86,26 +123,31 @@ export default function App() {
 
   const handleLoginSuccess = (data) => {
     setUserData(data.user);
-    // Store user in localStorage for Layout component
     const displayName = [data.user?.firstName, data.user?.lastName].filter(Boolean).join(' ') ||
       data.user?.phone_number || data.user?.phoneNumber || data.user?.phone || data.user?.email || 'user';
-    localStorage.setItem('user', JSON.stringify({
+    const apiRole = data.user?.role || 'Operator';
+    const role = normalizeRole(apiRole);
+    const department = data.user?.department ?? (role === ROLES.SUPER_ADMIN ? 'All' : '');
+    const departmentId = data.user?.departmentId ?? data.user?.department_id ?? null;
+    sessionStorage.setItem('user', JSON.stringify({
       username: displayName,
       name: displayName,
       email: data.user?.email || '',
       firstName: data.user?.firstName,
       lastName: data.user?.lastName,
-      role: data.user?.role || 'Operator',
-      department: data.user?.department || 'All'
+      role,
+      department,
+      departmentId,
     }));
     setPage('dashboard');
   };
 
   const handleLogout = async () => {
     try {
+      await logoutDispatcher();
       await signOut(auth);
       setUserData(null);
-      localStorage.removeItem('user');
+      clearAuthSession();
       setPage('login');
     } catch (err) {
       console.error('Logout error:', err);
@@ -143,65 +185,95 @@ export default function App() {
 
           {/* Protected Routes */}
           <Route path="/dashboard" element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={DASHBOARD_OPERATIONS_ROLES}>
               <DashboardPage />
             </ProtectedRoute>
           } />
           <Route path="/map" element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={ANY_AUTH_ROLE}>
               <MapViewPage />
             </ProtectedRoute>
           } />
           <Route path="/departments" element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={SUPER_ADMIN_ONLY}>
               <DepartmentsPage />
             </ProtectedRoute>
           } />
           <Route path="/departments/:id" element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={SUPER_ADMIN_ONLY}>
               <DepartmentDetailsPage />
             </ProtectedRoute>
           } />
-          <Route path="/taskboard" element={
-            <ProtectedRoute>
-              <TaskBoardPage />
-            </ProtectedRoute>
-          } />
           <Route path="/audit" element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={SUPER_ADMIN_ONLY}>
               <AuditLogPage />
             </ProtectedRoute>
           } />
           <Route path="/adminactions" element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={SUPER_ADMIN_ONLY}>
               <AdminActionsPage />
             </ProtectedRoute>
           } />
+          <Route path="/team" element={
+            <ProtectedRoute allowedRoles={SUPER_ADMIN_ONLY}>
+              <TeamPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/department/dashboard" element={
+            <ProtectedRoute allowedRoles={DEPARTMENT_AND_UP}>
+              <DepartmentDashboardPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/department/assigned-incidents" element={
+            <ProtectedRoute allowedRoles={[ROLES.DEPARTMENT_HEAD]}>
+              <AssignedIncidentsPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/department/tasks" element={<Navigate to="/department/dashboard" replace />} />
+          <Route path="/department/personnel" element={
+            <ProtectedRoute allowedRoles={DEPARTMENT_AND_UP}>
+              <DepartmentPersonnelPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/responder-applications" element={
+            <ProtectedRoute allowedRoles={DASHBOARD_OPERATIONS_ROLES}>
+              <ResponderApplicationsPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/responder-applications/:id" element={
+            <ProtectedRoute allowedRoles={DASHBOARD_OPERATIONS_ROLES}>
+              <ResponderApplicationDetailPage />
+            </ProtectedRoute>
+          } />
           <Route path="/profile" element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={ANY_AUTH_ROLE}>
               <ProfilePage />
             </ProtectedRoute>
           } />
           <Route path="/settings" element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={SUPER_ADMIN_ONLY}>
               <SettingsPage />
             </ProtectedRoute>
           } />
+          <Route path="/help" element={
+            <ProtectedRoute allowedRoles={ANY_AUTH_ROLE}>
+              <HelpSupportPage />
+            </ProtectedRoute>
+          } />
           <Route path="/incidents/:id" element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={ANY_AUTH_ROLE}>
               <IncidentDetailsPage />
             </ProtectedRoute>
           } />
           <Route path="/" element={
-            DEV_MODE ? (
-              <Navigate to="/dashboard" replace />
-            ) : (
-              localStorage.getItem('token') ? (
-                <Navigate to="/dashboard" replace />
-              ) : (
-                <Navigate to="/login" replace />
-              )
-            )
+            (() => {
+              if (!DEV_MODE && !sessionStorage.getItem('token')) return <Navigate to="/login" replace />;
+              try {
+                const u = JSON.parse(sessionStorage.getItem('user') || '{}');
+                return <Navigate to={getDefaultRouteByRole(u.role)} replace />;
+              } catch (_) {}
+              return <Navigate to="/dashboard" replace />;
+            })()
           } />
 
           {/* Legacy Dashboard Route (for backward compatibility) */}

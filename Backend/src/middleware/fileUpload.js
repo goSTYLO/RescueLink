@@ -7,12 +7,13 @@
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs').promises;
+const { runUploadSecurityChecks, FILE_SCAN_FAIL_OPEN } = require('../services/fileScanService');
 require('dotenv').config();
 
 // Get configuration from environment
 const MAX_AUDIO_SIZE = parseInt(process.env.MAX_AUDIO_SIZE, 10) || 26214400; // 25MB default
-const MAX_PHOTO_SIZE = parseInt(process.env.MAX_PHOTO_SIZE, 10) || 10485760; // 10MB default
-const MAX_VIDEO_SIZE = parseInt(process.env.MAX_VIDEO_SIZE, 10) || 52428800; // 50MB default
+const MAX_PHOTO_SIZE = parseInt(process.env.MAX_PHOTO_SIZE, 10) || 1048576; // 1MB default
+const MAX_VIDEO_SIZE = parseInt(process.env.MAX_VIDEO_SIZE, 10) || 10485760; // 10MB default
 const UPLOAD_DIR = process.env.UPLOAD_DIR || 'uploads/incidents';
 
 // Allowed file extensions
@@ -84,6 +85,44 @@ const validateFileSize = (req, res, next) => {
 };
 
 /**
+ * Quick malware/signature checks + deep scan availability checks
+ */
+const validateFileSecurity = (req, res, next) => {
+  const scanResult = runUploadSecurityChecks(req.files || {});
+
+  console.log('🛡️ Upload quick scan status:', scanResult.quick.status);
+
+  if (scanResult.quick.status === 'blocked') {
+    console.warn('⛔ Upload blocked by quick scan findings:', scanResult.quick.findings);
+    return res.status(400).json({
+      success: false,
+      message: 'File security scan blocked one or more uploads',
+      scan: scanResult
+    });
+  }
+
+  if (scanResult.deep.status === 'unavailable' && !FILE_SCAN_FAIL_OPEN) {
+    console.error('❌ Upload rejected because deep scanner is unavailable and fail-open is disabled');
+    return res.status(503).json({
+      success: false,
+      message: 'Upload scanner unavailable. Please try again later.',
+      scan: scanResult
+    });
+  }
+
+  if (scanResult.deep.status === 'unavailable' && FILE_SCAN_FAIL_OPEN) {
+    console.warn('⚠️ Fail-open triggered: accepting upload while deep scanner is unavailable');
+  }
+
+  if (scanResult.deep.status === 'ready') {
+    console.log(`🧪 Deep scan engine ready: ${scanResult.deep.engine}`);
+  }
+
+  req.uploadSecurity = scanResult;
+  next();
+};
+
+/**
  * Multer upload configuration
  * - audio: single audio file
  * - media: up to 5 photos/videos
@@ -127,8 +166,14 @@ const uploadMiddleware = (req, res, next) => {
       });
     }
     
-    // No errors, proceed to file size validation
-    validateFileSize(req, res, next);
+    // No errors, proceed to file size + security validation
+    validateFileSize(req, res, (sizeError) => {
+      if (sizeError) {
+        return next(sizeError);
+      }
+
+      validateFileSecurity(req, res, next);
+    });
   });
 };
 

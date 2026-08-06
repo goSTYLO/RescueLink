@@ -1,6 +1,6 @@
 # RescueLink AI - Audio Pipeline & Emergency Classification Microservice
 
-**Version**: 2.1.2  
+**Version**: 2.1.3  
 **Status**: Full audio pipeline with GPU acceleration & microphone feedback
 
 ---
@@ -27,7 +27,7 @@
 
 RescueLink AI is a multilingual emergency classification microservice that:
 - **Classifies emergency reports** by incident type (6 categories) and severity (4 levels)
-- **Transcribes emergency audio** using OpenAI Whisper Large V3 Turbo (via HF Inference API)
+- **Transcribes emergency audio** using local quantized Faster-Whisper (with optional HF API fallback)
 - **Chains both models** for end-to-end audio→classification pipeline
 - **Validates input** with strict audio constraints (30-60 seconds, <25MB)
 - **Handles failures gracefully** with fallback mechanisms
@@ -41,6 +41,48 @@ RescueLink AI is a multilingual emergency classification microservice that:
 ---
 
 ## What's New (Audio Pipeline)
+
+### v2.2.0 - Local Quantized STT Migration (In Progress)
+
+**Migration updates:**
+- ✅ **Local-first STT provider**: Faster-Whisper (CTranslate2) is the default transcription backend
+- ✅ **Hybrid quantization policy**: `STT_COMPUTE_TYPE=auto` chooses CPU=`int8`, GPU=`int8_float16`
+- ✅ **Temporary rollout fallback**: optional HF API fallback when local inference fails
+- ✅ **Provider configuration controls** in `.env` for model size/path/device/threads/cache
+
+**New environment flags:**
+- `STT_PROVIDER` (`local` | `api` | `auto`)
+- `STT_ENABLE_API_FALLBACK` (`true`/`false`)
+- `STT_LOCAL_MODEL_SIZE` (default: `medium`)
+- `STT_MODEL_PATH` (optional local model directory)
+- `STT_DEVICE` (`auto` | `cpu` | `cuda`)
+- `STT_COMPUTE_TYPE` (`auto`, `int8`, `int8_float16`, `float16`, ...)
+- `STT_CPU_THREADS`, `STT_BEAM_SIZE`, `STT_CACHE_DIR`
+
+### v2.1.4 - Performance Session Updates (Session 2)
+
+**Implemented in this session:**
+- ✅ **Startup warmup controls**: classifier warmup at startup plus optional Whisper warmup
+- ✅ **Whisper preprocessing optimization**: non-WAV files are decoded once and reused for validation + WAV normalization
+- ✅ **m4a reliability hardening**: bundled ffmpeg backend bootstrap for environments without system ffmpeg
+- ✅ **Request correlation support**: `x-request-id` is accepted/propagated in API middleware for end-to-end traceability
+- ✅ **Text-only benchmark scenario**: performance runner now supports AI-3 as long-report `/classify` testing using dataset samples
+
+**New/updated environment flags:**
+- `AI_STARTUP_WARMUP` (default: `true`) — enables startup warmup path
+- `AI_STARTUP_WARMUP_WHISPER` (default: `true`) — enables optional Whisper startup warmup
+
+**Performance note from latest run:**
+- Audio classification remained stable (`0%` error), while long text-only classification (`/classify`) showed lower latency than audio pipeline calls for the tested dataset sample.
+
+### v2.1.3 - Security Hardening & Rule-Based Fallback
+
+**Latest improvements:**
+- ✅ **Service-to-Service Auth (Optional):** AI endpoints can require `x-ai-service-token` when `AI_INTERNAL_TOKEN` is configured
+- ✅ **Text Input Guardrail:** `/classify` now enforces max text length via `AI_MAX_TEXT_LENGTH`
+- ✅ **Rule-Based Fallback:** Keyword fallback is automatically used when model inference fails, confidence is low, or no labels pass threshold
+- ✅ **Fallback Transparency:** API responses now include `fallback_used`, `fallback_reason`, and matched fallback keyword metadata
+- ✅ **Low-Confidence Safety:** fallback trigger threshold is configurable via `AI_LOW_CONFIDENCE_THRESHOLD`
 
 ### v2.1.2 - GPU Acceleration & Unified Environment
 
@@ -162,6 +204,7 @@ Audio File (30-60s, <25MB)
 - **Transcription Failure (503)**: Service unavailable; users can use text-only endpoint
 - **Classification Failure (500)**: Internal error; suggest retry
 - **Low Confidence Flag**: Alerts when max confidence < 0.7
+- **Keyword Fallback**: Deterministic fallback for emergency terms when confidence is low/no label selected/model fails
 
 ### 6. **Monitoring & Analytics**
 - **Usage Tracking**: Total calls, success rate, average latency
@@ -280,7 +323,33 @@ WHISPER_MODEL_ID=openai/whisper-large-v3-turbo
 # Environment
 ENVIRONMENT=development
 LOG_LEVEL=INFO
+
+# Optional backend-to-AI auth
+AI_INTERNAL_TOKEN=
+
+# Safety controls
+AI_MAX_TEXT_LENGTH=4000
+AI_LOW_CONFIDENCE_THRESHOLD=0.7
 ```
+
+### Security Note
+
+When `AI_INTERNAL_TOKEN` is set, clients must include header:
+
+```http
+x-ai-service-token: <token>
+```
+
+This is intended for Backend-to-AI internal traffic and should be enabled in production.
+
+### Security Trigger Logs
+
+Watch these AI logs to verify security behavior:
+- `Unauthorized AI access attempt: missing/invalid x-ai-service-token` (token protection triggered)
+- `Keyword fallback applied in /classify` (text fallback path triggered)
+- `Keyword fallback applied in /v1/classify-audio` (audio fallback path triggered)
+- `Keyword fallback applied in /v1/classify-mic` (mic fallback path triggered)
+- `Low confidence classification: ...` (classification confidence guardrail triggered)
 
 ### Step 4: Verify Setup
 

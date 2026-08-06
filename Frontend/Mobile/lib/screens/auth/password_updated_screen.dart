@@ -8,7 +8,7 @@ class PasswordUpdatedScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F6F6),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -20,7 +20,7 @@ class PasswordUpdatedScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   const SizedBox(width: 48),
-                  _buildLogo(),
+                  _buildLogo(context),
                   TextButton(
                     onPressed: onBackToLogin,
                     child: const Text('Skip', style: TextStyle(color: Color(0xFF6B7280), fontSize: 14)),
@@ -102,26 +102,34 @@ class PasswordUpdatedScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildLogo() {
+  Widget _buildLogo(BuildContext context) {
     return Row(
       mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Image.asset('assets/logo/logo.png', width: 48, height: 48, fit: BoxFit.contain),
-        const SizedBox(width: 8),
+        Image.asset('assets/logo/icon.png', width: 104, height: 104, fit: BoxFit.contain),
+        const SizedBox(width: 0),
         Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
           children: [
             RichText(
-              text: const TextSpan(
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              text: TextSpan(
+                style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
                 children: [
-                  TextSpan(text: 'Rescue', style: TextStyle(color: Color(0xFF374151))),
-                  TextSpan(text: 'Link', style: TextStyle(color: Color(0xFFEF4444))),
+                  TextSpan(
+                      text: 'Rescue',
+                      style: TextStyle(
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? Colors.white
+                              : const Color(0xFF0F172A))),
+                  const TextSpan(
+                      text: 'Link',
+                      style: TextStyle(color: Color(0xFFFF6B6B))),
                 ],
               ),
             ),
-            const Text('Emergency Response & Safety', style: TextStyle(color: Color(0xFF6B7280), fontSize: 11)),
+            const Text('Emergency Response and Safety', style: TextStyle(color: Color(0xFF6B7280), fontSize: 13)),
           ],
         ),
       ],

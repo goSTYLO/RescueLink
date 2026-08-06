@@ -10,7 +10,8 @@ const AuditLog = require('../models/auditLog');
  * @param {object|null} details - Optional payload for the log row
  */
 async function logDispatcherAction(req, action, resourceType, resourceId = null, details = null) {
-  if (!req.user || req.user.role !== 'dispatcher') return;
+  // Log for both dispatcher and admin - both use the dispatcher dashboard
+  if (!req.user || !['dispatcher', 'admin'].includes(req.user.role)) return;
   const ip = req.ip || req.get?.('X-Forwarded-For') || null;
   const userAgent = req.get?.('User-Agent') || null;
   try {

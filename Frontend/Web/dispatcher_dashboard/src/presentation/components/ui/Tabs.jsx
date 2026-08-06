@@ -22,7 +22,7 @@ export function TabsList({ children, className = '' }) {
   return (
     <div
       ref={setListEl}
-      className={`relative inline-flex h-10 items-center justify-center rounded-lg bg-background/60 p-1 border border-border transition-colors duration-300 ease-in-out ${className}`}
+      className={`relative flex h-10 items-center justify-center rounded-lg bg-background/60 p-1 border border-border transition-colors duration-300 ease-in-out ${className}`}
     >
       {/* Sliding background indicator */}
       <div

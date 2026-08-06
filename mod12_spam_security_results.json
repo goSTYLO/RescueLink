@@ -1,0 +1,120 @@
+[
+  {
+    "case_id": "S1",
+    "title": "Authorization",
+    "steps": "Call restricted function as non-owner",
+    "expected": "Revert 'Not Auth'",
+    "pass": true,
+    "actual": "status=403",
+    "metrics": {
+      "status": 403
+    },
+    "note": "User role should be forbidden on dispatcher endpoint"
+  },
+  {
+    "case_id": "S2",
+    "title": "Invalid Input",
+    "steps": "Send oversized text payload",
+    "expected": "Revert/Safe Handle",
+    "pass": true,
+    "actual": "status=400, input_length=24000",
+    "metrics": {
+      "status": 400,
+      "input_length": 24000
+    },
+    "note": "Should process safely or reject oversized input"
+  },
+  {
+    "case_id": "S3",
+    "title": "Data Exposure",
+    "steps": "Check logs for secrets",
+    "expected": "No sensitive leaks",
+    "pass": true,
+    "actual": "status=200, leaked_keys=[]",
+    "metrics": {
+      "status": 200,
+      "leaked_keys": []
+    },
+    "note": "Health response should not expose sensitive values"
+  },
+  {
+    "case_id": "S4",
+    "title": "AI Adversarial Bypass",
+    "steps": "Submit obfuscated spam text",
+    "expected": "Still detect as spam",
+    "pass": true,
+    "actual": "Tested 5 adversarial inputs, 5 handled safely",
+    "metrics": {
+      "total_tested": 5,
+      "handled": 5,
+      "results": [
+        {
+          "text_preview": "S.P.A.M M.O.N.E.Y click here",
+          "status": 200,
+          "handled": true
+        },
+        {
+          "text_preview": "S P A M   M O N E Y",
+          "status": 200,
+          "handled": true
+        },
+        {
+          "text_preview": "\uff33\uff30\uff21\uff2d \uff2d\uff2f\uff2e\uff25\uff39",
+          "status": 200,
+          "handled": true
+        },
+        {
+          "text_preview": "SpAm MoNeY ClIcK hErE",
+          "status": 200,
+          "handled": true
+        },
+        {
+          "text_preview": "s\np\na\nm m\no\nn\ne\ny",
+          "status": 200,
+          "handled": true
+        }
+      ]
+    },
+    "note": "Adversarial input handling"
+  },
+  {
+    "case_id": "S5",
+    "title": "Audio Security Validation",
+    "steps": "Upload malformed audio file",
+    "expected": "Reject or handle safely",
+    "pass": false,
+    "actual": "status=503",
+    "metrics": {
+      "status": 503
+    },
+    "note": "Malformed audio should be rejected or handled safely"
+  },
+  {
+    "case_id": "S6",
+    "title": "Blockchain Replay Attack",
+    "steps": "Submit same report twice",
+    "expected": "already_recorded, gas=0",
+    "pass": true,
+    "actual": "first_status=200, second_status=200, already_recorded=True, gas_used=0",
+    "metrics": {
+      "first_status": 200,
+      "second_status": 200,
+      "already_recorded": true,
+      "gas_used": 0
+    },
+    "note": "Replay should not create duplicate writes or consume gas"
+  },
+  {
+    "case_id": "S7",
+    "title": "Blockchain Unauthorized Access",
+    "steps": "Access without proper auth",
+    "expected": "401/403, no data",
+    "pass": true,
+    "actual": "health_status=200, invalid_payload_status=422",
+    "metrics": {
+      "health_status": 200,
+      "invalid_payload_status": 422
+    },
+    "note": "Unauthorized/malformed requests should be rejected"
+  }
+]

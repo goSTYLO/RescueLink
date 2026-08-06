@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'api_service.dart';
@@ -17,6 +18,12 @@ class AuthService {
   final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
   final ApiService _apiService = ApiService();
   late SharedPreferences _prefs;
+  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
+  static const _keyBiometricEnabled = 'biometric_login_enabled';
+  static const _keyBiometricToken = 'biometric_token';
+  static const _keyBiometricPhone = 'biometric_phone';
+  static const _keyBiometricPassword = 'biometric_password';
+  static const _keyUserRole = 'user_role';
   String? _verificationId;
   int? _forceResendingToken;
 
@@ -30,15 +37,105 @@ class AuthService {
     return _prefs.getString('jwt_token');
   }
 
+  /// Returns the cached role of the logged-in user (e.g. 'user', 'responder', 'dispatcher').
+  /// Returns null if not logged in or role not yet cached.
+  String? getUserRole() {
+    return _prefs.getString(_keyUserRole);
+  }
+
   // Store JWT token
   Future<void> _storeToken(String token) async {
     await _prefs.setString('jwt_token', token);
   }
 
-  // Clear token on logout
+  // Clear session token on logout. Keep biometric token if biometric login
+  // is still enabled so the fingerprint option remains available on login.
   Future<void> logout() async {
+    final token = getToken();
+    if (token != null) {
+      try {
+        await _apiService.post(
+          '/api/auth/logout',
+          headers: {'Authorization': 'Bearer $token'},
+        );
+      } catch (_) {
+        // Best-effort; proceed with local logout regardless
+      }
+    }
     await _prefs.remove('jwt_token');
+    await _prefs.remove(_keyUserRole);
+    final biometricEnabled = await isBiometricLoginEnabled();
+    if (!biometricEnabled) {
+      await clearBiometricData();
+    }
     await _firebaseAuth.signOut();
+  }
+
+  // --- Biometric login (after initial credential verification) ---
+
+  Future<bool> isBiometricLoginEnabled() async {
+    return _prefs.getBool(_keyBiometricEnabled) ?? false;
+  }
+
+  Future<void> setBiometricLoginEnabled(bool enabled) async {
+    await _prefs.setBool(_keyBiometricEnabled, enabled);
+    if (!enabled) await clearBiometricData();
+  }
+
+  /// Saves token to secure storage for biometric login. Call after successful
+  /// phone+password login when biometric is enabled.
+  Future<void> saveTokenForBiometric(String token) async {
+    final enabled = await isBiometricLoginEnabled();
+    if (!enabled) return;
+    await _secureStorage.write(key: _keyBiometricToken, value: token);
+  }
+
+  /// Saves credentials to secure storage for credential-based biometric login.
+  /// Used when token may be blacklisted (e.g. after app exit) — biometric login
+  /// will use these to obtain a fresh token.
+  Future<void> saveCredentialsForBiometric({
+    required String phone,
+    required String password,
+  }) async {
+    final enabled = await isBiometricLoginEnabled();
+    if (!enabled) return;
+    final formattedPhone = _formatPhoneNumberE164(phone);
+    await _secureStorage.write(key: _keyBiometricPhone, value: formattedPhone);
+    await _secureStorage.write(key: _keyBiometricPassword, value: password);
+  }
+
+  /// Reads stored credentials for biometric login. Call only after user has
+  /// passed local_auth biometric prompt.
+  Future<({String phone, String password})?> getCredentialsForBiometric() async {
+    final phone = await _secureStorage.read(key: _keyBiometricPhone);
+    final password = await _secureStorage.read(key: _keyBiometricPassword);
+    if (phone == null || password == null || phone.isEmpty || password.isEmpty) {
+      return null;
+    }
+    return (phone: phone, password: password);
+  }
+
+  /// Reads token from secure storage. Call only after user has passed
+  /// local_auth biometric prompt in the UI.
+  Future<String?> getTokenForBiometric() async {
+    return _secureStorage.read(key: _keyBiometricToken);
+  }
+
+  Future<void> clearBiometricToken() async {
+    await _secureStorage.delete(key: _keyBiometricToken);
+  }
+
+  /// Clears all biometric data (token and credentials).
+  Future<void> clearBiometricData() async {
+    await _secureStorage.delete(key: _keyBiometricToken);
+    await _secureStorage.delete(key: _keyBiometricPhone);
+    await _secureStorage.delete(key: _keyBiometricPassword);
+  }
+
+  /// Stores token in session (SharedPreferences). Used after biometric
+  /// login to restore session before fetching profile.
+  Future<void> setToken(String token) async {
+    await _storeToken(token);
   }
 
   // Clear token only (no Firebase sign-out)
@@ -104,9 +201,15 @@ class AuthService {
         },
       );
 
+      final user = (response['user'] ?? response) as Map<String, dynamic>;
+      // Cache role for synchronous access across the UI
+      final role = user['role']?.toString();
+      if (role != null && role.isNotEmpty) {
+        await _prefs.setString(_keyUserRole, role);
+      }
       return {
         'success': true,
-        'user': response['user'] ?? response,
+        'user': user,
       };
     } catch (e) {
       return {
@@ -116,9 +219,116 @@ class AuthService {
     }
   }
 
-  // Register user with backend (now includes location validation)
-    // Check if location is within Dagupan City
-    Future<Map<String, dynamic>> checkLocationInDagupan({
+  /// Search Dagupan locations (address autocomplete)
+  Future<Map<String, dynamic>> searchLocations(String query, {int limit = 5}) async {
+    final token = getToken();
+    if (token == null || token.isEmpty) {
+      return {'success': false, 'error': 'Not authenticated'};
+    }
+    try {
+      final response = await _apiService.get(
+        '/api/location/search',
+        queryParameters: {'q': query, 'limit': limit.toString()},
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      return response;
+    } catch (e) {
+      return {'success': false, 'error': e.toString(), 'results': []};
+    }
+  }
+
+  /// Reverse geocode coordinates to address
+  Future<Map<String, dynamic>> reverseGeocode(double latitude, double longitude) async {
+    final token = getToken();
+    if (token == null || token.isEmpty) {
+      return {'success': false, 'error': 'Not authenticated'};
+    }
+    try {
+      final response = await _apiService.get(
+        '/api/location/reverse',
+        queryParameters: {'latitude': latitude.toString(), 'longitude': longitude.toString()},
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      return response;
+    } catch (e) {
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
+  /// Update user profile (address/barangay)
+  Future<Map<String, dynamic>> updateProfile({String? address}) async {
+    final token = getToken();
+    if (token == null || token.isEmpty) {
+      return {'success': false, 'error': 'Not authenticated'};
+    }
+    try {
+      final response = await _apiService.patch(
+        '/api/auth/me',
+        body: {'address': address},
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      return {'success': true, 'user': response['user'] ?? response};
+    } catch (e) {
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
+  /// Change password for authenticated user (no OTP required).
+  Future<Map<String, dynamic>> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final token = getToken();
+    if (token == null || token.isEmpty) {
+      return {'success': false, 'error': 'Not authenticated'};
+    }
+    try {
+      await _apiService.post(
+        '/api/auth/change-password',
+        body: {
+          'currentPassword': currentPassword,
+          'newPassword': newPassword,
+        },
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      // Update stored biometric credentials with new password
+      final profile = await getProfile();
+      if (profile['success'] == true) {
+        final user = profile['user'] as Map<String, dynamic>?;
+        final phone = (user?['phone'] ?? user?['phone_number'])?.toString();
+        if (phone != null && phone.isNotEmpty) {
+          await saveCredentialsForBiometric(phone: phone, password: newPassword);
+          await saveTokenForBiometric(token);
+        }
+      }
+      return {'success': true};
+    } catch (e) {
+      if (e is ApiException) {
+        return {'success': false, 'error': e.message};
+      }
+      return {'success': false, 'error': 'Failed to change password. Please try again.'};
+    }
+  }
+
+  /// Get barangay name for coordinates (for incident report UI).
+  /// Returns null if not in Dagupan or on API error.
+  Future<String?> getBarangayFromCoordinates(double latitude, double longitude) async {
+    final token = getToken();
+    if (token == null || token.isEmpty) return null;
+    try {
+      final response = await _apiService.get(
+        '/api/location/barangay',
+        queryParameters: {'lat': latitude.toString(), 'lng': longitude.toString()},
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      return response['barangay'] as String?;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // Check if location is within Dagupan City
+  Future<Map<String, dynamic>> checkLocationInDagupan({
       required double latitude,
       required double longitude,
     }) async {
@@ -145,7 +355,7 @@ class AuthService {
       }
     }
 
-    // Register user with backend (now includes location validation)
+  // Register user with backend (now includes location validation)
   Future<Map<String, dynamic>> register({
     required String firstName,
     required String lastName,
@@ -177,9 +387,31 @@ class AuthService {
 
       return {'success': true, 'data': response};
     } catch (e) {
+      String errorMessage = 'Registration could not be completed. Please try again.';
+      final msg = e.toString().toLowerCase();
+      if (msg.contains('already have an account') ||
+          msg.contains('account already exists') ||
+          msg.contains('already registered') ||
+          msg.contains('phone.*taken') ||
+          msg.contains('duplicate')) {
+        errorMessage = 'An account with this phone number already exists. Please sign in instead.';
+      } else if (e is ApiException) {
+        final apiMsg = e.message.toLowerCase();
+        if (apiMsg.contains('already have an account') ||
+            apiMsg.contains('account already exists') ||
+            apiMsg.contains('already registered')) {
+          errorMessage = 'An account with this phone number already exists. Please sign in instead.';
+        } else {
+          errorMessage = e.message;
+        }
+      } else if (msg.contains('socketexception') ||
+          msg.contains('connection') ||
+          msg.contains('failed host lookup')) {
+        errorMessage = 'Unable to connect. Please check your network and try again.';
+      }
       return {
         'success': false,
-        'error': e.toString(),
+        'error': errorMessage,
       };
     }
   }
@@ -205,6 +437,8 @@ class AuthService {
       // Store token on successful login
       if (response['token'] != null) {
         await _storeToken(response['token']);
+        await saveTokenForBiometric(response['token'] as String);
+        await saveCredentialsForBiometric(phone: formattedPhone, password: password);
         print('✅ Login successful, token stored');
       }
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../theme/app_theme.dart';
 import 'package:flutter/services.dart';
 
 class VerifyNewPhoneOtpScreen extends StatefulWidget {
@@ -64,8 +65,10 @@ class _VerifyNewPhoneOtpScreenState extends State<VerifyNewPhoneOtpScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: isDark ? AppTheme.darkBackground : theme.scaffoldBackgroundColor,
       body: SafeArea(
         child: Column(
           children: [
@@ -111,9 +114,9 @@ class _VerifyNewPhoneOtpScreenState extends State<VerifyNewPhoneOtpScreen> {
                     ),
                   ),
                   Image.asset(
-                    'assets/logo/logo2.png',
-                    width: 32,
-                    height: 32,
+                    'assets/logo/icon.png',
+                    width: 64,
+                    height: 64,
                     fit: BoxFit.contain,
                     color: Colors.white,
                     colorBlendMode: BlendMode.srcIn,

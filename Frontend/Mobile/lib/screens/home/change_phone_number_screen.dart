@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../theme/app_theme.dart';
 
 class ChangePhoneNumberScreen extends StatelessWidget {
   final VoidCallback? onBack;
@@ -12,8 +13,15 @@ class ChangePhoneNumberScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) onBack?.call();
+      },
+      child: Scaffold(
+      backgroundColor: isDark ? AppTheme.darkBackground : theme.scaffoldBackgroundColor,
       body: SafeArea(
         child: Column(
           children: [
@@ -42,26 +50,20 @@ class ChangePhoneNumberScreen extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Text(
+                        Text(
                           'Phone Number',
-                          style: TextStyle(
+                          style: theme.textTheme.titleLarge?.copyWith(
                             color: Colors.white,
-                            fontSize: 18,
                             fontWeight: FontWeight.bold,
                           ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Update your contact number',
-                          style: TextStyle(color: Colors.white.withOpacity(0.95), fontSize: 12),
                         ),
                       ],
                     ),
                   ),
                   Image.asset(
-                    'assets/logo/logo2.png',
-                    width: 32,
-                    height: 32,
+                    'assets/logo/icon.png',
+                    width: 64,
+                    height: 64,
                     fit: BoxFit.contain,
                     color: Colors.white,
                     colorBlendMode: BlendMode.srcIn,
@@ -215,6 +217,7 @@ class ChangePhoneNumberScreen extends StatelessWidget {
           ],
         ),
       ),
+    ),
     );
   }
 }

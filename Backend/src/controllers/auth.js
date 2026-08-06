@@ -11,6 +11,20 @@ const TokenBlacklist = require('../models/tokenBlacklist');
 const DispatcherOtp = require('../models/dispatcherOtp');
 const { sendOtpEmail } = require('../services/email');
 const { ROLES } = require('../config/roles');
+const Department = require('../models/department');
+
+const WEB_EMAIL_AUTH_ROLES = [
+  ROLES.DISPATCHER,
+  ROLES.ADMIN,
+  ROLES.SUPERVISOR,
+  ROLES.RESPONDER,
+  ROLES.DEPARTMENT_ADMIN,
+  ROLES.DEPARTMENT_HEAD,
+];
+
+function canUseWebEmailAuth(role) {
+  return WEB_EMAIL_AUTH_ROLES.includes(role);
+}
 
 // Register using phone_number
 exports.register = async (req, res) => {
@@ -198,7 +212,7 @@ exports.forgotPassword = async (req, res) => {
     const validatedEmail = validateEmail(email.trim());
 
     const user = await User.findByEmail(validatedEmail);
-    if (!user || user.role !== ROLES.DISPATCHER) {
+    if (!user || !canUseWebEmailAuth(user.role)) {
       return res.json({ message: genericMessage });
     }
 
@@ -236,7 +250,7 @@ exports.resetPasswordWithToken = async (req, res) => {
     }
 
     const user = await User.findByEmail(decoded.email);
-    if (!user || user.role !== ROLES.DISPATCHER) {
+    if (!user || !canUseWebEmailAuth(user.role)) {
       return res.status(401).json({ message: 'Invalid or expired reset link. Please request a new one.' });
     }
 
@@ -271,7 +285,7 @@ exports.dispatcherLogin = async (req, res) => {
     const user = await User.findByEmail(validatedEmail);
     if (!user) return res.status(401).json({ message: 'Invalid credentials' });
 
-    if (user.role !== ROLES.DISPATCHER) return res.status(401).json({ message: 'Invalid credentials' });
+    if (!canUseWebEmailAuth(user.role)) return res.status(401).json({ message: 'Invalid credentials' });
     if (!user.password) return res.status(401).json({ message: 'Invalid credentials' });
 
     const isPasswordValid = await comparePassword(password, user.password);
@@ -291,7 +305,23 @@ exports.dispatcherLogin = async (req, res) => {
     const token = jwt.sign({ user_id: user.user_id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
     await logDispatcherActionByUser(user, req, 'dispatcher_login', 'auth', null, { method: 'email' });
     console.log('✅ Dispatcher login successful:', { user_id: user.user_id });
-    res.json({ user: { user_id: user.user_id, email: user.email, role: user.role, firstName: user.first_name, lastName: user.last_name }, token });
+    let department = null;
+    if (user.department_id) {
+      const dept = await Department.findById(user.department_id);
+      department = dept ? dept.name : null;
+    }
+    res.json({
+      user: {
+        user_id: user.user_id,
+        email: user.email,
+        role: user.role,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        department_id: user.department_id ?? null,
+        department: department ?? null,
+      },
+      token,
+    });
   } catch (err) {
     console.error('❌ Dispatcher login error:', err.message);
     const isValidationError = /required|must be|Invalid|not exceed/i.test(err.message);
@@ -316,12 +346,28 @@ exports.dispatcherVerifyOtp = async (req, res) => {
     if (!userId) return res.status(401).json({ message: 'Invalid or expired verification code' });
 
     const user = await User.findById(userId);
-    if (!user || user.role !== ROLES.DISPATCHER) return res.status(401).json({ message: 'Invalid session' });
+    if (!user || !canUseWebEmailAuth(user.role)) return res.status(401).json({ message: 'Invalid session' });
 
     const token = jwt.sign({ user_id: user.user_id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
     await logDispatcherActionByUser(user, req, 'dispatcher_login', 'auth', null, { method: 'email', mfa: true });
     console.log('✅ Dispatcher MFA verified:', { user_id: user.user_id });
-    res.json({ user: { user_id: user.user_id, email: user.email, role: user.role, firstName: user.first_name, lastName: user.last_name }, token });
+    let department = null;
+    if (user.department_id) {
+      const dept = await Department.findById(user.department_id);
+      department = dept ? dept.name : null;
+    }
+    res.json({
+      user: {
+        user_id: user.user_id,
+        email: user.email,
+        role: user.role,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        department_id: user.department_id ?? null,
+        department: department ?? null,
+      },
+      token,
+    });
   } catch (err) {
     console.error('❌ Dispatcher verify OTP error:', err.message);
     if (err.message && /required|Invalid|must be/i.test(err.message)) {
@@ -372,6 +418,57 @@ exports.dispatcherSignup = async (req, res) => {
   }
 };
 
+// Update current user's profile (address/barangay)
+exports.updateMe = async (req, res) => {
+  try {
+    const userId = req.user?.user_id;
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const { address } = req.body;
+    let validatedAddress = null;
+    try {
+      validatedAddress = validateAddress(address);
+    } catch (err) {
+      if (err.message?.includes('must be') || err.message?.includes('must not')) {
+        return res.status(400).json({ message: err.message });
+      }
+    }
+
+    await User.updateAddress(userId, validatedAddress);
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    let department = null;
+    if (user.department_id) {
+      const dept = await Department.findById(user.department_id);
+      department = dept ? dept.name : null;
+    }
+
+    res.json({
+      user: {
+        user_id: user.user_id,
+        phone: user.phone_number,
+        email: user.email,
+        address: user.address,
+        phone_verified: user.phone_verified,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        role: user.role,
+        department_id: user.department_id ?? null,
+        department: department ?? null,
+        created_at: user.created_at,
+      },
+    });
+  } catch (err) {
+    console.error('❌ Update profile error:', err.message);
+    res.status(500).json({ message: 'Failed to update profile' });
+  }
+};
+
 // Get current authenticated user's profile
 exports.getMe = async (req, res) => {
   try {
@@ -385,6 +482,12 @@ exports.getMe = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
+    let department = null;
+    if (user.department_id) {
+      const dept = await Department.findById(user.department_id);
+      department = dept ? dept.name : null;
+    }
+
     res.json({
       user: {
         user_id: user.user_id,
@@ -395,6 +498,8 @@ exports.getMe = async (req, res) => {
         firstName: user.first_name,
         lastName: user.last_name,
         role: user.role,
+        department_id: user.department_id ?? null,
+        department: department ?? null,
         created_at: user.created_at,
       },
     });

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../utils/app_config.dart';
 import '../../widgets/recaptcha_webview.dart';
+import '../../widgets/glass_card.dart';
+import '../../widgets/gradient_header.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   final VoidCallback? onBackToLogin;
@@ -28,19 +30,39 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   }
 
   Widget _buildLogo() {
-    return Column(
+    return Row(
+      mainAxisSize: MainAxisSize.min,
       mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Image.asset(
-          'assets/logo/logo.png',
-          width: 80,
-          height: 80,
+          'assets/logo/icon.png',
+          width: 64,
+          height: 64,
           fit: BoxFit.contain,
         ),
-        const SizedBox(height: 12),
-        const Text(
-          'Emergency Response & Safety',
-          style: TextStyle(color: Color(0xFF6B7280), fontSize: 12),
+        const SizedBox(width: 0),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            RichText(
+              text: TextSpan(
+                style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                children: [
+                  TextSpan(
+                      text: 'Rescue',
+                      style: TextStyle(
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? Colors.white
+                              : const Color(0xFF0F172A))),
+                  const TextSpan(
+                      text: 'Link',
+                      style: TextStyle(color: Color(0xFFFF6B6B))),
+                ],
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -137,22 +159,24 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF374151)),
-          onPressed: widget.onBackToLogin,
-        ),
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Column(
-            children: [
-              _buildLogo(),
-              const SizedBox(height: 20),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      body: Column(
+        children: [
+          GradientHeader(
+            title: 'Forgot Password',
+            onBack: widget.onBackToLogin,
+            transparentFade: true,
+          ),
+          Expanded(
+            child: SafeArea(
+              top: false,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 28),
+                    Center(child: _buildLogo()),
+                    const SizedBox(height: 20),
               SizedBox(
                 height: 180,
                 child: Image.asset(
@@ -161,53 +185,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 ),
               ),
               const SizedBox(height: 24),
-              const Text(
-                'Forgot Password',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF111827),
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Recover your RescueLink account securely',
-                style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
-              ),
-              const SizedBox(height: 20),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFEFF6FF),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFBFDBFE)),
-                ),
-                child: const Row(
+              GlassCard(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Icon(Icons.shield_outlined, color: Color(0xFF2563EB), size: 24),
-                    SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        "We'll verify your identity using the phone number registered to your account.",
-                        style: TextStyle(color: Color(0xFF1E40AF), fontSize: 13),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-              const Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'Registered Phone Number',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Color(0xFF374151),
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
               Container(
                 decoration: BoxDecoration(
                   color: Colors.white,
@@ -237,14 +219,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       ),
                     ),
                   ],
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'Enter the phone number you used during registration',
-                  style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
                 ),
               ),
               const SizedBox(height: 24),
@@ -289,15 +263,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 8),
-              const Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'A one-time code will be sent to your registered number.',
-                  style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
-                ),
-              ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 24),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
@@ -315,9 +281,15 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 ),
               ),
               const SizedBox(height: 40),
+                  ],
+                ),
+              ),
             ],
           ),
         ),
+      ),
+    ),
+  ],
       ),
     );
   }

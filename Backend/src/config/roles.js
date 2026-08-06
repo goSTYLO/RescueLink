@@ -6,7 +6,11 @@
 const ROLES = {
   USER: 'user',           // Mobile app users who report incidents
   DISPATCHER: 'dispatcher', // Web app administrators who manage dispatches
-  ADMIN: 'admin'          // Super-users with full system access
+  RESPONDER: 'responder', // Authenticated responders
+  SUPERVISOR: 'supervisor', // Supervisors for escalation/reclassification
+  ADMIN: 'admin',         // Super-users with full system access
+  DEPARTMENT_ADMIN: 'department-admin',  // Full department dashboard access
+  DEPARTMENT_HEAD: 'department-head'  // Department head: sees only assigned incidents for their department
 };
 
 /**
@@ -38,9 +42,28 @@ const PERMISSIONS = {
   [ROLES.DISPATCHER]: {
     incidents: ['create', 'read', 'update', 'delete', 'list', 'listAll', 'manage'],
     dispatches: ['create', 'read', 'update', 'delete', 'list', 'listAll', 'manage'],
-    responders: ['create', 'read', 'update', 'delete', 'list', 'listAll', 'manage'],
+    responders: ['read', 'update', 'list', 'listAll'],
     notifications: ['create', 'read', 'update', 'delete', 'list', 'manage'],
     auditLogs: ['readOwn'],  // Read only own dispatcher actions
+    users: [],
+    settings: []
+  },
+  [ROLES.RESPONDER]: {
+    incidents: ['create', 'readOwn', 'updateOwn', 'deleteOwn', 'read'], // 'read' needed to view nearby active incidents for alert flow
+    dispatches: [],
+    responders: ['readOwn'],  // own profile via /me/profile
+    notifications: ['readOwn'],
+    backup_requests: ['create', 'readOwn'],
+    auditLogs: [],
+    users: [],
+    settings: []
+  },
+  [ROLES.SUPERVISOR]: {
+    incidents: ['create', 'read', 'update', 'delete', 'list', 'listAll', 'manage'],
+    dispatches: ['read', 'list'],
+    responders: ['read', 'list'],
+    notifications: ['create', 'read', 'update', 'list'],
+    auditLogs: ['readOwn'],
     users: [],
     settings: []
   },
@@ -52,6 +75,24 @@ const PERMISSIONS = {
     auditLogs: ['read', 'list', 'listAll'],  // Read all audit logs
     users: ['create', 'read', 'list', 'update', 'delete'],  // User management
     settings: ['manage']
+  },
+  [ROLES.DEPARTMENT_ADMIN]: {
+    incidents: ['read', 'list'],
+    dispatches: ['read', 'list'],
+    responders: ['create', 'read', 'update', 'list'],
+    notifications: ['readOwn'],
+    auditLogs: [],
+    users: [],
+    settings: []
+  },
+  [ROLES.DEPARTMENT_HEAD]: {
+    incidents: ['read', 'list'],
+    dispatches: ['read', 'list'],
+    responders: ['read'],
+    notifications: ['readOwn'],
+    auditLogs: [],
+    users: [],
+    settings: []
   }
 };
 

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../services/auth_service.dart';
+import '../../theme/app_theme.dart';
 
 class ChangePasswordScreen extends StatefulWidget {
   final VoidCallback? onBack;
@@ -25,6 +27,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
 
   bool _showCurrentError = false;
   bool _showConfirmError = false;
+  bool _isSubmitting = false;
 
   @override
   void dispose() {
@@ -61,7 +64,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     }
   }
 
-  void _onUpdatePassword() {
+  Future<void> _onUpdatePassword() async {
     final current = _currentController.text;
     final newP = _newController.text;
     final confirm = _confirmController.text;
@@ -71,13 +74,38 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       _showConfirmError = newP.isNotEmpty && newP != confirm;
     });
     if (current.isEmpty || newP.isEmpty || newP != confirm) return;
-    widget.onUpdatePassword?.call();
+
+    setState(() => _isSubmitting = true);
+    final result = await AuthService().changePassword(
+      currentPassword: current,
+      newPassword: newP,
+    );
+    if (!mounted) return;
+    setState(() => _isSubmitting = false);
+
+    if (result['success'] == true) {
+      widget.onUpdatePassword?.call();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result['error']?.toString() ?? 'Failed to change password'),
+          backgroundColor: Colors.red.shade700,
+        ),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF3F4F6),
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) widget.onBack?.call();
+      },
+      child: Scaffold(
+      backgroundColor: isDark ? AppTheme.darkBackground : theme.scaffoldBackgroundColor,
       body: SafeArea(
         child: Column(
           children: [
@@ -112,9 +140,9 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                     ),
                   ),
                   Image.asset(
-                    'assets/logo/logo2.png',
-                    width: 32,
-                    height: 32,
+                    'assets/logo/icon.png',
+                    width: 64,
+                    height: 64,
                     fit: BoxFit.contain,
                     color: Colors.white,
                     colorBlendMode: BlendMode.srcIn,
@@ -151,7 +179,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                       obscure: _obscureCurrent,
                       hint: 'Enter current password',
                       onToggle: () => setState(() => _obscureCurrent = !_obscureCurrent),
-                      error: _showCurrentError ? 'Passwords do not match' : null,
+                      error: _showCurrentError ? 'Current password is required' : null,
                     ),
                     const SizedBox(height: 16),
                     // New Password card
@@ -169,11 +197,17 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                     const SizedBox(height: 24),
                     // Update Password button
                     ElevatedButton.icon(
-                      onPressed: _onUpdatePassword,
-                      icon: const Icon(Icons.lock, color: Colors.white, size: 22),
-                      label: const Text(
-                        'Update Password',
-                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                      onPressed: _isSubmitting ? null : _onUpdatePassword,
+                      icon: _isSubmitting
+                          ? const SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            )
+                          : const Icon(Icons.lock, color: Colors.white, size: 22),
+                      label: Text(
+                        _isSubmitting ? 'Updating...' : 'Update Password',
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
                       ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFFEF4444),
@@ -217,6 +251,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
           ],
         ),
       ),
+    ),
     );
   }
 

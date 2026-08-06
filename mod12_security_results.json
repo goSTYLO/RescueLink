@@ -1,0 +1,84 @@
+[
+  {
+    "case_id": "S1",
+    "title": "Authorization (non-owner role on dispatch endpoint)",
+    "expected": "Non-dispatch role should be forbidden",
+    "pass": true,
+    "actual": "status=403",
+    "metrics": {
+      "status": 403
+    },
+    "note": "User role should be forbidden on dispatcher endpoint"
+  },
+  {
+    "case_id": "S2",
+    "title": "Invalid Input (oversized AI text)",
+    "expected": "Should process safely or reject",
+    "pass": true,
+    "actual": "status=400, input_length=12000",
+    "metrics": {
+      "status": 400,
+      "input_length": 12000
+    },
+    "note": "Should process safely or reject oversized input"
+  },
+  {
+    "case_id": "S3",
+    "title": "Data Exposure (AI health response)",
+    "expected": "No sensitive secret/token values",
+    "pass": true,
+    "actual": "status=200, leaked_keys=[]",
+    "metrics": {
+      "status": 200,
+      "leaked_keys": []
+    },
+    "note": "Health response should not expose sensitive values"
+  },
+  {
+    "case_id": "S4",
+    "title": "AI Token Enforcement Probe",
+    "expected": "Unauthorized call should be blocked when token policy is active",
+    "pass": true,
+    "actual": "status=200",
+    "metrics": {
+      "status": 200
+    },
+    "note": "No local token configured, endpoint expected to be open"
+  },
+  {
+    "case_id": "S5",
+    "title": "Blockchain Invalid Payload",
+    "expected": "Malformed verify request should fail validation",
+    "pass": true,
+    "actual": "status=422",
+    "metrics": {
+      "status": 422
+    },
+    "note": "Schema validation should reject malformed request"
+  },
+  {
+    "case_id": "S6",
+    "title": "Blockchain Duplicate Replay",
+    "expected": "Second same report verification should be marked already_recorded",
+    "pass": true,
+    "actual": "first_status=200, second_status=200, second_already_recorded=True",
+    "metrics": {
+      "first_status": 200,
+      "second_status": 200,
+      "second_already_recorded": true,
+      "second_gas_used": 0
+    },
+    "note": "Replay should not create duplicate writes"
+  },
+  {
+    "case_id": "S7",
+    "title": "AI Empty Input Validation",
+    "expected": "Empty classify text should return validation error",
+    "pass": true,
+    "actual": "status=400",
+    "metrics": {
+      "status": 400
+    },
+    "note": "Empty input should be rejected safely"
+  }
+]

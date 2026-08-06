@@ -16,6 +16,8 @@ dependencies:
   
   # Networking
   http: ^1.1.0
+  http_parser: ^4.0.0
+  web_socket_channel: ^3.0.1
   
   # Firebase
   firebase_core: ^2.25.0
@@ -26,26 +28,42 @@ dependencies:
 
   # Audio recording and media
   record: ^6.0.0
+  audioplayers: ^6.1.0
   image_picker: ^1.0.7
+  file_picker: ^8.0.0
+  video_player: ^2.8.1
   path_provider: ^2.1.2
   
   # Local Storage
   shared_preferences: ^2.2.2
+  flutter_secure_storage: ^9.0.0
+
+  # Biometrics
+  local_auth: ^2.2.0
 
   # Environment (.env)
   flutter_dotenv: ^5.1.0
 
   # UI
   cupertino_icons: ^1.0.6
+  intl: ^0.19.0
   flutter_svg: ^2.0.9
+  shimmer: ^3.0.0
 
   # WebView (for reCAPTCHA v2; avoids conflict with Firebase)
   webview_flutter: ^4.4.2
+
+  # Map (OpenStreetMap - same as web)
+  flutter_map: ^8.2.2
+  latlong2: ^0.9.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.0
+  integration_test:
+    sdk: flutter
+  mocktail: ^1.0.0
 
 flutter:
   uses-material-design: true
@@ -53,6 +71,9 @@ flutter:
   assets:
     - .env
     - assets/logo/logo.png
+    - assets/logo/logo2.png
+    - assets/logo/logo_new.png
+    - assets/logo/icon.png
     - assets/images/login_illustrations.png
     - assets/images/createaccount_illustration.png
     - assets/images/forgotpassword_illustration.png
@@ -62,4 +83,5 @@ flutter:
     - assets/images/maps_illustration.png
     - assets/images/outsidearea_illustration.png
     - assets/images/accountcreateddone_-illustration.png
+    - assets/images/profilepicture_illustration.png
     - assets/geojson/dagupan.geojson

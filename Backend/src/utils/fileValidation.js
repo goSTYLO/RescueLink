@@ -5,7 +5,10 @@
 
 const path = require('path');
 const fs = require('fs').promises;
+const os = require('os');
+const crypto = require('crypto');
 const { UPLOAD_DIR, AUDIO_EXTENSIONS, PHOTO_EXTENSIONS, VIDEO_EXTENSIONS } = require('../middleware/fileUpload');
+const { compressPhoto, compressVideo } = require('../services/mediaCompressionService');
 
 /**
  * Validate audio file duration (optional - requires audio processing library)
@@ -116,18 +119,26 @@ const saveMediaFiles = async (mediaFiles, reportId) => {
   
   for (const file of mediaFiles) {
     const { isPhoto, isVideo, ext } = validateMediaFile(file);
-    
-    let filename;
+    let payloadBuffer = file.buffer;
+    let payloadExt = ext;
+
     if (isPhoto) {
-      filename = generateFilename(reportId, 'photo', ext, photoIndex);
+      const result = await compressPhoto(file.buffer, file.originalname);
+      payloadBuffer = result.buffer;
+      payloadExt = result.outputExt || ext;
+      const filename = generateFilename(reportId, 'photo', payloadExt, photoIndex);
       photoIndex++;
+      const filePath = await saveFile(payloadBuffer, filename);
+      savedPaths.push(filePath);
     } else if (isVideo) {
-      filename = generateFilename(reportId, 'video', ext, videoIndex);
+      const result = await compressVideo(file.buffer, file.originalname);
+      payloadBuffer = result.buffer;
+      payloadExt = result.outputExt || ext;
+      const filename = generateFilename(reportId, 'video', payloadExt, videoIndex);
       videoIndex++;
+      const filePath = await saveFile(payloadBuffer, filename);
+      savedPaths.push(filePath);
     }
-    
-    const filePath = await saveFile(file.buffer, filename);
-    savedPaths.push(filePath);
   }
   
   return savedPaths;
@@ -219,6 +230,43 @@ const getAbsolutePath = (relativePath) => {
   return path.join(process.cwd(), relativePath);
 };
 
+const ensureQuarantineDir = async () => {
+  const quarantinePath = path.join(process.cwd(), process.env.QUARANTINE_DIR || 'uploads/quarantine');
+  await fs.mkdir(quarantinePath, { recursive: true });
+  return quarantinePath;
+};
+
+const quarantineFile = async (relativePath, reportId) => {
+  const quarantineDir = await ensureQuarantineDir();
+  const sourcePath = path.join(process.cwd(), relativePath);
+  const ext = path.extname(relativePath);
+  const base = path.basename(relativePath, ext);
+  const targetName = `${base}_q_${reportId}_${Date.now()}${ext}`;
+  const targetPath = path.join(quarantineDir, targetName);
+
+  await fs.rename(sourcePath, targetPath);
+  console.warn(`🚨 File moved to quarantine: ${relativePath} -> ${targetPath}`);
+  const quarantineRelativeRoot = process.env.QUARANTINE_DIR || 'uploads/quarantine';
+  return path.join(quarantineRelativeRoot, targetName).replace(/\\/g, '/');
+};
+
+const quarantineIncidentFiles = async ({ reportId, audioPath = null, mediaPaths = [] }) => {
+  const moved = {
+    audioPath: null,
+    mediaPaths: [],
+  };
+
+  if (audioPath) {
+    moved.audioPath = await quarantineFile(audioPath, reportId);
+  }
+
+  for (const mediaPath of mediaPaths) {
+    moved.mediaPaths.push(await quarantineFile(mediaPath, reportId));
+  }
+
+  return moved;
+};
+
 module.exports = {
   validateAudioFile,
   validateMediaFile,
@@ -229,5 +277,6 @@ module.exports = {
   deleteFile,
   deleteIncidentFiles,
   fileExists,
-  getAbsolutePath
+  getAbsolutePath,
+  quarantineIncidentFiles
 };

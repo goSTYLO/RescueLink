@@ -8,7 +8,7 @@ class VerifiedScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -55,12 +55,6 @@ class VerifiedScreen extends StatelessWidget {
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 24),
-              const Text(
-                'Your identity has been confirmed!',
-                style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
-                textAlign: TextAlign.center,
               ),
             ],
           ),

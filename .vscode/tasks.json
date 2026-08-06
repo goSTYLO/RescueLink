@@ -2,6 +2,135 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "label": "Backend: dev",
+      "type": "shell",
+      "command": "npm run dev",
+      "options": {
+        "cwd": "${workspaceFolder}/Backend",
+        "shell": {
+          "executable": "powershell",
+          "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command"]
+        },
+        "env": {}
+      },
+      "problemMatcher": {
+        "owner": "rescue",
+        "pattern": { "regexp": "^.*$" },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".",
+          "endsPattern": "listening|Listening|started|EADDRINUSE"
+        }
+      },
+      "presentation": { "reveal": "always", "panel": "dedicated", "focus": false },
+      "isBackground": true
+    },
+    {
+      "label": "RescueLink AI: dev",
+      "type": "shell",
+      "command": "$candidates = @('${workspaceFolder}/.venv/Scripts/Activate.ps1','${workspaceFolder}/venv/Scripts/Activate.ps1','${workspaceFolder}/RescueLink AI/.venv/Scripts/Activate.ps1','${workspaceFolder}/RescueLink AI/venv/Scripts/Activate.ps1','${workspaceFolder}/Blockchain/.venv/Scripts/Activate.ps1','${workspaceFolder}/Blockchain/venv/Scripts/Activate.ps1'); $activate = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1; if ($activate) { & $activate }; Set-Location '${workspaceFolder}/RescueLink AI'; python -m uvicorn api.main:app --reload --port 8000",
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "shell": {
+          "executable": "powershell",
+          "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command"]
+        }
+      },
+      "problemMatcher": {
+        "owner": "rescue",
+        "pattern": { "regexp": "^.*$" },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".",
+          "endsPattern": "Uvicorn running|Application startup complete"
+        }
+      },
+      "presentation": { "reveal": "always", "panel": "dedicated", "focus": false },
+      "isBackground": true
+    },
+    {
+      "label": "Blockchain: dev",
+      "type": "shell",
+      "command": "$candidates = @('${workspaceFolder}/.venv/Scripts/Activate.ps1','${workspaceFolder}/venv/Scripts/Activate.ps1','${workspaceFolder}/Blockchain/.venv/Scripts/Activate.ps1','${workspaceFolder}/Blockchain/venv/Scripts/Activate.ps1','${workspaceFolder}/RescueLink AI/.venv/Scripts/Activate.ps1','${workspaceFolder}/RescueLink AI/venv/Scripts/Activate.ps1'); $activate = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1; if ($activate) { & $activate }; Set-Location '${workspaceFolder}/Blockchain'; python -m uvicorn main:app --host 0.0.0.0 --port 8001",
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "shell": {
+          "executable": "powershell",
+          "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command"]
+        }
+      },
+      "problemMatcher": {
+        "owner": "rescue",
+        "pattern": { "regexp": "^.*$" },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".",
+          "endsPattern": "Uvicorn running|Application startup complete"
+        }
+      },
+      "presentation": { "reveal": "always", "panel": "dedicated", "focus": false },
+      "isBackground": true
+    },
+    {
+      "label": "Web: dev",
+      "type": "shell",
+      "command": "npm run dev",
+      "options": {
+        "cwd": "${workspaceFolder}/Frontend/Web/dispatcher_dashboard",
+        "shell": {
+          "executable": "powershell",
+          "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command"]
+        }
+      },
+      "problemMatcher": {
+        "owner": "rescue",
+        "pattern": { "regexp": "^.*$" },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".",
+          "endsPattern": "Local:|ready in"
+        }
+      },
+      "presentation": { "reveal": "always", "panel": "dedicated", "focus": false },
+      "isBackground": true
+    },
+    {
+      "label": "Web: open browser",
+      "type": "shell",
+      "command": "Start-Sleep -Seconds 4; Start-Process 'http://localhost:5173'",
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "shell": {
+          "executable": "powershell",
+          "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command"]
+        }
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Run All Services",
+      "dependsOn": ["Backend: dev", "RescueLink AI: dev", "Blockchain: dev", "Web: dev", "Web: open browser"],
+      "dependsOrder": "parallel",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "Stop All Services",
+      "type": "shell",
+      "command": "${workspaceFolder}/stop-all.bat",
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "shell": {
+          "executable": "powershell",
+          "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command"]
+        }
+      },
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "shared", "focus": false }
+    },
+    {
       "label": "Flutter: Pub Get",
       "type": "shell",
       "command": "flutter",

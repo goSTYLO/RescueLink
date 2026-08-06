@@ -1,7 +1,8 @@
 const express = require('express');
-const rateLimit = require('express-rate-limit');
+const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
 const router = express.Router();
 const incidentController = require('../controllers/incident');
+const incidentAcceptance = require('../controllers/incidentAcceptance');
 const authMiddleware = require('../middleware/auth');
 const { uploadMiddleware } = require('../middleware/fileUpload');
 const { authorize, checkOwnership } = require('../middleware/rbac');
@@ -17,7 +18,8 @@ const incidentReportLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: (req) => {
     const userId = req.user?.user_id;
-    return userId != null ? `user:${userId}` : 'anonymous';
+    if (userId != null) return `user:${userId}`;
+    return ipKeyGenerator(req.ip || 'unknown');
   },
 });
 
@@ -41,12 +43,54 @@ router.get('/:id/media/:index', authMiddleware, checkOwnership('user_id'), incid
 // Users can only view their own; dispatchers/admins can view any
 router.get('/:id/with-ai', authMiddleware, checkOwnership('user_id'), incidentController.getByIdWithAi);
 
-// Verify incident (record on blockchain)
+// Save incident to blockchain only after closure + reporter confirmation
 // Dispatcher and admin only
 router.post('/:id/verify', authMiddleware, authorize([ROLES.DISPATCHER, ROLES.ADMIN]), incidentController.verifyIncident);
 
+// Guarded incident status transitions (resolved is restricted in controller to department admin/head)
+router.patch('/:id/status', authMiddleware, authorize([ROLES.DISPATCHER, ROLES.ADMIN, ROLES.DEPARTMENT_ADMIN, ROLES.DEPARTMENT_HEAD]), incidentController.updateStatus);
+
+// Reporter confirms resolution (owner-only is enforced in controller)
+router.post('/:id/confirm-resolution', authMiddleware, authorize([ROLES.USER]), incidentController.confirmResolution);
+
+// Manual reclassification with AI override audit trail
+// Dispatcher/admin/supervisor including admin role aliases
+router.post('/:id/reclassify', authMiddleware, authorize([
+  ROLES.DISPATCHER,
+  ROLES.ADMIN,
+  'supervisor',
+  'Supervisor',
+  'super-admin',
+  'superadmin',
+  'Super Admin'
+]), incidentController.reclassifyIncident);
+
+// Coordination notes endpoints (must be before generic /:id routes)
+// Get coordination notes for an incident
+router.get('/:id/coordination-notes', authMiddleware, incidentController.getCoordinationNotes);
+
+// Add a coordination note to an incident
+router.post('/:id/coordination-notes', authMiddleware, incidentController.addCoordinationNote);
+
+// Duplicate detection endpoints
+router.get('/:id/duplicates', authMiddleware, incidentController.getDuplicates);
+router.get('/:id/potential-duplicates', authMiddleware, incidentController.getPotentialDuplicates);
+router.post('/:id/link-duplicate', authMiddleware, authorize([ROLES.DISPATCHER, ROLES.ADMIN]), incidentController.linkDuplicate);
+router.post('/:id/unlink-duplicate', authMiddleware, authorize([ROLES.DISPATCHER, ROLES.ADMIN]), incidentController.unlinkDuplicate);
+router.post('/:id/clear-duplicate-flag', authMiddleware, authorize([ROLES.DISPATCHER, ROLES.ADMIN]), incidentController.clearDuplicateFlag);
+
 // Get current user's incidents (always filtered to own)
 router.get('/user/my', authMiddleware, incidentController.getMyIncidents);
+
+// ── Phase 3: Responder self-service endpoints ─────────────────────────────────
+// Must be registered before /:id routes to avoid Express shadowing them.
+router.get('/responder/active',       authMiddleware, authorize([ROLES.RESPONDER]), incidentAcceptance.getActiveAssigned);
+router.get('/responder/history',      authMiddleware, authorize([ROLES.RESPONDER]), incidentAcceptance.getResponderHistory);
+router.post('/:id/accept',            authMiddleware, authorize([ROLES.RESPONDER]), incidentAcceptance.acceptIncident);
+router.post('/:id/decline',           authMiddleware, authorize([ROLES.RESPONDER]), incidentAcceptance.declineIncident);
+router.patch('/:id/responder-status', authMiddleware, authorize([ROLES.RESPONDER]), incidentAcceptance.updateResponderStatus);
+router.post('/:id/backup',            authMiddleware, authorize([ROLES.RESPONDER]), incidentAcceptance.requestBackup);
+router.get('/:id/backup',             authMiddleware, authorize([ROLES.DISPATCHER, ROLES.ADMIN]), incidentAcceptance.getBackupRequests);
 
 // Get all incidents with pagination and filters
 // Users see only own; dispatchers/admins see all

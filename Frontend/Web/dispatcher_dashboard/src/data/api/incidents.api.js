@@ -1,14 +1,25 @@
 import { API_URL } from '@/core/config/app.config';
+import {
+  createRequestId,
+  getAuthHeaders,
+  logError,
+  logInfo,
+  logWarn,
+  parseErrorMessage,
+  parseJsonOrEmpty,
+} from '@/data/api/http';
 
-function getAuthHeaders() {
-  const token = localStorage.getItem('token');
-  if (!token) {
-    throw new Error('No authentication token found');
+const CANONICAL_INCIDENT_STATUSES = new Set(['pending', 'verified', 'in_progress', 'resolved', 'closed']);
+const INCIDENT_LIST_CACHE_MS = 8000;
+const incidentsCache = new Map();
+const inflightRequests = new Map();
+
+export function normalizeIncidentStatus(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (CANONICAL_INCIDENT_STATUSES.has(normalized)) {
+    return normalized;
   }
-  return {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${token}`,
-  };
+  return 'pending';
 }
 
 /**
@@ -17,28 +28,99 @@ function getAuthHeaders() {
  * @param {number} [params.limit=100] - Number of records to return
  * @param {number} [params.offset=0] - Number of records to skip
  * @param {string} [params.severity_level] - Filter by severity (high, medium, low)
- * @param {string} [params.status] - Filter by status (pending, resolved)
- * @returns {Promise<Array>} Array of incident objects
+ * @param {string} [params.status] - Filter by status (pending, verified, in_progress, resolved, closed)
+ * @param {string} [params.incident_type] - Filter by incident type (fire, medical, police, disaster)
+ * @param {string} [params.barangay] - Filter by barangay
+ * @param {boolean} [params.exclude_duplicates=false] - Exclude incidents marked as duplicates
+ * @param {string} [params.search] - Search by report ID (exact) or description/barangay (ILIKE)
+ * @param {number} [params.exclude_report_id] - Exclude a specific report ID (e.g. when selecting parent for duplicate)
+ * @param {boolean} [params.withMeta=false] - Include backend pagination metadata
+ * @returns {Promise<Array>} Array of incident objects (or { items, totalCount, limit, offset } if withMeta)
  */
-export async function getIncidents({ limit = 100, offset = 0, severity_level, status } = {}) {
+export async function getIncidents({
+  limit = 100,
+  offset = 0,
+  severity_level,
+  status,
+  incident_type,
+  barangay,
+  exclude_duplicates = false,
+  search,
+  exclude_report_id,
+  withMeta = false,
+} = {}) {
+  const requestId = createRequestId('web-incidents');
+  const start = performance.now();
   const params = new URLSearchParams();
   params.set('limit', String(limit));
   params.set('offset', String(offset));
   if (severity_level) params.set('severity_level', severity_level);
-  if (status) params.set('status', status);
-
-  const response = await fetch(`${API_URL}/api/incidents?${params}`, {
-    method: 'GET',
-    headers: getAuthHeaders(),
-  });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || data.error || 'Failed to fetch incidents');
+  if (status) params.set('status', normalizeIncidentStatus(status));
+  if (incident_type) params.set('incident_type', String(incident_type).toLowerCase());
+  if (barangay) params.set('barangay', barangay);
+  if (exclude_duplicates) params.set('exclude_duplicates', 'true');
+  if (search && String(search).trim()) params.set('search', String(search).trim());
+  if (exclude_report_id != null) params.set('exclude_report_id', String(exclude_report_id));
+  params.set('meta', withMeta ? '1' : '0');
+  const queryKey = params.toString();
+  const cached = incidentsCache.get(queryKey);
+  if (cached && (Date.now() - cached.timestamp) < INCIDENT_LIST_CACHE_MS) {
+    if (withMeta) {
+      return {
+        items: cached.data,
+        totalCount: Number(cached.totalCount || cached.data.length || 0),
+        limit,
+        offset,
+      };
+    }
+    return cached.data;
   }
+  const inFlight = inflightRequests.get(queryKey);
+  if (inFlight) {
+    return inFlight;
+  }
+  const requestPromise = (async () => {
+    const response = await fetch(`${API_URL}/api/incidents?${params}`, {
+      method: 'GET',
+      headers: getAuthHeaders({ requestId }),
+    });
 
-  return data;
+    const data = await parseJsonOrEmpty(response);
+
+    if (!response.ok) {
+      if (response.status === 429) {
+        const retryAfterHeader = Number(response.headers.get('retry-after') || 30);
+        logWarn(`[web][incidents][getIncidents] rate_limited request_id=${requestId} retry_after_s=${retryAfterHeader}`, 'incidents-rate-limit');
+        throw new Error(`Rate limited by server. Retry in ~${retryAfterHeader}s.`);
+      }
+      logError(`[web][incidents][getIncidents] request_id=${requestId} status=${response.status}`);
+      throw new Error(parseErrorMessage(data, 'Failed to fetch incidents'));
+    }
+
+    const normalizedItems = Array.isArray(data) ? data : [];
+    const totalHeaderValue = response.headers?.get?.('x-total-count');
+    const totalCountFromHeader = totalHeaderValue == null ? Number.NaN : Number(totalHeaderValue);
+    const totalCount = Number.isFinite(totalCountFromHeader) ? totalCountFromHeader : normalizedItems.length;
+
+    logInfo(`[web][incidents][getIncidents] request_id=${requestId} status=${response.status} latency_ms=${Math.round(performance.now() - start)}`);
+    incidentsCache.set(queryKey, { data: normalizedItems, timestamp: Date.now(), totalCount });
+    if (withMeta) {
+      return {
+        items: normalizedItems,
+        totalCount,
+        limit,
+        offset,
+      };
+    }
+    return normalizedItems;
+  })();
+  inflightRequests.set(queryKey, requestPromise);
+  try {
+    const result = await requestPromise;
+    return result;
+  } finally {
+    inflightRequests.delete(queryKey);
+  }
 }
 
 /**
@@ -47,37 +129,126 @@ export async function getIncidents({ limit = 100, offset = 0, severity_level, st
  * @returns {Promise<Object>} Incident object
  */
 export async function getIncidentById(id) {
+  const requestId = createRequestId('web-incident');
+  const start = performance.now();
   const response = await fetch(`${API_URL}/api/incidents/${id}`, {
     method: 'GET',
-    headers: getAuthHeaders(),
+    headers: getAuthHeaders({ requestId }),
   });
 
-  const data = await response.json();
+  const data = await parseJsonOrEmpty(response);
 
   if (!response.ok) {
-    throw new Error(data.message || data.error || 'Failed to fetch incident');
+    logError(`[web][incidents][getIncidentById] request_id=${requestId} report_id=${id} status=${response.status}`);
+    throw new Error(parseErrorMessage(data, 'Failed to fetch incident'));
   }
+
+  logInfo(`[web][incidents][getIncidentById] request_id=${requestId} report_id=${id} status=${response.status} latency_ms=${Math.round(performance.now() - start)}`);
 
   return data;
 }
 
 /**
- * Verify incident and record on blockchain
+ * Fetch incident plus latest AI classification metadata
  * @param {number|string} id - Incident report ID
- * @returns {Promise<Object>} { success, verified, blockchain }
+ * @returns {Promise<Object>} { incident, ai_classification }
  */
-export async function verifyIncident(id) {
-  const response = await fetch(`${API_URL}/api/incidents/${id}/verify`, {
-    method: 'POST',
-    headers: getAuthHeaders(),
+export async function getIncidentWithAi(id) {
+  const requestId = createRequestId('web-incident-ai');
+  const start = performance.now();
+  const response = await fetch(`${API_URL}/api/incidents/${id}/with-ai`, {
+    method: 'GET',
+    headers: getAuthHeaders({ requestId }),
   });
 
-  const data = await response.json();
+  const data = await parseJsonOrEmpty(response);
 
   if (!response.ok) {
-    throw new Error(data.error || 'Failed to verify incident');
+    logError(`[web][incidents][getIncidentWithAi] request_id=${requestId} report_id=${id} status=${response.status}`);
+    throw new Error(parseErrorMessage(data, 'Failed to fetch incident AI metadata'));
   }
 
+  logInfo(`[web][incidents][getIncidentWithAi] request_id=${requestId} report_id=${id} status=${response.status} latency_ms=${Math.round(performance.now() - start)}`);
+  return data;
+}
+
+/**
+ * Save closed incident snapshot to blockchain
+ * @param {number|string} id - Incident report ID
+ * @returns {Promise<Object>} { success, saved_to_blockchain, blockchain }
+ */
+export async function verifyIncident(id) {
+  const requestId = createRequestId('web-verify');
+  const start = performance.now();
+  const response = await fetch(`${API_URL}/api/incidents/${id}/verify`, {
+    method: 'POST',
+    headers: getAuthHeaders({ requestId }),
+  });
+
+  const data = await parseJsonOrEmpty(response);
+
+  if (!response.ok) {
+    logError(`[web][incidents][verifyIncident] request_id=${requestId} report_id=${id} status=${response.status}`);
+    throw new Error(parseErrorMessage(data, 'Failed to save incident to blockchain'));
+  }
+
+  logInfo(`[web][incidents][verifyIncident] request_id=${requestId} report_id=${id} status=${response.status} latency_ms=${Math.round(performance.now() - start)}`);
+
+  return data;
+}
+
+/**
+ * Update incident lifecycle status
+ * @param {number|string} id - Incident report ID
+ * @param {string} status - verified|in_progress|resolved
+ * @returns {Promise<Object>} { success, incident }
+ */
+export async function updateIncidentStatus(id, status) {
+  const requestId = createRequestId('web-incident-status');
+  const start = performance.now();
+  const response = await fetch(`${API_URL}/api/incidents/${id}/status`, {
+    method: 'PATCH',
+    headers: getAuthHeaders({ requestId }),
+    body: JSON.stringify({ status: normalizeIncidentStatus(status) }),
+  });
+
+  const data = await parseJsonOrEmpty(response);
+
+  if (!response.ok) {
+    logError(`[web][incidents][updateIncidentStatus] request_id=${requestId} report_id=${id} status=${response.status}`);
+    throw new Error(parseErrorMessage(data, 'Failed to update incident status'));
+  }
+
+  logInfo(`[web][incidents][updateIncidentStatus] request_id=${requestId} report_id=${id} status=${response.status} latency_ms=${Math.round(performance.now() - start)}`);
+  return data;
+}
+
+/**
+ * Manual reclassification of incident type/severity (human override)
+ * @param {number|string} id - Incident report ID
+ * @param {Object} payload
+ * @param {string} payload.incident_type - fire|medical|police|disaster
+ * @param {string} payload.severity_level - low|medium|high
+ * @param {string} [payload.reason] - Optional human review reason
+ * @returns {Promise<Object>} Updated incident and override classification
+ */
+export async function reclassifyIncident(id, payload) {
+  const requestId = createRequestId('web-reclassify');
+  const start = performance.now();
+  const response = await fetch(`${API_URL}/api/incidents/${id}/reclassify`, {
+    method: 'POST',
+    headers: getAuthHeaders({ requestId }),
+    body: JSON.stringify(payload),
+  });
+
+  const data = await parseJsonOrEmpty(response);
+
+  if (!response.ok) {
+    logError(`[web][incidents][reclassifyIncident] request_id=${requestId} report_id=${id} status=${response.status}`);
+    throw new Error(parseErrorMessage(data, 'Failed to reclassify incident'));
+  }
+
+  logInfo(`[web][incidents][reclassifyIncident] request_id=${requestId} report_id=${id} status=${response.status} latency_ms=${Math.round(performance.now() - start)}`);
   return data;
 }
 
@@ -87,15 +258,202 @@ export async function verifyIncident(id) {
  * @returns {Promise<string>} Blob URL for the audio (caller should revoke when done)
  */
 export async function getIncidentAudioUrl(id) {
+  const requestId = createRequestId('web-audio');
+  const start = performance.now();
   const response = await fetch(`${API_URL}/api/incidents/${id}/audio`, {
     method: 'GET',
-    headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+    headers: getAuthHeaders({ requestId, includeContentType: false }),
   });
 
   if (!response.ok) {
+    logError(`[web][incidents][getIncidentAudioUrl] request_id=${requestId} report_id=${id} status=${response.status}`);
     throw new Error('Failed to fetch audio');
   }
 
   const blob = await response.blob();
+  logInfo(`[web][incidents][getIncidentAudioUrl] request_id=${requestId} report_id=${id} status=${response.status} latency_ms=${Math.round(performance.now() - start)}`);
   return URL.createObjectURL(blob);
+}
+
+/**
+ * Fetch coordination notes for an incident
+ * @param {number|string} id - Incident report ID
+ * @returns {Promise<Array>} Array of coordination note objects
+ */
+export async function getCoordinationNotes(id) {
+  const requestId = createRequestId('web-coordination-notes');
+  const start = performance.now();
+
+  const response = await fetch(`${API_URL}/api/incidents/${id}/coordination-notes`, {
+    method: 'GET',
+    headers: getAuthHeaders({ requestId }),
+  });
+
+  const data = await parseJsonOrEmpty(response);
+
+  if (!response.ok) {
+    logError(`[web][incidents][getCoordinationNotes] request_id=${requestId} report_id=${id} status=${response.status}`);
+    throw new Error(parseErrorMessage(data, 'Failed to fetch coordination notes'));
+  }
+
+  logInfo(`[web][incidents][getCoordinationNotes] request_id=${requestId} report_id=${id} status=${response.status} latency_ms=${Math.round(performance.now() - start)}`);
+  return Array.isArray(data) ? data : [];
+}
+
+/**
+ * Add a coordination note to an incident
+ * @param {number|string} id - Incident report ID
+ * @param {Object} payload - Note data
+ * @param {string} payload.note - The note content
+ * @returns {Promise<Object>} Created note object
+ */
+export async function addCoordinationNote(id, { note }) {
+  const requestId = createRequestId('web-add-coordination-note');
+  const start = performance.now();
+
+  const response = await fetch(`${API_URL}/api/incidents/${id}/coordination-notes`, {
+    method: 'POST',
+    headers: getAuthHeaders({ requestId }),
+    body: JSON.stringify({ note }),
+  });
+
+  const data = await parseJsonOrEmpty(response);
+
+  if (!response.ok) {
+    logError(`[web][incidents][addCoordinationNote] request_id=${requestId} report_id=${id} status=${response.status}`);
+    throw new Error(parseErrorMessage(data, 'Failed to add coordination note'));
+  }
+
+  logInfo(`[web][incidents][addCoordinationNote] request_id=${requestId} report_id=${id} status=${response.status} latency_ms=${Math.round(performance.now() - start)}`);
+  return data;
+}
+
+/**
+ * Get duplicate info for an incident
+ * @param {number|string} id - Incident report ID
+ * @returns {Promise<Object>} { is_duplicate, parent_report_id, duplicate_confidence, cluster }
+ */
+export async function getIncidentDuplicates(id) {
+  const requestId = createRequestId('web-duplicates');
+  const response = await fetch(`${API_URL}/api/incidents/${id}/duplicates`, {
+    method: 'GET',
+    headers: getAuthHeaders({ requestId }),
+  });
+  const data = await parseJsonOrEmpty(response);
+  if (!response.ok) {
+    throw new Error(parseErrorMessage(data, 'Failed to fetch duplicate info'));
+  }
+  return data;
+}
+
+/**
+ * Get potential duplicates for an incident
+ * @param {number|string} id - Incident report ID
+ * @returns {Promise<Object>} { potential_duplicates }
+ */
+export async function getPotentialDuplicates(id) {
+  const requestId = createRequestId('web-potential-duplicates');
+  const response = await fetch(`${API_URL}/api/incidents/${id}/potential-duplicates`, {
+    method: 'GET',
+    headers: getAuthHeaders({ requestId }),
+  });
+  const data = await parseJsonOrEmpty(response);
+  if (!response.ok) {
+    throw new Error(parseErrorMessage(data, 'Failed to fetch potential duplicates'));
+  }
+  return data;
+}
+
+/**
+ * Link incident as duplicate of another
+ * @param {number|string} id - Incident report ID
+ * @param {number} parentReportId - Parent incident ID
+ * @param {string} [reason] - Optional reason
+ * @returns {Promise<Object>} { success, is_duplicate, parent_report_id }
+ */
+export async function linkDuplicate(id, parentReportId, reason) {
+  const requestId = createRequestId('web-link-duplicate');
+  const response = await fetch(`${API_URL}/api/incidents/${id}/link-duplicate`, {
+    method: 'POST',
+    headers: getAuthHeaders({ requestId }),
+    body: JSON.stringify({ parent_report_id: parentReportId, reason }),
+  });
+  const data = await parseJsonOrEmpty(response);
+  if (!response.ok) {
+    throw new Error(parseErrorMessage(data, 'Failed to link duplicate'));
+  }
+  return data;
+}
+
+/**
+ * Unlink incident from duplicate
+ * @param {number|string} id - Incident report ID
+ * @param {string} [reason] - Optional reason
+ * @returns {Promise<Object>} { success, is_duplicate }
+ */
+export async function unlinkDuplicate(id, reason) {
+  const requestId = createRequestId('web-unlink-duplicate');
+  const response = await fetch(`${API_URL}/api/incidents/${id}/unlink-duplicate`, {
+    method: 'POST',
+    headers: getAuthHeaders({ requestId }),
+    body: JSON.stringify({ reason }),
+  });
+  const data = await parseJsonOrEmpty(response);
+  if (!response.ok) {
+    throw new Error(parseErrorMessage(data, 'Failed to unlink duplicate'));
+  }
+  return data;
+}
+
+/**
+ * Clear duplicate-review flag (dispatcher confirms "Not a Duplicate")
+ * @param {number|string} id - Incident report ID
+ * @returns {Promise<Object>} { success, flagged_for_review }
+ */
+export async function clearDuplicateFlag(id) {
+  const requestId = createRequestId('web-clear-duplicate-flag');
+  const response = await fetch(`${API_URL}/api/incidents/${id}/clear-duplicate-flag`, {
+    method: 'POST',
+    headers: getAuthHeaders({ requestId }),
+    body: JSON.stringify({}),
+  });
+  const data = await parseJsonOrEmpty(response);
+  if (!response.ok) {
+    throw new Error(parseErrorMessage(data, 'Failed to clear duplicate flag'));
+  }
+  return data;
+}
+
+/**
+ * Fetch incident media (photo/video) by index and return a blob URL
+ * @param {number|string} id - Incident report ID
+ * @param {number} index - Media file index (0-based)
+ * @returns {Promise<{url: string, filename: string, contentType: string}>} Blob URL and metadata
+ */
+export async function getIncidentMediaUrl(id, index) {
+  const requestId = createRequestId('web-media');
+  const start = performance.now();
+  const response = await fetch(`${API_URL}/api/incidents/${id}/media/${index}`, {
+    method: 'GET',
+    headers: getAuthHeaders({ requestId, includeContentType: false }),
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    logError(`[web][incidents][getIncidentMediaUrl] request_id=${requestId} report_id=${id} index=${index} status=${response.status}`);
+    throw new Error('Failed to fetch media');
+  }
+
+  const blob = await response.blob();
+  const contentType = response.headers.get('content-type') || blob.type || 'application/octet-stream';
+  const contentDisposition = response.headers.get('content-disposition') || '';
+  const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+  const filename = filenameMatch ? filenameMatch[1].replace(/['"]/g, '') : `media_${index}`;
+
+  logInfo(`[web][incidents][getIncidentMediaUrl] request_id=${requestId} report_id=${id} index=${index} status=${response.status} content_type=${contentType} latency_ms=${Math.round(performance.now() - start)}`);
+  return {
+    url: URL.createObjectURL(blob),
+    filename,
+    contentType,
+  };
 }

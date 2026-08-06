@@ -6,24 +6,37 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "jest --runInBand",
+    "test:watch": "jest --watch",
+    "test:ci": "jest --runInBand --coverage",
+    "test:all": "npm run test && npm run test:e2e:smoke",
+    "test:e2e:smoke": "node -e \"console.log('E2E smoke placeholder. See e2e/smoke.placeholder.md for steps.');\""
   },
   "dependencies": {
     "firebase": "^10.7.1",
+    "leaflet": "^1.9.4",
     "lucide-react": "^0.487.0",
-    "mapbox-gl": "^3.18.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-map-gl": "^8.1.0",
+    "react-leaflet": "^4.2.1",
     "react-phone-input-2": "^2.15.1",
     "react-router-dom": "^7.12.0",
     "sweetalert2": "^11.15.0"
   },
   "devDependencies": {
+    "@babel/preset-env": "^7.28.3",
+    "@babel/preset-react": "^7.27.1",
+    "@testing-library/jest-dom": "^6.8.0",
+    "@testing-library/react": "^16.3.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.17",
+    "babel-jest": "^30.1.2",
+    "identity-obj-proxy": "^3.0.0",
+    "jest": "^30.1.3",
+    "jest-environment-jsdom": "^30.1.2",
     "postcss": "^8.4.35",
     "tailwindcss": "^3.4.1",
     "vite": "^6.0.3"

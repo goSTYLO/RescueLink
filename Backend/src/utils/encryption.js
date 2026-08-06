@@ -8,6 +8,31 @@ const SALT_LENGTH = 64;
 const TAG_LENGTH = 16;
 const TAG_POSITION = SALT_LENGTH + IV_LENGTH;
 const ENCRYPTED_POSITION = TAG_POSITION + TAG_LENGTH;
+const DECRYPT_CACHE_MAX_SIZE = 5000;
+
+const decryptCache = new Map();
+
+function readDecryptCache(ciphertext) {
+  if (!decryptCache.has(ciphertext)) {
+    return null;
+  }
+  const hit = decryptCache.get(ciphertext);
+  // Refresh insertion order for simple LRU behavior.
+  decryptCache.delete(ciphertext);
+  decryptCache.set(ciphertext, hit);
+  return hit;
+}
+
+function writeDecryptCache(ciphertext, plaintext) {
+  decryptCache.set(ciphertext, plaintext);
+  if (decryptCache.size <= DECRYPT_CACHE_MAX_SIZE) {
+    return;
+  }
+  const oldestKey = decryptCache.keys().next().value;
+  if (oldestKey) {
+    decryptCache.delete(oldestKey);
+  }
+}
 
 /**
  * Encrypts sensitive data using AES-256-GCM
@@ -62,6 +87,11 @@ function decrypt(encryptedData) {
     throw new Error('Encrypted data must be a string');
   }
 
+  const cached = readDecryptCache(encryptedData);
+  if (cached !== null) {
+    return cached;
+  }
+
   // Extract salt, IV, tag, and encrypted data
   const salt = Buffer.from(encryptedData.slice(0, SALT_LENGTH * 2), 'hex');
   const iv = Buffer.from(encryptedData.slice(SALT_LENGTH * 2, TAG_POSITION * 2), 'hex');
@@ -78,11 +108,66 @@ function decrypt(encryptedData) {
   // Decrypt the data
   let decrypted = decipher.update(encrypted, 'hex', 'utf8');
   decrypted += decipher.final('utf8');
+
+  writeDecryptCache(encryptedData, decrypted);
   
   return decrypted;
 }
 
+/**
+ * Returns true if the value looks like data encrypted with encrypt() (hex string, min length).
+ */
+function looksEncryptedValue(value) {
+  return typeof value === 'string'
+    && /^[0-9a-f]+$/i.test(value)
+    && value.length >= 184
+    && value.length % 2 === 0;
+}
+
+/**
+ * Decrypts value if it looks encrypted; otherwise returns as-is. Never throws.
+ */
+function tryDecryptValue(value) {
+  if (!looksEncryptedValue(value)) {
+    return value;
+  }
+  try {
+    return decrypt(value);
+  } catch {
+    return value;
+  }
+}
+
+/**
+ * Recursively decrypt any encrypted strings in an object or array.
+ * If a string is decrypted and the result looks like JSON, it is parsed and recursively decrypted.
+ */
+function recursivelyDecrypt(obj) {
+  if (obj == null) return obj;
+  if (typeof obj === 'string') {
+    const decrypted = tryDecryptValue(obj);
+    if (typeof decrypted === 'string' && (decrypted.trim().startsWith('{') || decrypted.trim().startsWith('['))) {
+      try {
+        return recursivelyDecrypt(JSON.parse(decrypted));
+      } catch {
+        return decrypted;
+      }
+    }
+    return decrypted;
+  }
+  if (Array.isArray(obj)) return obj.map(recursivelyDecrypt);
+  if (typeof obj === 'object') {
+    const out = {};
+    for (const [k, v] of Object.entries(obj)) out[k] = recursivelyDecrypt(v);
+    return out;
+  }
+  return obj;
+}
+
 module.exports = {
   encrypt,
-  decrypt
+  decrypt,
+  looksEncryptedValue,
+  tryDecryptValue,
+  recursivelyDecrypt,
 };

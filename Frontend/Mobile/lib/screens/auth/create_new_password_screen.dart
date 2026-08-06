@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../services/auth_service.dart';
+import '../../widgets/gradient_header.dart';
 
 class CreateNewPasswordScreen extends StatefulWidget {
   final String phoneNumber;
@@ -51,11 +52,34 @@ class _CreateNewPasswordScreenState extends State<CreateNewPasswordScreen> {
   }
 
   Widget _buildLogo() {
-    return Column(
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Image.asset('assets/logo/logo.png', width: 80, height: 80, fit: BoxFit.contain),
-        const SizedBox(height: 12),
-        const Text('Emergency Response & Safety', style: TextStyle(color: Color(0xFF6B7280), fontSize: 12)),
+        Image.asset('assets/logo/icon.png', width: 104, height: 104, fit: BoxFit.contain),
+        const SizedBox(width: 0),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            RichText(
+              text: TextSpan(
+                style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                children: [
+                  TextSpan(
+                      text: 'Rescue',
+                      style: TextStyle(
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? Colors.white
+                              : const Color(0xFF0F172A))),
+                  const TextSpan(
+                      text: 'Link',
+                      style: TextStyle(color: Color(0xFFFF6B6B))),
+                ],
+              ),
+            ),
+          ],
+        ),
       ],
     );
   }
@@ -104,21 +128,22 @@ class _CreateNewPasswordScreenState extends State<CreateNewPasswordScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF374151)),
-          onPressed: widget.onBack,
-        ),
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Column(
-            children: [
-              _buildLogo(),
-              const SizedBox(height: 16),
+      body: Column(
+        children: [
+          GradientHeader(
+            title: 'Create New Password',
+            onBack: widget.onBack,
+            transparentFade: true,
+          ),
+          Expanded(
+            child: SafeArea(
+              top: false,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Column(
+                  children: [
+                    _buildLogo(),
+                    const SizedBox(height: 16),
               SizedBox(
                 height: 160,
                 child: Image.asset(
@@ -127,11 +152,6 @@ class _CreateNewPasswordScreenState extends State<CreateNewPasswordScreen> {
                 ),
               ),
               const SizedBox(height: 24),
-              const Text(
-                'Create New Password',
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF111827)),
-              ),
-              const SizedBox(height: 8),
               const Text(
                 'Choose a strong password',
                 style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
@@ -262,9 +282,12 @@ class _CreateNewPasswordScreenState extends State<CreateNewPasswordScreen> {
                 ),
               ),
               const SizedBox(height: 40),
-            ],
+                  ],
+                ),
+              ),
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

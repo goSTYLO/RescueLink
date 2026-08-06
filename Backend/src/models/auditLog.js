@@ -1,58 +1,58 @@
 const pool = require('../config/db');
-const { encryptFields, decryptFields, decryptRows } = require('../utils/encryptedField');
+const { decrypt } = require('../utils/encryption');
 
-// Sensitive fields that should be encrypted at rest (from dispatcher_audit_logs table)
-const SENSITIVE_FIELDS = ['ip_address', 'details'];
+function looksEncryptedValue(value) {
+  return typeof value === 'string'
+    && /^[0-9a-f]+$/i.test(value)
+    && value.length >= 184
+    && value.length % 2 === 0;
+}
 
-// User fields from JOIN with users table (also encrypted)
-const USER_FIELDS = ['user_email', 'user_first_name', 'user_last_name'];
+function tryDecryptValue(value) {
+  if (!looksEncryptedValue(value)) {
+    return value;
+  }
 
-// Field types for proper deserialization
-const FIELD_TYPES = {
-  ip_address: 'string',
-  details: 'string', // Store as encrypted string, parse to JSON after decrypt
-  // User field types (from users table JOIN)
-  user_email: 'string',
-  user_first_name: 'string',
-  user_last_name: 'string'
-};
+  try {
+    return decrypt(value);
+  } catch {
+    return value;
+  }
+}
+
+function decodeAuditUserFields(row) {
+  if (!row || typeof row !== 'object') {
+    return row;
+  }
+
+  return {
+    ...row,
+    user_email: tryDecryptValue(row.user_email),
+    user_first_name: tryDecryptValue(row.user_first_name),
+    user_last_name: tryDecryptValue(row.user_last_name)
+  };
+}
+
+const { recursivelyDecrypt } = require('../utils/encryption');
+
+function decodeAuditRow(row) {
+  if (!row || typeof row !== 'object') return row;
+  return {
+    ...row,
+    user_email: row.user_email != null ? tryDecryptValue(row.user_email) : row.user_email,
+    user_first_name: row.user_first_name != null ? tryDecryptValue(row.user_first_name) : row.user_first_name,
+    user_last_name: row.user_last_name != null ? tryDecryptValue(row.user_last_name) : row.user_last_name,
+    details: row.details != null ? recursivelyDecrypt(row.details) : row.details,
+  };
+}
 
 const AuditLog = {
   async create({ user_id, action, resource_type, resource_id = null, details = null, ip_address = null, user_agent = null }) {
-    console.log('\n📝 [AuditLog.create] Creating audit log entry');
-    
-    // Convert details object to JSON string BEFORE encryption
-    const detailsString = details ? JSON.stringify(details) : null;
-    
-    // Encrypt sensitive fields before saving
-    const dataToSave = encryptFields({
-      ip_address,
-      details: detailsString
-    }, SENSITIVE_FIELDS);
-    
-    console.log('💾 [AuditLog.create] Encrypted data ready for database');
-
     const res = await pool.query(
       `INSERT INTO dispatcher_audit_logs(user_id, action, resource_type, resource_id, details, ip_address, user_agent)
        VALUES($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [user_id, action, resource_type, resource_id, dataToSave.details, dataToSave.ip_address, user_agent]
+      [user_id, action, resource_type, resource_id, details ? JSON.stringify(details) : null, ip_address, user_agent]
     );
-    
-    console.log('✅ [AuditLog.create] Audit log created successfully');
-    
-    // Decrypt sensitive fields before returning
-    if (res.rows[0]) {
-      const decrypted = decryptFields(res.rows[0], SENSITIVE_FIELDS, FIELD_TYPES);
-      // Parse details string back to JSON object
-      if (decrypted.details) {
-        try {
-          decrypted.details = JSON.parse(decrypted.details);
-        } catch (e) {
-          console.warn('⚠️  [AuditLog.create] Could not parse details as JSON:', e.message);
-        }
-      }
-      return decrypted;
-    }
     return res.rows[0];
   },
 
@@ -98,21 +98,46 @@ const AuditLog = {
     params.push(cappedLimit, offset);
 
     const res = await pool.query(query, params);
-    // Decrypt audit log fields AND user fields (from JOIN with users table)
-    const allFieldsToDecrypt = [...SENSITIVE_FIELDS, ...USER_FIELDS];
-    const decryptedRows = decryptRows(res.rows, allFieldsToDecrypt, FIELD_TYPES);
-    
-    // Parse details string back to JSON for each row
-    return decryptedRows.map(row => {
-      if (row.details) {
-        try {
-          row.details = JSON.parse(row.details);
-        } catch (e) {
-          console.warn('⚠️  [AuditLog.findAll] Could not parse details as JSON');
-        }
-      }
-      return row;
-    });
+    return res.rows.map(decodeAuditRow);
+  },
+
+  /**
+   * Find audit logs for admin users only (users with role = 'admin').
+   * Used for Admin Logs tab in Admin Actions page.
+   */
+  async findAdminLogs({ action = null, from = null, to = null, limit = 50, offset = 0 } = {}) {
+    const cappedLimit = Math.min(limit, 100);
+    let query = `
+      SELECT al.id, al.user_id, al.action, al.resource_type, al.resource_id, al.details, al.ip_address, al.user_agent, al.created_at,
+             u.email AS user_email, u.first_name AS user_first_name, u.last_name AS user_last_name
+      FROM dispatcher_audit_logs al
+      INNER JOIN users u ON al.user_id = u.user_id AND u.role = 'admin'
+      WHERE 1=1
+    `;
+    const params = [];
+    let paramCount = 0;
+
+    if (action) {
+      paramCount++;
+      query += ` AND al.action = $${paramCount}`;
+      params.push(action);
+    }
+    if (from) {
+      paramCount++;
+      query += ` AND al.created_at >= $${paramCount}`;
+      params.push(from);
+    }
+    if (to) {
+      paramCount++;
+      query += ` AND al.created_at <= $${paramCount}`;
+      params.push(to);
+    }
+
+    query += ` ORDER BY al.created_at DESC LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}`;
+    params.push(cappedLimit, offset);
+
+    const res = await pool.query(query, params);
+    return res.rows.map(decodeAuditRow);
   }
 };
 

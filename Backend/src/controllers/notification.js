@@ -1,5 +1,6 @@
 const Notification = require('../models/notification');
 const { validateInteger, validateString, validateOptionalString, validatePagination } = require('../utils/validation');
+const { ROLES } = require('../config/roles');
 
 const notificationController = {
   // Create new notification
@@ -61,10 +62,49 @@ const notificationController = {
         return res.status(404).json({ error: 'Notification not found' });
       }
 
+      const isUserRole = String(req.user?.role || '').toLowerCase() === ROLES.USER;
+      if (isUserRole && notification.user_id !== req.user.user_id) {
+        return res.status(403).json({ error: 'Forbidden. You can only access your own notifications.' });
+      }
+
       res.json(notification);
     } catch (error) {
       console.error('Error fetching notification:', error);
       if (error.message.includes('must be')) {
+        return res.status(400).json({ error: error.message });
+      }
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+
+  // Mark all notifications as read for current user
+  async markAllAsRead(req, res) {
+    try {
+      const userId = req.user?.user_id;
+      if (!userId) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+      const count = await Notification.markAllAsReadByUserId(userId);
+      res.json({ marked: count });
+    } catch (error) {
+      if (error.message?.includes('must be')) {
+        return res.status(400).json({ error: error.message });
+      }
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+
+  // Get unread count for badge display (current user)
+  async getUnreadCount(req, res) {
+    try {
+      const userId = req.user?.user_id;
+      if (!userId) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+      const count = await Notification.countUnreadByUserId(userId);
+      res.json({ count });
+    } catch (error) {
+      if (error.message?.includes('must be')) {
         return res.status(400).json({ error: error.message });
       }
       res.status(500).json({ error: 'Internal server error' });
@@ -86,9 +126,14 @@ const notificationController = {
       const { limit: validatedLimit, offset: validatedOffset } = validatePagination(limit, offset);
       
       // Validate optional filters
-      const validatedUserId = user_id ? validateInteger(user_id, 'user_id') : null;
+      let validatedUserId = user_id ? validateInteger(user_id, 'user_id') : null;
       const validatedReportId = report_id ? validateInteger(report_id, 'report_id') : null;
       const validatedSentVia = sent_via ? validateString(sent_via, 'sent_via', 1, 50) : null;
+
+      const isUserRole = String(req.user?.role || '').toLowerCase() === ROLES.USER;
+      if (isUserRole) {
+        validatedUserId = req.user.user_id;
+      }
 
       const notifications = await Notification.findAll({
         limit: validatedLimit,
@@ -97,6 +142,11 @@ const notificationController = {
         report_id: validatedReportId,
         sent_via: validatedSentVia
       });
+
+      const unreadCount = validatedUserId
+        ? await Notification.countUnreadByUserId(validatedUserId)
+        : 0;
+      res.set('X-Unread-Count', String(unreadCount));
 
       res.json(notifications);
     } catch (error) {

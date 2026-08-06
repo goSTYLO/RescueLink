@@ -2,6 +2,82 @@
 
 Flutter mobile application for RescueLink built with BLoC architecture.
 
+## Phase 3: Incident Acceptance Workflow (Responder Mode)
+
+Users with role `responder` (promoted upon application approval) unlock a dedicated 4th tab:
+- **Role Gating**: Tab 3 (`Responder`) is conditionally inserted into the bottom navigation bar (`[Home, Reports, Responder, Settings]`).
+- **Responder Dashboard (`ResponderDashboardScreen`)**:
+  - **Online/Offline Toggle**: Persisted server-side via `PATCH /api/responders/me/online-status`.
+  - **Active Assignments**: List of active incidents assigned to the responder with status indicators (`Assigned`, `En Route`, `On Scene`, `Resolved`).
+- **Incident Alert Modal (`IncidentAlertModal`)**:
+  - Automatically pops up on receiving a `responder:incident_alert` WebSocket event when responder is online.
+  - Displays incident type, severity, and barangay location.
+  - **Accept**: Assigns incident to responder and opens Responder Incident Detail screen.
+  - **Decline**: Dismisses modal and logs action.
+- **Responder Incident Detail (`ResponderIncidentDetailScreen`)**:
+  - **Interactive Map**: Built with `flutter_map` and OpenStreetMap tiles with pin placement for incident location.
+  - **Response Progress Stepper**: State machine enforcement (`Assigned` -> `En Route` -> `On Scene` -> `Resolved`).
+  - **Request Backup**: Dialog to request backup from CDRRMO, nearby responders, or both.
+- **Response History (`ResponderHistoryScreen`)**:
+  - Paginated list of past completed (Resolved) incidents.
+- **Richer Notification Categories**:
+  - Extended `NotificationsScreen` with custom styling and badges for `application_approved`, `application_rejected`, `responder_assigned`, `responder_status_updated`, and `backup_requested`.
+
+## Volunteer Responder Onboarding (Credential-Based)
+
+Citizens can apply to become Volunteer First Responders directly from the settings screen in the mobile app:
+- **Entry Point**: `Apply as First Responder` item in `Settings` under Account Information.
+- **Multi-Tab Application Flow (`ResponderOnboardingScreen`)**:
+  - **Tab 1: Terms & Conditions**: Scrollable program terms with mandatory agreement checkbox.
+  - **Tab 2: Role Overview**: Responsibilities and safety expectations for volunteer responders.
+  - **Tab 3: Requirements Checklist**: Mandatory Government ID upload plus optional Training Certificates and Supporting Documents (supports images and PDFs via `file_picker`).
+  - **Tab 4: Application Form**: Pre-filled personal details and required emergency contact person details with application submit action.
+- **Status & Transparency Screen (`ApplicationStatusScreen`)**:
+  - Displays application status (`Pending Review`, `Approved`, or `Not Approved`).
+  - Upon rejection, reviewer notes are displayed to the user for full transparency with an option to submit a new application.
+
+## Duplicate Incident Management
+
+Duplicate incident linking is a **dispatcher-only** feature available on the web dashboard. The mobile app does not include duplicate management UI. When creating an incident, the backend may return a response indicating a potential related incident; that is informational only. Dispatchers verify and link duplicates via the web app.
+
+## Session Updates (Incident + Notification Integration)
+
+Recent mobile updates:
+
+- **Incident Details notification access**:
+  - notification bell icon added to the Incident Details header (next to logo).
+  - tapping opens the Notifications screen, consistent with Report History and Settings.
+  - optional `onNotificationsTap` callback allows parent override; default pushes Notifications screen.
+- **Exit confirmation**:
+  - `PopScope` on home shows confirmation dialog when user attempts to exit the app.
+- **Logout confirmation UX**:
+  - "Log out from all devices" copy updated to "End all active sessions on your phone and tablet" (removed "and web browser").
+  - Cancel button uses `theme.colorScheme.onSurface` and `theme.colorScheme.outline` for correct visibility in dark mode.
+- **Unified incident experience**:
+  - `Emergency Tracking` and `Report Details` were merged into a single `Incident Details` screen.
+  - incident layout is tracking-first (status, timeline, responder availability/location placeholders, then details/evidence).
+  - opening from submit flow and report history now routes to the same incident screen.
+- **Incident lifecycle UX alignment**:
+  - mobile status rendering supports canonical flow including `in_progress`.
+  - reporter confirmation action is available after dispatcher/admin marks incident `resolved`.
+- **Swipe-to-refresh coverage**:
+  - `Report History` supports pull-to-refresh for latest incidents.
+  - `Incident Details` supports pull-to-refresh for latest status, AI fields, and evidence metadata.
+- **Inline evidence UX**:
+  - voice recording supports inline play/pause/progress and file download.
+  - attached images support inline preview and download.
+  - attached videos currently use download flow (inline video preview/playback is pending).
+- **Notifications integration**:
+  - notifications screen is backend-driven via `/api/notifications`.
+  - pull-to-refresh, loading/error/empty states, and dynamic card styling by `sent_via`.
+  - **Mark all as read** supported via `POST /api/notifications/mark-all-read`.
+  - **Notification badge** on Report History, Incident Details, and Home screens.
+  - **Richer notification cards**: collapsed view shows incident type + preview (e.g. "Fire • Status updated to In Progress"); expanded view shows incident type, status update, full message, and View button.
+  - Tap to expand/collapse; View button navigates to incident details.
+- **API error handling hardening**:
+  - `ApiService` now rethrows `ApiException` consistently so screen-level messages preserve backend context.
+  - incident detail loading now handles `/with-ai` fallback more strictly (falls back only when endpoint is unavailable).
+
 ## Prerequisites
 
 - Flutter SDK (3.0.0 or higher)
@@ -37,6 +113,49 @@ Flutter mobile application for RescueLink built with BLoC architecture.
    ```bash
    flutter run
    ```
+
+## Troubleshooting: Force Full Rebuild (Windows / PowerShell)
+
+If `flutter run` installs an older version of the app, use these steps to force a full clean rebuild and reinstall.
+
+1. Stop any running `flutter run` (Ctrl+C).
+2. Clean Flutter and Gradle artifacts and refresh packages:
+
+```powershell
+flutter clean
+Remove-Item -Recurse -Force .\build
+Remove-Item -Recurse -Force .\android\app\build
+cd android
+.\gradlew.bat clean
+cd ..
+flutter pub get
+```
+
+3. (Optional) Repair pub cache:
+
+```powershell
+flutter pub cache repair
+```
+
+4. Rebuild and run:
+
+```powershell
+flutter run
+```
+
+5. To explicitly build and reinstall the APK (physical device):
+
+```powershell
+flutter build apk --debug
+adb uninstall your.package.name
+adb install -r .\build\app\outputs\apk\debug\app-debug.apk
+```
+
+Replace `your.package.name` with the app package ID (see `android/app/src/main/AndroidManifest.xml`).
+
+Quick tips:
+- In an active `flutter run` session: press `r` for hot reload, `R` for full restart.
+- Android emulator uses `http://10.0.2.2:3000` for host machine APIs.
 
 ## Project Structure
 
@@ -94,6 +213,7 @@ class ExampleBloc extends Bloc<ExampleEvent, ExampleState> {
 - **equatable**: Value equality for states and events
 - **http**: HTTP client for API calls
 - **shared_preferences**: Local storage for app data
+- **audioplayers**: Inline audio playback for incident evidence
 
 ## API Integration
 
@@ -150,8 +270,7 @@ flutter build ios --release
 ## Next Steps
 
 - Implement authentication BLoC
-- Create incident reporting screens
-- Integrate with backend API endpoints
+- Extend inline incident evidence support to video preview/playback
 - Add location services
 - Implement push notifications
 

@@ -1,8 +1,11 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show SystemNavigator;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'firebase_options.dart';
+import 'theme/app_theme.dart';
+import 'services/theme_service.dart';
 import 'bloc/auth/auth_bloc.dart';
 import 'bloc/auth/auth_event.dart';
 import 'bloc/auth/auth_state.dart';
@@ -22,8 +25,7 @@ import 'screens/verification/verification_otp_screen.dart';
 import 'screens/verification/outside_service_area_screen.dart';
 import 'screens/home/home_placeholder_screen.dart';
 import 'screens/home/emergency_report_screen.dart';
-import 'screens/home/emergency_tracking_screen.dart';
-import 'screens/home/report_details_screen.dart';
+import 'screens/home/incident_details_screen.dart';
 import 'screens/home/change_phone_number_screen.dart';
 import 'screens/home/enter_new_phone_number_screen.dart';
 import 'screens/home/verify_new_phone_otp_screen.dart';
@@ -33,7 +35,9 @@ import 'screens/home/emergency_contacts_screen.dart';
 import 'screens/home/change_password_screen.dart';
 import 'screens/home/privacy_security_screen.dart';
 import 'screens/home/logout_confirmation_screen.dart';
+import 'screens/home/about_screen.dart';
 import 'services/incident_service.dart';
+import 'services/websocket_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -43,34 +47,55 @@ void main() async {
   runApp(const RescueLinkApp());
 }
 
-class RescueLinkApp extends StatelessWidget {
+class RescueLinkApp extends StatefulWidget {
   const RescueLinkApp({super.key});
+
+  @override
+  State<RescueLinkApp> createState() => _RescueLinkAppState();
+}
+
+class _RescueLinkAppState extends State<RescueLinkApp> {
+  ThemeMode _themeMode = ThemeMode.system;
+
+  @override
+  void initState() {
+    super.initState();
+    ThemeService.getThemeMode().then((mode) {
+      if (mounted) setState(() => _themeMode = mode);
+    });
+  }
+
+  Future<void> _onThemeChanged(ThemeMode mode) async {
+    await ThemeService.setThemeMode(mode);
+    if (mounted) setState(() => _themeMode = mode);
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'RescueLink',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-        useMaterial3: true,
-      ),
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: _themeMode,
       home: BlocProvider<AuthBloc>(
         create: (_) => AuthBloc(AuthService()),
-        child: const AuthNavigator(),
+        child: AuthNavigator(onThemeChanged: _onThemeChanged),
       ),
     );
   }
 }
 
 class AuthNavigator extends StatefulWidget {
-  const AuthNavigator({super.key});
+  final Future<void> Function(ThemeMode mode)? onThemeChanged;
+
+  const AuthNavigator({super.key, this.onThemeChanged});
 
   @override
   State<AuthNavigator> createState() => _AuthNavigatorState();
 }
 
-class _AuthNavigatorState extends State<AuthNavigator> {
+class _AuthNavigatorState extends State<AuthNavigator> with WidgetsBindingObserver {
   bool _checkingSession = true;
   bool _showSignUp = false;
   String? _forgotFlowScreen;
@@ -98,9 +123,10 @@ class _AuthNavigatorState extends State<AuthNavigator> {
   bool _isInsideDagupan = true;
   bool _showDashboard = false;
   bool _showEmergencyReport = false;
-  bool _showEmergencyTracking = false;
-  bool _showReportDetails = false;
-  int? _selectedReportId;
+  bool _showIncidentDetails = false;
+  bool _incidentDetailsFromHistory = false;
+  int? _incidentDetailsReportId;
+  Map<String, dynamic>? _incidentDetailsInitialIncident;
   bool _emergencyNoAiInProgress = false;
   bool _showChangePhoneNumber = false;
   bool _showEnterNewPhoneNumber = false;
@@ -111,9 +137,13 @@ class _AuthNavigatorState extends State<AuthNavigator> {
   bool _showChangePassword = false;
   bool _showPasswordUpdatedFromSettings = false;
   bool _showPrivacySecurity = false;
+  bool _showAbout = false;
   bool _showLogoutConfirmation = false;
   bool _returnToSettingsTab = false;
+  bool _returnToReportsTab = false;
   String _newPhoneNumberForOtp = '';
+
+
 
   // Login path verification flow (after login): Request OTP -> Enter OTP -> dashboard
   String? _verificationStep;
@@ -122,7 +152,23 @@ class _AuthNavigatorState extends State<AuthNavigator> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _restoreSession();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _showDashboard) {
+      if (!AuthService().hasValidToken()) {
+        _backToLogin();
+      }
+    }
   }
 
   Future<void> _restoreSession() async {
@@ -133,8 +179,11 @@ class _AuthNavigatorState extends State<AuthNavigator> {
       _showDashboard = hasValidToken;
       _checkingSession = false;
     });
-    if (!hasValidToken) {
+    if (hasValidToken) {
+      WebSocketService().connect();
+    } else {
       await authService.clearToken();
+      WebSocketService().disconnect();
     }
   }
 
@@ -169,9 +218,10 @@ class _AuthNavigatorState extends State<AuthNavigator> {
       _showResidencyCheck = false;
       _showDashboard = false;
       _showEmergencyReport = false;
-      _showEmergencyTracking = false;
-      _showReportDetails = false;
-      _selectedReportId = null;
+      _showIncidentDetails = false;
+      _incidentDetailsFromHistory = false;
+      _incidentDetailsReportId = null;
+      _incidentDetailsInitialIncident = null;
       _emergencyNoAiInProgress = false;
       _showChangePhoneNumber = false;
       _showEnterNewPhoneNumber = false;
@@ -182,8 +232,10 @@ class _AuthNavigatorState extends State<AuthNavigator> {
       _showChangePassword = false;
       _showPasswordUpdatedFromSettings = false;
       _showPrivacySecurity = false;
+      _showAbout = false;
       _showLogoutConfirmation = false;
       _returnToSettingsTab = false;
+      _returnToReportsTab = false;
       _newPhoneNumberForOtp = '';
       _verificationStep = null;
       _forgotPasswordIdToken = null;
@@ -191,6 +243,7 @@ class _AuthNavigatorState extends State<AuthNavigator> {
   }
 
   Future<void> _performLogout() async {
+    WebSocketService().disconnect();
     await AuthService().logout();
     if (!mounted) return;
     _backToLogin();
@@ -204,46 +257,55 @@ class _AuthNavigatorState extends State<AuthNavigator> {
   }
 
   Future<void> _onEmergencyNoAiPressed(BuildContext context) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Send emergency report?'),
-        content: const Text(
-          'Your location will be sent immediately. Responders will be notified. Continue?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Send'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
-
     setState(() => _emergencyNoAiInProgress = true);
 
     try {
-      await IncidentService().reportEmergency();
+      final response = await IncidentService().reportEmergency();
+      final incident =
+          (response['incident'] as Map?)?.cast<String, dynamic>() ??
+              <String, dynamic>{};
+      final reportId = (incident['report_id'] as num?)?.toInt();
+      if (!mounted) return;
+      setState(() => _emergencyNoAiInProgress = false);
+      final dupInfo = DuplicateInfo.fromResponse(response);
+      if (dupInfo?.shouldShowDialog == true && context.mounted) {
+        await showDialog<void>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Possible Duplicate Detected'),
+            content: Text(
+              dupInfo!.isDuplicate
+                  ? 'This report was linked to an existing incident (same location/time).'
+                  : 'This appears related to an existing incident. Your report was submitted.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+      }
       if (!mounted) return;
       setState(() {
-        _emergencyNoAiInProgress = false;
-        _showEmergencyTracking = true;
+        _showIncidentDetails = true;
+        _incidentDetailsFromHistory = false;
+        _incidentDetailsReportId = reportId;
+        _incidentDetailsInitialIncident = incident.isEmpty ? null : incident;
       });
+      if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Report submitted.')),
       );
     } catch (e) {
       if (!mounted) return;
       setState(() => _emergencyNoAiInProgress = false);
+      if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(e is IncidentServiceException ? e.message : e.toString()),
+          content:
+              Text(e is IncidentServiceException ? e.message : e.toString()),
           backgroundColor: Colors.red,
         ),
       );
@@ -259,7 +321,8 @@ class _AuthNavigatorState extends State<AuthNavigator> {
           setState(() {
             _registeredPhone = state.phone;
             _showSignUp = false;
-            _showAccountCreated = true; // Account Created first; OTP when they tap "Continue to verify phone"
+            _showAccountCreated =
+                true; // Account Created first; OTP when they tap "Continue to verify phone"
           });
           context.read<AuthBloc>().add(const AuthReset());
         }
@@ -271,6 +334,10 @@ class _AuthNavigatorState extends State<AuthNavigator> {
           context.read<AuthBloc>().add(const AuthReset());
         }
         if (state is LoginSuccess) {
+          // Brief delay so token is fully persisted before WebSocket connects
+          Future.delayed(const Duration(milliseconds: 200), () {
+            if (mounted) WebSocketService().connect();
+          });
           setState(() {
             _showDashboard = true;
             _showLoginAfterPhoneVerified = false;
@@ -294,26 +361,32 @@ class _AuthNavigatorState extends State<AuthNavigator> {
       if (_showEmergencyReport) {
         return EmergencyReportScreen(
           onBack: () => setState(() => _showEmergencyReport = false),
-          onSubmit: () {
-            // TODO: submit report to API
+          onSubmit: (incident) {
+            final reportId = (incident['report_id'] as num?)?.toInt();
             setState(() {
               _showEmergencyReport = false;
-              _showEmergencyTracking = true;
+              _showIncidentDetails = true;
+              _incidentDetailsFromHistory = false;
+              _incidentDetailsReportId = reportId;
+              _incidentDetailsInitialIncident = incident.isEmpty ? null : incident;
             });
           },
         );
       }
-      if (_showEmergencyTracking) {
-        return EmergencyTrackingScreen(
-          onBack: () => setState(() => _showEmergencyTracking = false),
-        );
-      }
-      if (_showReportDetails) {
-        return ReportDetailsScreen(
-          reportId: _selectedReportId,
+      if (_showIncidentDetails) {
+        return IncidentDetailsScreen(
+          reportId: _incidentDetailsReportId,
+          initialIncident: _incidentDetailsInitialIncident,
           onBack: () => setState(() {
-            _showReportDetails = false;
-            _selectedReportId = null;
+            _showIncidentDetails = false;
+            _incidentDetailsReportId = null;
+            _incidentDetailsInitialIncident = null;
+            _returnToReportsTab = _incidentDetailsFromHistory;
+            _incidentDetailsFromHistory = false;
+          }),
+          onReportTap: (reportId) => setState(() {
+            _incidentDetailsReportId = reportId;
+            _incidentDetailsInitialIncident = null;
           }),
         );
       }
@@ -391,6 +464,19 @@ class _AuthNavigatorState extends State<AuthNavigator> {
           }),
         );
       }
+      if (_showAbout) {
+        return AboutScreen(
+          onBack: () => setState(() {
+            _showAbout = false;
+            _returnToSettingsTab = true;
+          }),
+          onPrivacySecurityTap: () => setState(() {
+            _showAbout = false;
+            _showPrivacySecurity = true;
+            _returnToSettingsTab = true;
+          }),
+        );
+      }
       if (_showPrivacySecurity) {
         return PrivacySecurityScreen(
           onBack: () => setState(() {
@@ -412,23 +498,71 @@ class _AuthNavigatorState extends State<AuthNavigator> {
           onConfirm: _performLogout,
         );
       }
-      return Stack(
-        children: [
-          HomePlaceholderScreen(
-            initialTabIndex: _returnToSettingsTab ? 2 : null,
-            onInitialTabApplied: _returnToSettingsTab ? () => setState(() => _returnToSettingsTab = false) : null,
+      return PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, _) async {
+          if (didPop) return;
+          final confirmed = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('Exit RescueLink?'),
+              content: const Text(
+                'Are you sure you want to exit the app?',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(false),
+                  child: const Text('Cancel'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(true),
+                  child: const Text('Exit'),
+                ),
+              ],
+            ),
+          );
+          if (confirmed == true && mounted) {
+            WebSocketService().disconnect();
+            await AuthService().logout();
+            if (!mounted) return;
+            await Future.delayed(const Duration(milliseconds: 150));
+            if (!mounted) return;
+            SystemNavigator.pop();
+          }
+        },
+        child: Stack(
+          children: [
+            HomePlaceholderScreen(
+            onThemeChanged: widget.onThemeChanged,
+            initialTabIndex: _returnToSettingsTab
+                ? (AuthService().getUserRole() == 'responder' ? 3 : 2)
+                : (_returnToReportsTab ? 1 : null),
+            onInitialTabApplied: (_returnToSettingsTab || _returnToReportsTab)
+                ? () => setState(() {
+                      _returnToSettingsTab = false;
+                      _returnToReportsTab = false;
+                    })
+                : null,
             onLogout: () => setState(() => _showLogoutConfirmation = true),
             onSosPressed: () => setState(() => _showEmergencyReport = true),
             onEmergencyNoAiPressed: () => _onEmergencyNoAiPressed(context),
             onReportTap: (reportId) => setState(() {
-          _showReportDetails = true;
-          _selectedReportId = reportId;
-        }),
-            onPhoneNumberTap: () => setState(() => _showChangePhoneNumber = true),
-            onBarangayTap: () => setState(() => _showBarangayInformation = true),
-            onEmergencyContactsTap: () => setState(() => _showEmergencyContacts = true),
-            onChangePasswordTap: () => setState(() => _showChangePassword = true),
-            onPrivacySecurityTap: () => setState(() => _showPrivacySecurity = true),
+              _showIncidentDetails = true;
+              _incidentDetailsFromHistory = true;
+              _incidentDetailsReportId = reportId;
+              _incidentDetailsInitialIncident = null;
+            }),
+            onPhoneNumberTap: () =>
+                setState(() => _showChangePhoneNumber = true),
+            onBarangayTap: () =>
+                setState(() => _showBarangayInformation = true),
+            onEmergencyContactsTap: () =>
+                setState(() => _showEmergencyContacts = true),
+            onChangePasswordTap: () =>
+                setState(() => _showChangePassword = true),
+            onPrivacySecurityTap: () =>
+                setState(() => _showPrivacySecurity = true),
+            onAboutTap: () => setState(() => _showAbout = true),
           ),
           if (_emergencyNoAiInProgress)
             Container(
@@ -438,11 +572,14 @@ class _AuthNavigatorState extends State<AuthNavigator> {
               ),
             ),
         ],
+        ),
       );
     }
 
     // Sign-up flow: Verify Dagupan (only after Create Account from form)
-    if (_showSignUp && _showVerifyDagupanForSignup && _pendingSignUpData != null) {
+    if (_showSignUp &&
+        _showVerifyDagupanForSignup &&
+        _pendingSignUpData != null) {
       return VerifyDagupanResidencyScreen(
         onVerificationComplete: (double lat, double lng) {
           final data = _pendingSignUpData!;
@@ -464,12 +601,14 @@ class _AuthNavigatorState extends State<AuthNavigator> {
         onRefreshGps: () => setState(() {}),
         onLocationVerificationFailed: () {
           setState(() {
-            _registeredBarangay = _pendingSignUpData?['address'] ?? 'Barangay Poblacion Oeste';
+            _registeredBarangay =
+                _pendingSignUpData?['address'] ?? 'Barangay Poblacion Oeste';
             _showVerifyDagupanForSignup = false;
             _pendingSignUpData = null;
           });
         },
-        selectedBarangay: _pendingSignUpData!['address'] ?? 'Barangay Poblacion Oeste',
+        selectedBarangay:
+            _pendingSignUpData!['address'] ?? 'Barangay Poblacion Oeste',
       );
     }
 
@@ -496,7 +635,8 @@ class _AuthNavigatorState extends State<AuthNavigator> {
             _showVerificationOtp = false;
             _showSignUp = false;
             _showAccountCreated = false;
-            _showLoginAfterPhoneVerified = true; // go to Login after OTP success
+            _showLoginAfterPhoneVerified =
+                true; // go to Login after OTP success
           });
           context.read<AuthBloc>().add(const AuthReset());
         },
@@ -513,7 +653,8 @@ class _AuthNavigatorState extends State<AuthNavigator> {
     if (_showSignUp) {
       return SignUpScreen(
         onLoginTap: _toggleView,
-        onRequestLocationVerification: (firstName, lastName, phone, address, password) {
+        onRequestLocationVerification:
+            (firstName, lastName, phone, address, password) {
           setState(() {
             _pendingSignUpData = {
               'firstName': firstName,
@@ -555,6 +696,9 @@ class _AuthNavigatorState extends State<AuthNavigator> {
         onSignUpTap: _toggleView,
         onForgotPasswordTap: _showForgotPassword,
         onLoginSuccess: () {
+          Future.delayed(const Duration(milliseconds: 200), () {
+            if (mounted) WebSocketService().connect();
+          });
           setState(() {
             _showLoginAfterPhoneVerified = false;
             _showDashboard = true;
@@ -584,6 +728,9 @@ class _AuthNavigatorState extends State<AuthNavigator> {
                 _showResidencyCheck = false;
                 _showDashboard = true;
               });
+              Future.delayed(const Duration(milliseconds: 200), () {
+                if (mounted) WebSocketService().connect();
+              });
             },
             onBack: () => setState(() => _verificationStep = 'human'),
             selectedBarangay: 'Barangay Poblacion Oeste',
@@ -591,7 +738,8 @@ class _AuthNavigatorState extends State<AuthNavigator> {
           );
         }
         return VerifyDagupanResidencyScreen(
-          onVerificationComplete: (double lat, double lng) => setState(() => _verificationStep = 'human'),
+          onVerificationComplete: (double lat, double lng) =>
+              setState(() => _verificationStep = 'human'),
           onRefreshGps: () => setState(() {}),
           selectedBarangay: 'Barangay Poblacion Oeste',
         );
@@ -615,7 +763,8 @@ class _AuthNavigatorState extends State<AuthNavigator> {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text(r['error'] as String? ?? 'Could not send code. Check the number and try again.'),
+                      content: Text(r['error'] as String? ??
+                          'Could not send code. Check the number and try again.'),
                       backgroundColor: const Color(0xFFEF4444),
                       behavior: SnackBarBehavior.floating,
                     ),
@@ -642,7 +791,8 @@ class _AuthNavigatorState extends State<AuthNavigator> {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text(r['error'] as String? ?? 'Invalid code. Please try again.'),
+                      content: Text(r['error'] as String? ??
+                          'Invalid code. Please try again.'),
                       backgroundColor: const Color(0xFFEF4444),
                       behavior: SnackBarBehavior.floating,
                     ),
@@ -660,11 +810,13 @@ class _AuthNavigatorState extends State<AuthNavigator> {
           );
         case 'verified':
           return VerifiedScreen(
-            onDone: () => setState(() => _forgotFlowScreen = 'create_new_password'),
+            onDone: () =>
+                setState(() => _forgotFlowScreen = 'create_new_password'),
           );
         case 'identity_error':
           return IdentityErrorScreen(
-            onTryAgain: () => setState(() => _forgotFlowScreen = 'verify_number'),
+            onTryAgain: () =>
+                setState(() => _forgotFlowScreen = 'verify_number'),
           );
         case 'create_new_password':
           return CreateNewPasswordScreen(
@@ -692,6 +844,9 @@ class _AuthNavigatorState extends State<AuthNavigator> {
       onSignUpTap: _toggleView,
       onForgotPasswordTap: _showForgotPassword,
       onLoginSuccess: () {
+        Future.delayed(const Duration(milliseconds: 200), () {
+          if (mounted) WebSocketService().connect();
+        });
         setState(() => _showDashboard = true);
       },
     );

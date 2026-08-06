@@ -133,14 +133,37 @@ class _VerifyDagupanResidencyScreenState
   }
 
   Widget _buildLogo() {
-    return Column(
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Image.asset('assets/logo/logo.png',
-            width: 80, height: 80, fit: BoxFit.contain),
-        const SizedBox(height: 12),
-        const Text(
-          'Emergency Response & Safety',
-          style: TextStyle(color: Color(0xFF6B7280), fontSize: 12),
+        Image.asset('assets/logo/icon.png', width: 104, height: 104, fit: BoxFit.contain),
+        const SizedBox(width: 0),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            RichText(
+              text: TextSpan(
+                style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                children: [
+                  TextSpan(
+                      text: 'Rescue',
+                      style: TextStyle(
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? Colors.white
+                              : const Color(0xFF0F172A))),
+                  const TextSpan(
+                      text: 'Link',
+                      style: TextStyle(color: Color(0xFFFF6B6B))),
+                ],
+              ),
+            ),
+            const Text(
+              'Emergency Response and Safety',
+              style: TextStyle(color: Color(0xFF6B7280), fontSize: 13),
+            ),
+          ],
         ),
       ],
     );
@@ -305,7 +328,7 @@ class _VerifyDagupanResidencyScreenState
     final barangay = widget.selectedBarangay ?? 'Barangay Poblacion Oeste';
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -322,18 +345,18 @@ class _VerifyDagupanResidencyScreenState
                 ),
               ),
               const SizedBox(height: 24),
-              const Text(
+              Text(
                 'Verify Dagupan Residency',
                 style: TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.bold,
-                  color: Color(0xFF111827),
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
               const SizedBox(height: 8),
-              const Text(
+              Text(
                 'Confirm your identity and location',
-                style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
+                style: TextStyle(fontSize: 14, color: Theme.of(context).colorScheme.onSurfaceVariant),
               ),
               const SizedBox(height: 24),
               // Map placeholder
@@ -354,23 +377,24 @@ class _VerifyDagupanResidencyScreenState
                         height: double.infinity,
                       ),
                     ),
-                    const Positioned(
+                    Positioned(
                       top: 12,
                       left: 12,
                       right: 12,
                       child: Row(
                         children: [
-                          Icon(Icons.location_on,
+                          const Icon(Icons.location_on,
                               color: Color(0xFFEF4444), size: 24),
-                          SizedBox(width: 8),
+                          const SizedBox(width: 8),
                           Expanded(
                             child: Text(
                               'Poblacion Oeste, Barangay Hall',
                               style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
-                                color: Color(0xFF111827),
+                                color: Theme.of(context).colorScheme.onSurface,
                               ),
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                         ],
@@ -392,23 +416,28 @@ class _VerifyDagupanResidencyScreenState
                                 blurRadius: 8)
                           ],
                         ),
-                        child: const Row(
+                        child: Row(
                           children: [
                             Icon(Icons.map_outlined,
-                                size: 18, color: Color(0xFF6B7280)),
-                            SizedBox(width: 8),
-                            Text(
-                              'Dagupan City Boundaries',
-                              style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                  color: Color(0xFF374151)),
+                                size: 18, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Dagupan City Boundaries',
+                                style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                    color: Theme.of(context).colorScheme.onSurface),
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
-                            Spacer(),
-                            Text(
-                              'Pangasinan, Philippines',
-                              style: TextStyle(
-                                  fontSize: 11, color: Color(0xFF6B7280)),
+                            Flexible(
+                              child: Text(
+                                'Pangasinan, Philippines',
+                                style: TextStyle(
+                                    fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
                           ],
                         ),

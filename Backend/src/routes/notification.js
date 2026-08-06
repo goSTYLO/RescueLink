@@ -8,6 +8,12 @@ const { ROLES } = require('../config/roles');
 // Create new notification (dispatcher/admin only)
 router.post('/', authMiddleware, authorize([ROLES.DISPATCHER, ROLES.ADMIN]), notificationController.create);
 
+// Get unread count for badge (must be before /:id)
+router.get('/unread-count', authMiddleware, notificationController.getUnreadCount);
+
+// Mark all as read
+router.post('/mark-all-read', authMiddleware, notificationController.markAllAsRead);
+
 // Get all notifications - users see own, dispatcher/admin see all
 router.get('/', authMiddleware, notificationController.getAll);
 

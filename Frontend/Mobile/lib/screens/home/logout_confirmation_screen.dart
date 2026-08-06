@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../theme/app_theme.dart';
 
 class LogoutConfirmationScreen extends StatefulWidget {
   final VoidCallback? onBack;
@@ -29,8 +30,15 @@ class _LogoutConfirmationScreenState extends State<LogoutConfirmationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) (widget.onBack ?? widget.onCancel)?.call();
+      },
+      child: Scaffold(
+      backgroundColor: isDark ? AppTheme.darkBackground : theme.scaffoldBackgroundColor,
       body: SafeArea(
         child: Column(
           children: [
@@ -59,26 +67,20 @@ class _LogoutConfirmationScreenState extends State<LogoutConfirmationScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Text(
+                        Text(
                           'Logout Confirmation',
-                          style: TextStyle(
+                          style: theme.textTheme.titleLarge?.copyWith(
                             color: Colors.white,
-                            fontSize: 18,
                             fontWeight: FontWeight.bold,
                           ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Secure your account before leaving.',
-                          style: TextStyle(color: Colors.white.withOpacity(0.95), fontSize: 12),
                         ),
                       ],
                     ),
                   ),
                   Image.asset(
-                    'assets/logo/logo2.png',
-                    width: 32,
-                    height: 32,
+                    'assets/logo/icon.png',
+                    width: 64,
+                    height: 64,
                     fit: BoxFit.contain,
                     color: Colors.white,
                     colorBlendMode: BlendMode.srcIn,
@@ -152,7 +154,7 @@ class _LogoutConfirmationScreenState extends State<LogoutConfirmationScreen> {
                                 ),
                                 SizedBox(height: 4),
                                 Text(
-                                  'End all active sessions on your phone, tablet, and web browser',
+                                  'End all active sessions on your phone and tablet',
                                   style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
                                 ),
                               ],
@@ -262,10 +264,11 @@ class _LogoutConfirmationScreenState extends State<LogoutConfirmationScreen> {
                       onPressed: _onCancel,
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 16),
-                        side: const BorderSide(color: Color(0xFFE5E7EB)),
+                        side: BorderSide(color: theme.colorScheme.outline),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        foregroundColor: theme.colorScheme.onSurface,
                       ),
-                      child: const Text('Cancel', style: TextStyle(color: Color(0xFF111827), fontWeight: FontWeight.bold)),
+                      child: const Text('Cancel', style: TextStyle(fontWeight: FontWeight.bold)),
                     ),
                     const SizedBox(height: 24),
                     // Footer
@@ -282,6 +285,7 @@ class _LogoutConfirmationScreenState extends State<LogoutConfirmationScreen> {
           ],
         ),
       ),
+    ),
     );
   }
 

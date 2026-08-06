@@ -1,6 +1,6 @@
 {
-  "dart.flutterSdkPath": null,
-  "dart.flutterSdkPaths": [],
+  "dart.flutterSdkPath": "C:\\Users\\Aaron\\AppData\\Local\\flutter",
+  "dart.flutterSdkPaths": ["C:\\Users\\Aaron\\AppData\\Local\\flutter"],
   "files.exclude": {
     "**/.git": true,
     "**/.DS_Store": true

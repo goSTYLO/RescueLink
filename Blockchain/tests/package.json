@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "description": "Automated tests for RescueLink blockchain FastAPI service",
   "scripts": {
-    "test": "mocha ./test_blockchain_connection.test.js --exit"
+    "test": "mocha ./test_blockchain_connection.test.js --exit",
+    "test:gas": "mocha ./gas_optimization_test.js --exit --timeout 120000"
   },
   "devDependencies": {
     "axios": "^1.4.0",

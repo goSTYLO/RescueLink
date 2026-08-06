@@ -5,6 +5,17 @@ Overview
 - Purpose: How to manually run and test the full RescueLink stack (Mobile, Web dispatcher, Backend, RescueLink AI, Blockchain + Ganache) and run automated tests.
 - Repo root: use commands relative to repository root.
 
+Phase 3 Testing: Incident Acceptance Workflow
+---------------------------------------------
+1. **Approve Application (Dispatcher Web)**: Log into dispatcher web, navigate to `Responder Applications`, approve a pending application for a test user. Verify database `users.role` changes to `responder` and `responders` row is created with `user_id`.
+2. **Responder Mobile Login**: Log in as the approved user on the mobile app. Confirm that a 4th tab (`Responder`) is now visible in the bottom navigation.
+3. **Toggle Online Status**: Tap the `Status` switch on the Responder dashboard to set status to `Online` (verifies `PATCH /api/responders/me/online-status`).
+4. **Broadcast Incident Alert**: Submit a new incident report from another account within alert radius. Verify that `IncidentAlertModal` pops up on the responder's screen via WebSocket.
+5. **Accept Incident**: Tap `Accept Incident` on the alert modal. Confirm incident status is updated to `Assigned` and `ResponderIncidentDetailScreen` opens with an OpenStreetMap pin.
+6. **Progress Responder Status**: Tap `Update to En Route`, then `Update to On Scene`, then `Update to Resolved`. Verify state machine rules and status history audit entries in `responder_status_history`.
+7. **Request Backup**: Tap `Request Backup`, select target (`CDRRMO` or `Nearby Responders`), and send. Confirm `backup_requests` record is stored and notification category `backup_request` is sent.
+8. **Notification Screen Categorization**: Open `NotificationsScreen` to verify custom cards and icons for `application_approved`, `responder_assigned`, `responder_status_updated`, and `backup_requested`.
+
 Prerequisites
 -------------
 - Node.js >=14 and npm
@@ -23,9 +34,13 @@ Place these `.env` files in the named folders (examples):
 DATABASE_URL=postgresql://user:password@localhost:5432/rescuelink
 PORT=3000
 FIREBASE_SERVICE_ACCOUNT_PATH=src/serviceAccountKey.json
+
+# Blockchain feature flag (disabled by default — no Ganache required when false)
+USE_BLOCKCHAIN=false
+BLOCKCHAIN_SERVICE_URL=http://localhost:8001
 ```
 
-- `Blockchain/.env`:
+- `Blockchain/.env` (**only needed when `USE_BLOCKCHAIN=true`**):
 ```
 GANACHE_URL=http://127.0.0.1:8545
 PRIVATE_KEY=0x<first_ganache_account_private_key>
@@ -66,31 +81,33 @@ Database (Terminal 1)
 cd Backend
 npm install
 npm run setup-db
-# Populate with test data (users, responders, incidents)
+psql $DATABASE_URL -f migrations/add_dispatch_assignment_v2_and_secondary_ai.sql
+psql $DATABASE_URL -f migrations/add_team_member_assignment_schema.sql
+psql $DATABASE_URL -f migrations/add_responder_task_and_team_status.sql
+# Populate with realistic test data
 npm run seed-db
+npm run seed-incidents -- --reset
 ```
 
-Note: The `seed-db` script is idempotent (safe to run multiple times). It creates:
-- 2 dispatchers, 5 responders, 10 regular users
-- 6 sample incidents with various statuses
-- Dispatches linking incidents to responders
-- Sample notifications
+Note:
+- `seed-db` is idempotent and seeds realistic core data (departments, users, 12 teams, 18 responders, team memberships).
+- `seed-incidents` seeds 30 incidents (5 duplicates + 25 unique) from real audio assets (`RescueLink AI/test` + `Backend/uploads/incidents`), distributed across Dagupan City locations.
+- Use `--reset` to clear prior incident-related records before repopulating.
+- Use `--count=N` to override the default (max: 30).
 
 **Seeded test accounts:**
 
 Dispatchers (password: `dispatcher123`):
-- `dispatcher@rescuelink.test` (Address: Dagupan Barangay, Dagupan City, Pangasinan)
-- `dispatcher2@rescuelink.test` (Address: Malur Barangay, Dagupan City, Pangasinan)
+- `dispatcher@rescuelink.test`, `dispatcher2@rescuelink.test`, `dispatcher3@rescuelink.test`, `dispatcher4@rescuelink.test`
 
 Responders (password: `responder123`):
-- `responder@rescuelink.test` (Address: Bonuan Barangay, Dagupan City, Pangasinan)
-- `responder2@rescuelink.test` (Address: Bacnotan Barangay, Dagupan City, Pangasinan)
-- `responder3@rescuelink.test` (Address: Pantal Barangay, Dagupan City, Pangasinan)
-- `responder4@rescuelink.test` (Address: Dagupan Barangay, Dagupan City, Pangasinan)
-- `responder5@rescuelink.test` (Address: Malur Barangay, Dagupan City, Pangasinan)
+- `responder@rescuelink.test` (PNP, Pob. Oeste)
+- `responder2@rescuelink.test` (PNP, Pob. Oeste)
+- `responder3@rescuelink.test` (DRRMO, Bonuan Gueset)
+- `responder4@rescuelink.test` (DRRMO, Bonuan Gueset)
 
 Regular Users (password: `user123`):
-- `user@rescuelink.test` through `user10@rescuelink.test` (distributed across Dagupan barangays: Dagupan, Malur, Bonuan, Bacnotan, Pantal)
+- `user@rescuelink.test` through `user6@rescuelink.test` (distributed across Dagupan barangays: Bonuan Binloc, Tapuac, Mangin, Pantal, Bonuan Boquig, Lucao)
 
 Ganache (Terminal 2)
 - Option A: open Ganache Desktop and use the GUI
@@ -109,7 +126,7 @@ python -m venv .venv
 .venv\Scripts\activate   # Windows PowerShell
 pip install -r requirements.txt
 # Ensure Blockchain/.env contains GANACHE_URL and PRIVATE_KEY
-uvicorn main:app --reload --host 0.0.0.0 --port 8001
+   uvicorn main:app --reload --host 0.0.0.0 --port 8001
 ```
 
 RescueLink AI (Terminal 4)
@@ -140,7 +157,7 @@ Web dispatcher (Terminal 6)
 ```
 cd Frontend/Web/dispatcher_dashboard
 npm install
-npm start
+npm run dev
 ```
 
 Mobile (Terminal 7)
@@ -155,6 +172,33 @@ flutter build apk
 
 Automated tests
 ---------------
+
+Master cross-stack integration runner (Windows PowerShell)
+```
+cd C:\Users\Aaron\GitHub Repos\RescueLink
+powershell -ExecutionPolicy Bypass -File .\run_master_integration_tests.ps1
+```
+
+Optional skip flags:
+- `-SkipBackend`
+- `-SkipWeb`
+- `-SkipMobile`
+- `-SkipAI`
+- `-SkipBlockchain`
+
+The runner executes available suites across backend, web, mobile, AI, and blockchain, and marks missing-service phases as `SKIPPED` instead of hard-failing.
+
+Web test commands (`Frontend/Web/dispatcher_dashboard`)
+```
+# Full web test run
+npm test
+
+# CI-style web test run with coverage
+npm run test:ci
+
+# Placeholder smoke checklist command (until Playwright/Cypress is wired)
+npm run test:e2e:smoke
+```
 
 Blockchain Mocha test (end-to-end)
 - Location: `Blockchain/tests`
@@ -172,6 +216,22 @@ Backend integration test
 node Backend/tests/integration.test.js
 ```
 
+Incident lifecycle verification (manual)
+----------------------------------------
+1. Verify a report from dispatcher flow:
+   - `POST /api/incidents/:id/verify`
+2. Create first dispatch assignment:
+   - `POST /api/dispatches`
+   - expected automatic transition: `verified -> in_progress`
+3. Mark resolved from dispatcher/admin:
+   - `PATCH /api/incidents/:id/status` with `{ "status": "resolved" }`
+4. Confirm from mobile reporter account:
+   - `POST /api/incidents/:id/confirm-resolution`
+5. Validate resulting fields:
+   - `status` remains `resolved`
+   - `resolved_by_user_id` set
+   - `reporter_confirmed_at` and `reporter_confirmed_by_user_id` set after reporter confirmation
+
 Health endpoints (quick checks)
 --------------------------------
 - Blockchain: `http://localhost:8001/health` (`Blockchain/main.py`)
@@ -186,6 +246,31 @@ Troubleshooting & common blockers
 - Missing AI model files: `RescueLink AI/models/emergency_model.pt` and `RescueLink AI/models/label_meta.json` are required for classification. If absent, the AI service will fallback or fail on model load.
 - `CONTRACT_ADDRESS`: If you want to reuse a deployed `IncidentRegistry` contract, set `CONTRACT_ADDRESS` in `Blockchain/.env`; otherwise the service will deploy on first call (requires `PRIVATE_KEY`).
 - npm `web3` version: If installing tests, `Blockchain/tests/package.json` pins a compatible `web3` (use the provided package.json in that folder).
+- Lifecycle endpoint auth:
+  - `PATCH /api/incidents/:id/status` requires dispatcher/admin token.
+  - `POST /api/incidents/:id/confirm-resolution` requires the owning reporter token.
+
+Testing Responder Application Flow (Phase 2)
+------------------------------------------
+1. **Submit Application (Mobile / API)**:
+   - Open Mobile Settings -> tap `Volunteer First Responder` -> complete 4-tab onboarding form.
+   - Upload Government ID photo (required) + optional certificates/supporting documents.
+   - Click `Submit Application`. Endpoint: `POST /api/responder-applications`.
+2. **Review Application (Dispatcher Dashboard)**:
+   - Login to Web Dashboard as Dispatcher / Super Admin.
+   - Navigate to `Responder Applications` in sidebar (`/responder-applications`).
+   - View pending submissions list and tap `Review`.
+3. **Approve / Reject Application**:
+   - Check applicant personal details and credential documents (`/api/responder-applications/:id/documents/:filename`).
+   - Add reviewer notes.
+   - Tap `Approve & Promote to Responder` -> updates `users.role = 'responder'`, creates responder pool entry, and sends in-app notification.
+   - Or tap `Reject Application` -> sends in-app notification with reviewer notes to applicant for transparency.
+
+Web API base URL configuration
+------------------------------
+- The dispatcher web app now uses environment/runtime configuration instead of a hardcoded API URL.
+- Preferred env var for local/dev: `VITE_API_URL=http://localhost:3000`
+- Optional runtime override: `window.__RESCUELINK_CONFIG__ = { API_URL: 'http://localhost:3000' }`
 
 Quick troubleshooting commands
 ```
@@ -213,15 +298,17 @@ git push
 
 Database seeding script details
 -------------------------------
-- Script: `Backend/scripts/seed-db.js`
-- Creates test data for full-stack testing
-- Safely clears and repopulates on each run
-- Run with: `npm run seed-db` (from `Backend` folder)
+- Core script: `Backend/scripts/seed-db.js`
+- Incident audio script: `Backend/scripts/seed-incidents-from-audio.js`
+- Run with:
+  - `npm run seed-db`
+  - `npm run seed-incidents -- --reset`
+  - or `npm run seed-db:full`
 
 Where to look for more details
 ------------------------------
 - Backend server & DB setup: `Backend/src/server.js`, `Backend/setup-db.js`, `Backend/schema.sql`
-- Database seeding: `Backend/scripts/seed-db.js`
+- Database seeding: `Backend/scripts/seed-db.js`, `Backend/scripts/seed-incidents-from-audio.js`
 - Blockchain code + helpers: `Blockchain/main.py`, `Blockchain/services/incident_registry.py`, `Blockchain/services/contract.py`, `Blockchain/contracts/IncidentRegistry.sol`
 - Blockchain test harness: `Blockchain/tests/test_blockchain_connection.test.js`, `Blockchain/tests/package.json`
 - RescueLink AI server & docs: `RescueLink AI/api/main.py`, `RescueLink AI/README.md`

@@ -14,12 +14,21 @@ if (!DATABASE_URL) {
 
 const MIGRATIONS_DIR = path.join(__dirname, 'migrations');
 const MIGRATION_ORDER = [
+  'add_rbac_system.sql',
+  'add_department_management.sql',
+  'add_unit_assigned_report.sql',
+  'add_incident_unit_usage.sql',
   'add_dispatcher_audit_logs.sql',
   'add_token_blacklist.sql',
   'add_dispatcher_login_otp.sql',
   'add_incident_barangay.sql',
   'add_incident_verified.sql',
   'add_ai_fields.sql',
+  'add_upload_scan_fields.sql',
+  'add_incident_coordination_notes.sql',
+  'add_incident_resolved_at.sql',
+  'add_duplicate_detection.sql',
+  'add_flagged_for_review.sql',
 ];
 
 console.log('🔧 Setting up database...');

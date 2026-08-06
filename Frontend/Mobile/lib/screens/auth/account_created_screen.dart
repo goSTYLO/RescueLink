@@ -22,7 +22,7 @@ class AccountCreatedScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: Column(
           children: [
@@ -56,9 +56,9 @@ class AccountCreatedScreen extends StatelessWidget {
                     ),
                   ),
                   Image.asset(
-                    'assets/logo/logo2.png',
-                    width: 32,
-                    height: 32,
+                    'assets/logo/icon.png',
+                    width: 64,
+                    height: 64,
                     fit: BoxFit.contain,
                     color: Colors.white,
                     colorBlendMode: BlendMode.srcIn,
@@ -104,15 +104,6 @@ class AccountCreatedScreen extends StatelessWidget {
                               fontSize: 28,
                               fontWeight: FontWeight.bold,
                               color: Color(0xFF22C55E),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          const Text(
-                            'Verify your phone to continue.',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Color(0xFF6B7280),
                             ),
                           ),
                           const SizedBox(height: 24),

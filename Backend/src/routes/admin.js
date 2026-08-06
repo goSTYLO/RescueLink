@@ -12,8 +12,9 @@ const { authorize } = require('../middleware/rbac');
 const { ROLES } = require('../config/roles');
 const authMiddleware = require('../middleware/auth');
 
-// Apply auth middleware to all routes
+// Apply auth middleware and admin role check to all routes
 router.use(authMiddleware);
+router.use(authorize([ROLES.ADMIN]));
 
 /**
  * User Management Endpoints
@@ -21,36 +22,30 @@ router.use(authMiddleware);
 
 // List all users with pagination
 // GET /api/admin/users?page=1&limit=20
-// ADMIN only
-router.get('/users', authorize([ROLES.ADMIN]), adminController.listUsers);
+router.get('/users', adminController.listUsers);
 
 // Get specific user by ID
 // GET /api/admin/users/:id
-// DISPATCHER and ADMIN can view user details
-router.get('/users/:id', authorize([ROLES.DISPATCHER, ROLES.ADMIN]), adminController.getUser);
+router.get('/users/:id', adminController.getUser);
 
 // Create new user with role assignment
 // POST /api/admin/users
 // Body: { email, password, phone_number?, first_name?, last_name?, role? }
-// ADMIN only
-router.post('/users', authorize([ROLES.ADMIN]), adminController.createUser);
+router.post('/users', adminController.createUser);
 
 // Update user role
 // PUT /api/admin/users/:id/role
 // Body: { role: 'user' | 'dispatcher' | 'admin' }
-// ADMIN only
-router.put('/users/:id/role', authorize([ROLES.ADMIN]), adminController.updateUserRole);
+router.put('/users/:id/role', adminController.updateUserRole);
 
 // Deactivate user account (soft delete)
 // PUT /api/admin/users/:id/deactivate
 // Body: { reason?: string }
-// ADMIN only
-router.put('/users/:id/deactivate', authorize([ROLES.ADMIN]), adminController.deactivateUser);
+router.put('/users/:id/deactivate', adminController.deactivateUser);
 
 // Delete user permanently (hard delete)
 // DELETE /api/admin/users/:id
-// ADMIN only
-router.delete('/users/:id', authorize([ROLES.ADMIN]), adminController.deleteUser);
+router.delete('/users/:id', adminController.deleteUser);
 
 /**
  * System Management Endpoints
@@ -58,7 +53,6 @@ router.delete('/users/:id', authorize([ROLES.ADMIN]), adminController.deleteUser
 
 // Get system statistics
 // GET /api/admin/stats
-// ADMIN only
-router.get('/stats', authorize([ROLES.ADMIN]), adminController.getStats);
+router.get('/stats', adminController.getStats);
 
 module.exports = router;

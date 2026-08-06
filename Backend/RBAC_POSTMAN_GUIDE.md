@@ -8,30 +8,19 @@ This guide provides comprehensive step-by-step instructions for manually testing
 
 ### Pre-configured Test Accounts
 
-These accounts are already set up in your database:
+These accounts are seeded by `node scripts/seed-db.js`:
 
-| Role | Login Method | Credentials | User ID |
-|------|---|---|---|
-| **User** | Phone Number | Phone: `+639666638967`<br/>Password: `SecurePass123!` | `91` |
-| **Dispatcher** | Email | Email: `aabe.tamayo.up@phinmaed.com`<br/>Password: `SecurePass123!` | `92` |
-| **Admin** | Email | Contact your system administrator | TBD |
+| Role | Login Method | Credentials |
+|------|---|---|
+| **Admin** | Phone or Email | `admin@rescuelink.test` / `admin123`<br/>`admin2@rescuelink.test` / `admin123` |
+| **Dispatcher** | Phone or Email | `dispatcher@rescuelink.test` / `dispatcher123`<br/>`dispatcher2@rescuelink.test` / `dispatcher123` |
+| **Supervisor** | Phone or Email | `supervisor@rescuelink.test` / `supervisor123`<br/>`supervisor2@rescuelink.test` / `supervisor123` |
+| **Responder** | Phone or Email | `responder@rescuelink.test` / `responder123`<br/>`responder2@rescuelink.test` / `responder123` |
+| **User** | Phone or Email | `user@rescuelink.test` / `user123`<br/>`user2@rescuelink.test` / `user123` |
 
-### JWT Tokens (Pre-generated, expires 2026-02-19)
+### JWT Tokens
 
-**User Token:**
-```
-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjo5MSwicGhvbmUiOiIrNjM5NjY2NjM4OTY3Iiwicm9sZSI6InVzZXIiLCJpYXQiOjE3NzE0Mjk0MzYsImV4cCI6MTc3MjAzNDIzNn0.-oaeIdBhEzSYQsLSFWMK4Ua9hYaY4d81hhfDdtAvpeU
-```
-
-**Dispatcher Token:**
-```
-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjo5MiwiZW1haWwiOiJhYWJlLnRhbWF5by51cEBwaGlubWFlZC5jb20iLCJyb2xlIjoiZGlzcGF0Y2hlciIsImlhdCI6MTc3MTQyOTkzOCwiZXhwIjoxNzcyMDM0NzM4fQ.UGJEClFIlsPP_RRXtnE2mhp7evmAiNpJ7tdWmixNY8o
-```
-
-**Admin Token:**
-```
-(Request from your system administrator)
-```
+Do not use pre-generated tokens. Generate fresh tokens from the login endpoints during testing.
 
 ---
 
@@ -47,10 +36,12 @@ eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjo5MiwiZW1haWwiOiJhYWJlLnRhbWF
 | Variable | Value |
 |---|---|
 | `base_url` | `http://localhost:3000/api` |
-| `user_token` | `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjo5MSwicGhvbmUiOiIrNjM5NjY2NjM4OTY3Iiwicm9sZSI6InVzZXIiLCJpYXQiOjE3NzE0Mjk0MzYsImV4cCI6MTc3MjAzNDIzNn0.-oaeIdBhEzSYQsLSFWMK4Ua9hYaY4d81hhfDdtAvpeU` |
-| `dispatcher_token` | `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjo5MiwiZW1haWwiOiJhYWJlLnRhbWF5by51cEBwaGlubWFlZC5jb20iLCJyb2xlIjoiZGlzcGF0Y2hlciIsImlhdCI6MTc3MTQyOTkzOCwiZXhwIjoxNzcyMDM0NzM4fQ.UGJEClFIlsPP_RRXtnE2mhp7evmAiNpJ7tdWmixNY8o` |
-| `admin_token` | (Request from admin) |
-| `user_id` | `91` |
+| `user_token` | (Set after login) |
+| `dispatcher_token` | (Set after login) |
+| `supervisor_token` | (Set after login) |
+| `responder_token` | (Set after login) |
+| `admin_token` | (Set after login) |
+| `user_id` | (Set from seeded user) |
 | `responder_id` | `21` |
 | `report_id` | (Will be created in Test 1.1) |
 

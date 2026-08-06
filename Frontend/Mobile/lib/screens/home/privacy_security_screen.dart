@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../services/auth_service.dart';
+import '../../theme/app_theme.dart';
 
 class PrivacySecurityScreen extends StatefulWidget {
   final VoidCallback? onBack;
@@ -15,11 +17,116 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
   bool _biometricLogin = false;
   String _locationOption = 'During Emergencies Only';
   String _autoLogoutOption = '30 minutes';
+  Map<String, dynamic>? _profile;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBiometricPreference();
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    final result = await AuthService().getProfile();
+    if (mounted && result['success'] == true) {
+      setState(() => _profile = (result['user'] as Map?)?.cast<String, dynamic>());
+    }
+  }
+
+  Future<void> _loadBiometricPreference() async {
+    final enabled = await AuthService().isBiometricLoginEnabled();
+    if (mounted) setState(() => _biometricLogin = enabled);
+  }
+
+  Future<void> _onBiometricToggle(bool value) async {
+    if (!value) {
+      await AuthService().setBiometricLoginEnabled(false);
+      if (mounted) setState(() => _biometricLogin = false);
+      return;
+    }
+
+    final phone = ((_profile ?? {})['phone'] ?? (_profile ?? {})['phone_number'] ?? '') as String;
+    if (phone.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not get phone number. Please try again.')),
+        );
+      }
+      return;
+    }
+
+    final password = await _showBiometricPasswordDialog();
+    if (password == null || !mounted) return;
+
+    await AuthService().setBiometricLoginEnabled(true);
+    final result = await AuthService().login(phone: phone, password: password);
+    if (!mounted) return;
+
+    if (result['success'] == true) {
+      if (mounted) setState(() => _biometricLogin = true);
+    } else {
+      await AuthService().setBiometricLoginEnabled(false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(result['error']?.toString() ?? 'Invalid password.')),
+        );
+      }
+    }
+  }
+
+  Future<String?> _showBiometricPasswordDialog() async {
+    final controller = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Enable Biometric Login'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Enter your password to store it securely. It will be used to start a new session when you use biometrics after exiting the app.',
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: controller,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: 'Password',
+                  border: OutlineInputBorder(),
+                ),
+                onSubmitted: (_) => Navigator.of(ctx).pop(controller.text),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(controller.text),
+            child: const Text('Continue'),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF3F4F6),
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) widget.onBack?.call();
+      },
+      child: Scaffold(
+      backgroundColor: isDark ? AppTheme.darkBackground : theme.scaffoldBackgroundColor,
       body: SafeArea(
         child: Column(
           children: [
@@ -54,9 +161,9 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
                     ),
                   ),
                   Image.asset(
-                    'assets/logo/logo2.png',
-                    width: 32,
-                    height: 32,
+                    'assets/logo/icon.png',
+                    width: 64,
+                    height: 64,
                     fit: BoxFit.contain,
                     color: Colors.white,
                     colorBlendMode: BlendMode.srcIn,
@@ -131,10 +238,10 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
                       icon: Icons.fingerprint,
                       iconBg: const Color(0xFF2563EB),
                       title: 'Biometric Login',
-                      subtitle: 'Use fingerprint or Face ID for quick, secure access',
+                      subtitle: 'Use biometrics for quick, secure access',
                       value: null,
                       toggleValue: _biometricLogin,
-                      onToggle: (v) => setState(() => _biometricLogin = v),
+                      onToggle: _onBiometricToggle,
                     ),
                     const SizedBox(height: 10),
                     _privacyCard(
@@ -228,6 +335,7 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
           ],
         ),
       ),
+    ),
     );
   }
 
