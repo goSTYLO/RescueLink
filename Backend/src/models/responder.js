@@ -40,16 +40,26 @@ const Responder = {
     source_type = 'account',
     team_name = null,
     supported_incident_types = [],
+    user_id = null,
   }) {
     const normalizedTaskTypes = normalizeIncidentTypes(supported_incident_types);
     try {
       const res = await pool.query(
-        `INSERT INTO responders(name, organization, contact_number, availability_status, source_type, team_name, supported_incident_types)
-         VALUES($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-        [name, organization, contact_number, availability_status, source_type, team_name, normalizedTaskTypes]
+        `INSERT INTO responders(name, organization, contact_number, availability_status, source_type, team_name, supported_incident_types, user_id)
+         VALUES($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+        [name, organization, contact_number, availability_status, source_type, team_name, normalizedTaskTypes, user_id]
       );
       return res.rows[0];
     } catch (error) {
+      // Fallback for DBs without user_id column yet (pre-migration)
+      if (error.code === '42703' && /user_id/i.test(error.message)) {
+        const res2 = await pool.query(
+          `INSERT INTO responders(name, organization, contact_number, availability_status, source_type, team_name, supported_incident_types)
+           VALUES($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+          [name, organization, contact_number, availability_status, source_type, team_name, normalizedTaskTypes]
+        );
+        return res2.rows[0];
+      }
       if (error.code === '42703' || /source_type|team_name|supported_incident_types/i.test(error.message)) {
         const fallback = await pool.query(
           'INSERT INTO responders(name, organization, contact_number, availability_status) VALUES($1, $2, $3, $4) RETURNING *',

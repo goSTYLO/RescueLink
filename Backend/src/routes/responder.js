@@ -20,6 +20,10 @@ router.delete('/teams/:teamId/members/:responderId', authorize([ROLES.ADMIN, ROL
 
 // Responder APIs (department-admin can list/create/update; delete remains admin-only)
 router.get('/', authorize([ROLES.DISPATCHER, ROLES.ADMIN, ROLES.DEPARTMENT_ADMIN]), responderController.getAll);
+
+// ── Phase 3: Responder self-service (must be before /:id to avoid shadowing) ──
+router.patch('/me/online-status', authorize([ROLES.RESPONDER]), responderController.updateOnlineStatus);
+router.get('/me/profile',         authorize([ROLES.RESPONDER]), responderController.getSelfProfile);
 router.post('/', authorize([ROLES.ADMIN, ROLES.DEPARTMENT_ADMIN]), responderController.create);
 router.get('/:id', authorize([ROLES.DISPATCHER, ROLES.ADMIN, ROLES.DEPARTMENT_ADMIN]), responderController.getById);
 router.put('/:id', authorize([ROLES.ADMIN, ROLES.DEPARTMENT_ADMIN]), responderController.update);

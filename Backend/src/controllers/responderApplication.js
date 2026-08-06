@@ -245,6 +245,7 @@ const responderApplicationController = {
             source_type: 'account',
             team_name: 'Volunteer Responders',
             supported_incident_types: ['fire', 'medical', 'police', 'disaster'],
+            user_id: application.user_id,
           });
         } catch (responderErr) {
           console.warn('Responder creation warning (may already exist):', responderErr.message);

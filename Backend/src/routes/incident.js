@@ -2,6 +2,7 @@ const express = require('express');
 const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
 const router = express.Router();
 const incidentController = require('../controllers/incident');
+const incidentAcceptance = require('../controllers/incidentAcceptance');
 const authMiddleware = require('../middleware/auth');
 const { uploadMiddleware } = require('../middleware/fileUpload');
 const { authorize, checkOwnership } = require('../middleware/rbac');
@@ -80,6 +81,16 @@ router.post('/:id/clear-duplicate-flag', authMiddleware, authorize([ROLES.DISPAT
 
 // Get current user's incidents (always filtered to own)
 router.get('/user/my', authMiddleware, incidentController.getMyIncidents);
+
+// ── Phase 3: Responder self-service endpoints ─────────────────────────────────
+// Must be registered before /:id routes to avoid Express shadowing them.
+router.get('/responder/active',       authMiddleware, authorize([ROLES.RESPONDER]), incidentAcceptance.getActiveAssigned);
+router.get('/responder/history',      authMiddleware, authorize([ROLES.RESPONDER]), incidentAcceptance.getResponderHistory);
+router.post('/:id/accept',            authMiddleware, authorize([ROLES.RESPONDER]), incidentAcceptance.acceptIncident);
+router.post('/:id/decline',           authMiddleware, authorize([ROLES.RESPONDER]), incidentAcceptance.declineIncident);
+router.patch('/:id/responder-status', authMiddleware, authorize([ROLES.RESPONDER]), incidentAcceptance.updateResponderStatus);
+router.post('/:id/backup',            authMiddleware, authorize([ROLES.RESPONDER]), incidentAcceptance.requestBackup);
+router.get('/:id/backup',             authMiddleware, authorize([ROLES.DISPATCHER, ROLES.ADMIN]), incidentAcceptance.getBackupRequests);
 
 // Get all incidents with pagination and filters
 // Users see only own; dispatchers/admins see all

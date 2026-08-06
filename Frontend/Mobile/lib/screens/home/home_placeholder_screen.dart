@@ -9,6 +9,7 @@ import 'settings_screen.dart';
 import '../../services/auth_service.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/staggered_fade_in.dart';
+import '../responder/responder_dashboard_screen.dart';
 
 class HomePlaceholderScreen extends StatefulWidget {
   final Future<void> Function(ThemeMode mode)? onThemeChanged;
@@ -56,6 +57,7 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
   StreamSubscription<IncidentEvent>? _wsSubscription;
   String _locationTitle = 'Dagupan City, Pangasinan';
   String _locationTimestamp = 'Updating...';
+  bool _isResponder = false;
 
   // SOS hold animation
   late AnimationController _sosHoldController;
@@ -75,6 +77,8 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
 
     _loadHomeLocation();
     _fetchUnreadCount();
+    // Detect responder role (synchronous from cache, refreshed by _loadHomeLocation)
+    _isResponder = AuthService().getUserRole() == 'responder';
     _wsSubscription = WebSocketService().eventStream.listen((event) {
       if (!mounted) return;
       final title = _formatNotificationTitle(event);
@@ -135,6 +139,12 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
     final timestamp = 'Updated ${now.hour}:${now.minute.toString().padLeft(2, '0')}';
 
     if (result['success'] == true) {
+      // Re-check role after profile refresh (covers just-approved responders)
+      final user = result['user'] as Map<String, dynamic>? ?? {};
+      final freshRole = user['role']?.toString();
+      if (mounted && freshRole != null && (freshRole == 'responder') != _isResponder) {
+        setState(() => _isResponder = freshRole == 'responder');
+      }
       setState(() {
         _loadingLocation = false;
         _locationTitle = 'Dagupan City, Pangasinan';
@@ -195,6 +205,16 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
         return '${prefix}Dispatched';
       case 'incident:resolution_confirmed':
         return '${prefix}Resolved';
+      case 'incident:accepted':
+        return '${prefix}A responder is on the way';
+      case 'responder:status_changed':
+        final newStatus = event.data['new_status']?.toString() ?? '';
+        return '${prefix}Responder: $newStatus';
+      case 'application:status_changed':
+        final appStatus = event.data['status']?.toString() ?? 'updated';
+        return 'Application $appStatus';
+      case 'responder:backup_requested':
+        return '${prefix}Backup requested';
       default:
         return reportId != null ? '${prefix}Updated' : null;
     }
@@ -994,9 +1014,11 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.sizeOf(context).width;
+    final int settingsIndex = _isResponder ? 3 : 2;
     final List<Widget> pages = [
       _buildHomeContent(),
       _buildReportHistoryContent(),
+      if (_isResponder) ResponderDashboardScreen(onIncidentTap: widget.onReportTap),
       _buildSettingsContent(),
     ];
 
@@ -1035,13 +1057,12 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _navItem(0, Icons.home_rounded, Icons.home_outlined, 'Home',
-                  screenWidth),
-              _navItem(1, Icons.assignment_rounded, Icons.assignment_outlined,
-                  'Reports', screenWidth,
+              _navItem(0, Icons.home_rounded, Icons.home_outlined, 'Home', screenWidth),
+              _navItem(1, Icons.assignment_rounded, Icons.assignment_outlined, 'Reports', screenWidth,
                   badgeCount: _unreadReportsCount),
-              _navItem(2, Icons.settings_rounded, Icons.settings_outlined,
-                  'Settings', screenWidth),
+              if (_isResponder)
+                _navItem(2, Icons.shield_rounded, Icons.shield_outlined, 'Responder', screenWidth),
+              _navItem(settingsIndex, Icons.settings_rounded, Icons.settings_outlined, 'Settings', screenWidth),
             ],
           ),
         ),

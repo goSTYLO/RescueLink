@@ -49,10 +49,11 @@ const PERMISSIONS = {
     settings: []
   },
   [ROLES.RESPONDER]: {
-    incidents: ['create', 'readOwn', 'updateOwn', 'deleteOwn'],
+    incidents: ['create', 'readOwn', 'updateOwn', 'deleteOwn', 'read'], // 'read' needed to view nearby active incidents for alert flow
     dispatches: [],
-    responders: ['read'],
+    responders: ['readOwn'],  // own profile via /me/profile
     notifications: ['readOwn'],
+    backup_requests: ['create', 'readOwn'],
     auditLogs: [],
     users: [],
     settings: []

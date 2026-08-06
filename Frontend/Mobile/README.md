@@ -2,6 +2,27 @@
 
 Flutter mobile application for RescueLink built with BLoC architecture.
 
+## Phase 3: Incident Acceptance Workflow (Responder Mode)
+
+Users with role `responder` (promoted upon application approval) unlock a dedicated 4th tab:
+- **Role Gating**: Tab 3 (`Responder`) is conditionally inserted into the bottom navigation bar (`[Home, Reports, Responder, Settings]`).
+- **Responder Dashboard (`ResponderDashboardScreen`)**:
+  - **Online/Offline Toggle**: Persisted server-side via `PATCH /api/responders/me/online-status`.
+  - **Active Assignments**: List of active incidents assigned to the responder with status indicators (`Assigned`, `En Route`, `On Scene`, `Resolved`).
+- **Incident Alert Modal (`IncidentAlertModal`)**:
+  - Automatically pops up on receiving a `responder:incident_alert` WebSocket event when responder is online.
+  - Displays incident type, severity, and barangay location.
+  - **Accept**: Assigns incident to responder and opens Responder Incident Detail screen.
+  - **Decline**: Dismisses modal and logs action.
+- **Responder Incident Detail (`ResponderIncidentDetailScreen`)**:
+  - **Interactive Map**: Built with `flutter_map` and OpenStreetMap tiles with pin placement for incident location.
+  - **Response Progress Stepper**: State machine enforcement (`Assigned` -> `En Route` -> `On Scene` -> `Resolved`).
+  - **Request Backup**: Dialog to request backup from CDRRMO, nearby responders, or both.
+- **Response History (`ResponderHistoryScreen`)**:
+  - Paginated list of past completed (Resolved) incidents.
+- **Richer Notification Categories**:
+  - Extended `NotificationsScreen` with custom styling and badges for `application_approved`, `application_rejected`, `responder_assigned`, `responder_status_updated`, and `backup_requested`.
+
 ## Volunteer Responder Onboarding (Credential-Based)
 
 Citizens can apply to become Volunteer First Responders directly from the settings screen in the mobile app:

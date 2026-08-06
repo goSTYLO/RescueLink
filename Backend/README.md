@@ -2,6 +2,27 @@
 
 Node.js + Express backend for RescueLink, using PostgreSQL. Handles authentication, incident reporting, dispatcher workflows, AI-powered incident classification, and audit logging.
 
+## Phase 3: Incident Acceptance Workflow (Manual Acceptance)
+
+Implemented responder incident acceptance and status tracking workflow:
+- **Database Additions**:
+  - `incident_reports`: `accepted_by_user_id` (FK users), `responder_status` (`Assigned`, `En Route`, `On Scene`, `Resolved`), `accepted_at`.
+  - `responders`: `user_id` (FK users).
+  - `users`: `responder_online` (Boolean toggle).
+  - `responder_status_history`: Audit trail for status changes (`report_id`, `updated_by_user_id`, `old_status`, `new_status`, `updated_at`).
+  - `backup_requests`: Field responder backup requests (`report_id`, `requested_by_user_id`, `target`, `notes`, `created_at`).
+  - `notifications`: `category` (`incident`, `application`, `responder_alert`, `backup_request`, `system`).
+- **Endpoints**:
+  - `POST /api/incidents/:id/accept`: Responders accept an unassigned pending/verified incident within alert radius.
+  - `POST /api/incidents/:id/decline`: Logs decline action.
+  - `PATCH /api/incidents/:id/responder-status`: Enforces state transition machine (`Assigned` -> `En Route` -> `On Scene` -> `Resolved`).
+  - `POST /api/incidents/:id/backup`: Request backup from CDRRMO, nearby responders, or both.
+  - `GET /api/incidents/:id/backup`: Fetch backup requests for an incident.
+  - `GET /api/incidents/responder/active`: List active assigned incidents for current responder.
+  - `GET /api/incidents/responder/history`: Paginated list of completed (Resolved) incidents.
+  - `PATCH /api/responders/me/online-status`: Server-persisted online/offline toggle for responders.
+  - `GET /api/responders/me/profile`: Retrieve responder self-profile.
+
 ## Phase 2: Volunteer Responder Onboarding (Credential-Based)
 
 Implemented full backend module for credential-based volunteer responder applications:

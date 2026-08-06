@@ -88,22 +88,20 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   String _eventTypeLabel(String? eventType) {
     if (eventType == null || eventType.isEmpty) return 'Update';
     switch (eventType) {
-      case 'created':
-        return 'Created';
-      case 'dispatched':
-        return 'Dispatched';
-      case 'status_updated':
-        return 'Status Updated';
-      case 'verified':
-        return 'Verified';
-      case 'resolution_confirmed':
-        return 'Resolved';
-      case 'note_added':
-        return 'Note Added';
-      case 'reclassified':
-        return 'Reclassified';
-      case 'duplicate_changed':
-        return 'Duplicate Updated';
+      case 'created': return 'Created';
+      case 'dispatched': return 'Dispatched';
+      case 'status_updated': return 'Status Updated';
+      case 'verified': return 'Verified';
+      case 'resolution_confirmed': return 'Resolved';
+      case 'note_added': return 'Note Added';
+      case 'reclassified': return 'Reclassified';
+      case 'duplicate_changed': return 'Duplicate Updated';
+      // Phase 3 categories
+      case 'application_approved': return 'Application Approved';
+      case 'application_rejected': return 'Application Rejected';
+      case 'responder_assigned': return 'Responder Assigned';
+      case 'responder_status_updated': return 'Responder Update';
+      case 'backup_requested': return 'Backup Requested';
       default:
         return eventType.replaceAll('_', ' ').split(' ').map((w) => w.isEmpty ? '' : '${w[0].toUpperCase()}${w.length > 1 ? w.substring(1).toLowerCase() : ''}').join(' ');
     }
@@ -140,15 +138,23 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   String _collapsedPreview(Map<String, dynamic> item, String? eventType, String? incidentType) {
     final incidentLabel = _incidentTypeLabel(incidentType);
     final eventLabel = _eventTypeLabel(eventType);
+    // Phase 3 application events (no incident)
+    if (eventType == 'application_approved') return 'Your responder application was approved ✓';
+    if (eventType == 'application_rejected') return 'Your responder application was not approved';
+    if (eventType == 'responder_assigned') return '$incidentLabel • A responder is on the way';
+    if (eventType == 'responder_status_updated') {
+      final msg = (item['message'] as String?) ?? '';
+      return msg.isNotEmpty ? msg : '$incidentLabel • Responder status updated';
+    }
+    if (eventType == 'backup_requested') return '$incidentLabel • Backup has been requested';
+    // Existing
     if (eventType == 'status_updated') {
       final status = item['incident_status'] as String?;
       if (status != null && status.isNotEmpty) {
         return '$incidentLabel • Status updated to ${_statusLabel(status)}';
       }
     }
-    if (eventType == 'dispatched') {
-      return '$incidentLabel • Assigned to department';
-    }
+    if (eventType == 'dispatched') return '$incidentLabel • Assigned to department';
     if (eventType == 'verified') return '$incidentLabel • Verified';
     if (eventType == 'resolution_confirmed') return '$incidentLabel • Resolved';
     if (eventType == 'created') return '$incidentLabel • New report';
@@ -195,33 +201,32 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   ({IconData icon, Color iconBg, Color iconColor}) _notificationStyle(
       Map<String, dynamic> notification) {
+    final eventType = (notification['event_type'] as String?)?.toLowerCase() ?? '';
+    // Phase 3 — category-based styles (override channel-based for these types)
+    if (eventType == 'application_approved') {
+      return (icon: Icons.verified_rounded, iconBg: const Color(0xFFD1FAE5), iconColor: const Color(0xFF059669));
+    }
+    if (eventType == 'application_rejected') {
+      return (icon: Icons.cancel_rounded, iconBg: const Color(0xFFFEE2E2), iconColor: const Color(0xFFDC2626));
+    }
+    if (eventType == 'responder_assigned' || eventType == 'responder_status_updated') {
+      return (icon: Icons.shield_rounded, iconBg: const Color(0xFFFFF7ED), iconColor: const Color(0xFFF59E0B));
+    }
+    if (eventType == 'backup_requested') {
+      return (icon: Icons.campaign_rounded, iconBg: const Color(0xFFFEE2E2), iconColor: const Color(0xFFEF4444));
+    }
+    // Channel-based fallback
     final sentVia = (notification['sent_via'] as String?)?.toLowerCase() ?? '';
     if (sentVia.contains('sms')) {
-      return (
-        icon: Icons.sms_outlined,
-        iconBg: const Color(0xFFFEF3C7),
-        iconColor: const Color(0xFFD97706),
-      );
+      return (icon: Icons.sms_outlined, iconBg: const Color(0xFFFEF3C7), iconColor: const Color(0xFFD97706));
     }
     if (sentVia.contains('email')) {
-      return (
-        icon: Icons.mail_outline,
-        iconBg: const Color(0xFFEDE9FE),
-        iconColor: const Color(0xFF6D28D9),
-      );
+      return (icon: Icons.mail_outline, iconBg: const Color(0xFFEDE9FE), iconColor: const Color(0xFF6D28D9));
     }
     if (sentVia.contains('push')) {
-      return (
-        icon: Icons.notifications_active_outlined,
-        iconBg: const Color(0xFFDBEAFE),
-        iconColor: const Color(0xFF2563EB),
-      );
+      return (icon: Icons.notifications_active_outlined, iconBg: const Color(0xFFDBEAFE), iconColor: const Color(0xFF2563EB));
     }
-    return (
-      icon: Icons.info_outline,
-      iconBg: const Color(0xFFFCE7F3),
-      iconColor: const Color(0xFFEC4899),
-    );
+    return (icon: Icons.info_outline, iconBg: const Color(0xFFFCE7F3), iconColor: const Color(0xFFEC4899));
   }
 
   @override
@@ -329,11 +334,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 final eventType = item['event_type'] as String?;
                 final incidentType = item['incident_type'] as String?;
                 final key = 'new_${reportId}_${item['sent_at']}';
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: _notificationCard(
-                    expandKey: key,
-                    icon: style.icon,
                     iconBg: style.iconBg,
                     iconColor: style.iconColor,
                     title: reportIdInt != null

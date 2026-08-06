@@ -1,6 +1,7 @@
 const Responder = require('../models/responder');
 const User = require('../models/user');
 const Department = require('../models/department');
+const pool = require('../config/db');
 const { validateInteger, validateString, validateOptionalString, validatePagination, validateAllowedValue } = require('../utils/validation');
 const { logDispatcherAction } = require('../utils/auditLog');
 const { ROLES } = require('../config/roles');
@@ -327,6 +328,49 @@ const responderController = {
       console.error('Error listing team members:', error);
       if (error.message.includes('must be')) return res.status(400).json({ error: error.message });
       res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+
+  // ── Phase 3: Responder self-service ──────────────────────────────
+
+  /** PATCH /api/responders/me/online-status — toggle responder availability */
+  async updateOnlineStatus(req, res) {
+    try {
+      const userId = req.user.user_id;
+      const { online } = req.body;
+      if (typeof online !== 'boolean') {
+        return res.status(400).json({ error: '"online" must be a boolean.' });
+      }
+      await pool.query(
+        'UPDATE users SET responder_online = $1 WHERE user_id = $2',
+        [online, userId]
+      );
+      res.json({ online, user_id: userId });
+    } catch (err) {
+      console.error('updateOnlineStatus error:', err);
+      res.status(500).json({ error: 'Internal server error.' });
+    }
+  },
+
+  /** GET /api/responders/me/profile — get own responder profile */
+  async getSelfProfile(req, res) {
+    try {
+      const userId = req.user.user_id;
+      const row = await pool.query(
+        `SELECT u.user_id, u.first_name, u.last_name, u.phone_number, u.address,
+                u.responder_online, u.latitude, u.longitude,
+                r.responder_id, r.organization, r.availability_status,
+                r.team_name, r.supported_incident_types
+           FROM users u
+           LEFT JOIN responders r ON r.user_id = u.user_id
+          WHERE u.user_id = $1`,
+        [userId]
+      );
+      if (!row.rows[0]) return res.status(404).json({ error: 'Responder profile not found.' });
+      res.json(row.rows[0]);
+    } catch (err) {
+      console.error('getSelfProfile error:', err);
+      res.status(500).json({ error: 'Internal server error.' });
     }
   },
 };

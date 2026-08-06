@@ -23,6 +23,7 @@ class AuthService {
   static const _keyBiometricToken = 'biometric_token';
   static const _keyBiometricPhone = 'biometric_phone';
   static const _keyBiometricPassword = 'biometric_password';
+  static const _keyUserRole = 'user_role';
   String? _verificationId;
   int? _forceResendingToken;
 
@@ -34,6 +35,12 @@ class AuthService {
   // Get stored JWT token
   String? getToken() {
     return _prefs.getString('jwt_token');
+  }
+
+  /// Returns the cached role of the logged-in user (e.g. 'user', 'responder', 'dispatcher').
+  /// Returns null if not logged in or role not yet cached.
+  String? getUserRole() {
+    return _prefs.getString(_keyUserRole);
   }
 
   // Store JWT token
@@ -56,6 +63,7 @@ class AuthService {
       }
     }
     await _prefs.remove('jwt_token');
+    await _prefs.remove(_keyUserRole);
     final biometricEnabled = await isBiometricLoginEnabled();
     if (!biometricEnabled) {
       await clearBiometricData();
@@ -193,9 +201,15 @@ class AuthService {
         },
       );
 
+      final user = (response['user'] ?? response) as Map<String, dynamic>;
+      // Cache role for synchronous access across the UI
+      final role = user['role']?.toString();
+      if (role != null && role.isNotEmpty) {
+        await _prefs.setString(_keyUserRole, role);
+      }
       return {
         'success': true,
-        'user': response['user'] ?? response,
+        'user': user,
       };
     } catch (e) {
       return {

@@ -5,6 +5,17 @@ Overview
 - Purpose: How to manually run and test the full RescueLink stack (Mobile, Web dispatcher, Backend, RescueLink AI, Blockchain + Ganache) and run automated tests.
 - Repo root: use commands relative to repository root.
 
+Phase 3 Testing: Incident Acceptance Workflow
+---------------------------------------------
+1. **Approve Application (Dispatcher Web)**: Log into dispatcher web, navigate to `Responder Applications`, approve a pending application for a test user. Verify database `users.role` changes to `responder` and `responders` row is created with `user_id`.
+2. **Responder Mobile Login**: Log in as the approved user on the mobile app. Confirm that a 4th tab (`Responder`) is now visible in the bottom navigation.
+3. **Toggle Online Status**: Tap the `Status` switch on the Responder dashboard to set status to `Online` (verifies `PATCH /api/responders/me/online-status`).
+4. **Broadcast Incident Alert**: Submit a new incident report from another account within alert radius. Verify that `IncidentAlertModal` pops up on the responder's screen via WebSocket.
+5. **Accept Incident**: Tap `Accept Incident` on the alert modal. Confirm incident status is updated to `Assigned` and `ResponderIncidentDetailScreen` opens with an OpenStreetMap pin.
+6. **Progress Responder Status**: Tap `Update to En Route`, then `Update to On Scene`, then `Update to Resolved`. Verify state machine rules and status history audit entries in `responder_status_history`.
+7. **Request Backup**: Tap `Request Backup`, select target (`CDRRMO` or `Nearby Responders`), and send. Confirm `backup_requests` record is stored and notification category `backup_request` is sent.
+8. **Notification Screen Categorization**: Open `NotificationsScreen` to verify custom cards and icons for `application_approved`, `responder_assigned`, `responder_status_updated`, and `backup_requested`.
+
 Prerequisites
 -------------
 - Node.js >=14 and npm
