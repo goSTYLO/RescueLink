@@ -21,6 +21,38 @@ const STATUS_TRANSITIONS = {
 
 const ALERT_RADIUS_KM = parseFloat(process.env.RESPONDER_ALERT_RADIUS_KM || '10');
 
+// ─── Self-healing DB Schema Helper ──────────────────────────────────────────
+async function ensurePhase3Schema() {
+  try {
+    await pool.query(`
+      ALTER TABLE responders ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(user_id) ON DELETE SET NULL;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS responder_online BOOLEAN DEFAULT FALSE;
+      ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS accepted_by_user_id INTEGER REFERENCES users(user_id) ON DELETE SET NULL;
+      ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS responder_status VARCHAR(50);
+      ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS accepted_at TIMESTAMP WITH TIME ZONE;
+      ALTER TABLE notifications ADD COLUMN IF NOT EXISTS category VARCHAR(50) DEFAULT 'incident';
+      CREATE TABLE IF NOT EXISTS responder_status_history (
+        id SERIAL PRIMARY KEY,
+        report_id INTEGER NOT NULL REFERENCES incident_reports(report_id) ON DELETE CASCADE,
+        updated_by_user_id INTEGER NOT NULL REFERENCES users(user_id),
+        old_status VARCHAR(50),
+        new_status VARCHAR(50) NOT NULL,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE TABLE IF NOT EXISTS backup_requests (
+        id SERIAL PRIMARY KEY,
+        report_id INTEGER NOT NULL REFERENCES incident_reports(report_id) ON DELETE CASCADE,
+        requested_by_user_id INTEGER NOT NULL REFERENCES users(user_id),
+        target VARCHAR(50) NOT NULL CHECK (target IN ('nearby_responders', 'cdrrmo', 'both')),
+        notes TEXT,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+  } catch (err) {
+    console.warn('ensurePhase3Schema warning:', err.message);
+  }
+}
+
 // ─── Haversine distance (km) ─────────────────────────────────────────────────
 function haversineKm(lat1, lon1, lat2, lon2) {
   const R = 6371;

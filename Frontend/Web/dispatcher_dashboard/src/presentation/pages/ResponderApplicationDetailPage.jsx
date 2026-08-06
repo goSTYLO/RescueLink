@@ -344,43 +344,73 @@ export function ResponderApplicationDetailPage() {
           </div>
         </Card>
 
-        {/* Review & Decision Actions */}
+        {/* Dispatcher Review & Actions */}
         <Card className="p-6 space-y-4">
           <h2 className="text-lg font-bold">Dispatcher Review & Notes</h2>
 
-          <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-              Reviewer Notes (Provided to applicant for transparency upon rejection)
-            </label>
-            <textarea
-              rows={4}
-              value={reviewNotes}
-              onChange={(e) => setReviewNotes(e.target.value)}
-              placeholder="Enter review findings, approval comments, or rejection details..."
-              className="w-full p-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
-              disabled={submitting}
-            />
-          </div>
+          {application.status === 'pending' ? (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Reviewer Notes (Provided to applicant for transparency upon rejection)
+                </label>
+                <textarea
+                  rows={4}
+                  value={reviewNotes}
+                  onChange={(e) => setReviewNotes(e.target.value)}
+                  placeholder="Enter review findings, approval comments, or rejection details..."
+                  className="w-full p-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+                  disabled={submitting}
+                />
+              </div>
 
-          <div className="flex flex-wrap items-center justify-end gap-3 pt-2">
-            <Button
-              variant="danger"
-              onClick={() => handleDecision('rejected')}
-              disabled={submitting}
-              className="px-6"
-            >
-              <XCircle className="w-4 h-4 mr-2" /> Reject Application
-            </Button>
+              <div className="flex flex-wrap items-center justify-end gap-3 pt-2">
+                <Button
+                  variant="danger"
+                  onClick={() => handleDecision('rejected')}
+                  disabled={submitting}
+                  className="px-6"
+                >
+                  <XCircle className="w-4 h-4 mr-2" /> Reject Application
+                </Button>
 
-            <Button
-              variant="primary"
-              onClick={() => handleDecision('approved')}
-              disabled={submitting}
-              className="px-6 bg-green-600 hover:bg-green-700 text-white"
-            >
-              <CheckCircle className="w-4 h-4 mr-2" /> Approve & Promote to Responder
-            </Button>
-          </div>
+                <Button
+                  variant="primary"
+                  onClick={() => handleDecision('approved')}
+                  disabled={submitting}
+                  className="px-6 bg-green-600 hover:bg-green-700 text-white"
+                >
+                  <CheckCircle className="w-4 h-4 mr-2" /> Approve & Promote to Responder
+                </Button>
+              </div>
+            </>
+          ) : (
+            <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-slate-500">Review Outcome</span>
+                <Badge variant={application.status === 'approved' ? 'success' : 'danger'}>
+                  {application.status === 'approved' ? 'Approved' : 'Rejected'}
+                </Badge>
+              </div>
+
+              {application.reviewed_at && (
+                <div className="text-xs text-slate-400">
+                  Reviewed on {new Date(application.reviewed_at).toLocaleString()}
+                </div>
+              )}
+
+              {application.notes ? (
+                <div>
+                  <span className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Reviewer Notes</span>
+                  <p className="text-sm text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 p-3 rounded-lg border border-slate-200 dark:border-slate-700">
+                    {application.notes}
+                  </p>
+                </div>
+              ) : (
+                <p className="text-sm text-slate-400 italic">No reviewer notes recorded.</p>
+              )}
+            </div>
+          )}
         </Card>
 
         {/* In-Page Interactive Document Preview Modal (No New Tabs!) */}

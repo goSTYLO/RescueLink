@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../services/responder_service.dart';
 import '../../services/websocket_service.dart';
-import '../../widgets/glass_card.dart';
 
 /// Bottom-sheet modal triggered when a `responder:incident_alert` WS event arrives.
 /// Shows incident info and Accept / Decline buttons.
@@ -111,7 +110,7 @@ class _IncidentAlertModalState extends State<IncidentAlertModal> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Incident Alert', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: const Color(0xFFEF4444))),
+                    const Text('Incident Alert', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFFEF4444))),
                     Text('Response needed nearby', style: TextStyle(fontSize: 11, color: textSec)),
                   ],
                 ),

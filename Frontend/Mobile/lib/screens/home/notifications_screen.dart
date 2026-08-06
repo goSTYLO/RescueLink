@@ -174,6 +174,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       await _notificationService.markAllAsRead();
       if (!mounted) return;
       await _loadNotifications();
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('All notifications marked as read.'),
@@ -334,11 +335,18 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 final eventType = item['event_type'] as String?;
                 final incidentType = item['incident_type'] as String?;
                 final key = 'new_${reportId}_${item['sent_at']}';
+                final isAppEvent = eventType?.startsWith('application_') == true;
+                final cardTitle = isAppEvent
+                    ? 'Responder Application'
+                    : (reportIdInt != null ? 'Incident #DGP-$reportIdInt' : 'Incident Update');
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _notificationCard(
+                    expandKey: key,
+                    icon: style.icon,
                     iconBg: style.iconBg,
                     iconColor: style.iconColor,
-                    title: reportIdInt != null
-                        ? 'Incident #DGP-$reportIdInt'
-                        : 'Incident Update',
+                    title: cardTitle,
                     description: message,
                     time: _formatTimestamp(item),
                     eventType: eventType,

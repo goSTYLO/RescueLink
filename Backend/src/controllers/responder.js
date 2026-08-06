@@ -341,10 +341,23 @@ const responderController = {
       if (typeof online !== 'boolean') {
         return res.status(400).json({ error: '"online" must be a boolean.' });
       }
-      await pool.query(
-        'UPDATE users SET responder_online = $1 WHERE user_id = $2',
-        [online, userId]
-      );
+      try {
+        await pool.query(
+          'UPDATE users SET responder_online = $1 WHERE user_id = $2',
+          [online, userId]
+        );
+      } catch (err) {
+        if (err.code === '42703' && err.message.includes('responder_online')) {
+          // Self-heal: add column dynamically if migration was missed
+          await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS responder_online BOOLEAN DEFAULT FALSE');
+          await pool.query(
+            'UPDATE users SET responder_online = $1 WHERE user_id = $2',
+            [online, userId]
+          );
+        } else {
+          throw err;
+        }
+      }
       res.json({ online, user_id: userId });
     } catch (err) {
       console.error('updateOnlineStatus error:', err);
@@ -356,16 +369,37 @@ const responderController = {
   async getSelfProfile(req, res) {
     try {
       const userId = req.user.user_id;
-      const row = await pool.query(
-        `SELECT u.user_id, u.first_name, u.last_name, u.phone_number, u.address,
-                u.responder_online, u.latitude, u.longitude,
-                r.responder_id, r.organization, r.availability_status,
-                r.team_name, r.supported_incident_types
-           FROM users u
-           LEFT JOIN responders r ON r.user_id = u.user_id
-          WHERE u.user_id = $1`,
-        [userId]
-      );
+      let row;
+      try {
+        row = await pool.query(
+          `SELECT u.user_id, u.first_name, u.last_name, u.phone_number, u.address,
+                  u.responder_online, u.latitude, u.longitude,
+                  r.responder_id, r.organization, r.availability_status,
+                  r.team_name, r.supported_incident_types
+             FROM users u
+             LEFT JOIN responders r ON r.user_id = u.user_id
+            WHERE u.user_id = $1`,
+          [userId]
+        );
+      } catch (err) {
+        if (err.code === '42703') {
+          // Self-heal: ensure Phase 3 columns exist
+          await pool.query('ALTER TABLE responders ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(user_id) ON DELETE SET NULL');
+          await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS responder_online BOOLEAN DEFAULT FALSE');
+          row = await pool.query(
+            `SELECT u.user_id, u.first_name, u.last_name, u.phone_number, u.address,
+                    u.responder_online, u.latitude, u.longitude,
+                    r.responder_id, r.organization, r.availability_status,
+                    r.team_name, r.supported_incident_types
+               FROM users u
+               LEFT JOIN responders r ON r.user_id = u.user_id
+              WHERE u.user_id = $1`,
+            [userId]
+          );
+        } else {
+          throw err;
+        }
+      }
       if (!row.rows[0]) return res.status(404).json({ error: 'Responder profile not found.' });
       res.json(row.rows[0]);
     } catch (err) {

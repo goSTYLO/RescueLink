@@ -994,8 +994,9 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
 
   // ── SETTINGS TAB ───────────────────────────────────────────────────────────
   Widget _buildSettingsContent() {
+    final settingsIndex = _isResponder ? 3 : 2;
     return StaggeredFadeIn.single(
-      trigger: _currentIndex == 2 ? _tabSwitchCounter : null,
+      trigger: _currentIndex == settingsIndex ? _tabSwitchCounter : null,
       child: SettingsScreen(
         onThemeChanged: widget.onThemeChanged,
         onLogout: widget.onLogout,
@@ -1014,7 +1015,6 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.sizeOf(context).width;
-    final int settingsIndex = _isResponder ? 3 : 2;
     final List<Widget> pages = [
       _buildHomeContent(),
       _buildReportHistoryContent(),
@@ -1036,6 +1036,7 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
 
   Widget _buildBottomNav(double screenWidth) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final settingsIndex = _isResponder ? 3 : 2;
     return Container(
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF111827) : Colors.white,

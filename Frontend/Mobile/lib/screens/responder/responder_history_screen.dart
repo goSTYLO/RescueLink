@@ -96,12 +96,12 @@ class _ResponderHistoryScreenState extends State<ResponderHistoryScreen> {
                 Text('Past incidents you responded to', style: TextStyle(fontSize: 13, color: textSec)),
                 const SizedBox(height: 24),
                 if (_loading && _history.isEmpty)
-                  Column(children: [
-                    const SkeletonCard(height: 72),
-                    const SizedBox(height: 12),
-                    const SkeletonCard(height: 72),
-                    const SizedBox(height: 12),
-                    const SkeletonCard(height: 72),
+                  const Column(children: [
+                    SkeletonCard(height: 72),
+                    SizedBox(height: 12),
+                    SkeletonCard(height: 72),
+                    SizedBox(height: 12),
+                    SkeletonCard(height: 72),
                   ])
                 else if (_error != null)
                   Column(children: [

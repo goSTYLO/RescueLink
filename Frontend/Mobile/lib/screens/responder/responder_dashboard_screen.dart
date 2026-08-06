@@ -140,7 +140,7 @@ class _ResponderDashboardScreenState extends State<ResponderDashboardScreen> {
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.all(20),
-            child: StaggeredFadeIn(
+            child: StaggeredFadeIn.single(
               staggerDelayMs: 50,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -185,7 +185,7 @@ class _ResponderDashboardScreenState extends State<ResponderDashboardScreen> {
                             : Switch(
                                 value: _online,
                                 onChanged: (_) => _toggleOnline(),
-                                activeColor: const Color(0xFF10B981),
+                                activeTrackColor: const Color(0xFF10B981),
                               ),
                       ],
                     ),
