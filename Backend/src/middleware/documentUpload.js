@@ -34,11 +34,7 @@ const validateDocumentSizes = (req, res, next) => {
   if (!req.files) return next();
 
   const errors = [];
-  const allFiles = [
-    ...(req.files.gov_id || []),
-    ...(req.files.certificates || []),
-    ...(req.files.other_docs || []),
-  ];
+  const allFiles = Object.values(req.files).flat();
 
   for (const file of allFiles) {
     if (file.size > MAX_DOC_SIZE) {
@@ -92,6 +88,10 @@ const documentMulter = multer({
   { name: 'gov_id', maxCount: 1 },
   { name: 'certificates', maxCount: 5 },
   { name: 'other_docs', maxCount: 3 },
+  { name: 'proof_fire', maxCount: 1 },
+  { name: 'proof_medical', maxCount: 1 },
+  { name: 'proof_police', maxCount: 1 },
+  { name: 'proof_disaster', maxCount: 1 },
 ]);
 
 const documentUploadMiddleware = (req, res, next) => {

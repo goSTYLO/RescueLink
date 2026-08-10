@@ -15,6 +15,13 @@ function isImageFile(filepath) {
   return ['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext);
 }
 
+const FIELD_BADGE_MAP = {
+  medical: { label: 'Medical / First Aid', color: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' },
+  fire: { label: 'Fire Response', color: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20' },
+  police: { label: 'Crime / Law Enforcement', color: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20' },
+  disaster: { label: 'Disaster & Rescue', color: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20' },
+};
+
 export function ResponderApplicationDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -187,6 +194,27 @@ export function ResponderApplicationDetailPage() {
               <span className="block text-slate-500 font-medium">Address</span>
               <span>{details.address || application.address || 'N/A'}</span>
             </div>
+            <div className="md:col-span-2">
+              <span className="block text-slate-500 font-medium mb-1.5">Applied Specialization Field(s)</span>
+              {Array.isArray(application.specialization_fields) && application.specialization_fields.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {application.specialization_fields.map((field) => {
+                    const normalized = field.toLowerCase();
+                    const badgeMeta = FIELD_BADGE_MAP[normalized] || { label: field.toUpperCase(), color: 'bg-slate-500/10 text-slate-600 border-slate-500/20' };
+                    return (
+                      <span
+                        key={field}
+                        className={`px-2.5 py-1 text-xs font-semibold rounded-md border ${badgeMeta.color}`}
+                      >
+                        {badgeMeta.label}
+                      </span>
+                    );
+                  })}
+                </div>
+              ) : (
+                <span className="text-slate-400 italic">General Volunteer (All Fields)</span>
+              )}
+            </div>
           </div>
 
           <hr className="my-6 border-slate-200 dark:border-slate-800" />
@@ -252,50 +280,111 @@ export function ResponderApplicationDetailPage() {
               )}
             </div>
 
-            {/* Certificates */}
-            <div className="p-4 border rounded-xl border-slate-200 dark:border-slate-800 space-y-3">
-              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Training Certificates & Proofs</span>
-              {(!application.certificate_paths || application.certificate_paths.length === 0) ? (
-                <p className="text-sm text-slate-400 italic">No certificates attached.</p>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {application.certificate_paths.map((certPath, idx) => {
-                    const filename = certPath.split('/').pop();
-                    const isImg = isImageFile(certPath);
-                    const docUrl = getDocumentUrl(application.id, certPath);
+            {/* Per-Field Proof of Qualification */}
+            {application.field_proof_paths && Object.keys(application.field_proof_paths).length > 0 ? (
+              <div className="p-4 border rounded-xl border-slate-200 dark:border-slate-800 space-y-4">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
+                  Proof of Qualification per Specialization Field
+                </span>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {Object.entries(application.field_proof_paths).map(([field, proofPath]) => {
+                    const normalized = field.toLowerCase();
+                    const badgeMeta = FIELD_BADGE_MAP[normalized] || { label: field.toUpperCase(), color: 'bg-slate-500/10 text-slate-600 border-slate-500/20' };
+                    const filename = proofPath.split('/').pop();
+                    const isImg = isImageFile(proofPath);
+                    const docUrl = getDocumentUrl(application.id, proofPath);
 
                     return (
-                      <div key={idx} className="p-3 border rounded-lg border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex items-center justify-between gap-3">
+                      <div
+                        key={field}
+                        className="p-3.5 border rounded-xl border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 space-y-3"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className={`px-2.5 py-0.5 text-xs font-bold rounded-md border ${badgeMeta.color}`}>
+                            {badgeMeta.label}
+                          </span>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => openPreview(proofPath, `Proof for ${badgeMeta.label}`)}
+                            className="text-xs font-semibold"
+                          >
+                            <Eye className="w-4 h-4 mr-1 text-red-500" /> View Proof
+                          </Button>
+                        </div>
+
                         <div className="flex items-center gap-3 overflow-hidden">
                           {isImg ? (
                             <img
                               src={docUrl}
                               alt={filename}
-                              onClick={() => openPreview(certPath, `Certificate ${idx + 1}`)}
-                              className="w-12 h-12 rounded object-cover border flex-shrink-0 cursor-pointer hover:opacity-80"
+                              onClick={() => openPreview(proofPath, `Proof for ${badgeMeta.label}`)}
+                              className="w-16 h-16 rounded-lg object-cover border flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
                             />
                           ) : (
-                            <div className="w-12 h-12 rounded bg-blue-500/10 text-blue-500 flex items-center justify-center flex-shrink-0">
-                              <FileText className="w-6 h-6" />
+                            <div className="w-16 h-16 rounded-lg bg-red-500/10 text-red-500 flex items-center justify-center flex-shrink-0">
+                              <FileText className="w-8 h-8" />
                             </div>
                           )}
-                          <span className="font-mono text-xs truncate" title={filename}>{filename}</span>
+                          <div className="overflow-hidden">
+                            <span className="font-mono text-xs text-slate-600 dark:text-slate-300 block truncate" title={filename}>
+                              {filename}
+                            </span>
+                            <span className="text-[11px] text-slate-400 block mt-0.5">Proof of Qualification</span>
+                          </div>
                         </div>
-
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => openPreview(certPath, `Certificate ${idx + 1}`)}
-                          className="flex-shrink-0"
-                        >
-                          <Eye className="w-4 h-4 mr-1 text-blue-500" /> View
-                        </Button>
                       </div>
                     );
                   })}
                 </div>
-              )}
-            </div>
+              </div>
+            ) : (
+              /* Legacy Fallback: General Certificates */
+              <div className="p-4 border rounded-xl border-slate-200 dark:border-slate-800 space-y-3">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Training Certificates & Proofs</span>
+                {(!application.certificate_paths || application.certificate_paths.length === 0) ? (
+                  <p className="text-sm text-slate-400 italic">No certificates attached.</p>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {application.certificate_paths.map((certPath, idx) => {
+                      const filename = certPath.split('/').pop();
+                      const isImg = isImageFile(certPath);
+                      const docUrl = getDocumentUrl(application.id, certPath);
+
+                      return (
+                        <div key={idx} className="p-3 border rounded-lg border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-3 overflow-hidden">
+                            {isImg ? (
+                              <img
+                                src={docUrl}
+                                alt={filename}
+                                onClick={() => openPreview(certPath, `Certificate ${idx + 1}`)}
+                                className="w-12 h-12 rounded object-cover border flex-shrink-0 cursor-pointer hover:opacity-80"
+                              />
+                            ) : (
+                              <div className="w-12 h-12 rounded bg-blue-500/10 text-blue-500 flex items-center justify-center flex-shrink-0">
+                                <FileText className="w-6 h-6" />
+                              </div>
+                            )}
+                            <span className="font-mono text-xs truncate" title={filename}>{filename}</span>
+                          </div>
+
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => openPreview(certPath, `Certificate ${idx + 1}`)}
+                            className="flex-shrink-0"
+                          >
+                            <Eye className="w-4 h-4 mr-1 text-blue-500" /> View
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Other Documents */}
             <div className="p-4 border rounded-xl border-slate-200 dark:border-slate-800 space-y-3">

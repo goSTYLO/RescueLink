@@ -38,10 +38,12 @@ class ResponderApplicationService {
     );
   }
 
-  /// Submit volunteer responder application with documents
+  /// Submit volunteer responder application with documents & specialization field proofs
   Future<Map<String, dynamic>> submitApplication({
     required Map<String, dynamic> personalDetails,
     required File govIdFile,
+    required List<String> specializationFields,
+    required Map<String, File> fieldProofFiles,
     List<File> certificateFiles = const [],
     List<File> otherDocFiles = const [],
   }) async {
@@ -55,8 +57,9 @@ class ResponderApplicationService {
 
     request.headers['Authorization'] = 'Bearer $token';
 
-    // Add JSON string of personal details
+    // Add JSON string of personal details and specialization fields
     request.fields['personal_details'] = jsonEncode(personalDetails);
+    request.fields['specialization_fields'] = jsonEncode(specializationFields);
 
     // Add Gov ID File
     final govIdFilename = _resolveFilename(govIdFile.path);
@@ -71,7 +74,24 @@ class ResponderApplicationService {
       ),
     );
 
-    // Add Certificate Files
+    // Add Per-Field Proof Files (e.g. proof_fire, proof_medical)
+    for (final entry in fieldProofFiles.entries) {
+      final fieldKey = entry.key;
+      final file = entry.value;
+      final proofFilename = _resolveFilename(file.path);
+      final proofMediaType = _resolveMediaType(file.path);
+
+      request.files.add(
+        await http.MultipartFile.fromPath(
+          'proof_$fieldKey',
+          file.path,
+          filename: proofFilename,
+          contentType: proofMediaType,
+        ),
+      );
+    }
+
+    // Add Certificate Files (legacy fallback)
     for (final file in certificateFiles) {
       final certFilename = _resolveFilename(file.path);
       final certMediaType = _resolveMediaType(file.path);

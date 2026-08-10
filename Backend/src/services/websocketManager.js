@@ -141,7 +141,17 @@ function init(server) {
       departmentId = user?.department_id ?? null;
     }
 
-    clients.set(ws, { userId, role, departmentId });
+    let supportedIncidentTypes = null;
+    if (role === ROLES.RESPONDER) {
+      try {
+        const rRes = await pool.query('SELECT supported_incident_types FROM responders WHERE user_id = $1', [userId]);
+        if (rRes.rows[0] && Array.isArray(rRes.rows[0].supported_incident_types)) {
+          supportedIncidentTypes = rRes.rows[0].supported_incident_types;
+        }
+      } catch (_) {}
+    }
+
+    clients.set(ws, { userId, role, departmentId, supportedIncidentTypes });
 
     ws.on('pong', () => {
       // Keep-alive response
@@ -182,10 +192,17 @@ function init(server) {
     const message = JSON.stringify({ event, data });
     const toSend = [];
 
+    const rawType = String(data.incident_type || '').trim().toLowerCase();
+    let normalizedType = rawType;
+    if (['medical', 'accident', 'injury'].some((k) => rawType.includes(k))) normalizedType = 'medical';
+    else if (['fire', 'blaze'].some((k) => rawType.includes(k))) normalizedType = 'fire';
+    else if (['crime', 'police', 'robbery', 'assault'].some((k) => rawType.includes(k))) normalizedType = 'police';
+    else if (['disaster', 'flood', 'typhoon', 'earthquake'].some((k) => rawType.includes(k))) normalizedType = 'disaster';
+
     for (const [ws, meta] of clients) {
       if (ws.readyState !== WebSocket.OPEN) continue;
 
-      const { userId, role, departmentId } = meta;
+      const { userId, role, departmentId, supportedIncidentTypes } = meta;
 
       // Global roles: receive everything
       if (GLOBAL_EVENT_ROLES.has(role)) {
@@ -201,6 +218,23 @@ function init(server) {
         continue;
       }
 
+      // Responder: filter by supported incident types if event is responder alert
+      if (role === ROLES.RESPONDER) {
+        if (event === 'responder:incident_alert') {
+          if (supportedIncidentTypes && supportedIncidentTypes.length > 0) {
+            if (!supportedIncidentTypes.includes(normalizedType)) {
+              continue; // Filter out: responder specialization doesn't match
+            }
+          }
+          toSend.push(ws);
+          continue;
+        }
+        if (departmentId != null && assignedSet.has(departmentId)) {
+          toSend.push(ws);
+          continue;
+        }
+      }
+
       // Department-scoped: only if incident assigned to their department
       if (DEPARTMENT_SCOPED_ROLES.has(role) && departmentId != null) {
         if (assignedSet.has(departmentId)) {
@@ -208,8 +242,6 @@ function init(server) {
         }
         continue;
       }
-
-      // Fallback: if we couldn't determine role, don't send (secure default)
     }
 
     toSend.forEach((ws) => {
@@ -221,8 +253,16 @@ function init(server) {
     });
   }
 
+  /**
+   * Broadcast responder:incident_alert to online responders matching specialization.
+   */
+  async function broadcastToResponders(event, data) {
+    return broadcast(event, data);
+  }
+
   return {
     broadcast,
+    broadcastToResponders,
     getClientCount: () => clients.size,
   };
 }

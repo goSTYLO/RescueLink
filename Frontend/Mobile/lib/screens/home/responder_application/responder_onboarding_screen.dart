@@ -28,10 +28,40 @@ class _ResponderOnboardingScreenState extends State<ResponderOnboardingScreen>
   // Tab 1 State
   bool _agreedToTerms = false;
 
-  // Tab 3 Upload State
+  // Tab 3 Upload & Specialization State
   File? _govIdFile;
+  final Set<String> _selectedSpecializations = {'medical'};
+  final Map<String, File> _fieldProofFiles = {};
+
   final List<File> _certificateFiles = [];
   final List<File> _otherDocFiles = [];
+
+  static const Map<String, Map<String, dynamic>> _fieldMeta = {
+    'medical': {
+      'label': 'Medical / First Aid',
+      'icon': Icons.medical_services_rounded,
+      'color': Color(0xFF10B981),
+      'desc': 'Upload BLS, First Aid, or EMT Certificate',
+    },
+    'fire': {
+      'label': 'Fire Response',
+      'icon': Icons.local_fire_department_rounded,
+      'color': Color(0xFFEF4444),
+      'desc': 'Upload SCBA or Firefighting Certificate',
+    },
+    'police': {
+      'label': 'Crime & Law Enforcement',
+      'icon': Icons.local_police_rounded,
+      'color': Color(0xFF3B82F6),
+      'desc': 'Upload Police, Tanod, or Security Training ID',
+    },
+    'disaster': {
+      'label': 'Disaster & Rescue',
+      'icon': Icons.tsunami_rounded,
+      'color': Color(0xFFF59E0B),
+      'desc': 'Upload DRRM or WASAR / Rescue Certificate',
+    },
+  };
 
   // Tab 4 Form State
   late TextEditingController _nameController;
@@ -87,6 +117,16 @@ class _ResponderOnboardingScreenState extends State<ResponderOnboardingScreen>
     }
   }
 
+  Future<void> _pickProofForField(String field) async {
+    final picker = ImagePicker();
+    final image = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+    if (image != null) {
+      setState(() {
+        _fieldProofFiles[field] = File(image.path);
+      });
+    }
+  }
+
   Future<void> _pickCertificate() async {
     final picker = ImagePicker();
     final images = await picker.pickMultiImage(imageQuality: 85);
@@ -132,6 +172,25 @@ class _ResponderOnboardingScreenState extends State<ResponderOnboardingScreen>
       return;
     }
 
+    if (_selectedSpecializations.isEmpty) {
+      _tabController.animateTo(2);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select at least one specialization field.')),
+      );
+      return;
+    }
+
+    for (final field in _selectedSpecializations) {
+      if (!_fieldProofFiles.containsKey(field) || _fieldProofFiles[field] == null) {
+        _tabController.animateTo(2);
+        final label = _fieldMeta[field]?['label'] ?? field;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Proof of qualification is required for $label.')),
+        );
+        return;
+      }
+    }
+
     if (!_formKey.currentState!.validate()) {
       _tabController.animateTo(3);
       return;
@@ -156,6 +215,8 @@ class _ResponderOnboardingScreenState extends State<ResponderOnboardingScreen>
       await _appService.submitApplication(
         personalDetails: personalDetails,
         govIdFile: _govIdFile!,
+        specializationFields: _selectedSpecializations.toList(),
+        fieldProofFiles: _fieldProofFiles,
         certificateFiles: _certificateFiles,
         otherDocFiles: _otherDocFiles,
       );
@@ -321,7 +382,7 @@ class _ResponderOnboardingScreenState extends State<ResponderOnboardingScreen>
     );
   }
 
-  // Tab 3: Requirements Checklist
+  // Tab 3: Requirements Checklist & Specialization Field Selection
   Widget _buildTabRequirements() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
@@ -335,11 +396,11 @@ class _ResponderOnboardingScreenState extends State<ResponderOnboardingScreen>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Required Credentials',
+                    'Required Credentials & Specialization',
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
-                  const Text('Upload photos (JPG or PNG) of your official documents.'),
+                  const Text('Select the fields you are applying for and upload your ID & proof of qualification per field.'),
                   const Divider(height: 24),
 
                   // 1. Government ID Upload
@@ -372,75 +433,137 @@ class _ResponderOnboardingScreenState extends State<ResponderOnboardingScreen>
                       ),
                     ),
 
-                  const SizedBox(height: 20),
+                  const Divider(height: 32),
 
-                  // 2. Training / Volunteer Certificates
-                  Row(
-                    children: [
-                      const Expanded(
-                        child: Text(
-                          '2. Certificates (Optional)',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      OutlinedButton.icon(
-                        onPressed: _pickCertificate,
-                        icon: const Icon(Icons.add, size: 16),
-                        label: const Text('Add File', style: TextStyle(fontSize: 13)),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        ),
-                      ),
-                    ],
+                  // 2. Specialization Fields Selection
+                  Text(
+                    '2. Select Your Specialization Field(s) *',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
                   ),
-                  for (int i = 0; i < _certificateFiles.length; i++)
-                    ListTile(
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.card_membership, color: Colors.blue, size: 20),
-                      title: Text(_certificateFiles[i].path.split(Platform.pathSeparator).last, style: const TextStyle(fontSize: 13)),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.close, size: 18, color: Colors.red),
-                        onPressed: () => setState(() => _certificateFiles.removeAt(i)),
-                      ),
-                    ),
-
-                  const SizedBox(height: 20),
-
-                  // 3. Supporting Documents
-                  Row(
-                    children: [
-                      const Expanded(
-                        child: Text(
-                          '3. Supporting Docs (Optional)',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      OutlinedButton.icon(
-                        onPressed: _pickOtherDoc,
-                        icon: const Icon(Icons.add, size: 16),
-                        label: const Text('Add File', style: TextStyle(fontSize: 13)),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        ),
-                      ),
-                    ],
+                  const SizedBox(height: 4),
+                  const Text(
+                    'You will only receive emergency alerts matching your selected field(s).',
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
                   ),
-                  for (int i = 0; i < _otherDocFiles.length; i++)
-                    ListTile(
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.description, color: Colors.grey, size: 20),
-                      title: Text(_otherDocFiles[i].path.split(Platform.pathSeparator).last, style: const TextStyle(fontSize: 13)),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.close, size: 18, color: Colors.red),
-                        onPressed: () => setState(() => _otherDocFiles.removeAt(i)),
-                      ),
-                    ),
+                  const SizedBox(height: 12),
+
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _fieldMeta.entries.map((entry) {
+                      final key = entry.key;
+                      final meta = entry.value;
+                      final isSelected = _selectedSpecializations.contains(key);
+                      final Color fieldColor = meta['color'] as Color;
+
+                      return FilterChip(
+                        selected: isSelected,
+                        showCheckmark: true,
+                        avatar: Icon(
+                          meta['icon'] as IconData,
+                          size: 18,
+                          color: isSelected ? Colors.white : fieldColor,
+                        ),
+                        label: Text(
+                          meta['label'] as String,
+                          style: TextStyle(
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                            color: isSelected ? Colors.white : null,
+                          ),
+                        ),
+                        selectedColor: fieldColor,
+                        onSelected: (selected) {
+                          setState(() {
+                            if (selected) {
+                              _selectedSpecializations.add(key);
+                            } else {
+                              if (_selectedSpecializations.length > 1) {
+                                _selectedSpecializations.remove(key);
+                                _fieldProofFiles.remove(key);
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('At least one specialization field must be selected.')),
+                                );
+                              }
+                            }
+                          });
+                        },
+                      );
+                    }).toList(),
+                  ),
+
+                  const Divider(height: 32),
+
+                  // 3. Per-Field Proof of Qualification Upload Slots
+                  Text(
+                    '3. Proof of Qualification per Field *',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Upload 1 valid certificate or proof of qualification for each field you selected above.',
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                  const SizedBox(height: 12),
+
+                  for (final field in _selectedSpecializations) ...[
+                    Builder(builder: (context) {
+                      final meta = _fieldMeta[field]!;
+                      final Color fieldColor = meta['color'] as Color;
+                      final proofFile = _fieldProofFiles[field];
+
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: fieldColor.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: fieldColor.withOpacity(0.3)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(meta['icon'] as IconData, color: fieldColor, size: 20),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    meta['label'] as String,
+                                    style: TextStyle(fontWeight: FontWeight.bold, color: fieldColor, fontSize: 14),
+                                  ),
+                                ),
+                                ElevatedButton.icon(
+                                  onPressed: () => _pickProofForField(field),
+                                  icon: const Icon(Icons.upload_file, size: 16),
+                                  label: Text(proofFile == null ? 'Upload' : 'Change', style: const TextStyle(fontSize: 12)),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: fieldColor,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              meta['desc'] as String,
+                              style: const TextStyle(fontSize: 11, color: Colors.grey),
+                            ),
+                            if (proofFile != null)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 6),
+                                child: Text(
+                                  '✓ Attached: ${proofFile.path.split(Platform.pathSeparator).last}',
+                                  style: TextStyle(color: fieldColor, fontWeight: FontWeight.bold, fontSize: 12),
+                                ),
+                              ),
+                          ],
+                        ),
+                      );
+                    }),
+                  ],
                 ],
               ),
             ),

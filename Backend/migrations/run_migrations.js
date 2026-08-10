@@ -19,6 +19,7 @@ const MIGRATION_ORDER = [
   'add_notification_event_type.sql',
   'add_responder_applications.sql',
   'add_phase3_responder_acceptance.sql',
+  'add_responder_specialization.sql',
 ];
 
 async function runMigrations() {

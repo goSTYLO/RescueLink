@@ -4,6 +4,7 @@ This folder is the consolidated entry point for project documentation.
 
 ## Documents
 
+- [Final List of Features](FINAL_LIST_OF_FEATURES.md) — Compiled list of all implemented features across Mobile, Web, Backend, AI, and Blockchain
 - [API Documentation](API_DOCUMENTATION.md) — Complete API reference, authentication flows, rate limiting, endpoint specifications
 - [Security Documentation](SECURITY_DOCUMENTATION.md) — Multi-layered security architecture, authentication, authorization, encryption, audit logging
 - [How To Run](HOW_TO_RUN.md) — Prerequisites, environment setup, startup procedures, health checks, VS Code tasks

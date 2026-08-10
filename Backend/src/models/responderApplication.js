@@ -25,6 +25,8 @@ async function ensureTable() {
       ALTER TABLE responder_applications ADD COLUMN IF NOT EXISTS certificate_paths JSONB DEFAULT '[]'::jsonb;
       ALTER TABLE responder_applications ADD COLUMN IF NOT EXISTS other_doc_paths JSONB DEFAULT '[]'::jsonb;
       ALTER TABLE responder_applications ADD COLUMN IF NOT EXISTS personal_details JSONB DEFAULT '{}'::jsonb;
+      ALTER TABLE responder_applications ADD COLUMN IF NOT EXISTS specialization_fields TEXT[] DEFAULT '{}';
+      ALTER TABLE responder_applications ADD COLUMN IF NOT EXISTS field_proof_paths JSONB DEFAULT '{}'::jsonb;
       ALTER TABLE responder_applications ADD COLUMN IF NOT EXISTS submitted_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
       ALTER TABLE responder_applications ADD COLUMN IF NOT EXISTS reviewed_by INTEGER;
       ALTER TABLE responder_applications ALTER COLUMN full_name DROP NOT NULL;
@@ -44,6 +46,8 @@ const ResponderApplication = {
     certificate_paths = [],
     other_doc_paths = [],
     personal_details = {},
+    specialization_fields = [],
+    field_proof_paths = {},
   }) {
     await ensureTable();
     const fullName = personal_details.full_name || personal_details.name || 'Volunteer Applicant';
@@ -52,8 +56,8 @@ const ResponderApplication = {
     try {
       res = await pool.query(
         `INSERT INTO responder_applications (
-          user_id, full_name, gov_id_path, certificate_paths, other_doc_paths, personal_details
-        ) VALUES ($1, $2, $3, $4, $5, $6)
+          user_id, full_name, gov_id_path, certificate_paths, other_doc_paths, personal_details, specialization_fields, field_proof_paths
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         RETURNING *, COALESCE(id, application_id) AS id, COALESCE(submitted_at, created_at) AS submitted_at`,
         [
           user_id,
@@ -62,10 +66,12 @@ const ResponderApplication = {
           JSON.stringify(certificate_paths),
           JSON.stringify(other_doc_paths),
           JSON.stringify(personal_details),
+          specialization_fields,
+          JSON.stringify(field_proof_paths),
         ]
       );
     } catch (err) {
-      if (err.code === '42703' || /full_name/i.test(err.message)) {
+      if (err.code === '42703' || /full_name|specialization_fields|field_proof_paths/i.test(err.message)) {
         res = await pool.query(
           `INSERT INTO responder_applications (
             user_id, gov_id_path, certificate_paths, other_doc_paths, personal_details

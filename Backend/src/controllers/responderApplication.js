@@ -55,15 +55,47 @@ const responderApplicationController = {
         });
       }
 
-      // Check files
-      if (!req.files || !req.files.gov_id || req.files.gov_id.length === 0) {
-        return res.status(400).json({ error: 'Government ID photo is required.' });
+      // Parse specialization fields & validate
+      let specializationFields = [];
+      if (req.body.specialization_fields) {
+        try {
+          specializationFields = typeof req.body.specialization_fields === 'string'
+            ? JSON.parse(req.body.specialization_fields)
+            : req.body.specialization_fields;
+        } catch {
+          specializationFields = [];
+        }
+      }
+      if (!Array.isArray(specializationFields)) specializationFields = [];
+      const validSpecializations = ['fire', 'medical', 'police', 'disaster'];
+      specializationFields = specializationFields
+        .map((s) => String(s).toLowerCase().trim())
+        .filter((s) => validSpecializations.includes(s));
+
+      if (specializationFields.length === 0) {
+        return res.status(400).json({ error: 'Please select at least one specialization field (Fire, Medical, Police, Disaster).' });
+      }
+
+      // Check per-field proof files
+      const fieldProofPaths = {};
+      for (const field of specializationFields) {
+        const fileKey = `proof_${field}`;
+        if (!req.files || !req.files[fileKey] || req.files[fileKey].length === 0) {
+          if (req.files && req.files.certificates && req.files.certificates.length > 0) {
+            // Fallback for legacy general certificate uploads
+          } else {
+            return res.status(400).json({ error: `Proof of qualification is required for field '${field}'.` });
+          }
+        } else {
+          const savedPath = await saveFileToDisk(userId, req.files[fileKey][0]);
+          fieldProofPaths[field] = savedPath;
+        }
       }
 
       // Save Government ID
       const govIdPath = await saveFileToDisk(userId, req.files.gov_id[0]);
 
-      // Save Certificates
+      // Save Certificates (legacy fallback)
       const certificatePaths = [];
       if (req.files.certificates && req.files.certificates.length > 0) {
         for (const file of req.files.certificates) {
@@ -110,6 +142,8 @@ const responderApplicationController = {
         certificate_paths: certificatePaths,
         other_doc_paths: otherDocPaths,
         personal_details: personalDetails,
+        specialization_fields: specializationFields,
+        field_proof_paths: fieldProofPaths,
       });
 
       // Emit WebSocket event for real-time dispatcher dashboard update
@@ -236,6 +270,10 @@ const responderApplicationController = {
           ? `${applicantUser.first_name || ''} ${applicantUser.last_name || ''}`.trim()
           : (application.personal_details?.full_name || `Volunteer ${application.user_id}`);
 
+        const appSpecFields = Array.isArray(application.specialization_fields) && application.specialization_fields.length > 0
+          ? application.specialization_fields
+          : ['fire', 'medical', 'police', 'disaster'];
+
         try {
           await Responder.create({
             name: fullName || `Responder ${application.user_id}`,
@@ -244,7 +282,7 @@ const responderApplicationController = {
             availability_status: 'Available',
             source_type: 'account',
             team_name: 'Volunteer Responders',
-            supported_incident_types: ['fire', 'medical', 'police', 'disaster'],
+            supported_incident_types: appSpecFields,
             user_id: application.user_id,
           });
         } catch (responderErr) {
