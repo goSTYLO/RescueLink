@@ -58,6 +58,8 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
   String _locationTitle = 'Dagupan City, Pangasinan';
   String _locationTimestamp = 'Updating...';
   bool _isResponder = false;
+  bool _revokeModalShowing = false;
+  bool _approveModalShowing = false;
 
   // SOS hold animation
   late AnimationController _sosHoldController;
@@ -81,6 +83,9 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
     _isResponder = AuthService().getUserRole() == 'responder';
     _wsSubscription = WebSocketService().eventStream.listen((event) {
       if (!mounted) return;
+      if (event.event == 'application:status_changed') {
+        _handleApplicationStatusChanged(event.data);
+      }
       final title = _formatNotificationTitle(event);
       if (_currentIndex != 1) {
         setState(() => _unreadReportsCount++);
@@ -124,6 +129,110 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
       final count = await NotificationService().getUnreadCount();
       if (mounted) setState(() => _apiUnreadCount = count);
     } catch (_) {}
+  }
+
+  Future<void> _handleApplicationStatusChanged(Map<String, dynamic> data) async {
+    final status = data['status']?.toString().toLowerCase();
+    if (status == 'revoked') {
+      await _loadHomeLocation();
+      if (!mounted) return;
+      _popOverlayRoutes();
+      setState(() {
+        _isResponder = false;
+        _currentIndex = 0;
+      });
+      final notes = data['notes']?.toString();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _showRevokeModal(reason: notes);
+      });
+    } else if (status == 'approved') {
+      final wasResponder = _isResponder;
+      await _loadHomeLocation();
+      if (!mounted) return;
+      if (!wasResponder && _isResponder) {
+        final notes = data['notes']?.toString();
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _showApprovedModal(notes: notes);
+        });
+      }
+    }
+  }
+
+  void _popOverlayRoutes() {
+    final navigator = Navigator.of(context);
+    while (navigator.canPop()) {
+      navigator.pop();
+    }
+  }
+
+  Future<void> _showRevokeModal({String? reason}) async {
+    if (_revokeModalShowing || !mounted) return;
+    _revokeModalShowing = true;
+    final trimmedReason = reason?.trim();
+    final bodyParts = <String>[
+      if (trimmedReason != null && trimmedReason.isNotEmpty)
+        'Reason: $trimmedReason',
+      'Your Volunteer First Responder access has been removed.',
+      'You may submit a new application from Settings at any time.',
+    ];
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Responder access revoked'),
+        content: Text(bodyParts.join('\n\n')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+    if (mounted) {
+      setState(() => _revokeModalShowing = false);
+    } else {
+      _revokeModalShowing = false;
+    }
+  }
+
+  Future<void> _showApprovedModal({String? notes}) async {
+    if (_approveModalShowing || !mounted) return;
+    _approveModalShowing = true;
+    final trimmedNotes = notes?.trim();
+    final bodyParts = <String>[
+      'Congratulations! Your Volunteer First Responder application has been approved.',
+      'A new Responder tab is now available in the bottom navigation so you can go online and accept assignments.',
+      if (trimmedNotes != null && trimmedNotes.isNotEmpty)
+        'Reviewer notes: $trimmedNotes',
+    ];
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('You\'re now a Volunteer Responder'),
+        content: Text(bodyParts.join('\n\n')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('OK'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              if (!mounted) return;
+              setState(() => _currentIndex = 2);
+            },
+            child: const Text('Open Responder tab'),
+          ),
+        ],
+      ),
+    );
+    if (mounted) {
+      setState(() => _approveModalShowing = false);
+    } else {
+      _approveModalShowing = false;
+    }
   }
 
   Future<void> _loadHomeLocation() async {
@@ -211,7 +320,10 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
         final newStatus = event.data['new_status']?.toString() ?? '';
         return '${prefix}Responder: $newStatus';
       case 'application:status_changed':
-        final appStatus = event.data['status']?.toString() ?? 'updated';
+        final appStatus = event.data['status']?.toString().toLowerCase() ?? 'updated';
+        if (appStatus == 'approved') return 'Your responder application was approved ✓';
+        if (appStatus == 'revoked') return 'Your volunteer responder status was revoked';
+        if (appStatus == 'rejected') return 'Your responder application was not approved';
         return 'Application $appStatus';
       case 'responder:backup_requested':
         return '${prefix}Backup requested';
@@ -1018,7 +1130,12 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
     final List<Widget> pages = [
       _buildHomeContent(),
       _buildReportHistoryContent(),
-      if (_isResponder) ResponderDashboardScreen(onIncidentTap: widget.onReportTap),
+      if (_isResponder)
+        ResponderDashboardScreen(
+          onIncidentTap: widget.onReportTap,
+          onNotificationsTap: () => _openNotifications(context),
+          unreadNotificationCount: _apiUnreadCount + _unreadReportsCount,
+        ),
       _buildSettingsContent(),
     ];
 

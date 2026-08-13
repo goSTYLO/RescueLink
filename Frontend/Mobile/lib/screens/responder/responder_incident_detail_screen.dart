@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../../services/responder_service.dart';
+import '../../services/websocket_service.dart';
 import '../../widgets/glass_card.dart';
 
 /// Full-detail screen opened after a responder accepts an incident.
@@ -30,6 +32,8 @@ class _ResponderIncidentDetailScreenState
   String? _error;
   bool _submitting = false;
 
+  StreamSubscription<IncidentEvent>? _wsSub;
+
   static const _statuses = ['Assigned', 'En Route', 'On Scene', 'Resolved'];
   static const _nextStatus = {
     'Assigned': 'En Route',
@@ -41,10 +45,18 @@ class _ResponderIncidentDetailScreenState
   void initState() {
     super.initState();
     _loadIncident();
+    _wsSub = WebSocketService().eventStream.listen((event) {
+      if (!mounted) return;
+      if (event.event == 'application:status_changed' &&
+          event.data['status']?.toString().toLowerCase() == 'revoked') {
+        Navigator.of(context).pop();
+      }
+    });
   }
 
   @override
   void dispose() {
+    _wsSub?.cancel();
     _service.close();
     super.dispose();
   }

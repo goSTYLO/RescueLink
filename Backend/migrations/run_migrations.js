@@ -20,6 +20,7 @@ const MIGRATION_ORDER = [
   'add_responder_applications.sql',
   'add_phase3_responder_acceptance.sql',
   'add_responder_specialization.sql',
+  'add_responder_revoked_status.sql',
 ];
 
 async function runMigrations() {

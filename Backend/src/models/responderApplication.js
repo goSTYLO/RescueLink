@@ -18,7 +18,7 @@ async function ensureTable() {
         submitted_at      TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         reviewed_at       TIMESTAMP WITH TIME ZONE,
         reviewed_by       INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
-        CONSTRAINT chk_responder_app_status CHECK (status IN ('pending', 'approved', 'rejected'))
+        CONSTRAINT chk_responder_app_status CHECK (status IN ('pending', 'approved', 'rejected', 'revoked'))
       );
       ALTER TABLE responder_applications ADD COLUMN IF NOT EXISTS id SERIAL;
       ALTER TABLE responder_applications ADD COLUMN IF NOT EXISTS gov_id_path VARCHAR(500);
@@ -29,6 +29,10 @@ async function ensureTable() {
       ALTER TABLE responder_applications ADD COLUMN IF NOT EXISTS field_proof_paths JSONB DEFAULT '{}'::jsonb;
       ALTER TABLE responder_applications ADD COLUMN IF NOT EXISTS submitted_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
       ALTER TABLE responder_applications ADD COLUMN IF NOT EXISTS reviewed_by INTEGER;
+      ALTER TABLE responder_applications ADD COLUMN IF NOT EXISTS revoke_reason VARCHAR(50);
+      ALTER TABLE responder_applications ADD COLUMN IF NOT EXISTS revoke_reason_other TEXT;
+      ALTER TABLE responder_applications ADD COLUMN IF NOT EXISTS revoked_at TIMESTAMP WITH TIME ZONE;
+      ALTER TABLE responder_applications ADD COLUMN IF NOT EXISTS revoked_by INTEGER;
       ALTER TABLE responder_applications ALTER COLUMN full_name DROP NOT NULL;
       CREATE INDEX IF NOT EXISTS idx_responder_apps_user_id ON responder_applications(user_id);
       CREATE INDEX IF NOT EXISTS idx_responder_apps_status ON responder_applications(status);
@@ -187,6 +191,28 @@ const ResponderApplication = {
        WHERE COALESCE(id, application_id) = $4
        RETURNING *, COALESCE(id, application_id) AS id, COALESCE(submitted_at, created_at) AS submitted_at`,
       [status, notes || null, reviewed_by, id]
+    );
+    return res.rows[0];
+  },
+
+  async revoke(id, {
+    notes,
+    revoke_reason,
+    revoke_reason_other,
+    revoked_by,
+  }) {
+    await ensureTable();
+    const res = await pool.query(
+      `UPDATE responder_applications
+       SET status = 'revoked',
+           notes = $1,
+           revoke_reason = $2,
+           revoke_reason_other = $3,
+           revoked_at = CURRENT_TIMESTAMP,
+           revoked_by = $4
+       WHERE COALESCE(id, application_id) = $5
+       RETURNING *, COALESCE(id, application_id) AS id, COALESCE(submitted_at, created_at) AS submitted_at`,
+      [notes || null, revoke_reason, revoke_reason_other || null, revoked_by, id]
     );
     return res.rows[0];
   },

@@ -9,8 +9,15 @@ import 'responder_incident_detail_screen.dart';
 
 class ResponderDashboardScreen extends StatefulWidget {
   final void Function(int reportId)? onIncidentTap;
+  final VoidCallback? onNotificationsTap;
+  final int unreadNotificationCount;
 
-  const ResponderDashboardScreen({super.key, this.onIncidentTap});
+  const ResponderDashboardScreen({
+    super.key,
+    this.onIncidentTap,
+    this.onNotificationsTap,
+    this.unreadNotificationCount = 0,
+  });
 
   @override
   State<ResponderDashboardScreen> createState() => _ResponderDashboardScreenState();
@@ -146,9 +153,80 @@ class _ResponderDashboardScreenState extends State<ResponderDashboardScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const SizedBox(height: 8),
-                  Text('Responder', style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: textPrimary)),
-                  const SizedBox(height: 4),
-                  Text('Manage your assignments', style: TextStyle(fontSize: 13, color: textSec)),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Responder',
+                              style: TextStyle(
+                                fontSize: 26,
+                                fontWeight: FontWeight.bold,
+                                color: textPrimary,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Manage your assignments',
+                              style: TextStyle(fontSize: 13, color: textSec),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (widget.onNotificationsTap != null)
+                        Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: (isDark ? Colors.white : Colors.black)
+                                    .withValues(alpha: 0.08),
+                                shape: BoxShape.circle,
+                              ),
+                              child: IconButton(
+                                padding: EdgeInsets.zero,
+                                icon: Icon(
+                                  Icons.notifications_outlined,
+                                  color: textPrimary,
+                                  size: 22,
+                                ),
+                                onPressed: widget.onNotificationsTap,
+                              ),
+                            ),
+                            if (widget.unreadNotificationCount > 0)
+                              Positioned(
+                                top: 2,
+                                right: 2,
+                                child: Container(
+                                  width: 14,
+                                  height: 14,
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xFFEF4444),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      widget.unreadNotificationCount > 9
+                                          ? '9+'
+                                          : '${widget.unreadNotificationCount}',
+                                      style: const TextStyle(
+                                        fontSize: 8,
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                    ],
+                  ),
                   const SizedBox(height: 24),
 
                   // Online/Offline toggle

@@ -36,6 +36,12 @@ class ApplicationStatusScreen extends StatelessWidget {
         statusTitle = 'Application Not Approved';
         statusSubtitle = 'Thank you for your interest. Unfortunately, your application was not approved at this time.';
         break;
+      case 'revoked':
+        statusColor = Colors.orange;
+        statusIcon = Icons.shield_outlined;
+        statusTitle = 'Responder Status Revoked';
+        statusSubtitle = 'Your Volunteer First Responder access has been revoked. You may submit a new application at any time.';
+        break;
       default:
         statusColor = Colors.amber;
         statusIcon = Icons.hourglass_top_rounded;
@@ -108,29 +114,35 @@ class ApplicationStatusScreen extends StatelessWidget {
                       if (reviewedAt != null)
                         _detailRow(context, 'Reviewed On', _formatDate(reviewedAt)),
 
-                      // Transparency Note for Rejection
-                      if (status == 'rejected' && notes != null && notes.isNotEmpty) ...[
+                      // Transparency note for rejection or revoke
+                      if ((status == 'rejected' || status == 'revoked') && notes != null && notes.isNotEmpty) ...[
                         const SizedBox(height: 16),
                         Container(
                           width: double.infinity,
                           padding: const EdgeInsets.all(14),
                           decoration: BoxDecoration(
-                            color: Colors.red.withOpacity(0.1),
+                            color: (status == 'revoked' ? Colors.orange : Colors.red).withOpacity(0.1),
                             borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: Colors.red.withOpacity(0.3)),
+                            border: Border.all(
+                              color: (status == 'revoked' ? Colors.orange : Colors.red).withOpacity(0.3),
+                            ),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
                                 children: [
-                                  const Icon(Icons.info_outline, size: 20, color: Colors.redAccent),
+                                  Icon(
+                                    Icons.info_outline,
+                                    size: 20,
+                                    color: status == 'revoked' ? Colors.orange : Colors.redAccent,
+                                  ),
                                   const SizedBox(width: 8),
                                   Text(
-                                    'Reviewer Notes / Reason',
+                                    status == 'revoked' ? 'Revoke Reason' : 'Reviewer Notes / Reason',
                                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                                           fontWeight: FontWeight.bold,
-                                          color: Colors.redAccent,
+                                          color: status == 'revoked' ? Colors.orange : Colors.redAccent,
                                         ),
                                   ),
                                 ],
@@ -151,7 +163,7 @@ class ApplicationStatusScreen extends StatelessWidget {
 
               const SizedBox(height: 24),
 
-              if (status == 'rejected' && onReapply != null)
+              if ((status == 'rejected' || status == 'revoked') && onReapply != null)
                 ElevatedButton.icon(
                   onPressed: onReapply,
                   icon: const Icon(Icons.refresh_rounded),

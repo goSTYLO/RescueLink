@@ -5,9 +5,12 @@ import { Card } from '@/presentation/components/ui/Card';
 import { Button } from '@/presentation/components/ui/Button';
 import { Badge } from '@/presentation/components/ui/Badge';
 import { Breadcrumb } from '@/presentation/components/common/Breadcrumb';
-import { CheckCircle, XCircle, Clock, FileText, ArrowLeft, Download, ShieldCheck, AlertCircle, Eye, X, Image as ImageIcon } from 'lucide-react';
-import { getApplicationById, updateApplicationStatus, getDocumentUrl } from '@/data/api/responderApplications.api';
+import { CheckCircle, XCircle, Clock, FileText, ArrowLeft, Download, ShieldCheck, AlertCircle, Eye, X, Image as ImageIcon, ShieldOff } from 'lucide-react';
+import Swal from 'sweetalert2';
+import { getApplicationById, updateApplicationStatus, revokeResponderRole, getDocumentUrl } from '@/data/api/responderApplications.api';
 import { useTheme } from '@/presentation/context/ThemeContext';
+import { isSuperAdmin } from '@/core/constants';
+import { REVOKE_REASONS, SWAL_PRIMARY } from '@/core/constants/responderRevokeReasons';
 
 function isImageFile(filepath) {
   if (!filepath) return false;
@@ -34,6 +37,8 @@ export function ResponderApplicationDetailPage() {
   const [reviewNotes, setReviewNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [actionSuccess, setActionSuccess] = useState(null);
+
+  const currentUser = JSON.parse(sessionStorage.getItem('user') || '{}');
 
   // In-page Modal Document Preview state (no new tab!)
   const [previewDoc, setPreviewDoc] = useState(null); // { url, title, isImage }
@@ -73,6 +78,92 @@ export function ResponderApplicationDetailPage() {
       setActionSuccess(`Application status successfully updated to '${status}'.`);
     } catch (err) {
       setError(err.message || 'Failed to update application status.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleRevoke = async () => {
+    const reasonOptions = REVOKE_REASONS.map(
+      (r) => `<option value="${r.value}">${r.label}</option>`
+    ).join('');
+
+    const result = await Swal.fire({
+      icon: 'warning',
+      title: 'Revoke responder role?',
+      html: `
+        <p class="text-sm text-left mb-3" style="color:#64748b">
+          This will immediately remove <strong>Volunteer First Responder</strong> access for this citizen.
+          They can submit a new application afterward.
+        </p>
+        <label class="block text-sm font-semibold text-left mb-1" for="swal-revoke-reason">Reason</label>
+        <select id="swal-revoke-reason" class="swal2-input" style="width:100%;margin:0 0 12px;padding:8px">
+          <option value="">Select a reason…</option>
+          ${reasonOptions}
+        </select>
+        <div id="swal-revoke-other-wrap" style="display:none">
+          <label class="block text-sm font-semibold text-left mb-1" for="swal-revoke-other">Details (required for Other)</label>
+          <textarea id="swal-revoke-other" class="swal2-textarea" placeholder="Describe the reason (min 10 characters)" rows="3" style="width:100%"></textarea>
+        </div>
+        <label class="block text-sm font-semibold text-left mb-1 mt-3" for="swal-admin-password">Your admin password</label>
+        <input id="swal-admin-password" type="password" class="swal2-input" placeholder="Enter your password to confirm" style="width:100%;margin:0" />
+      `,
+      showCancelButton: true,
+      confirmButtonColor: '#dc2626',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: 'Revoke role',
+      cancelButtonText: 'Cancel',
+      focusConfirm: false,
+      didOpen: () => {
+        const reasonSelect = document.getElementById('swal-revoke-reason');
+        const otherWrap = document.getElementById('swal-revoke-other-wrap');
+        reasonSelect?.addEventListener('change', () => {
+          if (otherWrap) {
+            otherWrap.style.display = reasonSelect.value === 'other' ? 'block' : 'none';
+          }
+        });
+      },
+      preConfirm: () => {
+        const reason = document.getElementById('swal-revoke-reason')?.value?.trim();
+        const reasonOther = document.getElementById('swal-revoke-other')?.value?.trim();
+        const adminPassword = document.getElementById('swal-admin-password')?.value;
+
+        if (!reason) {
+          Swal.showValidationMessage('Please select a reason.');
+          return false;
+        }
+        if (reason === 'other' && (!reasonOther || reasonOther.length < 10)) {
+          Swal.showValidationMessage('Please provide details (minimum 10 characters) for Other.');
+          return false;
+        }
+        if (!adminPassword) {
+          Swal.showValidationMessage('Admin password is required.');
+          return false;
+        }
+        return {
+          reason,
+          reason_other: reason === 'other' ? reasonOther : undefined,
+          admin_password: adminPassword,
+        };
+      },
+    });
+
+    if (!result.isConfirmed || !result.value) return;
+
+    setSubmitting(true);
+    setError(null);
+    setActionSuccess(null);
+    try {
+      const updated = await revokeResponderRole(id, result.value);
+      setApplication(updated.application);
+      setActionSuccess('Volunteer first responder role revoked successfully.');
+    } catch (err) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Revoke failed',
+        text: err.message || 'Could not revoke responder role.',
+        confirmButtonColor: SWAL_PRIMARY,
+      });
     } finally {
       setSubmitting(false);
     }
@@ -150,6 +241,11 @@ export function ResponderApplicationDetailPage() {
             {application.status === 'rejected' && (
               <Badge variant="danger" className="px-3 py-1.5 text-sm flex items-center gap-1.5">
                 <XCircle className="w-4 h-4" /> Rejected
+              </Badge>
+            )}
+            {application.status === 'revoked' && (
+              <Badge variant="warning" className="px-3 py-1.5 text-sm flex items-center gap-1.5">
+                <ShieldOff className="w-4 h-4" /> Revoked
               </Badge>
             )}
             {application.status === 'pending' && (
@@ -477,12 +573,30 @@ export function ResponderApplicationDetailPage() {
             <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-slate-500">Review Outcome</span>
-                <Badge variant={application.status === 'approved' ? 'success' : 'danger'}>
-                  {application.status === 'approved' ? 'Approved' : 'Rejected'}
+                <Badge
+                  variant={
+                    application.status === 'approved'
+                      ? 'success'
+                      : application.status === 'revoked'
+                        ? 'warning'
+                        : 'danger'
+                  }
+                >
+                  {application.status === 'approved'
+                    ? 'Approved'
+                    : application.status === 'revoked'
+                      ? 'Revoked'
+                      : 'Rejected'}
                 </Badge>
               </div>
 
-              {application.reviewed_at && (
+              {application.revoked_at && (
+                <div className="text-xs text-slate-400">
+                  Revoked on {new Date(application.revoked_at).toLocaleString()}
+                </div>
+              )}
+
+              {application.reviewed_at && application.status !== 'revoked' && (
                 <div className="text-xs text-slate-400">
                   Reviewed on {new Date(application.reviewed_at).toLocaleString()}
                 </div>
@@ -490,13 +604,32 @@ export function ResponderApplicationDetailPage() {
 
               {application.notes ? (
                 <div>
-                  <span className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Reviewer Notes</span>
+                  <span className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                    {application.status === 'revoked' ? 'Revoke Reason' : 'Reviewer Notes'}
+                  </span>
                   <p className="text-sm text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 p-3 rounded-lg border border-slate-200 dark:border-slate-700">
                     {application.notes}
                   </p>
                 </div>
               ) : (
                 <p className="text-sm text-slate-400 italic">No reviewer notes recorded.</p>
+              )}
+
+              {isSuperAdmin(currentUser.role) && application.status === 'approved' && (
+                <div className="pt-3 border-t border-slate-200 dark:border-slate-700">
+                  <Button
+                    variant="danger"
+                    onClick={handleRevoke}
+                    disabled={submitting}
+                    className="w-full sm:w-auto"
+                  >
+                    <ShieldOff className="w-4 h-4 mr-2" />
+                    Revoke Responder Role
+                  </Button>
+                  <p className="text-xs text-slate-500 mt-2">
+                    Requires your admin password. Blocked if the volunteer has active incident assignments.
+                  </p>
+                </div>
               )}
             </div>
           )}

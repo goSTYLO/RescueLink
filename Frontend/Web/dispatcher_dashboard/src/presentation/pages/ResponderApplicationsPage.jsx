@@ -5,7 +5,7 @@ import { Card } from '@/presentation/components/ui/Card';
 import { Button } from '@/presentation/components/ui/Button';
 import { Badge } from '@/presentation/components/ui/Badge';
 import { Breadcrumb } from '@/presentation/components/common/Breadcrumb';
-import { UserCheck, Eye, RefreshCw, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { UserCheck, Eye, RefreshCw, CheckCircle, XCircle, Clock, ShieldOff } from 'lucide-react';
 import { listApplications } from '@/data/api/responderApplications.api';
 import { useTheme } from '@/presentation/context/ThemeContext';
 
@@ -49,6 +49,8 @@ export function ResponderApplicationsPage() {
         return <Badge variant="success" className="flex items-center gap-1"><CheckCircle className="w-3 h-3" /> Approved</Badge>;
       case 'rejected':
         return <Badge variant="danger" className="flex items-center gap-1"><XCircle className="w-3 h-3" /> Rejected</Badge>;
+      case 'revoked':
+        return <Badge variant="warning" className="flex items-center gap-1"><ShieldOff className="w-3 h-3" /> Revoked</Badge>;
       default:
         return <Badge variant="warning" className="flex items-center gap-1"><Clock className="w-3 h-3" /> Pending Review</Badge>;
     }
@@ -81,6 +83,7 @@ export function ResponderApplicationsPage() {
             { key: 'pending', label: 'Pending Review' },
             { key: 'approved', label: 'Approved' },
             { key: 'rejected', label: 'Rejected' },
+            { key: 'revoked', label: 'Revoked' },
             { key: 'all', label: 'All Submissions' },
           ].map((tab) => (
             <button

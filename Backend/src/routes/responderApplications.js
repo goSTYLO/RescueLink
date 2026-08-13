@@ -29,6 +29,9 @@ router.get('/:id', responderApplicationController.getApplicationById);
 // PATCH /api/responder-applications/:id/status — Dispatcher approves or rejects application
 router.patch('/:id/status', authorize([ROLES.DISPATCHER, ROLES.ADMIN, ROLES.SUPERVISOR, ROLES.DEPARTMENT_ADMIN]), responderApplicationController.updateApplicationStatus);
 
+// POST /api/responder-applications/:id/revoke — Admin revokes approved volunteer responder role
+router.post('/:id/revoke', authorize([ROLES.ADMIN]), responderApplicationController.revokeResponderRole);
+
 // GET  /api/responder-applications/:id/documents/:filename — Access control protected document download
 router.get('/:id/documents/:filename', responderApplicationController.serveDocument);
 

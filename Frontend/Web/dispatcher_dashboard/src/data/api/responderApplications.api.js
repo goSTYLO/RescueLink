@@ -55,6 +55,27 @@ export async function updateApplicationStatus(id, { status, notes }) {
   return data;
 }
 
+export async function revokeResponderRole(id, { reason, reason_other, admin_password }) {
+  const requestId = createRequestId('revoke-responder-role');
+  const response = await fetch(`${API_URL}/api/responder-applications/${id}/revoke`, {
+    method: 'POST',
+    headers: getAuthHeaders({ requestId }),
+    body: JSON.stringify({ reason, reason_other, admin_password }),
+  });
+
+  const data = await parseJsonOrEmpty(response);
+  if (!response.ok) {
+    const baseMessage = parseErrorMessage(data, 'Failed to revoke responder role');
+    if (response.status === 409 && Array.isArray(data.active_incidents)) {
+      const ids = data.active_incidents.map((i) => `#${i.report_id}`).join(', ');
+      throw new Error(`${baseMessage} Active incidents: ${ids}. Resolve them before revoking.`);
+    }
+    throw new Error(baseMessage);
+  }
+
+  return data;
+}
+
 export function getDocumentUrl(id, filepath) {
   if (!filepath) return '#';
   const filename = filepath.split('/').pop();

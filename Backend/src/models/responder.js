@@ -464,7 +464,15 @@ const Responder = {
   async delete(responder_id) {
     const res = await pool.query('DELETE FROM responders WHERE responder_id = $1 RETURNING *', [responder_id]);
     return res.rows[0];
-  }
+  },
+
+  async deleteByUserId(user_id, source_type = 'account') {
+    const res = await pool.query(
+      'DELETE FROM responders WHERE user_id = $1 AND source_type = $2 RETURNING *',
+      [user_id, source_type]
+    );
+    return res.rows;
+  },
 };
 
 module.exports = Responder;

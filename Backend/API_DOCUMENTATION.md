@@ -618,6 +618,102 @@ Delete a responder record.
 
 ---
 
+## Responder Applications API
+
+Volunteer first-responder onboarding and admin revoke.
+
+### Submit Application (Citizen)
+
+**POST** `/api/responder-applications`
+
+Multipart upload with government ID, specialization proofs, and personal details.
+
+**Required Role:** Any authenticated user
+
+### Get My Application
+
+**GET** `/api/responder-applications/me`
+
+**Required Role:** Any authenticated user
+
+### List Applications (Staff)
+
+**GET** `/api/responder-applications?status=pending|approved|rejected|revoked`
+
+**Required Role:** `dispatcher`, `admin`, `supervisor`, `department-admin`
+
+### Update Application Status
+
+**PATCH** `/api/responder-applications/:id/status`
+
+Approve or reject a pending application.
+
+**Required Role:** `dispatcher`, `admin`, `supervisor`, `department-admin`
+
+**Request Body:**
+
+```json
+{
+  "status": "approved",
+  "notes": "Optional reviewer notes"
+}
+```
+
+### Revoke Volunteer Responder Role (Admin)
+
+**POST** `/api/responder-applications/:id/revoke`
+
+Revokes an **approved** volunteer first-responder role. Demotes user to `user`, removes volunteer pool entry, sets application status to `revoked`, and notifies the citizen.
+
+**Required Role:** `admin` only
+
+**Request Body:**
+
+```json
+{
+  "reason": "safety_concern",
+  "reason_other": "Required when reason is other (min 10 characters)",
+  "admin_password": "acting-admin-password"
+}
+```
+
+**Valid `reason` values:**
+
+| Code | Label |
+|------|-------|
+| `no_longer_qualified` | No longer qualified |
+| `repeated_no_shows` | Repeated no-shows |
+| `safety_concern` | Safety concern |
+| `user_requested_removal` | User requested removal |
+| `other` | Other (requires `reason_other`) |
+
+**Response:** `200 OK`
+
+```json
+{
+  "message": "Volunteer first responder role revoked successfully.",
+  "application": { "status": "revoked", "revoke_reason": "safety_concern" }
+}
+```
+
+**Error Responses:**
+
+- `400 Bad Request` - Invalid reason, missing password, or application not approved
+- `403 Forbidden` - Non-admin caller or invalid admin password
+- `404 Not Found` - Application or applicant not found
+- `409 Conflict` - User has active incident assignments (must resolve first)
+
+**Side effects:**
+
+- `users.role` → `user`, `responder_online` → `false`
+- Deletes `responders` row where `user_id` matches and `source_type = 'account'`
+- Creates notification with `event_type: application_revoked`
+- WebSocket event: `application:status_changed` with `status: revoked`
+
+Citizens with `revoked` status may submit a new application (no cooldown).
+
+---
+
 ## Dispatches API
 
 ### Create Dispatch

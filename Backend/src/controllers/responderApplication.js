@@ -5,7 +5,13 @@ const User = require('../models/user');
 const Responder = require('../models/responder');
 const Notification = require('../models/notification');
 const pool = require('../config/db');
-const { logDispatcherAction } = require('../utils/auditLog');
+const { logDispatcherAction, logAdminAction } = require('../utils/auditLog');
+const { comparePassword } = require('../utils/hash');
+const {
+  REVOKE_REASONS,
+  VALID_REVOKE_REASON_CODES,
+  formatRevokeNotes,
+} = require('../constants/responderRevokeReasons');
 const { validateInteger, validatePagination } = require('../utils/validation');
 
 const UPLOAD_BASE_DIR = path.join(process.cwd(), 'uploads', 'responder-applications');
@@ -188,7 +194,7 @@ const responderApplicationController = {
     try {
       const { status, limit, offset } = req.query;
       const { limit: validatedLimit, offset: validatedOffset } = validatePagination(limit, offset);
-      const validStatuses = ['pending', 'approved', 'rejected'];
+      const validStatuses = ['pending', 'approved', 'rejected', 'revoked'];
       const filteredStatus = status && validStatuses.includes(status.toLowerCase()) ? status.toLowerCase() : null;
 
       const result = await ResponderApplication.findAll({
@@ -323,6 +329,140 @@ const responderApplicationController = {
       });
     } catch (error) {
       console.error('Error updating application status:', error);
+      if (error.message.includes('must be')) return res.status(400).json({ error: error.message });
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+
+  /**
+   * POST /api/responder-applications/:id/revoke
+   * Admin revokes an approved volunteer first-responder role
+   */
+  async revokeResponderRole(req, res) {
+    try {
+      const appId = validateInteger(req.params.id, 'application ID');
+      const { reason, reason_other: reasonOther, admin_password: adminPassword } = req.body;
+
+      if (!reason || !VALID_REVOKE_REASON_CODES.includes(String(reason).toLowerCase())) {
+        return res.status(400).json({
+          error: `Invalid reason. Must be one of: ${VALID_REVOKE_REASON_CODES.join(', ')}`,
+        });
+      }
+
+      const normalizedReason = String(reason).toLowerCase();
+      const trimmedOther = reasonOther != null ? String(reasonOther).trim() : '';
+
+      if (normalizedReason === REVOKE_REASONS.OTHER) {
+        if (!trimmedOther || trimmedOther.length < 10) {
+          return res.status(400).json({
+            error: "When reason is 'other', reason_other is required (minimum 10 characters).",
+          });
+        }
+      }
+
+      if (!adminPassword || String(adminPassword).length === 0) {
+        return res.status(400).json({ error: 'Admin password is required to revoke responder role.' });
+      }
+
+      const application = await ResponderApplication.findById(appId);
+      if (!application) {
+        return res.status(404).json({ error: 'Application not found.' });
+      }
+
+      if (application.status !== 'approved') {
+        return res.status(400).json({
+          error: 'Only approved applications can be revoked.',
+          current_status: application.status,
+        });
+      }
+
+      const applicantUser = await User.findById(application.user_id);
+      if (!applicantUser) {
+        return res.status(404).json({ error: 'Applicant user not found.' });
+      }
+
+      if ((applicantUser.role || '').toLowerCase() !== 'responder') {
+        return res.status(400).json({
+          error: 'User is not currently a volunteer first responder.',
+          current_role: applicantUser.role,
+        });
+      }
+
+      const activeIncidents = await pool.query(
+        `SELECT report_id, incident_type, responder_status
+           FROM incident_reports
+          WHERE accepted_by_user_id = $1
+            AND (responder_status IS NULL OR responder_status != 'Resolved')`,
+        [application.user_id]
+      );
+
+      if (activeIncidents.rows.length > 0) {
+        return res.status(409).json({
+          error: 'Cannot revoke responder role while the user has active incident assignments. Resolve all incidents first.',
+          active_incidents: activeIncidents.rows.map((row) => ({
+            report_id: row.report_id,
+            incident_type: row.incident_type,
+            responder_status: row.responder_status,
+          })),
+        });
+      }
+
+      const actingAdmin = await User.findById(req.user.user_id);
+      if (!actingAdmin || !actingAdmin.password) {
+        return res.status(403).json({ error: 'Unable to verify admin credentials.' });
+      }
+
+      const passwordValid = await comparePassword(String(adminPassword), actingAdmin.password);
+      if (!passwordValid) {
+        return res.status(403).json({ error: 'Invalid admin password.' });
+      }
+
+      const humanNotes = formatRevokeNotes(normalizedReason, trimmedOther);
+
+      const updated = await ResponderApplication.revoke(appId, {
+        notes: humanNotes,
+        revoke_reason: normalizedReason,
+        revoke_reason_other: normalizedReason === REVOKE_REASONS.OTHER ? trimmedOther : null,
+        revoked_by: req.user.user_id,
+      });
+
+      await pool.query(
+        "UPDATE users SET role = 'user', responder_online = false WHERE user_id = $1",
+        [application.user_id]
+      );
+
+      await Responder.deleteByUserId(application.user_id, 'account');
+
+      const notifyMessage = `Your Volunteer First Responder status has been revoked. Reason: ${humanNotes} You may submit a new application at any time.`;
+
+      await Notification.create({
+        user_id: application.user_id,
+        report_id: null,
+        message: notifyMessage,
+        sent_via: 'websocket',
+        event_type: 'application_revoked',
+      });
+
+      await logAdminAction(req, 'responder_application_revoked', 'responder_application', appId, {
+        applicant_user_id: application.user_id,
+        reason: normalizedReason,
+        reason_other: normalizedReason === REVOKE_REASONS.OTHER ? trimmedOther : null,
+      });
+
+      emitApplicationEvent(req, 'application:status_changed', {
+        id: appId,
+        user_id: application.user_id,
+        status: 'revoked',
+        reason: normalizedReason,
+        notes: humanNotes,
+      });
+
+      res.json({
+        message: 'Volunteer first responder role revoked successfully.',
+        application: updated,
+      });
+    } catch (error) {
+      console.error('Error revoking responder role:', error);
       if (error.message.includes('must be')) return res.status(400).json({ error: error.message });
       res.status(500).json({ error: 'Internal server error' });
     }

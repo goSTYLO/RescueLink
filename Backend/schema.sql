@@ -353,7 +353,11 @@ CREATE TABLE IF NOT EXISTS responder_applications (
   submitted_at      TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   reviewed_at       TIMESTAMP WITH TIME ZONE,
   reviewed_by       INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
-  CONSTRAINT chk_responder_app_status CHECK (status IN ('pending', 'approved', 'rejected'))
+  revoke_reason     VARCHAR(50),
+  revoke_reason_other TEXT,
+  revoked_at        TIMESTAMP WITH TIME ZONE,
+  revoked_by        INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
+  CONSTRAINT chk_responder_app_status CHECK (status IN ('pending', 'approved', 'rejected', 'revoked'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_responder_apps_user_id ON responder_applications(user_id);

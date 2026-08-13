@@ -83,6 +83,7 @@ Mapped to manuscript FR-01–FR-09. Partial items document what is implemented; 
 - Government ID upload (required); optional training certificates and supporting documents (images/PDF)
 - Specialization field selection (Fire, Medical, Police, Disaster) with proof uploads
 - Application status screen: Pending Review, Approved, Not Approved with reviewer notes
+- **Admin revoke** (admin-only): revoke approved volunteer status with predefined operational reason, admin password confirmation, and in-app notification (`application_revoked`); citizen may re-apply with no cooldown
 
 ---
 
@@ -109,7 +110,7 @@ Available to users with role `responder` (promoted upon application approval).
 ### Response History
 
 - Paginated list of completed (resolved) incidents
-- Extended notification categories: `application_approved`, `application_rejected`, `responder_assigned`, `responder_status_updated`, `backup_requested`
+- Extended notification categories: `application_approved`, `application_rejected`, `application_revoked`, `responder_assigned`, `responder_status_updated`, `backup_requested`
 
 ---
 

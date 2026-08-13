@@ -97,8 +97,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       case 'reclassified': return 'Reclassified';
       case 'duplicate_changed': return 'Duplicate Updated';
       // Phase 3 categories
-      case 'application_approved': return 'Application Approved';
-      case 'application_rejected': return 'Application Rejected';
+      case 'application_approved': return 'Approved';
+      case 'application_rejected': return 'Rejected';
+      case 'application_revoked': return 'Revoked';
       case 'responder_assigned': return 'Responder Assigned';
       case 'responder_status_updated': return 'Responder Update';
       case 'backup_requested': return 'Backup Requested';
@@ -141,6 +142,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     // Phase 3 application events (no incident)
     if (eventType == 'application_approved') return 'Your responder application was approved ✓';
     if (eventType == 'application_rejected') return 'Your responder application was not approved';
+    if (eventType == 'application_revoked') return 'Your volunteer responder status was revoked';
     if (eventType == 'responder_assigned') return '$incidentLabel • A responder is on the way';
     if (eventType == 'responder_status_updated') {
       final msg = (item['message'] as String?) ?? '';
@@ -209,6 +211,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
     if (eventType == 'application_rejected') {
       return (icon: Icons.cancel_rounded, iconBg: const Color(0xFFFEE2E2), iconColor: const Color(0xFFDC2626));
+    }
+    if (eventType == 'application_revoked') {
+      return (icon: Icons.shield_outlined, iconBg: const Color(0xFFFFEDD5), iconColor: const Color(0xFFEA580C));
     }
     if (eventType == 'responder_assigned' || eventType == 'responder_status_updated') {
       return (icon: Icons.shield_rounded, iconBg: const Color(0xFFFFF7ED), iconColor: const Color(0xFFF59E0B));
@@ -379,6 +384,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 final eventType = item['event_type'] as String?;
                 final incidentType = item['incident_type'] as String?;
                 final key = 'earlier_${reportId}_${item['sent_at']}';
+                final isAppEvent = eventType?.startsWith('application_') == true;
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: _notificationCard(
@@ -386,9 +392,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     icon: style.icon,
                     iconBg: style.iconBg,
                     iconColor: style.iconColor,
-                    title: reportIdInt != null
-                        ? 'Incident #DGP-$reportIdInt'
-                        : 'Incident Update',
+                    title: isAppEvent
+                        ? 'Responder Application'
+                        : (reportIdInt != null
+                            ? 'Incident #DGP-$reportIdInt'
+                            : 'Incident Update'),
                     description: message,
                     time: _formatTimestamp(item),
                     eventType: eventType,
@@ -453,34 +461,40 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Text(
-                        title,
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: Theme.of(context).colorScheme.onSurface,
-                        ),
+                    Text(
+                      title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: Theme.of(context).colorScheme.onSurface,
                       ),
                     ),
-                    if (eventType != null && eventType.isNotEmpty)
+                    if (eventType != null && eventType.isNotEmpty) ...[
+                      const SizedBox(height: 4),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                         decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.5),
+                          color: Theme.of(context)
+                              .colorScheme
+                              .primaryContainer
+                              .withValues(alpha: 0.5),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
                           _eventTypeLabel(eventType),
                           style: TextStyle(
-                            fontSize: 11,
+                            fontSize: 10,
                             fontWeight: FontWeight.w500,
                             color: Theme.of(context).colorScheme.onPrimaryContainer,
                           ),
                         ),
                       ),
+                    ],
                   ],
                 ),
                 const SizedBox(height: 4),
