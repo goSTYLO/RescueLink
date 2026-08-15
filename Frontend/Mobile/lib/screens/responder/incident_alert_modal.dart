@@ -6,14 +6,16 @@ import '../../services/websocket_service.dart';
 /// Shows incident info and Accept / Decline buttons.
 class IncidentAlertModal extends StatefulWidget {
   final IncidentEvent event;
-  final void Function(int reportId) onAccepted;
+  final void Function(int reportId, Map<String, dynamic> initialIncident) onAccepted;
   final VoidCallback onDeclined;
+  final VoidCallback? onViewDetails;
 
   const IncidentAlertModal({
     super.key,
     required this.event,
     required this.onAccepted,
     required this.onDeclined,
+    this.onViewDetails,
   });
 
   @override
@@ -35,8 +37,15 @@ class _IncidentAlertModalState extends State<IncidentAlertModal> {
     if (reportId == null) return;
     setState(() { _loading = true; _error = null; });
     try {
-      await _service.acceptIncident(reportId);
-      if (mounted) widget.onAccepted(reportId);
+      final accepted = await _service.acceptIncident(reportId);
+      if (mounted) {
+        final initialIncident = <String, dynamic>{
+          ...widget.event.data,
+          'report_id': reportId,
+          'responder_status': accepted['responder_status']?.toString() ?? 'Assigned',
+        };
+        widget.onAccepted(reportId, initialIncident);
+      }
     } on ResponderServiceException catch (e) {
       if (mounted) setState(() { _loading = false; _error = e.message; });
     } finally {
@@ -72,7 +81,9 @@ class _IncidentAlertModalState extends State<IncidentAlertModal> {
     final incidentType = (data['incident_type'] as String?) ?? 'Incident';
     final barangay = (data['barangay'] as String?) ?? 'Unknown location';
     final severity = data['severity_level'] as String?;
-    final severityLabel = severity != null ? '${severity[0].toUpperCase()}${severity.substring(1).toLowerCase()}' : null;
+    final severityLabel = (severity != null && severity.isNotEmpty)
+        ? '${severity[0].toUpperCase()}${severity.substring(1).toLowerCase()}'
+        : null;
 
     return Container(
       decoration: BoxDecoration(
@@ -129,7 +140,10 @@ class _IncidentAlertModalState extends State<IncidentAlertModal> {
                   children: [
                     Text('Incident Type', style: TextStyle(fontSize: 12, color: textSec)),
                     const SizedBox(height: 2),
-                    Text(incidentType[0].toUpperCase() + incidentType.substring(1).toLowerCase(),
+                    Text(
+                      incidentType.isNotEmpty
+                          ? incidentType[0].toUpperCase() + incidentType.substring(1).toLowerCase()
+                          : 'Incident',
                         style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: textPrimary)),
                   ],
                 ),
@@ -159,6 +173,24 @@ class _IncidentAlertModalState extends State<IncidentAlertModal> {
             ],
           ),
           const SizedBox(height: 24),
+
+          if (widget.onViewDetails != null) ...[
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _loading ? null : widget.onViewDetails,
+                icon: const Icon(Icons.open_in_new, size: 18),
+                label: const Text('View Details', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF2563EB),
+                  side: const BorderSide(color: Color(0xFF2563EB)),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
 
           // Error
           if (_error != null)

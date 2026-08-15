@@ -312,18 +312,18 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           TextFormField(
                             controller: _firstNameController,
                             decoration: InputDecoration(
-                              prefixIcon: Icon(Icons.person_outline, size: 20, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
+                              prefixIcon: Icon(Icons.person_outline, size: 20, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6)),
                               hintText: 'Enter your first name',
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 borderSide: BorderSide(
-                                  color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
+                                  color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.5),
                                 ),
                               ),
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 borderSide: BorderSide(
-                                  color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
+                                  color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.5),
                                 ),
                               ),
                               focusedBorder: OutlineInputBorder(
@@ -346,18 +346,18 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           TextFormField(
                             controller: _lastNameController,
                             decoration: InputDecoration(
-                              prefixIcon: Icon(Icons.person_outline, size: 20, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
+                              prefixIcon: Icon(Icons.person_outline, size: 20, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6)),
                               hintText: 'Enter your last name',
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 borderSide: BorderSide(
-                                  color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
+                                  color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.5),
                                 ),
                               ),
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 borderSide: BorderSide(
-                                  color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
+                                  color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.5),
                                 ),
                               ),
                               focusedBorder: OutlineInputBorder(
@@ -381,18 +381,18 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             controller: _phoneController,
                             keyboardType: TextInputType.phone,
                             decoration: InputDecoration(
-                              prefixIcon: Icon(Icons.phone, size: 20, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
+                              prefixIcon: Icon(Icons.phone, size: 20, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6)),
                               hintText: 'Enter your number',
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 borderSide: BorderSide(
-                                  color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
+                                  color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.5),
                                 ),
                               ),
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 borderSide: BorderSide(
-                                  color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
+                                  color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.5),
                                 ),
                               ),
                               focusedBorder: OutlineInputBorder(
@@ -415,7 +415,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           Container(
                             decoration: BoxDecoration(
                               border: Border.all(
-                                color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
+                                color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.5),
                               ),
                               borderRadius: BorderRadius.circular(12),
                               color: Colors.white,
@@ -474,7 +474,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                   _obscurePassword
                                       ? Icons.visibility_off
                                       : Icons.visibility,
-                                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                                 ),
                                 onPressed: () {
                                   setState(() {
@@ -485,13 +485,13 @@ class _SignUpScreenState extends State<SignUpScreen> {
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 borderSide: BorderSide(
-                                  color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
+                                  color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.5),
                                 ),
                               ),
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 borderSide: BorderSide(
-                                  color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
+                                  color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.5),
                                 ),
                               ),
                               focusedBorder: OutlineInputBorder(
@@ -566,7 +566,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                   _obscureConfirmPassword
                                       ? Icons.visibility_off
                                       : Icons.visibility,
-                                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                                 ),
                                 onPressed: () {
                                   setState(() {
@@ -578,13 +578,13 @@ class _SignUpScreenState extends State<SignUpScreen> {
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 borderSide: BorderSide(
-                                  color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
+                                  color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.5),
                                 ),
                               ),
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 borderSide: BorderSide(
-                                  color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
+                                  color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.5),
                                 ),
                               ),
                               focusedBorder: OutlineInputBorder(

@@ -190,10 +190,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ),
         const SizedBox(width: 12),
-        Column(
+        const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
-          children: const [
+          children: [
             Text.rich(
               TextSpan(
                 style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, height: 1.1),
@@ -209,7 +209,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             SizedBox(height: 2),
             Text(
-              'Your Safety Companion',
+              "Dagupan's Emergency App",
               style: TextStyle(
                 fontSize: 12,
                 color: Color(0xFF94A3B8),
@@ -371,7 +371,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFFEF4444).withOpacity(0.2),
+                  color: const Color(0xFFEF4444).withValues(alpha: 0.2),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),

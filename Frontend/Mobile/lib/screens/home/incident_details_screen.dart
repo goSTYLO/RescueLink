@@ -98,9 +98,16 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
       _loadIncident();
       _wsSubscription = WebSocketService().eventStream.listen((event) {
         if (!mounted) return;
-        final rid = event.reportId ?? event.data['report_id'];
-        if (rid != null && rid == _resolvedReportId) {
-          _loadIncident();
+        final rid = parseInt(event.reportId ?? event.data['report_id']);
+        if (rid == null || rid != _resolvedReportId) return;
+        const refreshEvents = {
+          'incident:accepted',
+          'responder:status_changed',
+          'incident:status_updated',
+          'incident:dispatched',
+        };
+        if (refreshEvents.contains(event.event)) {
+          _loadIncident(silent: true);
         }
       });
     } else {
@@ -139,13 +146,15 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
     super.dispose();
   }
 
-  Future<void> _loadIncident() async {
+  Future<void> _loadIncident({bool silent = false}) async {
     final reportId = _resolvedReportId;
     if (reportId == null) return;
-    setState(() {
-      _loading = true;
-      _loadError = null;
-    });
+    if (!silent) {
+      setState(() {
+        _loading = true;
+        _loadError = null;
+      });
+    }
     try {
       final data = await IncidentService().getIncidentWithAiFallback(reportId);
       if (!mounted) return;
@@ -205,7 +214,18 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
   }
 
   int? get _resolvedReportId =>
-      widget.reportId ?? (_incident?['report_id'] as num?)?.toInt();
+      widget.reportId ?? parseInt(_incident?['report_id']);
+
+  String? get _responderStatus =>
+      (_incident?['responder_status'] as String?)?.trim();
+
+  bool get _hasVolunteerResponder =>
+      parseInt(_incident?['accepted_by_user_id']) != null;
+
+  String? get _acceptedByName {
+    final name = safeString(_incident?['accepted_by_name']);
+    return name;
+  }
 
   String get _status => ReportStatusUi.normalize(_incident?['status'] as String?);
 
@@ -717,8 +737,12 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
                               const SizedBox(height: 16),
                               _collapsibleCard(
                                 key: 'responder',
-                                title: 'Assigned Department',
-                                icon: Icons.local_fire_department,
+                                title: _hasVolunteerResponder
+                                    ? 'Volunteer Responder'
+                                    : 'Assigned Department',
+                                icon: _hasVolunteerResponder
+                                    ? Icons.volunteer_activism
+                                    : Icons.local_fire_department,
                                 iconColor: const Color(0xFFEA580C),
                                 child: _buildResponderAvailabilityCardContent(),
                               ),
@@ -1035,6 +1059,7 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
     final status = _status;
     final isResolved = ReportStatusUi.isResolved(status);
     final isClosed = ReportStatusUi.isClosed(status);
+    final volunteerLabel = volunteerResponderStatusLabel(_responderStatus);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       decoration: BoxDecoration(
@@ -1053,7 +1078,7 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
           Text(
             isClosed
                 ? 'Incident Closed'
-                : (isResolved ? 'Successfully Resolved' : ReportStatusUi.label(status)),
+                : (volunteerLabel ?? (isResolved ? 'Successfully Resolved' : ReportStatusUi.label(status))),
             style: TextStyle(
               fontSize: 17,
               fontWeight: FontWeight.bold,
@@ -1064,9 +1089,13 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
           Text(
             isClosed
                 ? 'Incident is fully closed after your confirmation.'
-                : (isResolved
-                ? 'Incident is resolved and waiting for reporter confirmation.'
-                : 'Status is synced from the latest report record.'),
+                : (volunteerLabel != null
+                    ? (_acceptedByName != null
+                        ? '$_acceptedByName is handling your report.'
+                        : 'A volunteer responder is handling your report.')
+                    : (isResolved
+                        ? 'Incident is resolved and waiting for reporter confirmation.'
+                        : 'Status is synced from the latest report record.')),
             style: TextStyle(
               fontSize: 13,
               color: ReportStatusUi.badgeText(status),
@@ -1262,6 +1291,9 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
       closedAt: _incident?['closed_at'] as String?,
       estimatedEtaMinutes: _estimatedEtaMinutes,
       estimatedArrivalAt: _incident?['estimated_arrival_at'] as String?,
+      responderStatus: _responderStatus,
+      acceptedAt: _incident?['accepted_at'] as String?,
+      acceptedByName: _acceptedByName,
     );
     return Column(
       children: timeline
@@ -1280,6 +1312,20 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
   }
 
   Widget _buildResponderAvailabilityCardContent() {
+    if (_hasVolunteerResponder) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _simpleRow('Responder', _acceptedByName ?? 'Volunteer Responder'),
+          const SizedBox(height: 8),
+          _simpleRow('Status', _responderStatus ?? 'Assigned'),
+          if (_incident?['accepted_at'] != null) ...[
+            const SizedBox(height: 8),
+            _simpleRow('Accepted', formatReportDateTime(_incident?['accepted_at'] as String?)),
+          ],
+        ],
+      );
+    }
     final department = assignedDepartmentDisplayName(_incident);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1294,12 +1340,9 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
   }
 
   Widget _buildResponderLocationCardContent() {
-    final latRaw = _incident?['latitude'];
-    final lngRaw = _incident?['longitude'];
-    final lat = latRaw is num ? latRaw.toDouble() : null;
-    final lng = lngRaw is num ? lngRaw.toDouble() : null;
-    final hasCoords = lat != null && lng != null &&
-        !lat.isNaN && !lng.isNaN;
+    final lat = parseDouble(_incident?['latitude']);
+    final lng = parseDouble(_incident?['longitude']);
+    final hasCoords = lat != null && lng != null && !lat.isNaN && !lng.isNaN;
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(12),

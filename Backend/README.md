@@ -18,7 +18,7 @@ Implemented responder incident acceptance and status tracking workflow:
   - `PATCH /api/incidents/:id/responder-status`: Enforces state transition machine (`Assigned` -> `En Route` -> `On Scene` -> `Resolved`).
   - `POST /api/incidents/:id/backup`: Request backup from CDRRMO, nearby responders, or both.
   - `GET /api/incidents/:id/backup`: Fetch backup requests for an incident.
-  - `GET /api/incidents/responder/active`: List active assigned incidents for current responder.
+  - `GET /api/incidents/responder/active`: List the volunteer's active assignments plus nearby unaccepted open incidents matching their specialization (within alert radius).
   - `GET /api/incidents/responder/history`: Paginated list of completed (Resolved) incidents.
   - `PATCH /api/responders/me/online-status`: Server-persisted online/offline toggle for responders.
   - `GET /api/responders/me/profile`: Retrieve responder self-profile.

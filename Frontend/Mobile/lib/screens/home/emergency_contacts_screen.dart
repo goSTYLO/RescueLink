@@ -140,7 +140,7 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
                         const SizedBox(height: 2),
                         Text(
                           '${_contacts.length}/$_maxContacts contacts added',
-                          style: TextStyle(color: Colors.white.withOpacity(0.95), fontSize: 12),
+                          style: TextStyle(color: Colors.white.withValues(alpha: 0.95), fontSize: 12),
                         ),
                       ],
                     ),

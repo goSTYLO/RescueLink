@@ -81,7 +81,7 @@ class _AnimatedFabState extends State<AnimatedFab>
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color: widget.backgroundColor.withOpacity(opacity),
+                      color: widget.backgroundColor.withValues(alpha: opacity),
                       blurRadius: 24,
                       spreadRadius: 3 + (_pulseAnimation.value * 5),
                     ),
@@ -102,7 +102,7 @@ class _AnimatedFabState extends State<AnimatedFab>
                       shape: BoxShape.circle,
                       color: widget.backgroundColor,
                       border: Border.all(
-                        color: Colors.white.withOpacity(0.3),
+                        color: Colors.white.withValues(alpha: 0.3),
                         width: 2,
                       ),
                     ),
@@ -124,7 +124,7 @@ class _AnimatedFabState extends State<AnimatedFab>
             widget.hintLabel!,
             style: TextStyle(
               fontSize: 12,
-              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
             ),
             textAlign: TextAlign.center,
           ),

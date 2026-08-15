@@ -96,6 +96,13 @@ const User = {
     return decodeUserFields(res.rows[0]);
   },
 
+  /** Lightweight role lookup for auth middleware (promotions/revokes without re-login). */
+  async getRoleById(user_id) {
+    const res = await pool.query('SELECT role FROM users WHERE user_id = $1', [user_id]);
+    if (!res.rows[0]) return null;
+    return tryDecryptValue(res.rows[0].role);
+  },
+
   async create({ email = null, phone_number = null, address = null, password = null, phone_verified = false, first_name = null, last_name = null, role = 'user', department_id = null }) {
     const res = await pool.query(
       `INSERT INTO users(email, phone_number, address, password, phone_verified, first_name, last_name, role, department_id)

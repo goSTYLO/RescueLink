@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
@@ -38,7 +39,14 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
   String? _locationError;
   bool _locationLoading = false;
   bool _additionalDetailsExpanded = false;
+  static const int _minAudioDurationSeconds = 5;
+
   bool _isRecording = false;
+  DateTime? _recordingStartedAt;
+  Timer? _recordingTimer;
+  int _recordingElapsedSeconds = 0;
+  double? _recordedDurationSeconds;
+  bool _audioTooShort = false;
   List<int>? _audioBytes;
   ({List<int> bytes, String filename})? _photoFile;
   ({List<int> bytes, String filename})? _videoFile;
@@ -52,8 +60,30 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
 
   @override
   void dispose() {
+    _recordingTimer?.cancel();
+    _recorder.dispose();
     _detailsController.dispose();
     super.dispose();
+  }
+
+  void _stopRecordingTimer() {
+    _recordingTimer?.cancel();
+    _recordingTimer = null;
+    _recordingStartedAt = null;
+    _recordingElapsedSeconds = 0;
+  }
+
+  void _startRecordingTimer() {
+    _stopRecordingTimer();
+    _recordingStartedAt = DateTime.now();
+    _recordingElapsedSeconds = 0;
+    _recordingTimer = Timer.periodic(const Duration(milliseconds: 200), (_) {
+      if (!mounted || _recordingStartedAt == null) return;
+      setState(() {
+        _recordingElapsedSeconds =
+            DateTime.now().difference(_recordingStartedAt!).inSeconds;
+      });
+    });
   }
 
   Future<void> _fetchLocation() async {
@@ -93,21 +123,61 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
     }
   }
 
+  bool get _hasValidRecording =>
+      _audioBytes != null &&
+      _audioBytes!.isNotEmpty &&
+      (_recordedDurationSeconds ?? 0) >= _minAudioDurationSeconds;
+
   Future<void> _toggleRecording() async {
     if (_isRecording) {
+      final elapsedSeconds = _recordingStartedAt == null
+          ? 0.0
+          : DateTime.now().difference(_recordingStartedAt!).inMilliseconds /
+              1000.0;
+
       try {
         final path = await _recorder.stop();
+        _stopRecordingTimer();
         if (path != null && mounted) {
-          final file = File(path);
-          final bytes = await file.readAsBytes();
-          setState(() {
-            _audioBytes = bytes;
-            _isRecording = false;
-          });
+          if (elapsedSeconds < _minAudioDurationSeconds) {
+            try {
+              await File(path).delete();
+            } catch (_) {}
+            setState(() {
+              _isRecording = false;
+              _audioBytes = null;
+              _recordedDurationSeconds = elapsedSeconds;
+              _audioTooShort = true;
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Recording too short (${elapsedSeconds.toStringAsFixed(1)}s). '
+                  'Please try again — at least $_minAudioDurationSeconds seconds required.',
+                ),
+                backgroundColor: Colors.red,
+                action: SnackBarAction(
+                  label: 'Try again',
+                  textColor: Colors.white,
+                  onPressed: _toggleRecording,
+                ),
+              ),
+            );
+          } else {
+            final file = File(path);
+            final bytes = await file.readAsBytes();
+            setState(() {
+              _audioBytes = bytes;
+              _recordedDurationSeconds = elapsedSeconds;
+              _audioTooShort = false;
+              _isRecording = false;
+            });
+          }
         } else {
           setState(() => _isRecording = false);
         }
       } catch (e) {
+        _stopRecordingTimer();
         if (mounted) setState(() => _isRecording = false);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -126,9 +196,12 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
           await _recorder.start(
               const RecordConfig(encoder: AudioEncoder.wav, sampleRate: 44100),
               path: path);
+          _startRecordingTimer();
           setState(() {
             _isRecording = true;
             _audioBytes = null;
+            _recordedDurationSeconds = null;
+            _audioTooShort = false;
           });
         } else {
           if (mounted) {
@@ -392,10 +465,14 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
       return;
     }
 
-    if (_audioBytes == null || _audioBytes!.isEmpty) {
+    if (!_hasValidRecording) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please record audio before submitting.'),
+        SnackBar(
+          content: Text(
+            _audioTooShort
+                ? 'Recording too short. Please try again (minimum $_minAudioDurationSeconds seconds).'
+                : 'Please record audio before submitting.',
+          ),
           backgroundColor: Colors.red,
         ),
       );
@@ -524,14 +601,28 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
                                       ),
                                     ),
                                     const SizedBox(width: 6),
-                                    const Text(
-                                      'Recording...',
-                                      style: TextStyle(
+                                    Text(
+                                      _recordingElapsedSeconds <
+                                              _minAudioDurationSeconds
+                                          ? 'Recording... $_recordingElapsedSeconds / $_minAudioDurationSeconds s'
+                                          : 'Recording... ${_recordingElapsedSeconds}s',
+                                      style: const TextStyle(
                                           fontSize: 12,
                                           color: Color(0xFFEF4444),
                                           fontWeight: FontWeight.w500),
                                     ),
-                                  ] else if (_audioBytes != null) ...[
+                                  ] else if (_audioTooShort) ...[
+                                    const Icon(Icons.error_outline,
+                                        color: Color(0xFFEF4444), size: 20),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      'Too short (${_recordedDurationSeconds?.toStringAsFixed(1) ?? '0'}s)',
+                                      style: const TextStyle(
+                                          fontSize: 12,
+                                          color: Color(0xFFEF4444),
+                                          fontWeight: FontWeight.w500),
+                                    ),
+                                  ] else if (_hasValidRecording) ...[
                                     const Icon(Icons.check_circle,
                                         color: Color(0xFF22C55E), size: 20),
                                     const SizedBox(width: 6),
@@ -553,30 +644,91 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
                                   padding: const EdgeInsets.symmetric(
                                       horizontal: 20, vertical: 28),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFFEF4444),
+                                    color: _audioTooShort
+                                        ? const Color(0xFFF97316)
+                                        : const Color(0xFFEF4444),
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                   child: Column(
                                     children: [
-                                      const Icon(Icons.mic,
-                                          color: Colors.white, size: 48),
+                                      Icon(
+                                        _audioTooShort
+                                            ? Icons.replay
+                                            : Icons.mic,
+                                        color: Colors.white,
+                                        size: 48,
+                                      ),
                                       const SizedBox(height: 12),
                                       Text(
                                         _isRecording
                                             ? 'Tap to Stop Recording'
-                                            : (_audioBytes != null
-                                                ? 'Tap to Re-record'
-                                                : 'Tap to Start Recording'),
+                                            : (_audioTooShort
+                                                ? 'Tap to Try Again'
+                                                : (_hasValidRecording
+                                                    ? 'Tap to Re-record'
+                                                    : 'Tap to Start Recording')),
                                         style: const TextStyle(
                                           fontSize: 15,
                                           fontWeight: FontWeight.w600,
                                           color: Colors.white,
                                         ),
+                                        textAlign: TextAlign.center,
                                       ),
+                                      if (!_isRecording &&
+                                          !_hasValidRecording &&
+                                          !_audioTooShort)
+                                        const Padding(
+                                          padding: EdgeInsets.only(top: 8),
+                                          child: Text(
+                                            'Record at least 5 seconds describing the emergency.',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.white70,
+                                            ),
+                                            textAlign: TextAlign.center,
+                                          ),
+                                        ),
                                     ],
                                   ),
                                 ),
                               ),
+                              if (_audioTooShort) ...[
+                                const SizedBox(height: 12),
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFFEE2E2),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: const Color(0xFFEF4444)
+                                          .withValues(alpha: 0.35),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const Icon(Icons.warning_amber_rounded,
+                                          color: Color(0xFFEF4444), size: 22),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: Text(
+                                          'Recording was only '
+                                          '${_recordedDurationSeconds?.toStringAsFixed(1) ?? '0'} seconds. '
+                                          'Please try again — at least '
+                                          '$_minAudioDurationSeconds seconds '
+                                          'is required for AI to classify your report.',
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            color: Color(0xFF991B1B),
+                                            height: 1.35,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
                         ),
@@ -799,9 +951,14 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
                           child: SizedBox(
                             width: double.infinity,
                             child: ElevatedButton(
-                              onPressed: _isSubmitting ? null : _submit,
+                              onPressed: (_isSubmitting || !_hasValidRecording)
+                                  ? null
+                                  : _submit,
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFFEF4444),
+                                disabledBackgroundColor:
+                                    const Color(0xFFEF4444).withValues(alpha: 0.45),
+                                disabledForegroundColor: Colors.white70,
                                 padding: const EdgeInsets.symmetric(vertical: 18),
                                 shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(12)),

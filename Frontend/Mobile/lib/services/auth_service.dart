@@ -183,6 +183,13 @@ class AuthService {
     return utf8.decode(base64Url.decode(normalized));
   }
 
+  /// Cache role locally after a realtime role change (e.g. approve/revoke via WebSocket).
+  Future<void> cacheUserRole(String role) async {
+    if (role.isNotEmpty) {
+      await _prefs.setString(_keyUserRole, role);
+    }
+  }
+
   // Get current user's profile from backend
   Future<Map<String, dynamic>> getProfile() async {
     try {

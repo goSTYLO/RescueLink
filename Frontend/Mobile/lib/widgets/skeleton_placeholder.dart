@@ -68,7 +68,7 @@ class SkeletonCard extends StatelessWidget {
         height: height,
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: baseColor.withOpacity(0.5),
+          color: baseColor.withValues(alpha: 0.5),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
@@ -171,7 +171,7 @@ class SkeletonProfileCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: baseColor.withOpacity(0.5),
+          color: baseColor.withValues(alpha: 0.5),
           borderRadius: BorderRadius.circular(20),
         ),
         child: Row(
@@ -241,7 +241,7 @@ class SkeletonContactCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: baseColor.withOpacity(0.5),
+          color: baseColor.withValues(alpha: 0.5),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
@@ -319,7 +319,7 @@ class SkeletonLocationCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         decoration: BoxDecoration(
-          color: baseColor.withOpacity(0.5),
+          color: baseColor.withValues(alpha: 0.5),
           borderRadius: BorderRadius.circular(16),
         ),
         child: Row(
@@ -380,7 +380,7 @@ class SkeletonCollapsibleSection extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         decoration: BoxDecoration(
-          color: baseColor.withOpacity(0.5),
+          color: baseColor.withValues(alpha: 0.5),
           borderRadius: BorderRadius.circular(16),
         ),
         child: Row(

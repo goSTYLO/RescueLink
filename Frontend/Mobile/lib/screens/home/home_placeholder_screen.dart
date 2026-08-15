@@ -7,9 +7,11 @@ import '../../services/notification_service.dart';
 import 'notifications_screen.dart';
 import 'settings_screen.dart';
 import '../../services/auth_service.dart';
+import '../../services/responder_alert_coordinator.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/staggered_fade_in.dart';
 import '../responder/responder_dashboard_screen.dart';
+import '../responder/responder_incident_preview_screen.dart';
 
 class HomePlaceholderScreen extends StatefulWidget {
   final Future<void> Function(ThemeMode mode)? onThemeChanged;
@@ -58,8 +60,11 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
   String _locationTitle = 'Dagupan City, Pangasinan';
   String _locationTimestamp = 'Updating...';
   bool _isResponder = false;
+  bool _responderOnline = false;
   bool _revokeModalShowing = false;
   bool _approveModalShowing = false;
+  final ResponderAlertCoordinator _responderAlertCoordinator = ResponderAlertCoordinator();
+  final GlobalKey _responderDashboardKey = GlobalKey();
 
   // SOS hold animation
   late AnimationController _sosHoldController;
@@ -81,10 +86,17 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
     _fetchUnreadCount();
     // Detect responder role (synchronous from cache, refreshed by _loadHomeLocation)
     _isResponder = AuthService().getUserRole() == 'responder';
+    if (_isResponder) {
+      unawaited(_initResponderAlerts());
+    }
     _wsSubscription = WebSocketService().eventStream.listen((event) {
       if (!mounted) return;
       if (event.event == 'application:status_changed') {
-        _handleApplicationStatusChanged(event.data);
+        unawaited(_handleApplicationStatusChanged(event.data));
+      }
+      if (event.event == 'responder:incident_alert') {
+        unawaited(_responderAlertCoordinator.handleEvent(context, event));
+        return;
       }
       final title = _formatNotificationTitle(event);
       if (_currentIndex != 1) {
@@ -97,10 +109,10 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
             SnackBar(
               content: Text(title),
               behavior: SnackBarBehavior.floating,
-              action: event.reportId != null && widget.onReportTap != null
+              action: event.reportId != null
                   ? SnackBarAction(
                       label: 'View',
-                      onPressed: () => widget.onReportTap!(event.reportId!),
+                      onPressed: () => _openIncidentForCurrentRole(event.reportId!),
                     )
                   : null,
             ),
@@ -119,6 +131,7 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
   @override
   void dispose() {
     _wsSubscription?.cancel();
+    _responderAlertCoordinator.stop();
     _sosTimer?.cancel();
     _sosHoldController.dispose();
     super.dispose();
@@ -131,9 +144,46 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
     } catch (_) {}
   }
 
+  Future<void> _initResponderAlerts() async {
+    final online = await _responderAlertCoordinator.refreshOnlineStatus();
+    if (!mounted) return;
+    setState(() => _responderOnline = online);
+    _responderAlertCoordinator.updateContext(context);
+    _responderAlertCoordinator.start();
+  }
+
+  Future<void> _syncResponderOnlineFromServer() async {
+    final online = await _responderAlertCoordinator.refreshOnlineStatus();
+    if (!mounted) return;
+    if (online != _responderOnline) {
+      setState(() => _responderOnline = online);
+    }
+  }
+
+  void _onResponderOnlineChanged(bool online) {
+    setState(() => _responderOnline = online);
+    _responderAlertCoordinator.setOnline(online);
+    if (!online) {
+      _responderAlertCoordinator.clearShownAlerts();
+    }
+  }
+
+  void _openIncidentForCurrentRole(int reportId) {
+    if (_isResponder) {
+      Navigator.of(context, rootNavigator: true).push(
+        MaterialPageRoute<void>(
+          builder: (_) => ResponderIncidentPreviewScreen(reportId: reportId),
+        ),
+      );
+      return;
+    }
+    widget.onReportTap?.call(reportId);
+  }
+
   Future<void> _handleApplicationStatusChanged(Map<String, dynamic> data) async {
     final status = data['status']?.toString().toLowerCase();
     if (status == 'revoked') {
+      await AuthService().cacheUserRole('user');
       await _loadHomeLocation();
       if (!mounted) return;
       _popOverlayRoutes();
@@ -141,15 +191,25 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
         _isResponder = false;
         _currentIndex = 0;
       });
-      final notes = data['notes']?.toString();
+      _responderAlertCoordinator.stop();
+      final notes = data['notes']?.toString() ?? data['reason']?.toString();
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _showRevokeModal(reason: notes);
       });
     } else if (status == 'approved') {
       final wasResponder = _isResponder;
+      if (!wasResponder) {
+        await AuthService().cacheUserRole('responder');
+        if (mounted) setState(() => _isResponder = true);
+        if (mounted) {
+          WebSocketService().disconnect();
+          WebSocketService().connect();
+        }
+        if (mounted) unawaited(_initResponderAlerts());
+      }
       await _loadHomeLocation();
       if (!mounted) return;
-      if (!wasResponder && _isResponder) {
+      if (!wasResponder) {
         final notes = data['notes']?.toString();
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) _showApprovedModal(notes: notes);
@@ -159,7 +219,7 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
   }
 
   void _popOverlayRoutes() {
-    final navigator = Navigator.of(context);
+    final navigator = Navigator.of(context, rootNavigator: false);
     while (navigator.canPop()) {
       navigator.pop();
     }
@@ -170,13 +230,13 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
     _revokeModalShowing = true;
     final trimmedReason = reason?.trim();
     final bodyParts = <String>[
+      'Volunteer responder access was removed.',
       if (trimmedReason != null && trimmedReason.isNotEmpty)
         'Reason: $trimmedReason',
-      'Your Volunteer First Responder access has been removed.',
-      'You may submit a new application from Settings at any time.',
     ];
     await showDialog<void>(
       context: context,
+      useRootNavigator: true,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         title: const Text('Responder access revoked'),
@@ -201,16 +261,16 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
     _approveModalShowing = true;
     final trimmedNotes = notes?.trim();
     final bodyParts = <String>[
-      'Congratulations! Your Volunteer First Responder application has been approved.',
-      'A new Responder tab is now available in the bottom navigation so you can go online and accept assignments.',
+      'Responder tab is now available.',
       if (trimmedNotes != null && trimmedNotes.isNotEmpty)
         'Reviewer notes: $trimmedNotes',
     ];
     await showDialog<void>(
       context: context,
+      useRootNavigator: true,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        title: const Text('You\'re now a Volunteer Responder'),
+        title: const Text('You\'re a responder'),
         content: Text(bodyParts.join('\n\n')),
         actions: [
           TextButton(
@@ -223,7 +283,7 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
               if (!mounted) return;
               setState(() => _currentIndex = 2);
             },
-            child: const Text('Open Responder tab'),
+            child: const Text('Open Responder'),
           ),
         ],
       ),
@@ -245,14 +305,25 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
     if (!mounted) return;
 
     final now = TimeOfDay.now();
-    final timestamp = 'Updated ${now.hour}:${now.minute.toString().padLeft(2, '0')}';
+    final hour12 = now.hourOfPeriod == 0 ? 12 : now.hourOfPeriod;
+    final period = now.period == DayPeriod.am ? 'AM' : 'PM';
+    final timestamp =
+        'Updated $hour12:${now.minute.toString().padLeft(2, '0')} $period';
 
     if (result['success'] == true) {
       // Re-check role after profile refresh (covers just-approved responders)
       final user = result['user'] as Map<String, dynamic>? ?? {};
       final freshRole = user['role']?.toString();
       if (mounted && freshRole != null && (freshRole == 'responder') != _isResponder) {
-        setState(() => _isResponder = freshRole == 'responder');
+        final becameResponder = freshRole == 'responder';
+        setState(() => _isResponder = becameResponder);
+        if (becameResponder) {
+          WebSocketService().disconnect();
+          WebSocketService().connect();
+          unawaited(_initResponderAlerts());
+        } else {
+          _responderAlertCoordinator.stop();
+        }
       }
       setState(() {
         _loadingLocation = false;
@@ -376,11 +447,6 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
                   color: Colors.white,
                 ),
               ),
-              const SizedBox(height: 8),
-              const Text(
-                'Tap Cancel to abort',
-                style: TextStyle(fontSize: 14, color: Color(0xFF9CA3AF)),
-              ),
               const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity,
@@ -420,10 +486,10 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
           ),
         ),
         const SizedBox(width: 12),
-        Column(
+        const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
-          children: const [
+          children: [
             Text.rich(
               TextSpan(
                 style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, height: 1.1),
@@ -439,7 +505,7 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
             ),
             SizedBox(height: 2),
             Text(
-              'Your Safety Companion',
+              "Dagupan's Emergency App",
               style: TextStyle(
                 fontSize: 12,
                 color: Color(0xFF94A3B8),
@@ -513,7 +579,7 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
                     onNotificationTap: (reportId) {
                       Navigator.of(ctx).pop();
                       if (reportId != null) {
-                        widget.onReportTap?.call(reportId);
+                        _openIncidentForCurrentRole(reportId);
                       }
                     },
                   ),
@@ -652,8 +718,8 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
         children: [
           Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1E3A5F),
+            decoration: const BoxDecoration(
+              color: Color(0xFF1E3A5F),
               shape: BoxShape.circle,
             ),
             child: const Icon(Icons.location_on,
@@ -713,20 +779,20 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
         children: [
           Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: const Color(0xFF14532D),
+            decoration: const BoxDecoration(
+              color: Color(0xFF14532D),
               shape: BoxShape.circle,
             ),
             child: const Icon(Icons.shield,
                 color: Color(0xFF22C55E), size: 20),
           ),
           const SizedBox(width: 14),
-          Expanded(
+          const Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
+              children: [
                 Text(
-                  'Ready to Respond',
+                  'Ready',
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
@@ -735,26 +801,22 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
                 ),
                 SizedBox(height: 2),
                 Text(
-                  'GPS Active • Network Connected\nEmergency Services Connected',
+                  'GPS · Online · Connected',
                   style: TextStyle(
                       fontSize: 12, color: Color(0xFF9CA3AF), height: 1.4),
                 ),
               ],
             ),
           ),
-          Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: const Color(0xFF166534),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: const Text(
-              'All Systems Go',
-              style: TextStyle(
-                  fontSize: 11,
-                  color: Color(0xFF22C55E),
-                  fontWeight: FontWeight.w600),
+          Semantics(
+            label: 'All systems ready',
+            child: Container(
+              width: 12,
+              height: 12,
+              decoration: const BoxDecoration(
+                color: Color(0xFF22C55E),
+                shape: BoxShape.circle,
+              ),
             ),
           ),
         ],
@@ -767,7 +829,10 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
       children: [
         // SOS tile
         Expanded(
-          child: GestureDetector(
+          child: Semantics(
+            button: true,
+            label: 'SOS. Hold for 3 seconds to activate',
+            child: GestureDetector(
             onTapDown: (_) {
               if (_sosCountdown > 0) return;
               setState(() => _sosPressing = true);
@@ -840,7 +905,7 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
                           ),
                           const SizedBox(height: 12),
                           const Text(
-                            'Emergency SOS',
+                            'SOS',
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 15,
@@ -849,7 +914,7 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
                           ),
                           const SizedBox(height: 4),
                           const Text(
-                            'Hold for 3 seconds\nto activate',
+                            'Hold 3 sec',
                             textAlign: TextAlign.center,
                             style: TextStyle(
                                 color: Color(0xFFFFCDD2),
@@ -863,6 +928,7 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
                 );
               },
             ),
+          ),
           ),
         ),
         const SizedBox(width: 12),
@@ -884,9 +950,9 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
                   Container(
                     width: 72,
                     height: 72,
-                    decoration: BoxDecoration(
+                    decoration: const BoxDecoration(
                       shape: BoxShape.circle,
-                      color: const Color(0xFF252D40),
+                      color: Color(0xFF252D40),
                     ),
                     child: Stack(
                       alignment: Alignment.center,
@@ -912,21 +978,12 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
                   ),
                   const SizedBox(height: 12),
                   const Text(
-                    'Report Incident',
+                    'Report',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 15,
                       fontWeight: FontWeight.bold,
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'Send details, photo\nand location',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                        color: Color(0xFF9CA3AF),
-                        fontSize: 11,
-                        height: 1.4),
                   ),
                 ],
               ),
@@ -999,18 +1056,11 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text('Emergency Tips',
-                style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: primary)),
-            Text('Stay Informed, Stay Safe',
-                style: TextStyle(fontSize: 11, color: secondary)),
-          ],
-        ),
+        Text('Emergency Tips',
+            style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: primary)),
         const SizedBox(height: 10),
         Container(
           decoration: BoxDecoration(
@@ -1096,7 +1146,7 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
     return StaggeredFadeIn.single(
       trigger: _currentIndex == 1 ? _tabSwitchCounter : null,
       child: ReportHistoryScreen(
-        onReportTap: widget.onReportTap,
+        onReportTap: _openIncidentForCurrentRole,
         onReportIncidentTap: widget.onSosPressed,
         onNotificationsTap: () => _openNotifications(context),
         unreadNotificationCount: _apiUnreadCount + _unreadReportsCount,
@@ -1126,15 +1176,19 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
   // ── SCAFFOLD ───────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
+    _responderAlertCoordinator.updateContext(context);
     final screenWidth = MediaQuery.sizeOf(context).width;
     final List<Widget> pages = [
       _buildHomeContent(),
       _buildReportHistoryContent(),
       if (_isResponder)
         ResponderDashboardScreen(
-          onIncidentTap: widget.onReportTap,
+          key: _responderDashboardKey,
+          online: _responderOnline,
+          onIncidentTap: _openIncidentForCurrentRole,
           onNotificationsTap: () => _openNotifications(context),
           unreadNotificationCount: _apiUnreadCount + _unreadReportsCount,
+          onOnlineStatusChanged: _onResponderOnlineChanged,
         ),
       _buildSettingsContent(),
     ];
@@ -1206,6 +1260,9 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
           _tabSwitchCounter++;
           if (index == 1) _unreadReportsCount = 0;
         });
+        if (_isResponder && index == 2) {
+          unawaited(_syncResponderOnlineFromServer());
+        }
       },
       borderRadius: BorderRadius.circular(12),
       child: Padding(

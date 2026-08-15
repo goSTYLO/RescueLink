@@ -246,18 +246,18 @@ class _LoginScreenState extends State<LoginScreen> {
                             controller: _phoneController,
                             keyboardType: TextInputType.phone,
                             decoration: InputDecoration(
-                              prefixIcon: Icon(Icons.phone, size: 20, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
+                              prefixIcon: Icon(Icons.phone, size: 20, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6)),
                               hintText: 'Enter your number',
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 borderSide: BorderSide(
-                                  color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
+                                  color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.5),
                                 ),
                               ),
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 borderSide: BorderSide(
-                                  color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
+                                  color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.5),
                                 ),
                               ),
                               focusedBorder: OutlineInputBorder(
@@ -282,14 +282,14 @@ class _LoginScreenState extends State<LoginScreen> {
                             controller: _passwordController,
                             obscureText: _obscurePassword,
                             decoration: InputDecoration(
-                              prefixIcon: Icon(Icons.lock, size: 20, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
+                              prefixIcon: Icon(Icons.lock, size: 20, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6)),
                               hintText: 'Enter your password',
                               suffixIcon: IconButton(
                                 icon: Icon(
                                   _obscurePassword
                                       ? Icons.visibility_off
                                       : Icons.visibility,
-                                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                                 ),
                                 onPressed: () {
                                   setState(() {
@@ -300,13 +300,13 @@ class _LoginScreenState extends State<LoginScreen> {
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 borderSide: BorderSide(
-                                  color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
+                                  color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.5),
                                 ),
                               ),
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 borderSide: BorderSide(
-                                  color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
+                                  color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.5),
                                 ),
                               ),
                               focusedBorder: OutlineInputBorder(

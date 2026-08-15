@@ -31,6 +31,10 @@ jest.mock('../src/services/duplicateBackgroundAnalyzer', () => ({
 }));
 
 const app = require('../src/app');
+const pool = require('../src/config/db');
+const jwt = require('jsonwebtoken');
+const { JWT_SECRET } = require('../src/config/jwt');
+const { ROLES } = require('../src/config/roles');
 const { init: initWebSocket } = require('../src/services/websocketManager');
 
 let server;
@@ -335,6 +339,65 @@ describe('WebSocket Event Types', () => {
   });
 });
 
+// --- Application Event Tests ---
+
+describe('WebSocket Application Events', () => {
+  test('applicant receives application:status_changed (revoke/approve)', async () => {
+    const reporterToken = await tryLoginReporter('639005000001', 'user123')
+      || await tryLoginReporter('09005000001', 'user123');
+    if (!reporterToken) return;
+
+    const meRes = await request(app)
+      .get('/api/auth/me')
+      .set('Authorization', `Bearer ${reporterToken}`);
+    const userId = meRes.body?.user?.user_id ?? meRes.body?.user_id;
+    if (!userId) return;
+
+    const ws = await connectWebSocket(reporterToken);
+    const wss = app.locals.wss;
+
+    await wss.broadcast('application:status_changed', {
+      user_id: userId,
+      status: 'revoked',
+      notes: 'Safety concern',
+    });
+
+    const msg = await waitForMessage(ws, 5000);
+    expect(msg.event).toBe('application:status_changed');
+    expect(msg.data?.status).toBe('revoked');
+    expect(msg.data?.notes).toBe('Safety concern');
+
+    ws.close();
+  });
+
+  test('admin still receives application:submitted for other users', async () => {
+    const adminToken = await loginDispatcher('admin@rescuelink.test', 'admin123');
+    const reporterToken = await tryLoginReporter('639005000001', 'user123')
+      || await tryLoginReporter('09005000001', 'user123');
+    if (!reporterToken) return;
+
+    const meRes = await request(app)
+      .get('/api/auth/me')
+      .set('Authorization', `Bearer ${reporterToken}`);
+    const applicantId = meRes.body?.user?.user_id ?? meRes.body?.user_id;
+    if (!applicantId) return;
+
+    const ws = await connectWebSocket(adminToken);
+    const wss = app.locals.wss;
+
+    await wss.broadcast('application:submitted', {
+      user_id: applicantId,
+      id: 999,
+    });
+
+    const msg = await waitForMessage(ws, 5000);
+    expect(msg.event).toBe('application:submitted');
+    expect(msg.data?.user_id).toBe(applicantId);
+
+    ws.close();
+  });
+});
+
 // --- Connection Resilience ---
 
 describe('WebSocket Connection Resilience', () => {
@@ -350,8 +413,203 @@ describe('WebSocket Connection Resilience', () => {
     const reportId2 = await createEmergencyIncident(adminToken);
     const msg2 = await waitForMessage(ws, 8000);
     expect(msg2.event).toBe('incident:created');
-    expect(msg2.data?.report_id ?? msg2.data?.reportId).toBe(reportId2);
+    expect(msg2.data?.report_id ?? msg.data?.reportId).toBe(reportId2);
 
     ws.close();
+  });
+});
+
+// --- Volunteer Responder Alert Tests ---
+
+const VOLUNTEER_PHONE = '639005000001';
+const VOLUNTEER_PASSWORD = 'user123';
+
+async function promoteToVolunteerResponder(options = {}) {
+  const {
+    online = true,
+    lat = 16.0433,
+    lon = 120.3333,
+    types = ['fire', 'medical', 'police', 'disaster'],
+  } = options;
+
+  const userRow = await pool.query(
+    "SELECT user_id, role FROM users WHERE role IN ('user', 'responder') ORDER BY user_id LIMIT 1"
+  );
+  if (!userRow.rows[0]) {
+    throw new Error('No suitable user in DB for volunteer responder test');
+  }
+  const userId = userRow.rows[0].user_id;
+  const originalRole = userRow.rows[0].role;
+
+  await pool.query(
+    `UPDATE users SET role = 'responder', responder_online = $1 WHERE user_id = $2`,
+    [online, userId]
+  );
+
+  const existing = await pool.query('SELECT responder_id FROM responders WHERE user_id = $1', [userId]);
+  if (existing.rows.length === 0) {
+    await pool.query(
+      `INSERT INTO responders (name, organization, team_name, supported_incident_types, user_id, availability_status, source_type)
+       VALUES ($1, $2, $3, $4, $5, 'available', 'volunteer')`,
+      ['Test Volunteer', 'Volunteer First Responder Pool', 'Volunteer Responders', types, userId]
+    );
+  } else {
+    await pool.query(
+      'UPDATE responders SET supported_incident_types = $1, team_name = $2 WHERE user_id = $3',
+      [types, 'Volunteer Responders', userId]
+    );
+  }
+
+  const token = jwt.sign({ user_id: userId, role: ROLES.RESPONDER }, JWT_SECRET, { expiresIn: '1h' });
+  return { userId, token, originalRole };
+}
+
+async function restoreVolunteerUser(userId, originalRole = 'user') {
+  if (!userId) return;
+  await pool.query('UPDATE users SET role = $1, responder_online = FALSE WHERE user_id = $2', [originalRole, userId]);
+  await pool.query('DELETE FROM responders WHERE user_id = $1', [userId]);
+}
+
+function waitForEvent(ws, eventName, timeoutMs = 8000) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      ws.removeListener('message', onMessage);
+      reject(new Error(`Timeout waiting for ${eventName}`));
+    }, timeoutMs);
+    const onMessage = (data) => {
+      try {
+        const parsed = JSON.parse(data.toString());
+        if (parsed.event === eventName) {
+          clearTimeout(timer);
+          ws.removeListener('message', onMessage);
+          resolve(parsed);
+        }
+      } catch (_) {}
+    };
+    ws.on('message', onMessage);
+  });
+}
+
+function waitForNoEvent(ws, eventName, timeoutMs = 2000) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      ws.removeListener('message', onMessage);
+      resolve();
+    }, timeoutMs);
+    const onMessage = (data) => {
+      try {
+        const parsed = JSON.parse(data.toString());
+        if (parsed.event === eventName) {
+          clearTimeout(timer);
+          ws.removeListener('message', onMessage);
+          reject(new Error(`Unexpected ${eventName} event received`));
+        }
+      } catch (_) {}
+    };
+    ws.on('message', onMessage);
+  });
+}
+
+describe('Volunteer Responder Incident Alerts', () => {
+  let volunteerUserId;
+  let volunteerOriginalRole;
+  let adminToken;
+
+  beforeAll(async () => {
+    adminToken = await loginDispatcher('admin@rescuelink.test', 'admin123');
+  });
+
+  afterEach(async () => {
+    await restoreVolunteerUser(volunteerUserId, volunteerOriginalRole);
+    volunteerUserId = undefined;
+    volunteerOriginalRole = undefined;
+  });
+
+  test('online volunteer receives responder:incident_alert when incident is created', async () => {
+    const volunteer = await promoteToVolunteerResponder({ online: true });
+    volunteerUserId = volunteer.userId;
+    volunteerOriginalRole = volunteer.originalRole;
+
+    const ws = await connectWebSocket(volunteer.token);
+    const createPromise = createEmergencyIncident(adminToken);
+
+    const msg = await waitForEvent(ws, 'responder:incident_alert', 8000);
+    const reportId = await createPromise;
+
+    expect(msg.data?.report_id ?? msg.data?.reportId).toBe(reportId);
+    expect(msg.data?.incident_type).toBeDefined();
+    expect(msg.data?.severity_level).toBeDefined();
+
+    ws.close();
+  });
+
+  test('offline volunteer does not receive responder:incident_alert', async () => {
+    const volunteer = await promoteToVolunteerResponder({ online: false });
+    volunteerUserId = volunteer.userId;
+    volunteerOriginalRole = volunteer.originalRole;
+
+    const ws = await connectWebSocket(volunteer.token);
+    await createEmergencyIncident(adminToken);
+    await waitForNoEvent(ws, 'responder:incident_alert', 2500);
+
+    ws.close();
+  });
+
+  test('volunteer with mismatched specialization does not receive alert', async () => {
+    const volunteer = await promoteToVolunteerResponder({
+      online: true,
+      types: ['police'],
+    });
+    volunteerUserId = volunteer.userId;
+    volunteerOriginalRole = volunteer.originalRole;
+
+    const ws = await connectWebSocket(volunteer.token);
+    const wss = app.locals.wss;
+    await wss.broadcastToResponders('responder:incident_alert', {
+      report_id: 999001,
+      incident_type: 'fire',
+      severity_level: 'high',
+      status: 'pending',
+      barangay: 'Test Barangay',
+      latitude: 16.0433,
+      longitude: 120.3333,
+      accepted_by_user_id: null,
+    });
+    await waitForNoEvent(ws, 'responder:incident_alert', 2500);
+
+    ws.close();
+  });
+
+  test('GET /api/incidents/:id/responder-preview returns details for online volunteer', async () => {
+    const volunteer = await promoteToVolunteerResponder({ online: true });
+    volunteerUserId = volunteer.userId;
+    volunteerOriginalRole = volunteer.originalRole;
+
+    const reportId = await createEmergencyIncident(adminToken);
+
+    const previewRes = await request(app)
+      .get(`/api/incidents/${reportId}/responder-preview`)
+      .set('Authorization', `Bearer ${volunteer.token}`);
+
+    expect(previewRes.status).toBe(200);
+    expect(previewRes.body.report_id).toBe(reportId);
+    expect(previewRes.body.incident_type).toBeDefined();
+    expect(previewRes.body.description).toBeDefined();
+    expect(previewRes.body.reporter_first_name).toBeDefined();
+  });
+
+  test('GET /api/incidents/:id/responder-preview works when volunteer is offline', async () => {
+    const volunteer = await promoteToVolunteerResponder({ online: false });
+    volunteerUserId = volunteer.userId;
+    volunteerOriginalRole = volunteer.originalRole;
+
+    const reportId = await createEmergencyIncident(adminToken);
+
+    const previewRes = await request(app)
+      .get(`/api/incidents/${reportId}/responder-preview`)
+      .set('Authorization', `Bearer ${volunteer.token}`);
+
+    expect(previewRes.status).toBe(200);
+    expect(previewRes.body.report_id).toBe(reportId);
   });
 });

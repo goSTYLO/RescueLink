@@ -118,12 +118,55 @@ class ReportStatusUi {
     String? closedAt,
     int? estimatedEtaMinutes,
     String? estimatedArrivalAt,
+    String? responderStatus,
+    String? acceptedAt,
+    String? acceptedByName,
   }) {
     final normalized = normalize(status);
     final isVerified = normalized == 'verified' || normalized == 'in_progress' || normalized == 'resolved' || normalized == 'closed';
     final isInProgress = normalized == 'in_progress' || normalized == 'resolved' || normalized == 'closed';
     final isResolvedStatus = normalized == 'resolved' || normalized == 'closed';
     final isClosedStatus = normalized == 'closed';
+
+    final volunteerAccepted = responderStatus != null && responderStatus.isNotEmpty;
+    final volunteerEnRoute = volunteerAccepted &&
+        (responderStatus == 'En Route' || responderStatus == 'On Scene' || responderStatus == 'Resolved');
+    final volunteerOnScene = volunteerAccepted &&
+        (responderStatus == 'On Scene' || responderStatus == 'Resolved');
+    final volunteerResolved = volunteerAccepted && responderStatus == 'Resolved';
+
+    String dispatchSubtitle() {
+      if (volunteerAccepted) {
+        final name = acceptedByName?.trim();
+        final when = acceptedAt != null ? ' at ${formatReportDateTime(acceptedAt)}' : '';
+        return name != null && name.isNotEmpty
+            ? '$name accepted your report$when'
+            : 'A volunteer responder accepted your report$when';
+      }
+      if (isVerified) {
+        if (estimatedEtaMinutes != null) {
+          final etaExtra = estimatedArrivalAt != null && estimatedArrivalAt.isNotEmpty
+              ? ' (around ${formatReportDateTime(estimatedArrivalAt)})'
+              : '';
+          return 'ETA $estimatedEtaMinutes min$etaExtra';
+        }
+        return 'Assignment estimated from status';
+      }
+      return 'Awaiting assignment';
+    }
+
+    String enRouteSubtitle() {
+      if (volunteerOnScene) return 'Responder is on scene';
+      if (volunteerEnRoute) return 'Responder is en route to your location';
+      if (volunteerAccepted) return 'Responder preparing to depart';
+      if (isResolvedStatus) return 'Completed';
+      if (isInProgress) {
+        return estimatedEtaMinutes != null
+            ? 'Responders are en route (~$estimatedEtaMinutes min ETA)'
+            : 'Responders are handling this incident';
+      }
+      return 'Pending';
+    }
 
     return [
       ReportTimelineStep(
@@ -148,36 +191,31 @@ class ReportStatusUi {
       ReportTimelineStep(
         icon: Icons.local_shipping_outlined,
         iconColor: const Color(0xFFF97316),
-        title: 'Dispatch',
-        subtitle: isVerified
-            ? (estimatedEtaMinutes != null
-                ? 'ETA $estimatedEtaMinutes min${estimatedArrivalAt != null && estimatedArrivalAt.isNotEmpty ? ' (around ${formatReportDateTime(estimatedArrivalAt)})' : ''}'
-                : 'Assignment estimated from status')
-            : 'Awaiting assignment',
-        isCompleted: isVerified,
+        title: volunteerAccepted ? 'Responder Assigned' : 'Dispatch',
+        subtitle: dispatchSubtitle(),
+        isCompleted: volunteerAccepted || isVerified,
+        isInProgress: !volunteerAccepted && !isVerified && hasAiClassification,
       ),
       ReportTimelineStep(
         icon: Icons.location_on,
         iconColor: const Color(0xFFF59E0B),
         title: 'En Route',
-        subtitle: isResolvedStatus
-            ? 'Completed'
-            : (isInProgress
-                ? (estimatedEtaMinutes != null ? 'Responders are en route (~$estimatedEtaMinutes min ETA)' : 'Responders are handling this incident')
-                : 'Pending'),
-        isCompleted: isResolvedStatus,
-        isInProgress: isInProgress && !isResolvedStatus,
+        subtitle: enRouteSubtitle(),
+        isCompleted: volunteerOnScene || isResolvedStatus,
+        isInProgress: volunteerEnRoute && !volunteerOnScene,
       ),
       ReportTimelineStep(
         icon: Icons.check_circle_outline,
         iconColor: const Color(0xFF6B7280),
         title: 'Resolved',
-        subtitle: isResolvedStatus
-            ? (updatedAt != null
-                ? 'Resolved at ${formatReportDateTime(updatedAt)}'
-                : 'Resolved')
-            : 'Pending',
-        isCompleted: isResolvedStatus,
+        subtitle: volunteerResolved
+            ? 'Responder marked incident resolved'
+            : (isResolvedStatus
+                ? (updatedAt != null
+                    ? 'Resolved at ${formatReportDateTime(updatedAt)}'
+                    : 'Resolved')
+                : 'Pending'),
+        isCompleted: volunteerResolved || isResolvedStatus,
       ),
       ReportTimelineStep(
         icon: Icons.task_alt,
@@ -212,10 +250,23 @@ String formatReportDateTime(String? dateStr) {
   if (dateStr == null || dateStr.isEmpty) return '—';
   try {
     final dt = DateTime.parse(dateStr).toLocal();
-    return '${_month(dt.month)} ${dt.day}, ${dt.year} ${_formatTime12h(dt)}';
+    return '${_month(dt.month)} ${dt.day}, ${dt.year} • ${_formatTime12h(dt)}';
   } catch (_) {
     return dateStr;
   }
+}
+
+/// Shared location label for report cards and location summary rows.
+String incidentLocationLabel(Map<String, dynamic>? incident) {
+  if (incident == null) return 'Incident location data is unavailable.';
+  final barangay = safeString(incident['barangay']);
+  final latitude = parseDouble(incident['latitude']);
+  final longitude = parseDouble(incident['longitude']);
+  if (barangay != null) return '$barangay, Dagupan City';
+  if (latitude != null && longitude != null) {
+    return '${latitude.toStringAsFixed(4)}, ${longitude.toStringAsFixed(4)}';
+  }
+  return 'Incident location data is unavailable.';
 }
 
 String incidentTypeLabel(String? value) {
@@ -258,6 +309,21 @@ String departmentFromIncidentType(String? incidentType) {
 
 /// Display name for assigned department: uses API assigned_department when present,
 /// otherwise type-based fallback or "Not assigned".
+String? volunteerResponderStatusLabel(String? status) {
+  switch ((status ?? '').trim()) {
+    case 'Assigned':
+      return 'Volunteer accepted — preparing to respond';
+    case 'En Route':
+      return 'Volunteer is on the way';
+    case 'On Scene':
+      return 'Volunteer is on scene';
+    case 'Resolved':
+      return 'Volunteer marked incident resolved';
+    default:
+      return null;
+  }
+}
+
 String assignedDepartmentDisplayName(Map<String, dynamic>? incident) {
   if (incident == null) return 'Not assigned';
   // Prefer snake_case from API; support camelCase from some clients
@@ -277,6 +343,21 @@ String? safeString(dynamic value) {
   if (value == null) return null;
   final text = value.toString().trim();
   return text.isEmpty ? null : text;
+}
+
+double? parseDouble(dynamic value) {
+  if (value == null) return null;
+  if (value is num) return value.toDouble();
+  if (value is String) return double.tryParse(value.trim());
+  return null;
+}
+
+int? parseInt(dynamic value) {
+  if (value == null) return null;
+  if (value is int) return value;
+  if (value is num) return value.toInt();
+  if (value is String) return int.tryParse(value.trim());
+  return null;
 }
 
 String _month(int m) {

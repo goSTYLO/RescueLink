@@ -70,7 +70,7 @@ class _EnterNewPhoneNumberScreenState extends State<EnterNewPhoneNumberScreen> {
                         const SizedBox(height: 2),
                         Text(
                           'Update your contact number',
-                          style: TextStyle(color: Colors.white.withOpacity(0.95), fontSize: 12),
+                          style: TextStyle(color: Colors.white.withValues(alpha: 0.95), fontSize: 12),
                         ),
                       ],
                     ),
@@ -112,7 +112,7 @@ class _EnterNewPhoneNumberScreenState extends State<EnterNewPhoneNumberScreen> {
                         border: Border.all(color: const Color(0xFFE5E7EB)),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.04),
+                            color: Colors.black.withValues(alpha: 0.04),
                             blurRadius: 8,
                             offset: const Offset(0, 2),
                           ),

@@ -24,12 +24,12 @@ const incidentReportLimiter = rateLimit({
 });
 
 // Create emergency incident report (fast endpoint, no AI classification)
-// Allows users, dispatchers, and admins to create incidents
-router.post('/emergency', authMiddleware, incidentReportLimiter, authorize([ROLES.USER, ROLES.DISPATCHER, ROLES.ADMIN]), incidentController.createEmergency);
+// Allows citizens (user), volunteer responders, dispatchers, and admins to create incidents
+router.post('/emergency', authMiddleware, incidentReportLimiter, authorize([ROLES.USER, ROLES.RESPONDER, ROLES.DISPATCHER, ROLES.ADMIN]), incidentController.createEmergency);
 
 // Create incident with audio and media files (AI-enhanced)
-// Allows users, dispatchers, and admins to create incidents
-router.post('/with-audio', authMiddleware, incidentReportLimiter, authorize([ROLES.USER, ROLES.DISPATCHER, ROLES.ADMIN]), uploadMiddleware, incidentController.createWithAudio);
+// Allows citizens (user), volunteer responders, dispatchers, and admins to create incidents
+router.post('/with-audio', authMiddleware, incidentReportLimiter, authorize([ROLES.USER, ROLES.RESPONDER, ROLES.DISPATCHER, ROLES.ADMIN]), uploadMiddleware, incidentController.createWithAudio);
 
 // Download audio file from incident
 // Users can only download their own; dispatchers/admins can download any
@@ -51,7 +51,7 @@ router.post('/:id/verify', authMiddleware, authorize([ROLES.DISPATCHER, ROLES.AD
 router.patch('/:id/status', authMiddleware, authorize([ROLES.DISPATCHER, ROLES.ADMIN, ROLES.DEPARTMENT_ADMIN, ROLES.DEPARTMENT_HEAD]), incidentController.updateStatus);
 
 // Reporter confirms resolution (owner-only is enforced in controller)
-router.post('/:id/confirm-resolution', authMiddleware, authorize([ROLES.USER]), incidentController.confirmResolution);
+router.post('/:id/confirm-resolution', authMiddleware, authorize([ROLES.USER, ROLES.RESPONDER]), incidentController.confirmResolution);
 
 // Manual reclassification with AI override audit trail
 // Dispatcher/admin/supervisor including admin role aliases
@@ -86,6 +86,7 @@ router.get('/user/my', authMiddleware, incidentController.getMyIncidents);
 // Must be registered before /:id routes to avoid Express shadowing them.
 router.get('/responder/active',       authMiddleware, authorize([ROLES.RESPONDER]), incidentAcceptance.getActiveAssigned);
 router.get('/responder/history',      authMiddleware, authorize([ROLES.RESPONDER]), incidentAcceptance.getResponderHistory);
+router.get('/:id/responder-preview',   authMiddleware, authorize([ROLES.RESPONDER]), incidentAcceptance.getIncidentPreview);
 router.post('/:id/accept',            authMiddleware, authorize([ROLES.RESPONDER]), incidentAcceptance.acceptIncident);
 router.post('/:id/decline',           authMiddleware, authorize([ROLES.RESPONDER]), incidentAcceptance.declineIncident);
 router.patch('/:id/responder-status', authMiddleware, authorize([ROLES.RESPONDER]), incidentAcceptance.updateResponderStatus);

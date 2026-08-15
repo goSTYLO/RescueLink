@@ -370,35 +370,37 @@ const responderController = {
     try {
       const userId = req.user.user_id;
       let row;
+      const profileSql = `
+        SELECT u.user_id, u.first_name, u.last_name, u.phone_number, u.address,
+               u.responder_online,
+               r.responder_id, r.organization, r.availability_status,
+               r.team_name, r.supported_incident_types
+          FROM users u
+          LEFT JOIN responders r ON r.user_id = u.user_id
+         WHERE u.user_id = $1`;
+      const profileSqlWithLocation = `
+        SELECT u.user_id, u.first_name, u.last_name, u.phone_number, u.address,
+               u.responder_online, u.latitude, u.longitude,
+               r.responder_id, r.organization, r.availability_status,
+               r.team_name, r.supported_incident_types
+          FROM users u
+          LEFT JOIN responders r ON r.user_id = u.user_id
+         WHERE u.user_id = $1`;
       try {
-        row = await pool.query(
-          `SELECT u.user_id, u.first_name, u.last_name, u.phone_number, u.address,
-                  u.responder_online, u.latitude, u.longitude,
-                  r.responder_id, r.organization, r.availability_status,
-                  r.team_name, r.supported_incident_types
-             FROM users u
-             LEFT JOIN responders r ON r.user_id = u.user_id
-            WHERE u.user_id = $1`,
-          [userId]
-        );
+        row = await pool.query(profileSqlWithLocation, [userId]);
       } catch (err) {
         if (err.code === '42703') {
-          // Self-heal: ensure Phase 3 columns exist
-          await pool.query('ALTER TABLE responders ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(user_id) ON DELETE SET NULL');
-          await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS responder_online BOOLEAN DEFAULT FALSE');
-          row = await pool.query(
-            `SELECT u.user_id, u.first_name, u.last_name, u.phone_number, u.address,
-                    u.responder_online, u.latitude, u.longitude,
-                    r.responder_id, r.organization, r.availability_status,
-                    r.team_name, r.supported_incident_types
-               FROM users u
-               LEFT JOIN responders r ON r.user_id = u.user_id
-              WHERE u.user_id = $1`,
-            [userId]
-          );
+          row = await pool.query(profileSql, [userId]);
         } else {
           throw err;
         }
+      }
+      if (!row.rows[0]) {
+        try {
+          await pool.query('ALTER TABLE responders ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(user_id) ON DELETE SET NULL');
+          await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS responder_online BOOLEAN DEFAULT FALSE');
+          row = await pool.query(profileSql, [userId]);
+        } catch (_) {}
       }
       if (!row.rows[0]) return res.status(404).json({ error: 'Responder profile not found.' });
       res.json(row.rows[0]);

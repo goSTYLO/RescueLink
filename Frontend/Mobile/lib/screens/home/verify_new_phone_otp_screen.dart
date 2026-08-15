@@ -108,7 +108,7 @@ class _VerifyNewPhoneOtpScreenState extends State<VerifyNewPhoneOtpScreen> {
                         const SizedBox(height: 2),
                         Text(
                           'Update your contact number',
-                          style: TextStyle(color: Colors.white.withOpacity(0.95), fontSize: 12),
+                          style: TextStyle(color: Colors.white.withValues(alpha: 0.95), fontSize: 12),
                         ),
                       ],
                     ),
@@ -149,7 +149,7 @@ class _VerifyNewPhoneOtpScreenState extends State<VerifyNewPhoneOtpScreen> {
                         border: Border.all(color: const Color(0xFFE5E7EB)),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.06),
+                            color: Colors.black.withValues(alpha: 0.06),
                             blurRadius: 12,
                             offset: const Offset(0, 4),
                           ),

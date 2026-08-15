@@ -66,11 +66,27 @@ function haversineKm(lat1, lon1, lat2, lon2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+/** Mirrors websocket/responder alert specialization rules for tests and docs. */
+function incidentMatchesVolunteerSpecialization(incidentType, supportedTypes) {
+  if (!Array.isArray(supportedTypes) || supportedTypes.length === 0) return true;
+  const normalized = String(incidentType || '').trim().toLowerCase();
+  if (normalized === 'sos') return true;
+  return supportedTypes.some((entry) => String(entry || '').trim().toLowerCase() === normalized);
+}
+
+/** Mirrors radius skip rules: no volunteer coords means no radius filter. */
+function isWithinVolunteerRadius(volunteerLat, volunteerLon, incidentLat, incidentLon, radiusKm = ALERT_RADIUS_KM) {
+  if (volunteerLat == null || volunteerLon == null || incidentLat == null || incidentLon == null) {
+    return true;
+  }
+  return haversineKm(volunteerLat, volunteerLon, incidentLat, incidentLon) <= radiusKm;
+}
+
 // ─── Helper: emit WebSocket event via app-level broadcaster ──────────────────
 function emitWs(req, event, data) {
-  const broadcaster = req.app?.locals?.broadcast;
-  if (typeof broadcaster === 'function') {
-    broadcaster(event, data);
+  const wss = req.app?.locals?.wss;
+  if (wss?.broadcast) {
+    wss.broadcast(event, data).catch(() => {});
   }
 }
 
@@ -82,6 +98,29 @@ function emitWsToUser(req, userId, event, data) {
   }
 }
 
+// ─── Helper: radius check when responder location columns exist ────────────────
+async function assertResponderRadius(req, userId, incidentLat, incidentLon) {
+  if (incidentLat == null || incidentLon == null) return;
+  try {
+    const responderRow = await pool.query(
+      'SELECT latitude, longitude FROM users WHERE user_id = $1',
+      [userId]
+    );
+    const { latitude: rLat, longitude: rLon } = responderRow.rows[0] || {};
+    if (rLat != null && rLon != null) {
+      const dist = haversineKm(rLat, rLon, incidentLat, incidentLon);
+      if (dist > ALERT_RADIUS_KM) {
+        const err = new Error(`Incident is ${dist.toFixed(1)} km away — outside your alert radius (${ALERT_RADIUS_KM} km).`);
+        err.statusCode = 403;
+        throw err;
+      }
+    }
+  } catch (err) {
+    if (err.code === '42703') return;
+    throw err;
+  }
+}
+
 // ─── POST /api/incidents/:id/accept ──────────────────────────────────────────
 async function acceptIncident(req, res) {
   try {
@@ -90,7 +129,7 @@ async function acceptIncident(req, res) {
 
     // Verify responder is registered and online
     const responderRow = await pool.query(
-      'SELECT responder_online, latitude, longitude FROM users WHERE user_id = $1',
+      'SELECT responder_online FROM users WHERE user_id = $1',
       [userId]
     );
     if (!responderRow.rows[0]) return res.status(404).json({ error: 'Responder user not found.' });
@@ -114,12 +153,13 @@ async function acceptIncident(req, res) {
     }
 
     // Radius check (only when responder has a registered location)
-    const { latitude: rLat, longitude: rLon } = responderRow.rows[0];
-    if (rLat != null && rLon != null && incident.latitude != null && incident.longitude != null) {
-      const dist = haversineKm(rLat, rLon, incident.latitude, incident.longitude);
-      if (dist > ALERT_RADIUS_KM) {
-        return res.status(403).json({ error: `Incident is ${dist.toFixed(1)} km away — outside your alert radius (${ALERT_RADIUS_KM} km).` });
+    try {
+      await assertResponderRadius(req, userId, incident.latitude, incident.longitude);
+    } catch (radiusErr) {
+      if (radiusErr.statusCode === 403) {
+        return res.status(403).json({ error: radiusErr.message });
       }
+      throw radiusErr;
     }
 
     // Atomic acceptance
@@ -163,7 +203,19 @@ async function acceptIncident(req, res) {
       [userId]
     );
     const acceptedByName = nameRow.rows[0]?.full_name || 'Responder';
-    emitWs(req, 'incident:accepted', { report_id: reportId, accepted_by_name: acceptedByName, accepted_at: now });
+    // WS broadcast — include reporter_id so the citizen receives the event
+    const reporterRow = await pool.query(
+      'SELECT user_id FROM incident_reports WHERE report_id = $1',
+      [reportId]
+    );
+    const reporterId = reporterRow.rows[0]?.user_id ?? null;
+    emitWs(req, 'incident:accepted', {
+      report_id: reportId,
+      reporter_id: reporterId,
+      accepted_by_name: acceptedByName,
+      accepted_at: now,
+      responder_status: 'Assigned',
+    });
 
     await logDispatcherAction(req, 'incident_accepted', 'incident', reportId, { accepted_by_user_id: userId });
 
@@ -242,7 +294,17 @@ async function updateResponderStatus(req, res) {
       category: 'responder_alert',
     }).catch(() => {});
 
-    emitWs(req, 'responder:status_changed', { report_id: reportId, old_status: currentStatus, new_status: newStatus });
+    const reporterRow = await pool.query(
+      'SELECT user_id FROM incident_reports WHERE report_id = $1',
+      [reportId]
+    );
+    const reporterId = reporterRow.rows[0]?.user_id ?? null;
+    emitWs(req, 'responder:status_changed', {
+      report_id: reportId,
+      reporter_id: reporterId,
+      old_status: currentStatus,
+      new_status: newStatus,
+    });
 
     res.json({ message: 'Status updated.', report_id: reportId, old_status: currentStatus, new_status: newStatus });
   } catch (err) {
@@ -326,17 +388,89 @@ async function getBackupRequests(req, res) {
 }
 
 // ─── GET /api/incidents/responder/active ─────────────────────────────────────
+// Returns the volunteer's own active assignments plus nearby unaccepted open incidents
+// matching supported_incident_types (SOS always included). Radius uses ALERT_RADIUS_KM.
 async function getActiveAssigned(req, res) {
   try {
     const userId = req.user.user_id;
     const result = await pool.query(
-      `SELECT report_id, incident_type, severity_level, barangay, latitude, longitude,
-              description, status, responder_status, accepted_at, created_at
-         FROM incident_reports
-        WHERE accepted_by_user_id = $1
-          AND (responder_status IS NULL OR responder_status != 'Resolved')
-        ORDER BY accepted_at DESC`,
-      [userId]
+      `WITH volunteer AS (
+         SELECT u.user_id,
+                u.latitude,
+                u.longitude,
+                COALESCE(r.supported_incident_types, ARRAY[]::text[]) AS supported_types
+           FROM users u
+           LEFT JOIN responders r ON r.user_id = u.user_id
+          WHERE u.user_id = $1
+       )
+       SELECT ir.report_id,
+              ir.incident_type,
+              ir.severity_level,
+              ir.barangay,
+              ir.latitude,
+              ir.longitude,
+              ir.description,
+              ir.status,
+              ir.responder_status,
+              ir.accepted_at,
+              ir.created_at,
+              ir.accepted_by_user_id,
+              CASE
+                WHEN v.latitude IS NOT NULL
+                 AND v.longitude IS NOT NULL
+                 AND ir.latitude IS NOT NULL
+                 AND ir.longitude IS NOT NULL
+                THEN ROUND(
+                  (
+                    6371 * 2 * ASIN(
+                      SQRT(
+                        POWER(SIN(RADIANS((ir.latitude::float8 - v.latitude::float8) / 2)), 2) +
+                        COS(RADIANS(v.latitude::float8)) * COS(RADIANS(ir.latitude::float8)) *
+                        POWER(SIN(RADIANS((ir.longitude::float8 - v.longitude::float8) / 2)), 2)
+                      )
+                    )
+                  )::numeric,
+                  1
+                )
+                ELSE NULL
+              END AS distance_km
+         FROM incident_reports ir
+         CROSS JOIN volunteer v
+        WHERE (
+          ir.accepted_by_user_id = $1
+          AND (ir.responder_status IS NULL OR ir.responder_status != 'Resolved')
+        )
+           OR (
+          ir.accepted_by_user_id IS NULL
+          AND LOWER(ir.status) IN ('pending', 'verified', 'in_progress')
+          AND (
+            COALESCE(array_length(v.supported_types, 1), 0) = 0
+            OR LOWER(ir.incident_type) = 'sos'
+            OR LOWER(ir.incident_type) = ANY(
+              SELECT LOWER(unnest(v.supported_types))
+            )
+          )
+          AND (
+            v.latitude IS NULL
+            OR v.longitude IS NULL
+            OR ir.latitude IS NULL
+            OR ir.longitude IS NULL
+            OR (
+              6371 * 2 * ASIN(
+                SQRT(
+                  POWER(SIN(RADIANS((ir.latitude::float8 - v.latitude::float8) / 2)), 2) +
+                  COS(RADIANS(v.latitude::float8)) * COS(RADIANS(ir.latitude::float8)) *
+                  POWER(SIN(RADIANS((ir.longitude::float8 - v.longitude::float8) / 2)), 2)
+                )
+              )
+            ) <= $2
+          )
+        )
+        ORDER BY
+          CASE WHEN ir.accepted_by_user_id = $1 THEN 0 ELSE 1 END,
+          distance_km NULLS LAST,
+          ir.created_at DESC`,
+      [userId, ALERT_RADIUS_KM]
     );
     res.json(result.rows);
   } catch (err) {
@@ -371,6 +505,103 @@ async function getResponderHistory(req, res) {
   }
 }
 
+// ─── GET /api/incidents/:id/responder-preview ────────────────────────────────
+async function getIncidentPreview(req, res) {
+  try {
+    const reportId = validateInteger(req.params.id, 'report ID');
+    const userId = req.user.user_id;
+
+    const responderRow = await pool.query(
+      'SELECT responder_online FROM users WHERE user_id = $1',
+      [userId]
+    );
+    if (!responderRow.rows[0]) return res.status(404).json({ error: 'Responder user not found.' });
+
+    const poolRow = await pool.query('SELECT user_id FROM responders WHERE user_id = $1', [userId]);
+    const isVolunteer = poolRow.rows.length > 0 || String(req.user.role || '').toLowerCase() === 'responder';
+    if (!isVolunteer) {
+      return res.status(403).json({ error: 'Only registered responders can preview incidents.' });
+    }
+
+    const incRow = await pool.query(
+      `SELECT ir.report_id, ir.user_id, ir.incident_type, ir.severity_level, ir.status,
+              ir.barangay, ir.description, ir.transcription, ir.audio_path, ir.media_paths,
+              ir.latitude, ir.longitude, ir.accepted_by_user_id, ir.created_at,
+              u.first_name AS reporter_first_name, u.last_name AS reporter_last_name,
+              u.phone_number AS reporter_phone
+         FROM incident_reports ir
+         JOIN users u ON u.user_id = ir.user_id
+        WHERE ir.report_id = $1`,
+      [reportId]
+    );
+    if (!incRow.rows[0]) return res.status(404).json({ error: 'Incident not found.' });
+    const incident = incRow.rows[0];
+
+    if (incident.accepted_by_user_id) {
+      return res.status(409).json({ error: 'This incident has already been accepted by another responder.' });
+    }
+    if (['resolved', 'closed'].includes(String(incident.status).toLowerCase())) {
+      return res.status(409).json({ error: 'Cannot preview a resolved or closed incident.' });
+    }
+
+    await assertResponderRadius(req, userId, incident.latitude, incident.longitude);
+
+    let mediaPaths = incident.media_paths;
+    if (typeof mediaPaths === 'string') {
+      try {
+        mediaPaths = JSON.parse(mediaPaths);
+      } catch {
+        mediaPaths = [];
+      }
+    }
+    if (!Array.isArray(mediaPaths)) mediaPaths = [];
+
+    const classRow = await pool.query(
+      `SELECT predicted_type, confidence_score, low_confidence_flag,
+              secondary_predicted_type, secondary_confidence_score
+         FROM ai_classifications
+        WHERE report_id = $1
+        ORDER BY processed_at DESC
+        LIMIT 1`,
+      [reportId]
+    );
+    const classification = classRow.rows[0] || null;
+
+    res.json({
+      report_id: incident.report_id,
+      incident_type: incident.incident_type,
+      severity_level: incident.severity_level,
+      status: incident.status,
+      barangay: incident.barangay,
+      description: incident.description || 'No description provided.',
+      transcription: incident.transcription || null,
+      audio_path: incident.audio_path || null,
+      media_paths: mediaPaths,
+      latitude: incident.latitude,
+      longitude: incident.longitude,
+      created_at: incident.created_at,
+      updated_at: incident.created_at,
+      reporter_first_name: incident.reporter_first_name,
+      reporter_last_name: incident.reporter_last_name,
+      reporter_phone: incident.reporter_phone,
+      ai_classification: classification
+        ? {
+            predicted_type: classification.predicted_type,
+            confidence_score: classification.confidence_score,
+            low_confidence_flag: classification.low_confidence_flag,
+            secondary_predicted_type: classification.secondary_predicted_type,
+            secondary_confidence_score: classification.secondary_confidence_score,
+          }
+        : null,
+    });
+  } catch (err) {
+    if (err.statusCode === 403) return res.status(403).json({ error: err.message });
+    if (err.message?.includes('must be')) return res.status(400).json({ error: err.message });
+    console.error('getIncidentPreview error:', err);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
+}
+
 module.exports = {
   acceptIncident,
   declineIncident,
@@ -379,4 +610,8 @@ module.exports = {
   getBackupRequests,
   getActiveAssigned,
   getResponderHistory,
+  getIncidentPreview,
+  ALERT_RADIUS_KM,
+  incidentMatchesVolunteerSpecialization,
+  isWithinVolunteerRadius,
 };

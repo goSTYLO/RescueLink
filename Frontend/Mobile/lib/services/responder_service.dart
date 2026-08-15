@@ -13,6 +13,13 @@ class ResponderServiceException implements Exception {
   String toString() => 'ResponderServiceException: $message';
 }
 
+bool parseResponderOnlineFlag(dynamic value) {
+  if (value == true) return true;
+  if (value == false) return false;
+  if (value is String) return value.toLowerCase() == 'true';
+  return false;
+}
+
 /// Service wrapping all Phase 3 responder-specific API endpoints.
 class ResponderService {
   final AuthService _auth = AuthService();
@@ -107,6 +114,19 @@ class ResponderService {
         }
       }
       return [];
+    } on SocketException {
+      throw ResponderServiceException('No connection.');
+    }
+  }
+
+  /// GET /api/incidents/:id/responder-preview
+  Future<Map<String, dynamic>> getIncidentPreview(int reportId) async {
+    final uri = Uri.parse('${AppConfig.apiBaseUrl}/api/incidents/$reportId/responder-preview');
+    try {
+      final res = await _client
+          .get(uri, headers: _headers())
+          .timeout(AppConfig.apiTimeout);
+      return await _handleResponse(res);
     } on SocketException {
       throw ResponderServiceException('No connection.');
     }

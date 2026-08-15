@@ -121,10 +121,10 @@ class ApplicationStatusScreen extends StatelessWidget {
                           width: double.infinity,
                           padding: const EdgeInsets.all(14),
                           decoration: BoxDecoration(
-                            color: (status == 'revoked' ? Colors.orange : Colors.red).withOpacity(0.1),
+                            color: (status == 'revoked' ? Colors.orange : Colors.red).withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(
-                              color: (status == 'revoked' ? Colors.orange : Colors.red).withOpacity(0.3),
+                              color: (status == 'revoked' ? Colors.orange : Colors.red).withValues(alpha: 0.3),
                             ),
                           ),
                           child: Column(

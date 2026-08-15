@@ -21,6 +21,15 @@ jest.mock('../src/services/duplicateBackgroundAnalyzer', () => ({
   startDuplicateAnalyzer: () => null,
 }));
 
+jest.mock('../src/models/user', () => {
+  const actual = jest.requireActual('../src/models/user');
+  return {
+    ...actual,
+    getRoleById: jest.fn((...args) => actual.getRoleById(...args)),
+  };
+});
+
+const User = require('../src/models/user');
 const app = require('../src/app');
 
 afterAll(() => {
@@ -47,6 +56,7 @@ const createToken = (userId, role) => {
 const userToken = createToken(1, ROLES.USER);
 const dispatcherToken = createToken(2, ROLES.DISPATCHER);
 const adminToken = createToken(3, ROLES.ADMIN);
+const responderToken = createToken(4, ROLES.RESPONDER);
 
 describe('RBAC Integration Tests', () => {
   describe('Dispatch Endpoints - Dispatcher/Admin Only', () => {
@@ -161,6 +171,19 @@ describe('RBAC Integration Tests', () => {
           longitude: 120.5351
         });
       
+      expect([201, 400, 500]).toContain(res.status);
+    });
+
+    it('should allow volunteer responder to create emergency incident', async () => {
+      const res = await request(app)
+        .post('/api/incidents/emergency')
+        .set('Authorization', `Bearer ${responderToken}`)
+        .send({
+          latitude: 16.0419,
+          longitude: 120.5351
+        });
+
+      expect(res.status).not.toBe(403);
       expect([201, 400, 500]).toContain(res.status);
     });
 
@@ -489,6 +512,35 @@ describe('RBAC Unit Tests - Permission Functions', () => {
 
     it('should return false for null user', () => {
       expect(isResourceOwner(null, resourceOwnerId)).toBe(false);
+    });
+  });
+
+  describe('Stale JWT role sync (promotion without re-login)', () => {
+    afterEach(() => {
+      const actual = jest.requireActual('../src/models/user');
+      User.getRoleById.mockImplementation((...args) => actual.getRoleById(...args));
+    });
+
+    it('allows responder online-status when JWT says user but DB role is responder', async () => {
+      User.getRoleById.mockResolvedValue(ROLES.RESPONDER);
+      const staleToken = createToken(99, ROLES.USER);
+      const res = await request(app)
+        .patch('/api/responders/me/online-status')
+        .set('Authorization', `Bearer ${staleToken}`)
+        .send({ online: true });
+
+      expect(res.status).not.toBe(403);
+    });
+
+    it('denies responder online-status when DB role is user even if JWT says responder', async () => {
+      User.getRoleById.mockResolvedValue(ROLES.USER);
+      const staleToken = createToken(99, ROLES.RESPONDER);
+      const res = await request(app)
+        .patch('/api/responders/me/online-status')
+        .set('Authorization', `Bearer ${staleToken}`)
+        .send({ online: true });
+
+      expect(res.status).toBe(403);
     });
   });
 });

@@ -71,24 +71,48 @@ async function logIncidentAction(req, action, resourceId, details) {
   }
 }
 
-function emitIncidentEvent(req, event, incident) {
-  const wss = req.app?.locals?.wss;
-  if (!incident) return;
-  const data = {
+function buildIncidentEventPayload(incident) {
+  return {
     report_id: incident.report_id ?? incident.reportId,
     reporter_id: incident.user_id ?? incident.userId ?? incident.reporter_id,
     status: incident.status,
     incident_type: incident.incident_type,
     severity_level: incident.severity_level,
     barangay: incident.barangay,
+    description: incident.description ?? null,
+    latitude: incident.latitude ?? null,
+    longitude: incident.longitude ?? null,
+    accepted_by_user_id: incident.accepted_by_user_id ?? null,
+    created_at: incident.created_at ?? null,
     updated_at: incident.updated_at ?? incident.created_at ?? new Date().toISOString(),
   };
+}
+
+function emitIncidentEvent(req, event, incident) {
+  const wss = req.app?.locals?.wss;
+  if (!incident) return;
+  const data = buildIncidentEventPayload(incident);
   if (wss?.broadcast) {
     wss.broadcast(event, data).catch(() => {});
   }
   persistIncidentNotifications(event, data).catch((err) =>
     console.error('[emitIncidentEvent] Notification persistence failed:', err.message)
   );
+}
+
+/** Notify online volunteer responders when a new actionable incident is created. */
+function emitResponderAlert(req, incident) {
+  if (!incident) return;
+  const status = String(incident.status || '').toLowerCase();
+  if (!['pending', 'verified'].includes(status)) return;
+  if (incident.accepted_by_user_id) return;
+
+  const wss = req.app?.locals?.wss;
+  if (!wss?.broadcastToResponders) return;
+  const data = buildIncidentEventPayload(incident);
+  wss.broadcastToResponders('responder:incident_alert', data).catch((err) => {
+    console.error('[emitResponderAlert] broadcast failed:', err.message);
+  });
 }
 
 async function getDispatchesForReport(reportId, limit = 50) {
@@ -175,6 +199,24 @@ async function attachAssignedDepartment(incident, reportId, dispatches = null) {
  * Build incident timeline from created_at, dispatches, resolved_at, and closed_at.
  * Returns array of events sorted chronologically by timestamp.
  */
+async function attachAcceptedResponder(incident) {
+  if (!incident?.accepted_by_user_id) return incident;
+  try {
+    const row = await pool.query(
+      `SELECT u.first_name, u.last_name, u.phone_number
+         FROM users u
+        WHERE u.user_id = $1`,
+      [incident.accepted_by_user_id]
+    );
+    const r = row.rows[0];
+    if (r) {
+      incident.accepted_by_name = [r.first_name, r.last_name].filter(Boolean).join(' ').trim() || 'Volunteer Responder';
+      incident.accepted_by_phone = r.phone_number || null;
+    }
+  } catch (_) {}
+  return incident;
+}
+
 async function buildIncidentTimeline(incident, reportId, dispatches = null) {
   if (!incident || reportId == null) return incident;
   try {
@@ -190,7 +232,41 @@ async function buildIncidentTimeline(incident, reportId, dispatches = null) {
       });
     }
 
-    // 2. Assignment events from dispatches
+    // 2b. Volunteer responder status history (self-accept model)
+    if (incident.accepted_by_user_id) {
+      try {
+        const histRes = await pool.query(
+          `SELECT h.new_status, h.updated_at,
+                  u.first_name, u.last_name
+             FROM responder_status_history h
+             LEFT JOIN users u ON u.user_id = h.updated_by_user_id
+            WHERE h.report_id = $1
+            ORDER BY h.updated_at ASC`,
+          [reportId]
+        );
+        for (const row of histRes.rows) {
+          const responderName = [row.first_name, row.last_name].filter(Boolean).join(' ').trim();
+          const statusLabel = row.new_status === 'Assigned'
+            ? 'Volunteer responder accepted'
+            : `Responder status: ${row.new_status}`;
+          events.push({
+            type: 'responder_status',
+            timestamp: row.updated_at,
+            label: statusLabel,
+            detail: {
+              responder_status: row.new_status,
+              responder_name: responderName || null,
+            },
+          });
+        }
+      } catch (err) {
+        if (err.code !== '42P01') {
+          console.error('Error loading responder status history for timeline:', err.message);
+        }
+      }
+    }
+
+    // 3. Assignment events from dispatches
     const sourceDispatches = Array.isArray(dispatches) ? dispatches : await getDispatchesForReport(reportId, 50);
     if (sourceDispatches.length > 0) {
       // Sort by dispatched_at ascending
@@ -426,6 +502,7 @@ const incidentController = {
       const duplicateInfo = await runRealtimeDuplicateCheck(incident);
 
       emitIncidentEvent(req, 'incident:created', incident);
+      emitResponderAlert(req, incident);
 
       res.status(201).json({
         success: true,
@@ -464,6 +541,7 @@ const incidentController = {
             if (dispatches && dispatches.length > 0) {
       const incidentDispatches = await getDispatchesForReport(validatedId, 50);
       await attachAssignedDepartment(incident, validatedId, incidentDispatches);
+      await attachAcceptedResponder(incident);
       await ensureIncidentBarangay(incident);
       await attachDispatchEta(incident, validatedId, incidentDispatches);
       await buildIncidentTimeline(incident, validatedId, incidentDispatches);
@@ -480,6 +558,7 @@ const incidentController = {
 
       const incidentDispatches = await getDispatchesForReport(validatedId, 50);
       await attachAssignedDepartment(incident, validatedId, incidentDispatches);
+      await attachAcceptedResponder(incident);
       await ensureIncidentBarangay(incident);
       await attachDispatchEta(incident, validatedId, incidentDispatches);
       await buildIncidentTimeline(incident, validatedId, incidentDispatches);
@@ -794,6 +873,7 @@ const incidentController = {
         console.log(`[backend][incident][createWithAudio] request_id=${requestId} report_id=${reportId} status=success latency_ms=${Date.now() - startedAt} ai_pending=false`);
 
         emitIncidentEvent(req, 'incident:created', updatedIncident);
+        emitResponderAlert(req, updatedIncident);
 
         res.status(201).json({
           success: true,
@@ -841,6 +921,7 @@ const incidentController = {
         console.log(`[backend][incident][createWithAudio] request_id=${requestId} report_id=${reportId} status=pending_ai_retry latency_ms=${Date.now() - startedAt}`);
 
         emitIncidentEvent(req, 'incident:created', { ...incident, report_id: reportId });
+        emitResponderAlert(req, { ...incident, report_id: reportId });
 
         res.status(201).json({
           success: true,
@@ -1506,6 +1587,7 @@ const incidentController = {
       // Get AI classification if exists
       const incidentDispatches = await getDispatchesForReport(validatedId, 50);
       await attachAssignedDepartment(incident, validatedId, incidentDispatches);
+      await attachAcceptedResponder(incident);
       await ensureIncidentBarangay(incident);
       await attachDispatchEta(incident, validatedId, incidentDispatches);
       await buildIncidentTimeline(incident, validatedId, incidentDispatches);

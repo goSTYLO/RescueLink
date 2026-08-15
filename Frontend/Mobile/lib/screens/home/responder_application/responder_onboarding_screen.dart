@@ -261,7 +261,7 @@ class _ResponderOnboardingScreenState extends State<ResponderOnboardingScreen>
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
-                color: Colors.red.withOpacity(0.2),
+                color: Colors.red.withValues(alpha: 0.2),
                 child: Text(
                   _errorMessage!,
                   style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold),
@@ -516,9 +516,9 @@ class _ResponderOnboardingScreenState extends State<ResponderOnboardingScreen>
                         margin: const EdgeInsets.only(bottom: 12),
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: fieldColor.withOpacity(0.08),
+                          color: fieldColor.withValues(alpha: 0.08),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: fieldColor.withOpacity(0.3)),
+                          border: Border.all(color: fieldColor.withValues(alpha: 0.3)),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,

@@ -26,6 +26,7 @@ import 'screens/verification/outside_service_area_screen.dart';
 import 'screens/home/home_placeholder_screen.dart';
 import 'screens/home/emergency_report_screen.dart';
 import 'screens/home/incident_details_screen.dart';
+import 'screens/responder/responder_incident_preview_screen.dart';
 import 'screens/home/change_phone_number_screen.dart';
 import 'screens/home/enter_new_phone_number_screen.dart';
 import 'screens/home/verify_new_phone_otp_screen.dart';
@@ -546,12 +547,23 @@ class _AuthNavigatorState extends State<AuthNavigator> with WidgetsBindingObserv
             onLogout: () => setState(() => _showLogoutConfirmation = true),
             onSosPressed: () => setState(() => _showEmergencyReport = true),
             onEmergencyNoAiPressed: () => _onEmergencyNoAiPressed(context),
-            onReportTap: (reportId) => setState(() {
-              _showIncidentDetails = true;
-              _incidentDetailsFromHistory = true;
-              _incidentDetailsReportId = reportId;
-              _incidentDetailsInitialIncident = null;
-            }),
+            onReportTap: (reportId) {
+              if (AuthService().getUserRole() == 'responder') {
+                Navigator.of(context, rootNavigator: true).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) =>
+                        ResponderIncidentPreviewScreen(reportId: reportId),
+                  ),
+                );
+                return;
+              }
+              setState(() {
+                _showIncidentDetails = true;
+                _incidentDetailsFromHistory = true;
+                _incidentDetailsReportId = reportId;
+                _incidentDetailsInitialIncident = null;
+              });
+            },
             onPhoneNumberTap: () =>
                 setState(() => _showChangePhoneNumber = true),
             onBarangayTap: () =>

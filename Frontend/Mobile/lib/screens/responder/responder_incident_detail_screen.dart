@@ -4,6 +4,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../../services/responder_service.dart';
 import '../../services/websocket_service.dart';
+import '../../utils/report_ui.dart';
 import '../../widgets/glass_card.dart';
 
 /// Full-detail screen opened after a responder accepts an incident.
@@ -11,11 +12,13 @@ import '../../widgets/glass_card.dart';
 class ResponderIncidentDetailScreen extends StatefulWidget {
   final int reportId;
   final bool readOnly;
+  final Map<String, dynamic>? initialIncident;
 
   const ResponderIncidentDetailScreen({
     super.key,
     required this.reportId,
     this.readOnly = false,
+    this.initialIncident,
   });
 
   @override
@@ -40,10 +43,19 @@ class _ResponderIncidentDetailScreenState
     'En Route': 'On Scene',
     'On Scene': 'Resolved',
   };
+  static const _nextStatusLabels = {
+    'En Route': 'Mark En Route (OTW)',
+    'On Scene': 'Mark On Scene',
+    'Resolved': 'Mark Resolved',
+  };
 
   @override
   void initState() {
     super.initState();
+    if (widget.initialIncident != null) {
+      _incident = Map<String, dynamic>.from(widget.initialIncident!);
+      _loading = false;
+    }
     _loadIncident();
     _wsSub = WebSocketService().eventStream.listen((event) {
       if (!mounted) return;
@@ -62,28 +74,48 @@ class _ResponderIncidentDetailScreenState
   }
 
   Future<void> _loadIncident() async {
-    setState(() { _loading = true; _error = null; });
+    final showSpinner = _incident == null;
+    if (showSpinner) {
+      setState(() { _loading = true; _error = null; });
+    }
     try {
-      // We fetch the responder's active list and find this report
       final list = await _service.getActiveIncidents();
-      final found = list.where((i) => (i['report_id'] as num?)?.toInt() == widget.reportId).toList();
+      final found = list
+          .where((i) => parseInt(i['report_id']) == widget.reportId)
+          .toList();
       if (found.isEmpty && !widget.readOnly) {
-        // Check history for read-only view
         final hist = await _service.getIncidentHistory();
-        final hFound = hist.where((i) => (i['report_id'] as num?)?.toInt() == widget.reportId).toList();
+        final hFound = hist
+            .where((i) => parseInt(i['report_id']) == widget.reportId)
+            .toList();
         if (hFound.isNotEmpty) {
-          setState(() { _incident = hFound.first; _loading = false; });
+          if (mounted) setState(() { _incident = hFound.first; _loading = false; });
           return;
         }
       }
-      setState(() {
-        _incident = found.isNotEmpty ? found.first : null;
-        _loading = false;
-      });
+      if (mounted) {
+        setState(() {
+          if (found.isNotEmpty) _incident = found.first;
+          _loading = false;
+          if (found.isEmpty && _incident == null) {
+            _error = 'Incident not found in your active assignments.';
+          }
+        });
+      }
     } on ResponderServiceException catch (e) {
-      if (mounted) setState(() { _error = e.message; _loading = false; });
+      if (mounted) {
+        setState(() {
+          if (_incident == null) _error = e.message;
+          _loading = false;
+        });
+      }
     } catch (_) {
-      if (mounted) setState(() { _error = 'Failed to load incident.'; _loading = false; });
+      if (mounted) {
+        setState(() {
+          if (_incident == null) _error = 'Failed to load incident.';
+          _loading = false;
+        });
+      }
     }
   }
 
@@ -92,9 +124,20 @@ class _ResponderIncidentDetailScreenState
     try {
       await _service.updateResponderStatus(widget.reportId, newStatus);
       if (mounted) {
+        setState(() {
+          _incident = {
+            if (_incident != null) ..._incident!,
+            'responder_status': newStatus,
+          };
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Status updated to $newStatus'), backgroundColor: const Color(0xFF10B981)),
         );
+        if (newStatus == 'Resolved') {
+          await Future<void>.delayed(const Duration(milliseconds: 600));
+          if (mounted) Navigator.of(context).pop();
+          return;
+        }
         await _loadIncident();
       }
     } on ResponderServiceException catch (e) {
@@ -195,7 +238,19 @@ class _ResponderIncidentDetailScreenState
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: Color(0xFFEF4444)))
           : _error != null
-              ? Center(child: Text(_error!, style: const TextStyle(color: Color(0xFFEF4444))))
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(_error!, style: const TextStyle(color: Color(0xFFEF4444)), textAlign: TextAlign.center),
+                        const SizedBox(height: 12),
+                        TextButton(onPressed: _loadIncident, child: const Text('Retry')),
+                      ],
+                    ),
+                  ),
+                )
               : _incident == null
                   ? Center(child: Text('Incident not found.', style: TextStyle(color: textSec)))
                   : _buildContent(textPrimary, textSec),
@@ -204,11 +259,12 @@ class _ResponderIncidentDetailScreenState
 
   Widget _buildContent(Color textPrimary, Color textSec) {
     final inc = _incident!;
-    final lat = (inc['latitude'] as num?)?.toDouble();
-    final lon = (inc['longitude'] as num?)?.toDouble();
+    final lat = parseDouble(inc['latitude']);
+    final lon = parseDouble(inc['longitude']);
     final currentStatus = (inc['responder_status'] as String?) ?? 'Assigned';
     final currentIndex = _statuses.indexOf(currentStatus).clamp(0, _statuses.length - 1);
     final next = _nextStatus[currentStatus];
+    final nextLabel = next != null ? (_nextStatusLabels[next] ?? 'Update to $next') : null;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
@@ -324,7 +380,7 @@ class _ResponderIncidentDetailScreenState
                   icon: _submitting
                       ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                       : const Icon(Icons.arrow_forward_rounded),
-                  label: Text('Update to $next', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  label: Text(nextLabel!, style: const TextStyle(fontWeight: FontWeight.bold)),
                   style: FilledButton.styleFrom(
                     backgroundColor: const Color(0xFFEF4444),
                     padding: const EdgeInsets.symmetric(vertical: 14),
