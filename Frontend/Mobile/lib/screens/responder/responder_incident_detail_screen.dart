@@ -360,7 +360,10 @@ class _ResponderIncidentDetailScreenState
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _infoRow('Type', _capitalize(inc['incident_type']?.toString())),
+                _infoRowWidget(
+                  'Type',
+                  incidentTypeChips(incident: inc),
+                ),
                 _infoRow('Barangay', inc['barangay']?.toString()),
                 _infoRow('Severity', _capitalize(inc['severity_level']?.toString())),
                 if ((inc['description'] as String?)?.isNotEmpty == true)
@@ -406,6 +409,22 @@ class _ResponderIncidentDetailScreenState
               ),
           ],
           const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+
+  Widget _infoRowWidget(String label, Widget value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 90,
+            child: Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Color(0xFF6B7280))),
+          ),
+          Expanded(child: value),
         ],
       ),
     );

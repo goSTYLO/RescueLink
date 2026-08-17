@@ -10,6 +10,7 @@ const pool = require('../config/db');
 const { validateInteger, validateString, validateAllowedValue, validatePagination } = require('../utils/validation');
 const { logDispatcherAction } = require('../utils/auditLog');
 const Notification = require('../models/notification');
+const { buildIncidentEventPayload, emitIncidentEvent } = require('../utils/incidentEvents');
 
 const RESPONDER_STATUSES = ['Assigned', 'En Route', 'On Scene', 'Resolved'];
 const STATUS_TRANSITIONS = {
@@ -273,10 +274,23 @@ async function updateResponderStatus(req, res) {
       });
     }
 
-    await pool.query(
-      'UPDATE incident_reports SET responder_status = $1 WHERE report_id = $2',
-      [newStatus, reportId]
-    );
+    if (newStatus === 'Resolved') {
+      await pool.query(
+        `UPDATE incident_reports
+            SET responder_status = $1,
+                status = 'resolved',
+                verified = TRUE,
+                resolved_by_user_id = $2,
+                resolved_at = CURRENT_TIMESTAMP
+          WHERE report_id = $3`,
+        [newStatus, userId, reportId]
+      );
+    } else {
+      await pool.query(
+        'UPDATE incident_reports SET responder_status = $1 WHERE report_id = $2',
+        [newStatus, reportId]
+      );
+    }
 
     await pool.query(
       `INSERT INTO responder_status_history(report_id, updated_by_user_id, old_status, new_status)
@@ -304,7 +318,18 @@ async function updateResponderStatus(req, res) {
       reporter_id: reporterId,
       old_status: currentStatus,
       new_status: newStatus,
+      responder_status: newStatus,
     });
+
+    if (newStatus === 'Resolved') {
+      const updatedRow = await pool.query(
+        'SELECT * FROM incident_reports WHERE report_id = $1',
+        [reportId]
+      );
+      if (updatedRow.rows[0]) {
+        emitIncidentEvent(req, 'incident:status_updated', updatedRow.rows[0]);
+      }
+    }
 
     res.json({ message: 'Status updated.', report_id: reportId, old_status: currentStatus, new_status: newStatus });
   } catch (err) {

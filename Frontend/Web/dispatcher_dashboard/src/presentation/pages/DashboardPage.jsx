@@ -19,6 +19,7 @@ const USE_BLOCKCHAIN = import.meta.env.VITE_USE_BLOCKCHAIN === 'true';
 import { mapIncidentTypeFilterToApi } from '@/core/utils/incidentClassification';
 import { mapApiIncidentToDisplay } from '@/core/utils/incidentDisplay';
 import { SelectParentIncidentDialog } from '@/presentation/components/common/SelectParentIncidentDialog';
+import { VolunteerStatusBadge } from '@/presentation/components/common/VolunteerStatusBadge';
 import { Breadcrumb } from '@/presentation/components/common/Breadcrumb';
 import { useIncidentWebSocketStatus } from '@/presentation/context/IncidentWebSocketContext';
 import Swal from 'sweetalert2';
@@ -693,7 +694,7 @@ export function DashboardPage() {
                           <td className="py-2.5 px-3 text-sm text-muted">{incident.barangay}</td>
                           <td className="py-2.5 px-3 text-sm text-foreground">
                             <span className="mr-1">{getTypeEmoji(incident.emergencyType)}</span>
-                            {incident.emergencyType}
+                            {incident.emergencyTypesLabel || incident.emergencyType}
                           </td>
                           <td className="py-2.5 px-3">
                             <Badge className={`${getSeverityColor(incident.severity)} border rounded-lg px-2 py-0.5 text-[11px] font-semibold`}>
@@ -705,6 +706,7 @@ export function DashboardPage() {
                               <Badge className={`${getStatusColor(incident.status)} border rounded-lg px-2 py-0.5 text-[11px] font-semibold w-fit`}>
                                 {(incident.status || '—').toString().toUpperCase()}
                               </Badge>
+                              <VolunteerStatusBadge responderStatus={incident.responderStatus} />
                               {incident.status === 'Resolved' && (
                                 <span className="text-[10px] text-muted">
                                   {incident.reporterConfirmedAt ? 'Reporter confirmed' : 'Awaiting confirmation'}

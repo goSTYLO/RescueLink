@@ -14,6 +14,7 @@ import { ThemeToggle } from '@/presentation/components/common/ThemeToggle';
 import { getDefaultRouteByRole, ROLES, normalizeRole } from '@/core/constants';
 import { DEV_MODE } from '@/core/config/app.config';
 import { clearAuthSession } from '@/core/auth/session';
+import { formatIncidentTypesLabel } from '@/core/utils/incidentDisplay';
 
 const SIDEBAR_STORAGE_KEY = 'rescuelink_sidebar_collapsed';
 
@@ -156,7 +157,7 @@ export function Layout({ children }) {
     if (!lastHighSeverity?.data) return;
     const d = lastHighSeverity.data;
     const title = `New ${d.severity_level || 'high'}-severity incident`;
-    const body = `${d.incident_type || 'Incident'} in ${d.barangay || 'your area'}`;
+    const body = `${formatIncidentTypesLabel(d)} in ${d.barangay || 'your area'}`;
     Swal.fire({
       icon: 'warning',
       title,
@@ -178,7 +179,7 @@ export function Layout({ children }) {
     const d = lastDispatched.data;
     const reportId = d.report_id ?? d.reportId;
     const title = reportId ? `Incident #${reportId} assigned to your department` : 'Incident assigned to your department';
-    const body = `${d.incident_type || 'Incident'} in ${d.barangay || 'your area'}`;
+    const body = `${formatIncidentTypesLabel(d)} in ${d.barangay || 'your area'}`;
     Swal.fire({
       icon: 'info',
       title,

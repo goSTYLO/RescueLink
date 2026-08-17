@@ -43,6 +43,30 @@ class AuthService {
     return _prefs.getString(_keyUserRole);
   }
 
+  /// Returns the logged-in user's id from cache or JWT payload.
+  int? getUserId() {
+    final cached = _prefs.getInt('user_id');
+    if (cached != null && cached > 0) {
+      return cached;
+    }
+
+    final token = getToken();
+    if (token == null || token.isEmpty) {
+      return null;
+    }
+
+    try {
+      final parts = token.split('.');
+      if (parts.length != 3) return null;
+      final payload = jsonDecode(_decodeBase64Url(parts[1])) as Map<String, dynamic>;
+      final id = payload['user_id'];
+      if (id is int) return id;
+      return int.tryParse(id?.toString() ?? '');
+    } catch (_) {
+      return null;
+    }
+  }
+
   // Store JWT token
   Future<void> _storeToken(String token) async {
     await _prefs.setString('jwt_token', token);
@@ -64,6 +88,7 @@ class AuthService {
     }
     await _prefs.remove('jwt_token');
     await _prefs.remove(_keyUserRole);
+    await _prefs.remove('user_id');
     final biometricEnabled = await isBiometricLoginEnabled();
     if (!biometricEnabled) {
       await clearBiometricData();
@@ -213,6 +238,15 @@ class AuthService {
       final role = user['role']?.toString();
       if (role != null && role.isNotEmpty) {
         await _prefs.setString(_keyUserRole, role);
+      }
+      final userId = user['user_id'];
+      if (userId is int && userId > 0) {
+        await _prefs.setInt('user_id', userId);
+      } else if (userId != null) {
+        final parsed = int.tryParse(userId.toString());
+        if (parsed != null && parsed > 0) {
+          await _prefs.setInt('user_id', parsed);
+        }
       }
       return {
         'success': true,

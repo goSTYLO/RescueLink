@@ -548,15 +548,6 @@ class _AuthNavigatorState extends State<AuthNavigator> with WidgetsBindingObserv
             onSosPressed: () => setState(() => _showEmergencyReport = true),
             onEmergencyNoAiPressed: () => _onEmergencyNoAiPressed(context),
             onReportTap: (reportId) {
-              if (AuthService().getUserRole() == 'responder') {
-                Navigator.of(context, rootNavigator: true).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) =>
-                        ResponderIncidentPreviewScreen(reportId: reportId),
-                  ),
-                );
-                return;
-              }
               setState(() {
                 _showIncidentDetails = true;
                 _incidentDetailsFromHistory = true;

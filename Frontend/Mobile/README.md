@@ -57,6 +57,11 @@ Recent mobile updates:
   - `Emergency Tracking` and `Report Details` were merged into a single `Incident Details` screen.
   - incident layout is tracking-first (status, timeline, responder availability/location placeholders, then details/evidence).
   - opening from submit flow and report history now routes to the same incident screen.
+- **Promoted responder history (dual views)**:
+  - Reports tab history uses **involvement**, not global role, to pick citizen vs responder detail screens.
+  - Responders see filter chips: **All / Reported / Accepted**, with row tags for each involvement.
+  - Reported incidents always open `IncidentDetailsScreen`; accepted incidents open `ResponderIncidentDetailScreen`.
+  - API: `GET /api/incidents/user/my?involvement=reported|accepted|all` adds an `involvement` field per row.
 - **Incident lifecycle UX alignment**:
   - mobile status rendering supports canonical flow including `in_progress`.
   - reporter confirmation action is available after dispatcher/admin marks incident `resolved`.

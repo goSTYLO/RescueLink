@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../services/notification_service.dart';
+import '../../utils/report_ui.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/skeleton_placeholder.dart';
 
@@ -137,7 +138,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   /// Build a short collapsed preview: "Fire • Status updated to In Progress"
   String _collapsedPreview(Map<String, dynamic> item, String? eventType, String? incidentType) {
-    final incidentLabel = _incidentTypeLabel(incidentType);
+    final incidentLabel = incidentTypesLabel(item, fallback: _incidentTypeLabel(incidentType));
     final eventLabel = _eventTypeLabel(eventType);
     // Phase 3 application events (no incident)
     if (eventType == 'application_approved') return 'Your responder application was approved ✓';
@@ -356,6 +357,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     time: _formatTimestamp(item),
                     eventType: eventType,
                     incidentType: incidentType,
+                    incidentTypeChips: incidentTypeChips(incident: item),
                     incidentStatus: item['incident_status'] as String?,
                     collapsedPreview: _collapsedPreview(item, eventType, incidentType),
                     showUnreadDot: true,
@@ -401,6 +403,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     time: _formatTimestamp(item),
                     eventType: eventType,
                     incidentType: incidentType,
+                    incidentTypeChips: incidentTypeChips(incident: item),
                     incidentStatus: item['incident_status'] as String?,
                     collapsedPreview: _collapsedPreview(item, eventType, incidentType),
                     showUnreadDot: false,
@@ -428,6 +431,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     required String time,
     String? eventType,
     String? incidentType,
+    Widget? incidentTypeChips,
     String? incidentStatus,
     required String collapsedPreview,
     required bool showUnreadDot,
@@ -508,7 +512,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 ),
                 if (isExpanded) ...[
                   const SizedBox(height: 10),
-                  if (incidentType != null && incidentType.isNotEmpty)
+                  if (incidentTypeChips != null ||
+                      (incidentType != null && incidentType.isNotEmpty))
                     Padding(
                       padding: const EdgeInsets.only(bottom: 4),
                       child: Row(
@@ -523,13 +528,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                             ),
                           ),
                           Expanded(
-                            child: Text(
-                              _incidentTypeLabel(incidentType),
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Theme.of(context).colorScheme.onSurface,
-                              ),
-                            ),
+                            child: incidentTypeChips ??
+                                Text(
+                                  _incidentTypeLabel(incidentType),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Theme.of(context).colorScheme.onSurface,
+                                  ),
+                                ),
                           ),
                         ],
                       ),

@@ -21,6 +21,8 @@ const MIGRATION_ORDER = [
   'add_phase3_responder_acceptance.sql',
   'add_responder_specialization.sql',
   'add_responder_revoked_status.sql',
+  'add_incident_types_array.sql',
+  'add_ai_confidence_metadata.sql',
 ];
 
 async function runMigrations() {

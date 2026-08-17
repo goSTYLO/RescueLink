@@ -16,6 +16,19 @@ class IncidentEvent {
   int? get reporterId => data['reporter_id'] ?? data['reporterId'];
   String? get status => data['status']?.toString();
   String? get incidentType => data['incident_type']?.toString();
+
+  List<String> get incidentTypes {
+    final raw = data['incident_types'];
+    if (raw is List && raw.isNotEmpty) {
+      return raw
+          .map((item) => item?.toString().trim() ?? '')
+          .where((value) => value.isNotEmpty)
+          .toList();
+    }
+    final primary = incidentType;
+    if (primary != null && primary.isNotEmpty) return [primary];
+    return const [];
+  }
   String? get severityLevel => data['severity_level']?.toString();
   String? get barangay => data['barangay']?.toString();
   String? get updatedAt => data['updated_at']?.toString();

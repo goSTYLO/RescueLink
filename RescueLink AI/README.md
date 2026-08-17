@@ -745,6 +745,34 @@ curl -X POST http://localhost:8000/v1/classify-audio \
 - **0.5** - Balanced precision/recall
 - **0.7** - Higher precision, fewer false positives
 
+### Multi-type ranking and keyword promotion (v2.2.1)
+
+Incident types returned by `/classify` and `/v1/classify-audio` are:
+
+1. All labels with model confidence `>= threshold`
+2. Plus any type whose fallback keywords appear in the text but scored below threshold
+3. Sorted by model confidence descending (highest = primary)
+
+Example: transcription mentions `sunog`, scores Fire 0.38 / Medical 0.87 at threshold 0.5 → `incident_types: ["Medical", "Fire"]`, `keyword_promoted: true`.
+
+Full keyword-replace fallback still runs only when global confidence is low or no type passes threshold (`AI_LOW_CONFIDENCE_THRESHOLD`).
+
+**Dry-run checks:**
+
+```bash
+# Text: fire keyword + medical score dominates
+curl -s -X POST http://localhost:8000/classify \
+  -H "Content-Type: application/json" \
+  -d '{"text":"May sunog sa gusali, may nasugatan","threshold":0.5}' | jq '.incident_types,.keyword_promoted'
+
+# Audio pipeline (requires AI_INTERNAL_TOKEN if configured)
+curl -s -X POST http://localhost:8000/v1/classify-audio \
+  -H "x-ai-service-token: $AI_INTERNAL_TOKEN" \
+  -F "file=@sample_fire.wav" -F "threshold=0.5" | jq '.incident_types,.transcription'
+```
+
+Dispatch and mobile/web filters still use the **first** type (highest confidence) as primary; additional types are display-only.
+
 ---
 
 ## API Endpoints

@@ -8,6 +8,7 @@ import 'notifications_screen.dart';
 import 'settings_screen.dart';
 import '../../services/auth_service.dart';
 import '../../services/responder_alert_coordinator.dart';
+import '../../utils/incident_navigation.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/staggered_fade_in.dart';
 import '../responder/responder_dashboard_screen.dart';
@@ -112,7 +113,10 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
               action: event.reportId != null
                   ? SnackBarAction(
                       label: 'View',
-                      onPressed: () => _openIncidentForCurrentRole(event.reportId!),
+                      onPressed: () => _openIncidentByInvolvement(
+                        event.reportId!,
+                        incidentHint: event.data,
+                      ),
                     )
                   : null,
             ),
@@ -178,6 +182,19 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
       return;
     }
     widget.onReportTap?.call(reportId);
+  }
+
+  void _openIncidentByInvolvement(int reportId, {Map<String, dynamic>? incidentHint}) {
+    final onCitizenTap = widget.onReportTap;
+    if (onCitizenTap == null) return;
+    unawaited(
+      openIncidentByReportId(
+        context,
+        reportId: reportId,
+        incidentHint: incidentHint,
+        onCitizenTap: onCitizenTap,
+      ),
+    );
   }
 
   Future<void> _handleApplicationStatusChanged(Map<String, dynamic> data) async {
@@ -579,7 +596,7 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
                     onNotificationTap: (reportId) {
                       Navigator.of(ctx).pop();
                       if (reportId != null) {
-                        _openIncidentForCurrentRole(reportId);
+                        _openIncidentByInvolvement(reportId);
                       }
                     },
                   ),
@@ -1146,7 +1163,7 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
     return StaggeredFadeIn.single(
       trigger: _currentIndex == 1 ? _tabSwitchCounter : null,
       child: ReportHistoryScreen(
-        onReportTap: _openIncidentForCurrentRole,
+        onReportTap: widget.onReportTap,
         onReportIncidentTap: widget.onSosPressed,
         onNotificationsTap: () => _openNotifications(context),
         unreadNotificationCount: _apiUnreadCount + _unreadReportsCount,

@@ -17,10 +17,13 @@ This design documents a migration path from polling-first sync to realtime updat
 4. **Merge policy**
    - Accept newer event only when `updated_at` is newer than local copy.
    - If timestamps are equal, prefer server payload and keep local UI-only fields.
-5. **De-dup policy**
+5. **Volunteer responder events**
+   - `responder:status_changed` — volunteer field progress (`new_status`, `responder_status`); dashboard refetches and shows a volunteer badge.
+   - When volunteer marks **Resolved**, backend also emits `incident:status_updated` with `status: resolved` so active lists update.
+6. **De-dup policy**
    - Use `report_id` as the canonical key.
    - Ignore duplicate events with same `report_id` + `updated_at`.
-6. **Fallback policy**
+7. **Fallback policy**
    - If realtime channel drops, show non-blocking fallback notice and continue 30s polling.
 
 ## Rollout phases

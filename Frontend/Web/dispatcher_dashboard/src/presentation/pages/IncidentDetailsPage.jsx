@@ -1,5 +1,6 @@
 import { Layout } from '@/presentation/components/layout/Layout';
 import { SelectParentIncidentDialog } from '@/presentation/components/common/SelectParentIncidentDialog';
+import { VolunteerStatusBadge } from '@/presentation/components/common/VolunteerStatusBadge';
 import { IncidentMap } from '@/presentation/components/common/IncidentMap';
 import { Badge } from '@/presentation/components/ui/Badge';
 import { Button } from '@/presentation/components/ui/Button';
@@ -33,6 +34,8 @@ import { getDepartments } from '@/data/api/departments.api';
 import { DEV_MODE } from '@/core/config/app.config';
 import { ROLES, normalizeRole, getRoleDisplayLabel } from '@/core/constants';
 import { normalizeIncidentTaskType, doesTeamSupportIncidentType } from '@/core/utils/incidentClassification';
+import { formatIncidentTypeLabel, incidentTypesFromApi, formatIncidentTypesLabel } from '@/core/utils/incidentDisplay';
+import { IncidentTypeChips } from '@/presentation/components/common/IncidentTypeChips';
 import { Loader2 } from 'lucide-react';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
 import { Breadcrumb } from '@/presentation/components/common/Breadcrumb';
@@ -71,8 +74,10 @@ function mapApiToIncidentDetails(api, aiClassification = null) {
     ? [firstName, lastName].filter(Boolean).join(' ').trim()
     : `User #${api.user_id}`;
 
-  const typeMap = { fire: 'Fire', medical: 'Medical', police: 'Police', disaster: 'Disaster', other: 'Other', sos: 'SOS' };
+  const typeMap = { fire: 'Fire', medical: 'Medical', police: 'Police', disaster: 'Disaster', accident: 'Accident', other: 'Other', sos: 'SOS' };
   const emergencyType = typeMap[api.incident_type?.toLowerCase()] || (api.incident_type ? String(api.incident_type).charAt(0).toUpperCase() + String(api.incident_type).slice(1) : '—');
+  const incidentTypes = incidentTypesFromApi(api);
+  const emergencyTypesLabel = formatIncidentTypesLabel(api);
 
   const normalizedSeverity = normalizeSeverityToDbLevel(api.severity_level);
   const severity = mapSeverityToDisplay(api.severity_level);
@@ -106,12 +111,21 @@ function mapApiToIncidentDetails(api, aiClassification = null) {
     reporterPhone: api.reporter_phone || '—',
     barangay: api.barangay || '—',
     emergencyType,
+    emergencyTypesLabel,
+    incidentTypes,
     severity,
     status,
+    responderStatus: api.responder_status || null,
+    acceptedByUserId: api.accepted_by_user_id ?? null,
+    acceptedAt: api.accepted_at || null,
     description: api.description || 'No description provided.',
     location: { lat: api.latitude, lng: api.longitude },
     aiSuggestion: null,
-    aiConfidenceScore: aiClassification?.confidence_score ?? null,
+    aiConfidenceScore: aiClassification?.confidence_score ?? api.primary_confidence ?? null,
+    aiMaxConfidenceScore: aiClassification?.max_confidence_score ?? null,
+    aiSttConfidence: aiClassification?.stt_confidence ?? api.stt_confidence ?? null,
+    aiFallbackUsed: Boolean(aiClassification?.fallback_used),
+    aiKeywordPromoted: Boolean(aiClassification?.keyword_promoted),
     aiLowConfidenceFlag: Boolean(aiClassification?.low_confidence_flag),
     aiPredictedType: aiClassification?.predicted_type || null,
     aiSecondaryPredictedType: api.secondary_classification || aiClassification?.secondary_predicted_type || null,
@@ -409,6 +423,42 @@ export function IncidentDetailsPage() {
     if (pct >= 90) return 'High';
     if (pct >= 70) return 'Medium';
     return 'Low';
+  };
+
+  const renderAiConfidenceMeta = (className = '') => {
+    const primaryPct = getConfidencePercent(incident?.aiConfidenceScore);
+    const sttPct = getConfidencePercent(incident?.aiSttConfidence);
+    const maxPct = getConfidencePercent(incident?.aiMaxConfidenceScore);
+    const hasBadges = incident?.aiKeywordPromoted || incident?.aiFallbackUsed;
+    if (primaryPct == null && sttPct == null && !hasBadges) return null;
+
+    return (
+      <div className={`space-y-1.5 ${className}`}>
+        {primaryPct != null && (
+          <p className="text-xs text-muted">Primary model confidence: {primaryPct}%</p>
+        )}
+        {sttPct != null && (
+          <p className="text-xs text-muted">STT confidence: {sttPct}%</p>
+        )}
+        {maxPct != null && primaryPct != null && maxPct !== primaryPct && (
+          <p className="text-xs text-muted">Max model confidence: {maxPct}%</p>
+        )}
+        {hasBadges && (
+          <div className="flex flex-wrap gap-1.5 pt-0.5">
+            {incident.aiKeywordPromoted && (
+              <Badge variant="outline" className="rounded-lg text-[10px] border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300">
+                Keyword-assisted
+              </Badge>
+            )}
+            {incident.aiFallbackUsed && (
+              <Badge variant="outline" className="rounded-lg text-[10px] border-orange-500/40 bg-orange-500/10 text-orange-700 dark:text-orange-300">
+                Keyword fallback
+              </Badge>
+            )}
+          </div>
+        )}
+      </div>
+    );
   };
 
   // State for dialogs
@@ -1414,7 +1464,9 @@ export function IncidentDetailsPage() {
                     </Badge>
                   )}
                 </div>
-                <p className="text-muted mt-1">{incident.emergencyType} Incident</p>
+                <div className="mt-2">
+                  <IncidentTypeChips incidentTypes={incident.incidentTypes} />
+                </div>
                 {incident.timeReported && (
                   <p className="text-sm text-muted mt-0.5">Reported: {incident.timeReported}</p>
                 )}
@@ -1423,6 +1475,7 @@ export function IncidentDetailsPage() {
                 <Badge className={`${getStatusColor(incident.status)} rounded-lg px-3 py-1`}>
                   {incident.status}
                 </Badge>
+                <VolunteerStatusBadge responderStatus={incident.responderStatus} className="rounded-lg px-3 py-1" />
                 <Badge className={`${getSeverityColor(incident.severity)} rounded-lg px-3 py-1`}>
                   {incident.severity}
                 </Badge>
@@ -1431,7 +1484,22 @@ export function IncidentDetailsPage() {
                 </Badge>
                 {getConfidencePercent(incident.aiConfidenceScore) != null && (
                   <Badge variant="outline" className="rounded-lg border-border">
-                    AI {getConfidencePercent(incident.aiConfidenceScore)}% ({getConfidenceLabel(incident.aiConfidenceScore)})
+                    Model {getConfidencePercent(incident.aiConfidenceScore)}% ({getConfidenceLabel(incident.aiConfidenceScore)})
+                  </Badge>
+                )}
+                {getConfidencePercent(incident.aiSttConfidence) != null && (
+                  <Badge variant="outline" className="rounded-lg border-border">
+                    STT {getConfidencePercent(incident.aiSttConfidence)}%
+                  </Badge>
+                )}
+                {incident.aiKeywordPromoted && (
+                  <Badge variant="outline" className="rounded-lg border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300">
+                    Keyword-assisted
+                  </Badge>
+                )}
+                {incident.aiFallbackUsed && (
+                  <Badge variant="outline" className="rounded-lg border-orange-500/40 bg-orange-500/10 text-orange-700 dark:text-orange-300">
+                    Keyword fallback
                   </Badge>
                 )}
                 {incident.status === 'Resolved' && (
@@ -1442,14 +1510,6 @@ export function IncidentDetailsPage() {
                 {incident.status === 'Closed' && (
                   <Badge variant="outline" className="rounded-lg border-border">
                     Closed after reporter confirmation
-                  </Badge>
-                )}
-                {incident.aiSecondaryPredictedType && (
-                  <Badge variant="outline" className="rounded-lg border-border">
-                    2nd AI: {incident.aiSecondaryPredictedType}
-                    {getConfidencePercent(incident.aiSecondaryConfidenceScore) != null
-                      ? ` (${getConfidencePercent(incident.aiSecondaryConfidenceScore)}%)`
-                      : ''}
                   </Badge>
                 )}
               </div>
@@ -1479,7 +1539,10 @@ export function IncidentDetailsPage() {
             <div className={`flex flex-wrap items-center gap-3 p-3 rounded-xl border text-sm ${isLight ? 'bg-gray-50/70 border-gray-200/80' : 'bg-white/5 border-white/10'}`}>
               <span className="rounded-lg border border-border px-3 py-1 font-medium"><strong>Status:</strong> {incident.status}</span>
               <span className="rounded-lg border border-border px-3 py-1 font-medium"><strong>Severity:</strong> {incident.severity}</span>
-              <span className="rounded-lg border border-border px-3 py-1 font-medium"><strong>Type:</strong> {incident.emergencyType}</span>
+              <span className="rounded-lg border border-border px-3 py-1 font-medium inline-flex items-center gap-2">
+                <strong>Type:</strong>
+                <IncidentTypeChips incidentTypes={incident.incidentTypes} compact />
+              </span>
               <span className="rounded-lg border border-border px-3 py-1 truncate max-w-[220px] font-medium" title={incident.reporterName}><strong>Reporter:</strong> {incident.reporterName}</span>
               <span className="rounded-lg border border-border px-3 py-1 truncate max-w-[220px] font-medium" title={incident.reporterPhone}><strong>Contact:</strong> {incident.reporterPhone}</span>
               <span className="rounded-lg border border-border px-3 py-1 truncate max-w-[220px] font-medium" title={incident.barangay}><strong>Barangay:</strong> {incident.barangay}</span>
@@ -1503,14 +1566,11 @@ export function IncidentDetailsPage() {
                   <p className="text-xs text-foreground"><strong>AI Suggestion:</strong> {incident.aiSuggestion}</p>
                 </div>
               )}
-              {incident.aiSecondaryPredictedType && (
+              {incident.incidentTypes?.length > 0 && (
                 <div className={`mt-3 p-2.5 rounded-lg border ${isLight ? 'bg-indigo-50/80 border-indigo-200/80' : 'bg-indigo-500/10 border-indigo-500/30'}`}>
-                  <p className="text-xs text-foreground">
-                    <strong>2nd AI classification:</strong> {incident.aiSecondaryPredictedType}
-                    {getConfidencePercent(incident.aiSecondaryConfidenceScore) != null
-                      ? ` (${getConfidencePercent(incident.aiSecondaryConfidenceScore)}%)`
-                      : ''}
-                  </p>
+                  <p className="text-xs text-foreground mb-2"><strong>AI incident types:</strong></p>
+                  <IncidentTypeChips incidentTypes={incident.incidentTypes} />
+                  {renderAiConfidenceMeta('mt-2')}
                 </div>
               )}
             </div>
@@ -2037,6 +2097,15 @@ export function IncidentDetailsPage() {
               </DialogHeader>
 
               <div className="space-y-4 py-2">
+                {incident?.incidentTypes?.length > 0 && (
+                  <div>
+                    <Label>Current classification</Label>
+                    <div className="mt-2">
+                      <IncidentTypeChips incidentTypes={incident.incidentTypes} />
+                    </div>
+                  </div>
+                )}
+
                 <div>
                   <Label>Incident Type</Label>
                   <select

@@ -56,6 +56,26 @@ void main() {
       }
     });
 
+    test('GET /api/incidents/user/my accepts involvement query param', () async {
+      try {
+        final response = await http
+            .get(Uri.parse(
+                '${AppConfig.apiBaseUrl}/api/incidents/user/my?involvement=all'))
+            .timeout(const Duration(seconds: 5));
+
+        expect(response.statusCode, isNonZero);
+        expect(
+          response.statusCode,
+          anyOf(200, 400, 401),
+          reason: 'Involvement filter should be accepted or require auth',
+        );
+      } on SocketException {
+        // Backend not available - skip
+      } on http.ClientException {
+        // Backend not available - skip
+      }
+    });
+
     test('GET /api/notifications endpoint exists', () async {
       try {
         final response = await http

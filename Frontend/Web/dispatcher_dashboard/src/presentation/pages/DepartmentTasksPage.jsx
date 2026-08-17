@@ -107,7 +107,7 @@ export function DepartmentTasksPage() {
                     </div>
                     <div className="flex items-center gap-1 text-muted">
                       <span className="text-lg">{getTypeIcon(incident.emergencyType)}</span>
-                      <span className="capitalize font-medium text-foreground">{incident.emergencyType} Emergency</span>
+                      <span className="capitalize font-medium text-foreground">{incident.emergencyTypesLabel || incident.emergencyType} Emergency</span>
                     </div>
                   </div>
                   <Button onClick={() => navigate(`/incidents/${incident.id}`)} className="bg-primary hover:bg-primary-hover text-white">

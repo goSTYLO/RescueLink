@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../services/responder_service.dart';
+import '../../utils/report_ui.dart';
 import '../../services/websocket_service.dart';
 
 /// Bottom-sheet modal triggered when a `responder:incident_alert` WS event arrives.
@@ -78,7 +79,6 @@ class _IncidentAlertModalState extends State<IncidentAlertModal> {
     final textPrimary = isDark ? Colors.white : const Color(0xFF0F172A);
     final textSec = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
     final data = widget.event.data;
-    final incidentType = (data['incident_type'] as String?) ?? 'Incident';
     final barangay = (data['barangay'] as String?) ?? 'Unknown location';
     final severity = data['severity_level'] as String?;
     final severityLabel = (severity != null && severity.isNotEmpty)
@@ -139,12 +139,8 @@ class _IncidentAlertModalState extends State<IncidentAlertModal> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('Incident Type', style: TextStyle(fontSize: 12, color: textSec)),
-                    const SizedBox(height: 2),
-                    Text(
-                      incidentType.isNotEmpty
-                          ? incidentType[0].toUpperCase() + incidentType.substring(1).toLowerCase()
-                          : 'Incident',
-                        style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: textPrimary)),
+                    const SizedBox(height: 6),
+                    incidentTypeChips(incident: data),
                   ],
                 ),
               ),

@@ -204,6 +204,14 @@ class _ResponderIncidentPreviewScreenState
     return combined.isNotEmpty ? combined : 'Reporter';
   }
 
+  String _formatConfidence(dynamic raw) {
+    if (raw is num) {
+      final pct = raw <= 1 ? raw * 100 : raw;
+      return '${pct.round()}%';
+    }
+    return raw?.toString() ?? '—';
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -254,7 +262,6 @@ class _ResponderIncidentPreviewScreenState
 
   Widget _buildContent(Color textPrimary, Color textSec) {
     final inc = _incident!;
-    final type = incidentTypeLabel(inc['incident_type'] as String?);
     final severity = (inc['severity_level'] as String?) ?? 'medium';
     final status = ReportStatusUi.label(inc['status'] as String?);
     final lat = parseDouble(inc['latitude']);
@@ -272,7 +279,10 @@ class _ResponderIncidentPreviewScreenState
               Row(
                 children: [
                   Expanded(
-                    child: Text(type, style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: textPrimary)),
+                    child: incidentTypeChips(
+                      incident: inc,
+                      aiClassification: _aiClassification,
+                    ),
                   ),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -330,15 +340,26 @@ class _ResponderIncidentPreviewScreenState
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('AI Classification', style: TextStyle(fontSize: 12, color: textSec)),
-                const SizedBox(height: 4),
-                Text(
-                  incidentTypeLabel(_aiClassification!['predicted_type'] as String?),
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: textPrimary),
+                const SizedBox(height: 6),
+                incidentTypeChips(
+                  incident: inc,
+                  aiClassification: _aiClassification,
                 ),
                 if (_aiClassification!['confidence_score'] != null)
-                  Text(
-                    'Confidence: ${_aiClassification!['confidence_score']}%',
-                    style: TextStyle(fontSize: 13, color: textSec),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text(
+                      'Model confidence: ${_formatConfidence(_aiClassification!['confidence_score'])}',
+                      style: TextStyle(fontSize: 13, color: textSec),
+                    ),
+                  ),
+                if (_aiClassification!['stt_confidence'] != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      'STT confidence: ${_formatConfidence(_aiClassification!['stt_confidence'])}',
+                      style: TextStyle(fontSize: 13, color: textSec),
+                    ),
                   ),
               ],
             ),

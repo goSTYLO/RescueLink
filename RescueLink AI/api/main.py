@@ -30,7 +30,12 @@ from dotenv import load_dotenv
 
 from models.emergency_classifier import EmergencyClassifier
 from audio.whisper_handler import get_whisper_handler
-from utils.fallback_rules import apply_keyword_fallback, decide_fallback_reason
+from utils.fallback_rules import (
+    apply_keyword_fallback,
+    decide_fallback_reason,
+    rank_and_promote_incident_types,
+    resolve_confidence_for_type,
+)
 
 # Load environment variables
 load_dotenv()
@@ -147,10 +152,13 @@ class EmergencyResponse(BaseModel):
     severity: str
     severity_color: str
     confidence_scores: dict[str, float]
+    primary_confidence: float = 0.0
+    max_confidence: float = 0.0
     model_version: str
     fallback_used: bool = False
     fallback_reason: Optional[str] = None
     fallback_keywords: dict[str, list[str]] = Field(default_factory=dict)
+    keyword_promoted: bool = False
 
 class HealthResponse(BaseModel):
     status: str
@@ -173,11 +181,15 @@ class AudioClassificationResponse(BaseModel):
     severity: str
     severity_color: str
     confidence_scores: dict[str, float]
+    primary_confidence: float = 0.0
+    max_confidence: float = 0.0
+    stt_confidence: float = 0.0
     low_confidence_flag: bool
     model_version: str
     fallback_used: bool = False
     fallback_reason: Optional[str] = None
     fallback_keywords: dict[str, list[str]] = Field(default_factory=dict)
+    keyword_promoted: bool = False
 
 class UsageStatsResponse(BaseModel):
     total_requests: int
@@ -253,11 +265,6 @@ def _predict_text(text: str, threshold: float):
     with torch.no_grad():
         outputs = model(input_ids, attention_mask)
         type_probs = torch.sigmoid(outputs["type_logits"]).cpu().numpy()[0]
-        predicted_types = [
-            meta["incident_type_labels"][i]
-            for i, prob in enumerate(type_probs)
-            if prob >= threshold
-        ]
 
         severity_idx = torch.argmax(outputs["severity_logits"], dim=1).item()
         predicted_severity = meta["severity_labels"][severity_idx]
@@ -267,9 +274,29 @@ def _predict_text(text: str, threshold: float):
         for i, prob in enumerate(type_probs)
     }
     max_confidence = max(confidence_scores.values()) if confidence_scores else 0.0
-    no_types_above_threshold = len(predicted_types) == 0
 
-    return predicted_types, predicted_severity, confidence_scores, max_confidence, no_types_above_threshold
+    predicted_types, keyword_promoted, no_types_above_threshold = rank_and_promote_incident_types(
+        text,
+        confidence_scores,
+        threshold,
+        incident_labels=meta.get("incident_type_labels", []),
+    )
+
+    return (
+        predicted_types,
+        predicted_severity,
+        confidence_scores,
+        max_confidence,
+        no_types_above_threshold,
+        keyword_promoted,
+    )
+
+
+def _confidence_summary(predicted_types: list[str], confidence_scores: dict[str, float]) -> tuple[float, float]:
+    max_confidence = max(confidence_scores.values()) if confidence_scores else 0.0
+    primary_type = predicted_types[0] if predicted_types else None
+    primary_confidence = resolve_confidence_for_type(primary_type, confidence_scores)
+    return primary_confidence, max_confidence
 
 # ---------- Endpoints ----------
 
@@ -302,15 +329,24 @@ def classify_emergency(request: EmergencyRequest, http_request: Request):
     fallback_used = False
     fallback_reason = None
     fallback_keywords: dict[str, list[str]] = {}
+    keyword_promoted = False
 
     try:
-        predicted_types, predicted_severity, confidence_scores, max_confidence, no_types_above_threshold = _predict_text(
+        (
+            predicted_types,
+            predicted_severity,
+            confidence_scores,
+            max_confidence,
+            no_types_above_threshold,
+            keyword_promoted,
+        ) = _predict_text(
             request.text,
             request.threshold
         )
 
         if no_types_above_threshold or max_confidence < LOW_CONFIDENCE_THRESHOLD:
             fallback_used = True
+            keyword_promoted = False
             fallback_reason = decide_fallback_reason(
                 max_confidence=max_confidence,
                 no_types_above_threshold=no_types_above_threshold,
@@ -324,19 +360,25 @@ def classify_emergency(request: EmergencyRequest, http_request: Request):
     except Exception as error:
         logger.error(f"[{http_request.state.request_id}] Model prediction failed, applying fallback: {error}")
         fallback_used = True
+        keyword_promoted = False
         fallback_reason = "model_error"
         confidence_scores = {}
         predicted_types, predicted_severity, fallback_keywords = _apply_keyword_fallback(request.text)
+
+    primary_confidence, max_confidence = _confidence_summary(predicted_types, confidence_scores)
 
     return {
         "incident_types": predicted_types,
         "severity": predicted_severity,
         "severity_color": severity_colors.get(predicted_severity, "⚪ Unknown"),
         "confidence_scores": confidence_scores,
+        "primary_confidence": primary_confidence,
+        "max_confidence": max_confidence,
         "model_version": "2.1.3-xlm-roberta-fallback",
         "fallback_used": fallback_used,
         "fallback_reason": fallback_reason,
         "fallback_keywords": fallback_keywords,
+        "keyword_promoted": keyword_promoted,
     }
 
 @app.get("/labels")
@@ -475,15 +517,24 @@ async def classify_audio_endpoint(request: Request, file: UploadFile = File(...)
             fallback_used = False
             fallback_reason = None
             fallback_keywords: dict[str, list[str]] = {}
+            keyword_promoted = False
 
             try:
-                predicted_types, predicted_severity, confidence_scores, max_confidence, no_types_above_threshold = _predict_text(
+                (
+                    predicted_types,
+                    predicted_severity,
+                    confidence_scores,
+                    max_confidence,
+                    no_types_above_threshold,
+                    keyword_promoted,
+                ) = _predict_text(
                     transcription,
                     threshold
                 )
 
                 if no_types_above_threshold or max_confidence < LOW_CONFIDENCE_THRESHOLD:
                     fallback_used = True
+                    keyword_promoted = False
                     fallback_reason = decide_fallback_reason(
                         max_confidence=max_confidence,
                         no_types_above_threshold=no_types_above_threshold,
@@ -496,6 +547,7 @@ async def classify_audio_endpoint(request: Request, file: UploadFile = File(...)
             except Exception as error:
                 logger.error(f"[{request.state.request_id}] Audio classification model error, applying fallback: {error}")
                 fallback_used = True
+                keyword_promoted = False
                 fallback_reason = "model_error"
                 confidence_scores = {}
                 predicted_types, predicted_severity, fallback_keywords = _apply_keyword_fallback(transcription)
@@ -517,6 +569,9 @@ async def classify_audio_endpoint(request: Request, file: UploadFile = File(...)
                     f"Low confidence classification: {max_confidence:.2f} "
                     f"(threshold: {whisper.confidence_threshold})"
                 )
+
+            primary_confidence, max_model_confidence = _confidence_summary(predicted_types, confidence_scores)
+            stt_confidence = float(transcription_result.get("confidence", 0.0) or 0.0)
             
             return AudioClassificationResponse(
                 transcription=transcription,
@@ -526,11 +581,15 @@ async def classify_audio_endpoint(request: Request, file: UploadFile = File(...)
                 severity=predicted_severity,
                 severity_color=severity_colors.get(predicted_severity, "⚪ Unknown"),
                 confidence_scores=confidence_scores,
+                primary_confidence=primary_confidence,
+                max_confidence=max_model_confidence,
+                stt_confidence=stt_confidence,
                 low_confidence_flag=low_confidence_flag,
                 model_version="2.1.3-xlm-roberta-whisper-fallback",
                 fallback_used=fallback_used,
                 fallback_reason=fallback_reason,
                 fallback_keywords=fallback_keywords,
+                keyword_promoted=keyword_promoted,
             )
 
             
@@ -645,15 +704,24 @@ async def classify_microphone(request: Request, duration_seconds: int = 30, samp
         fallback_used = False
         fallback_reason = None
         fallback_keywords: dict[str, list[str]] = {}
+        keyword_promoted = False
 
         try:
-            predicted_types, predicted_severity, confidence_scores, max_confidence, no_types_above_threshold = _predict_text(
+            (
+                predicted_types,
+                predicted_severity,
+                confidence_scores,
+                max_confidence,
+                no_types_above_threshold,
+                keyword_promoted,
+            ) = _predict_text(
                 transcription,
                 threshold
             )
 
             if no_types_above_threshold or max_confidence < LOW_CONFIDENCE_THRESHOLD:
                 fallback_used = True
+                keyword_promoted = False
                 fallback_reason = decide_fallback_reason(
                     max_confidence=max_confidence,
                     no_types_above_threshold=no_types_above_threshold,
@@ -666,6 +734,7 @@ async def classify_microphone(request: Request, duration_seconds: int = 30, samp
         except Exception as error:
             logger.error(f"[{request.state.request_id}] Microphone model error, applying fallback: {error}")
             fallback_used = True
+            keyword_promoted = False
             fallback_reason = "model_error"
             confidence_scores = {}
             predicted_types, predicted_severity, fallback_keywords = _apply_keyword_fallback(transcription)
@@ -710,6 +779,8 @@ async def classify_microphone(request: Request, duration_seconds: int = 30, samp
                 f"(threshold: {whisper.confidence_threshold})"
             )
         
+        primary_confidence, max_model_confidence = _confidence_summary(predicted_types, confidence_scores)
+
         return AudioClassificationResponse(
             transcription=transcription,
             duration=duration_recorded,
@@ -718,22 +789,28 @@ async def classify_microphone(request: Request, duration_seconds: int = 30, samp
             severity=predicted_severity,
             severity_color=severity_colors.get(predicted_severity, "⚪ Unknown"),
             confidence_scores=confidence_scores,
+            primary_confidence=primary_confidence,
+            max_confidence=max_model_confidence,
+            stt_confidence=float(transcription_result.get("confidence", 0.0) or 0.0),
             low_confidence_flag=low_confidence_flag,
             model_version="2.1.3-xlm-roberta-whisper-fallback",
             fallback_used=fallback_used,
             fallback_reason=fallback_reason,
             fallback_keywords=fallback_keywords,
+            keyword_promoted=keyword_promoted,
         )
-    
     except HTTPException:
         raise
     except Exception as e:
-        logger.exception(f"[{request.state.request_id}] Microphone classification failed: {e}")
+        logger.error(f"[{request.state.request_id}] Microphone classification failed: {e}")
         print(f"\n❌ Error: {e}\n")
         raise HTTPException(
             status_code=500,
             detail=f"Microphone classification failed: {str(e)}"
         )
+    finally:
+        if "tmp_path" in locals() and os.path.exists(tmp_path):
+            os.remove(tmp_path)
 
 @app.get("/v1/audio/stats", response_model=UsageStatsResponse)
 def get_audio_stats():

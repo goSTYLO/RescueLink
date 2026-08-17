@@ -80,6 +80,7 @@ CREATE TABLE IF NOT EXISTS incident_reports (
   primary_confidence DOUBLE PRECISION,
   secondary_classification VARCHAR(100),
   secondary_confidence DOUBLE PRECISION,
+  incident_types TEXT[] NOT NULL DEFAULT '{}',
   description TEXT,
   latitude DOUBLE PRECISION NOT NULL,
   longitude DOUBLE PRECISION NOT NULL,
@@ -132,8 +133,10 @@ ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS ai_pending BOOLEAN DEFAULT
 ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS ai_attempted BOOLEAN DEFAULT FALSE;
 ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS primary_classification VARCHAR(100);
 ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS primary_confidence DOUBLE PRECISION;
+ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS stt_confidence DOUBLE PRECISION;
 ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS secondary_classification VARCHAR(100);
 ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS secondary_confidence DOUBLE PRECISION;
+ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS incident_types TEXT[] NOT NULL DEFAULT '{}';
 ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS barangay VARCHAR(150);
 ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS verified BOOLEAN DEFAULT FALSE;
 ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS scan_status VARCHAR(30) DEFAULT 'pending';
@@ -244,6 +247,10 @@ ALTER TABLE ai_classifications ADD COLUMN IF NOT EXISTS is_override BOOLEAN DEFA
 ALTER TABLE ai_classifications ADD COLUMN IF NOT EXISTS retry_count INTEGER DEFAULT 0;
 ALTER TABLE ai_classifications ADD COLUMN IF NOT EXISTS secondary_predicted_type VARCHAR(100);
 ALTER TABLE ai_classifications ADD COLUMN IF NOT EXISTS secondary_confidence_score DOUBLE PRECISION;
+ALTER TABLE ai_classifications ADD COLUMN IF NOT EXISTS stt_confidence DOUBLE PRECISION;
+ALTER TABLE ai_classifications ADD COLUMN IF NOT EXISTS fallback_used BOOLEAN DEFAULT FALSE;
+ALTER TABLE ai_classifications ADD COLUMN IF NOT EXISTS keyword_promoted BOOLEAN DEFAULT FALSE;
+ALTER TABLE ai_classifications ADD COLUMN IF NOT EXISTS max_confidence_score DOUBLE PRECISION;
 
 -- Index for quick lookups by report
 CREATE INDEX IF NOT EXISTS idx_ai_classifications_report_id ON ai_classifications(report_id);

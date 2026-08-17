@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../services/responder_service.dart';
+import '../../utils/report_ui.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/skeleton_placeholder.dart';
 import 'responder_incident_detail_screen.dart';
@@ -119,7 +120,6 @@ class _ResponderHistoryScreenState extends State<ResponderHistoryScreen> {
                 else
                   ..._history.map((inc) {
                     final id = (inc['report_id'] as num?)?.toInt() ?? 0;
-                    final type = (inc['incident_type'] as String?) ?? 'Incident';
                     final barangay = (inc['barangay'] as String?) ?? '';
                     final status = (inc['responder_status'] as String?) ?? 'Resolved';
                     final date = _formatDate(inc['accepted_at'] as String?);
@@ -146,8 +146,10 @@ class _ResponderHistoryScreenState extends State<ResponderHistoryScreen> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text('Report #DGP-$id — $type',
+                                  Text('Report #DGP-$id',
                                       style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: textPrimary)),
+                                  const SizedBox(height: 4),
+                                  compactIncidentTypeChips(incident: inc),
                                   const SizedBox(height: 2),
                                   Text(barangay.isNotEmpty ? '$barangay • $date' : date,
                                       style: TextStyle(fontSize: 11, color: textSec)),

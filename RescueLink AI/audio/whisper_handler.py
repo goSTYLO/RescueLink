@@ -306,7 +306,7 @@ class WhisperHandler:
             model_path = os.getenv("STT_MODEL_PATH", "").strip() or None
             cache_dir = os.getenv("STT_CACHE_DIR", "").strip() or None
             cpu_threads = _to_int(os.getenv("STT_CPU_THREADS"))
-            beam_size = int(os.getenv("STT_BEAM_SIZE", "1"))
+            beam_size = int(os.getenv("STT_BEAM_SIZE", "5"))
 
             try:
                 self.local_provider = _WhisperLocalProvider(

@@ -20,6 +20,7 @@
     "seed-incidents": "node scripts/seed-incidents-from-audio.js",
     "analyze-duplicates": "node scripts/run-duplicate-analysis.js",
     "link-seed-duplicates": "node scripts/link-seed-duplicates.js",
+    "reclassify-incidents": "node scripts/reclassify-all-incidents.js",
     "seed-db:full": "npm run seed-db && npm run seed-incidents -- --reset",
     "backup-db": "node scripts/backup-db.js"
   },

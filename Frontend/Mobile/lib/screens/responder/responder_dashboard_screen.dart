@@ -4,6 +4,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../../services/responder_service.dart';
 import '../../services/websocket_service.dart';
+import '../../utils/report_ui.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/staggered_fade_in.dart';
 import 'responder_incident_detail_screen.dart';
@@ -230,7 +231,6 @@ class _ResponderDashboardScreenState extends State<ResponderDashboardScreen> {
     return Column(
       children: _activeIncidents.map((inc) {
         final id = (inc['report_id'] as num?)?.toInt() ?? 0;
-        final type = (inc['incident_type'] as String?) ?? 'Incident';
         final barangay = (inc['barangay'] as String?) ?? '';
         final badge = _badgeLabel(inc);
         final badgeColor = _badgeColor(inc);
@@ -256,13 +256,15 @@ class _ResponderDashboardScreenState extends State<ResponderDashboardScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Report #DGP-$id — $type',
+                        'Report #DGP-$id',
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
                           color: textPrimary,
                         ),
                       ),
+                      const SizedBox(height: 4),
+                      compactIncidentTypeChips(incident: inc),
                       const SizedBox(height: 3),
                       Text(
                         distance != null ? '$barangay · $distance' : barangay,
@@ -301,7 +303,7 @@ class _ResponderDashboardScreenState extends State<ResponderDashboardScreen> {
     for (final inc in _activeIncidents) {
       final point = _incidentLatLng(inc);
       if (point == null) continue;
-      final type = (inc['incident_type'] as String?) ?? 'Incident';
+      final type = incidentTypesLabel(inc, fallback: 'Incident');
       final color = _typeColor(type);
 
       markers.add(

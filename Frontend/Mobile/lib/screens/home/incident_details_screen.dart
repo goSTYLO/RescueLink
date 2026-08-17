@@ -448,17 +448,9 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
     return null;
   }
 
-  String _aiConfidenceLabel() {
-    final raw =
-        _aiClassification?['confidence'] ??
-        _aiClassification?['confidence_score'] ??
-        _incident?['primary_confidence'];
+  String _formatConfidencePercent(dynamic raw) {
     final numeric = _parseNumeric(raw);
-    if (numeric == null) {
-      return 'Unknown';
-    }
-
-    // Support both ratio (0-1) and percent-like (0-100) confidence values.
+    if (numeric == null) return 'Unknown';
     final percent = numeric <= 1 ? numeric * 100 : numeric;
     final clamped = percent.clamp(0, 100).toDouble();
     final nearInteger = (clamped - clamped.roundToDouble()).abs() < 0.05;
@@ -466,6 +458,59 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
         ? clamped.round().toString()
         : clamped.toStringAsFixed(1);
     return '$display%';
+  }
+
+  String _aiConfidenceLabel() {
+    final raw =
+        _aiClassification?['confidence_score'] ??
+        _incident?['primary_confidence'] ??
+        _aiClassification?['confidence'];
+    return _formatConfidencePercent(raw);
+  }
+
+  String? _sttConfidenceLabel() {
+    final raw = _aiClassification?['stt_confidence'] ?? _incident?['stt_confidence'];
+    if (raw == null) return null;
+    return _formatConfidencePercent(raw);
+  }
+
+  Widget? _aiSourceBadges() {
+    final keywordPromoted = _aiClassification?['keyword_promoted'] == true;
+    final fallbackUsed = _aiClassification?['fallback_used'] == true;
+    if (!keywordPromoted && !fallbackUsed) return null;
+
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      children: [
+        if (keywordPromoted)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF59E0B).withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.35)),
+            ),
+            child: const Text(
+              'Keyword-assisted',
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFFB45309)),
+            ),
+          ),
+        if (fallbackUsed)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: const Color(0xFFEA580C).withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFEA580C).withValues(alpha: 0.35)),
+            ),
+            child: const Text(
+              'Keyword fallback',
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFFEA580C)),
+            ),
+          ),
+      ],
+    );
   }
 
   Future<void> _downloadAudio() async {
@@ -769,9 +814,10 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
                                       icon: Icons.whatshot_outlined,
                                       iconBg: const Color(0xFFFFEDD5),
                                       label: 'Emergency Type',
-                                      value: incidentTypeLabel(
-                                          _incident?['incident_type']
-                                              as String?),
+                                      valueWidget: incidentTypeChips(
+                                        incident: _incident,
+                                        aiClassification: _aiClassification,
+                                      ),
                                     ),
                                     const SizedBox(height: 12),
                                     _detailRow(
@@ -974,11 +1020,13 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
                                             _incident?['severity_level']
                                                 as String?)),
                                     const SizedBox(height: 10),
-                                    _simpleRow(
-                                        'Type',
-                                        incidentTypeLabel(
-                                            _incident?['incident_type']
-                                                as String?)),
+                                    _simpleRowWidget(
+                                      'Type',
+                                      incidentTypeChips(
+                                        incident: _incident,
+                                        aiClassification: _aiClassification,
+                                      ),
+                                    ),
                                     const SizedBox(height: 10),
                                     _simpleRow(
                                         'Barangay',
@@ -987,9 +1035,23 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
                                     if (_aiClassification != null) ...[
                                       const SizedBox(height: 10),
                                       _simpleRow(
-                                        'AI Confidence',
+                                        'Model Confidence',
                                         _aiConfidenceLabel(),
                                       ),
+                                      if (_sttConfidenceLabel() != null) ...[
+                                        const SizedBox(height: 10),
+                                        _simpleRow(
+                                          'STT Confidence',
+                                          _sttConfidenceLabel()!,
+                                        ),
+                                      ],
+                                      if (_aiSourceBadges() != null) ...[
+                                        const SizedBox(height: 10),
+                                        Align(
+                                          alignment: Alignment.centerRight,
+                                          child: _aiSourceBadges(),
+                                        ),
+                                      ],
                                     ],
                                   ],
                                 ),
@@ -1513,7 +1575,8 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
     required IconData icon,
     required Color iconBg,
     required String label,
-    required String value,
+    String? value,
+    Widget? valueWidget,
     String? subtitle,
   }) {
     return Row(
@@ -1541,14 +1604,15 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
                 style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
               ),
               const SizedBox(height: 2),
-              Text(
-                value,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: Theme.of(context).colorScheme.onSurface,
-                ),
-              ),
+              valueWidget ??
+                  Text(
+                    value ?? '',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                  ),
               if (subtitle != null) ...[
                 const SizedBox(height: 2),
                 Text(
@@ -1557,6 +1621,27 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
                 ),
               ],
             ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _simpleRowWidget(String label, Widget value) {
+    final theme = Theme.of(context);
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(fontSize: 13, color: theme.colorScheme.onSurfaceVariant),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: value,
           ),
         ),
       ],

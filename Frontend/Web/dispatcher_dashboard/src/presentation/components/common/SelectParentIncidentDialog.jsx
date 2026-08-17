@@ -7,6 +7,7 @@ import { Link } from 'react-router-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/presentation/components/ui/Dialog';
 import { Button } from '@/presentation/components/ui/Button';
 import { Badge } from '@/presentation/components/ui/Badge';
+import { IncidentTypeChips } from '@/presentation/components/common/IncidentTypeChips';
 import { Input } from '@/presentation/components/ui/Input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/presentation/components/ui/Select';
 import { Search, ChevronLeft, ChevronRight, Merge, Loader2, LayoutList } from 'lucide-react';
@@ -252,7 +253,7 @@ export function SelectParentIncidentDialog({
                         >
                           Report #{inc.id}
                         </Link>
-                        <Badge variant="outline" className="text-xs">{inc.emergencyType}</Badge>
+                        <IncidentTypeChips incidentTypes={inc.incidentTypes} compact className="inline-flex" />
                         <Badge
                           variant="outline"
                           className={`text-xs ${

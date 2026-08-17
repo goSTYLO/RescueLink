@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import '../../services/auth_service.dart';
 import '../../services/incident_service.dart';
 import '../../services/websocket_service.dart';
+import '../../utils/incident_navigation.dart';
 import '../../utils/report_ui.dart';
 import '../../widgets/bottom_sheet_wrapper.dart';
 import '../../widgets/skeleton_placeholder.dart';
@@ -45,6 +47,8 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
   String? _error;
   String? _filterStatus;
   String? _filterType;
+  String? _involvementFilter;
+  bool _isResponder = false;
   String _searchQuery = '';
   bool _sortNewestFirst = true;
   DateTime? _dateFrom;
@@ -56,6 +60,7 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
   @override
   void initState() {
     super.initState();
+    _isResponder = AuthService().getUserRole() == 'responder';
     _loadIncidents();
     _wsSubscription = WebSocketService().eventStream.listen((event) {
       if (!mounted) return;
@@ -87,6 +92,7 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
         offset: 0,
         status: _filterStatus,
         incidentType: _filterType,
+        involvement: _isResponder ? (_involvementFilter ?? 'all') : null,
       );
       if (!mounted) return;
       setState(() {
@@ -113,6 +119,7 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
         offset: _incidents.length,
         status: _filterStatus,
         incidentType: _filterType,
+        involvement: _isResponder ? (_involvementFilter ?? 'all') : null,
       );
       if (!mounted) return;
       setState(() {
@@ -369,47 +376,48 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
   InputDecoration _fieldDecoration({String? hint}) {
     return InputDecoration(
       hintText: hint,
-      hintStyle: const TextStyle(color: _mutedText, fontSize: 14),
+      hintStyle: const TextStyle(color: _mutedText, fontSize: 12),
       filled: true,
       fillColor: _inputBg,
       prefixIcon: hint == 'Search reports...'
-          ? const Icon(Icons.search, color: _mutedText, size: 20)
+          ? const Icon(Icons.search, color: _mutedText, size: 18)
           : null,
+      isDense: true,
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         borderSide: const BorderSide(color: _cardBorder),
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         borderSide: const BorderSide(color: _cardBorder),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         borderSide: const BorderSide(color: Color(0xFFEF4444), width: 1.5),
       ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
     );
   }
 
   Widget _locationCard() {
     return Material(
       color: _cardBg,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: _incidents.isEmpty ? null : _openLatestLocationMap,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         child: Container(
-          constraints: const BoxConstraints(minHeight: 56),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          constraints: const BoxConstraints(minHeight: 48),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(12),
             border: Border.all(color: _cardBorder),
           ),
           child: Row(
             children: [
               Container(
-                width: 44,
-                height: 44,
+                width: 34,
+                height: 34,
                 decoration: const BoxDecoration(
                   color: Colors.white,
                   shape: BoxShape.circle,
@@ -417,10 +425,10 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                 child: const Icon(
                   Icons.location_on,
                   color: Color(0xFF111827),
-                  size: 24,
+                  size: 18,
                 ),
               ),
-              const SizedBox(width: 14),
+              const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -428,24 +436,26 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                     Text(
                       _locationTitle(),
                       style: const TextStyle(
-                        fontSize: 12,
+                        fontSize: 10,
                         color: _mutedText,
                         fontWeight: FontWeight.w400,
                       ),
                     ),
-                    const SizedBox(height: 3),
+                    const SizedBox(height: 2),
                     Text(
                       _locationSubtitle(),
                       style: const TextStyle(
-                        fontSize: 16,
+                        fontSize: 13,
                         fontWeight: FontWeight.w600,
                         color: _primaryText,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right, color: _mutedText, size: 22),
+              const Icon(Icons.chevron_right, color: _mutedText, size: 18),
             ],
           ),
         ),
@@ -460,7 +470,7 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
           child: Text(
             'Reports',
             style: TextStyle(
-              fontSize: 28,
+              fontSize: 22,
               fontWeight: FontWeight.bold,
               color: _primaryText,
               height: 1.1,
@@ -468,8 +478,8 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
           ),
         ),
         SizedBox(
-          width: 40,
-          height: 40,
+          width: 34,
+          height: 34,
           child: Material(
             color: const Color(0xFFEF4444).withValues(alpha: 0.12),
             shape: const CircleBorder(),
@@ -478,8 +488,8 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
               onPressed: _loading ? null : _loadIncidents,
               icon: _loading
                   ? const SizedBox(
-                      width: 20,
-                      height: 20,
+                      width: 16,
+                      height: 16,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
                         color: Color(0xFFEF4444),
@@ -488,7 +498,7 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                   : const Icon(
                       Icons.refresh,
                       color: Color(0xFFEF4444),
-                      size: 22,
+                      size: 18,
                     ),
             ),
           ),
@@ -701,24 +711,24 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     _locationCard(),
-                    const SizedBox(height: 24),
-                    _reportsTitleRow(),
                     const SizedBox(height: 16),
+                    _reportsTitleRow(),
+                    const SizedBox(height: 12),
                   if (_loading && _incidents.isEmpty)
                     const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 24),
+                      padding: EdgeInsets.symmetric(vertical: 20),
                       child: Column(
                         children: [
-                          SkeletonCard(height: 96),
-                          SizedBox(height: 12),
-                          SkeletonCard(height: 96),
-                          SizedBox(height: 12),
-                          SkeletonCard(height: 96),
+                          SkeletonCard(height: 72),
+                          SizedBox(height: 10),
+                          SkeletonCard(height: 72),
+                          SizedBox(height: 10),
+                          SkeletonCard(height: 72),
                         ],
                       ),
                     )
@@ -742,11 +752,11 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                     )
                   else ...[
                     _statsRow(filtered),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 14),
                     TextField(
                       controller: _searchController,
                       focusNode: _searchFocusNode,
-                      style: const TextStyle(color: _primaryText, fontSize: 14),
+                      style: const TextStyle(color: _primaryText, fontSize: 13),
                       decoration: _fieldDecoration(hint: 'Search reports...').copyWith(
                         suffixIcon: _searchQuery.isNotEmpty
                             ? IconButton(
@@ -756,7 +766,11 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                             : null,
                       ),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 10),
+                    if (_isResponder) ...[
+                      _involvementFilterChips(),
+                      const SizedBox(height: 10),
+                    ],
                     Row(
                       children: [
                         Expanded(
@@ -767,8 +781,8 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                             child: DropdownButtonFormField<String?>(
                               initialValue: _filterStatus,
                               dropdownColor: _inputBg,
-                              style: const TextStyle(color: _primaryText, fontSize: 14),
-                              icon: const Icon(Icons.keyboard_arrow_down, color: _mutedText, size: 20),
+                              style: const TextStyle(color: _primaryText, fontSize: 12),
+                              icon: const Icon(Icons.keyboard_arrow_down, color: _mutedText, size: 18),
                               decoration: _fieldDecoration(),
                               hint: const Text('All Status', style: TextStyle(color: _mutedText)),
                               items: const [
@@ -797,8 +811,8 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                             child: DropdownButtonFormField<String?>(
                               initialValue: _filterType,
                               dropdownColor: _inputBg,
-                              style: const TextStyle(color: _primaryText, fontSize: 14),
-                              icon: const Icon(Icons.keyboard_arrow_down, color: _mutedText, size: 20),
+                              style: const TextStyle(color: _primaryText, fontSize: 12),
+                              icon: const Icon(Icons.keyboard_arrow_down, color: _mutedText, size: 18),
                               decoration: _fieldDecoration(),
                               hint: const Text('All Types', style: TextStyle(color: _mutedText)),
                               items: const [
@@ -822,23 +836,23 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                         ),
                         const SizedBox(width: 10),
                         SizedBox(
-                          width: 48,
-                          height: 48,
+                          width: 40,
+                          height: 40,
                           child: Material(
                             color: _inputBg,
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(10),
                               side: const BorderSide(color: _cardBorder),
                             ),
                             child: IconButton(
-                              icon: const Icon(Icons.tune, color: _mutedText, size: 20),
+                              icon: const Icon(Icons.tune, color: _mutedText, size: 18),
                               onPressed: _openFilterSheet,
                             ),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 18),
                     if (filtered.isEmpty)
                       EmptyStateIllustration(
                         icon: Icons.assignment_outlined,
@@ -861,12 +875,12 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                       const Text(
                         'Recent Reports',
                         style: TextStyle(
-                          fontSize: 13,
+                          fontSize: 11,
                           fontWeight: FontWeight.w500,
                           color: _mutedText,
                         ),
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 8),
                       ...filtered.map<Widget>((incident) {
                         final map = incident is Map<String, dynamic>
                             ? incident
@@ -875,19 +889,21 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                         final type = map['incident_type'] as String?;
                         final status = _status(incident);
                         final createdAt = map['created_at'] as String?;
+                        final involvement = map['involvement']?.toString();
                         return Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.only(bottom: 8),
                           child: _reportCard(
                             icon: _iconForType(type),
                             iconBg: _iconColorForType(type).withValues(alpha: 0.2),
                             iconColor: _iconColorForType(type),
-                            typeLabel: incidentTypeLabel(type),
+                            incident: map,
                             statusLabel: ReportStatusUi.label(status).toUpperCase(),
                             statusColor: _statusSolidColor(status),
                             date: formatReportDateTime(createdAt),
                             location: incidentLocationLabel(map),
+                            involvement: involvement,
                             onTap: reportId != null
-                                ? () => widget.onReportTap?.call(reportId)
+                                ? () => _handleIncidentTap(map)
                                 : null,
                           ),
                         );
@@ -981,16 +997,16 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
         Text(
           value,
           style: const TextStyle(
-            fontSize: 16,
+            fontSize: 14,
             fontWeight: FontWeight.bold,
             color: _primaryText,
           ),
         ),
-        const SizedBox(width: 4),
+        const SizedBox(width: 3),
         Text(
           label,
           style: const TextStyle(
-            fontSize: 13,
+            fontSize: 11,
             color: _mutedText,
           ),
         ),
@@ -998,66 +1014,197 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
     );
   }
 
+  void _handleIncidentTap(Map<String, dynamic> incident) {
+    final onCitizenTap = widget.onReportTap;
+    if (onCitizenTap == null) return;
+    unawaited(
+      openIncidentByInvolvement(
+        context,
+        incident: incident,
+        involvementFilter: _involvementFilter ?? 'all',
+        onCitizenTap: onCitizenTap,
+      ),
+    );
+  }
+
+  Widget _involvementFilterChips() {
+    const options = [
+      ('reported', 'Reported'),
+      ('accepted', 'Accepted'),
+    ];
+
+    return Row(
+      children: options.map((option) {
+        final value = option.$1;
+        final label = option.$2;
+        final selected = _involvementFilter == value;
+        return Expanded(
+          child: Padding(
+            padding: EdgeInsets.only(right: value == 'reported' ? 8 : 0),
+            child: FilterChip(
+              label: Text(label),
+              selected: selected,
+              showCheckmark: true,
+              labelStyle: TextStyle(
+                fontSize: 12,
+                color: selected ? Colors.white : _mutedText,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              labelPadding: const EdgeInsets.symmetric(horizontal: 4),
+              selectedColor: const Color(0xFF2563EB),
+              backgroundColor: _inputBg,
+              side: BorderSide(
+                color: selected ? const Color(0xFF2563EB) : _cardBorder,
+              ),
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              visualDensity: VisualDensity.compact,
+              onSelected: (_) {
+                setState(() {
+                  _involvementFilter = selected ? null : value;
+                });
+                _loadIncidents();
+              },
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  List<Widget> _involvementChipWidgets(String? involvement) {
+    if (involvement == null || involvement.isEmpty) return const [];
+
+    final isReported = involvement == 'reported' || involvement == 'both';
+    final isAccepted = involvement == 'accepted' || involvement == 'both';
+    final widgets = <Widget>[];
+
+    if (isReported) {
+      widgets.add(_involvementBadge(
+        label: 'Reported',
+        icon: Icons.record_voice_over_outlined,
+        color: const Color(0xFF2563EB),
+      ));
+    }
+    if (isAccepted) {
+      if (widgets.isNotEmpty) widgets.add(const SizedBox(width: 4));
+      widgets.add(_involvementBadge(
+        label: 'Accepted',
+        icon: Icons.emergency_outlined,
+        color: const Color(0xFF10B981),
+      ));
+    }
+    return widgets;
+  }
+
+  Widget _inlineClassificationRow({
+    required Map<String, dynamic> incident,
+    String? involvement,
+  }) {
+    final typeChips = incidentTypeChipWidgets(incident: incident);
+    final involvementChips = _isResponder ? _involvementChipWidgets(involvement) : const <Widget>[];
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      clipBehavior: Clip.none,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ...typeChips,
+          if (typeChips.isNotEmpty && involvementChips.isNotEmpty) const SizedBox(width: 4),
+          ...involvementChips,
+        ],
+      ),
+    );
+  }
+
+  Widget _involvementBadge({
+    required String label,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.45)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 10, color: color),
+          const SizedBox(width: 3),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _reportCard({
     required IconData icon,
     required Color iconBg,
     required Color iconColor,
-    required String typeLabel,
+    required Map<String, dynamic> incident,
     required String statusLabel,
     required Color statusColor,
     String? date,
     required String location,
+    String? involvement,
     VoidCallback? onTap,
   }) {
     const metaStyle = TextStyle(
-      fontSize: 12,
+      fontSize: 10,
       color: _mutedText,
     );
 
     return PremiumCard(
       onTap: onTap,
       useGlass: false,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-      borderRadius: 16,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      borderRadius: 12,
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 48,
-            height: 48,
+            width: 38,
+            height: 38,
             decoration: BoxDecoration(
               color: iconBg,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(10),
               boxShadow: [
                 BoxShadow(
-                  color: iconColor.withValues(alpha: 0.35),
-                  blurRadius: 12,
+                  color: iconColor.withValues(alpha: 0.3),
+                  blurRadius: 8,
                   spreadRadius: -2,
                 ),
               ],
             ),
-            child: Icon(icon, color: iconColor, size: 24),
+            child: Icon(icon, color: iconColor, size: 20),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  typeLabel,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: _primaryText,
-                  ),
+                _inlineClassificationRow(
+                  incident: incident,
+                  involvement: involvement,
                 ),
                 if (date != null && date.isNotEmpty && date != '—') ...[
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 4),
                   Row(
                     children: [
-                      const Icon(Icons.calendar_today_outlined, size: 13, color: _mutedText),
-                      const SizedBox(width: 5),
+                      const Icon(Icons.calendar_today_outlined, size: 11, color: _mutedText),
+                      const SizedBox(width: 4),
                       Expanded(
                         child: Text(
                           date,
@@ -1069,11 +1216,11 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                     ],
                   ),
                 ],
-                const SizedBox(height: 4),
+                const SizedBox(height: 3),
                 Row(
                   children: [
-                    const Icon(Icons.location_on_outlined, size: 13, color: _mutedText),
-                    const SizedBox(width: 5),
+                    const Icon(Icons.location_on_outlined, size: 11, color: _mutedText),
+                    const SizedBox(width: 4),
                     Expanded(
                       child: Text(
                         location,
@@ -1087,25 +1234,30 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
               ],
             ),
           ),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: statusColor,
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Text(
-              statusLabel,
-              style: const TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
-                color: Colors.white,
-                letterSpacing: 0.5,
+          const SizedBox(width: 6),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+                decoration: BoxDecoration(
+                  color: statusColor,
+                  borderRadius: BorderRadius.circular(5),
+                ),
+                child: Text(
+                  statusLabel,
+                  style: const TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                    letterSpacing: 0.4,
+                  ),
+                ),
               ),
-            ),
+              const SizedBox(height: 6),
+              const Icon(Icons.chevron_right, size: 16, color: _mutedText),
+            ],
           ),
-          const SizedBox(width: 2),
-          const Icon(Icons.chevron_right, size: 20, color: _mutedText),
         ],
       ),
     );

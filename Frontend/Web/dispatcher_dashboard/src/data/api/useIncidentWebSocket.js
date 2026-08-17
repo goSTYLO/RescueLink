@@ -166,14 +166,18 @@ export function useIncidentWebSocket() {
   };
 }
 
+import { formatIncidentTypesLabel } from '@/core/utils/incidentDisplay';
+
 function formatNotificationTitle(eventName, data) {
-  const type = data.incident_type || 'Incident';
+  const type = formatIncidentTypesLabel(data);
   const barangay = data.barangay ? ` in ${data.barangay}` : '';
   switch (eventName) {
     case 'incident:created':
       return `New ${type} reported${barangay}`;
     case 'incident:status_updated':
       return `Incident #${data.report_id} status: ${data.status || 'updated'}`;
+    case 'responder:status_changed':
+      return `Volunteer: ${data.new_status || data.responder_status || 'updated'} on Incident #${data.report_id}`;
     case 'incident:verified':
       return `Incident #${data.report_id} verified`;
     case 'incident:dispatched':
@@ -191,9 +195,11 @@ function formatNotificationBody(eventName, data) {
   const severity = data.severity_level ? ` (${data.severity_level})` : '';
   switch (eventName) {
     case 'incident:created':
-      return `${data.incident_type || 'Incident'}${severity}${data.barangay ? ` in ${data.barangay}` : ''}`;
+      return `${formatIncidentTypesLabel(data)}${severity}${data.barangay ? ` in ${data.barangay}` : ''}`;
     case 'incident:status_updated':
       return `Status changed to ${data.status || 'updated'}`;
+    case 'responder:status_changed':
+      return `Volunteer responder status: ${data.new_status || data.responder_status || 'updated'}`;
     case 'incident:dispatched':
       return 'Responders have been assigned';
     default:

@@ -12,7 +12,8 @@ import { getDepartmentById, getDepartmentUnits, assignDepartmentUnit } from '@/d
 import { getResponderTeams } from '@/data/api/responders.api';
 import { createDispatch } from '@/data/api/dispatches.api';
 import { inferDepartmentSectorCode, normalizeSectorCode } from '@/core/utils/departmentSector';
-import { mapApiIncidentToDisplay } from '@/core/utils/incidentDisplay';
+import { mapApiIncidentToDisplay, isIncidentActiveForDashboard } from '@/core/utils/incidentDisplay';
+import { VolunteerStatusBadge } from '@/presentation/components/common/VolunteerStatusBadge';
 import { ROLES } from '@/core/constants';
 import { useTheme } from '@/presentation/context/ThemeContext';
 import { useIncidentWebSocketStatus } from '@/presentation/context/IncidentWebSocketContext';
@@ -268,10 +269,7 @@ export function DepartmentDashboardPage() {
     if (currentPage > totalPages) setCurrentPage(totalPages);
   }, [currentPage, totalPages]);
 
-  const activeIncidents = departmentIncidents.filter((i) => {
-    const s = String(i.status || '').toLowerCase();
-    return s !== 'resolved' && s !== 'closed';
-  });
+  const activeIncidents = departmentIncidents.filter((i) => isIncidentActiveForDashboard(i));
 
   const getAssignment = useCallback((incidentId) => assignments[incidentId] || null, [assignments]);
   const isTeamAssignable = useCallback((team) => {
@@ -615,7 +613,7 @@ export function DepartmentDashboardPage() {
                       <td className="px-2.5 py-2 text-xs">
                         <span className="inline-flex items-center gap-1">
                           {getTypeIcon(incident.emergencyType)}
-                          <span className="capitalize text-foreground">{incident.emergencyType}</span>
+                          <span className="capitalize text-foreground">{incident.emergencyTypesLabel || incident.emergencyType}</span>
                         </span>
                       </td>
                       <td className="px-2.5 py-2 text-xs text-muted">
@@ -630,6 +628,7 @@ export function DepartmentDashboardPage() {
                       <td className="px-2.5 py-2">
                         <div className="flex flex-col gap-1">
                           {getStatusBadge(incident.status)}
+                          <VolunteerStatusBadge responderStatus={incident.responderStatus} />
                           {(incident.status === 'Resolved' || incident.status === 'resolved') && !incident.reporterConfirmedAt && (
                             <span className="text-xs text-amber-500 font-medium">Awaiting confirmation</span>
                           )}

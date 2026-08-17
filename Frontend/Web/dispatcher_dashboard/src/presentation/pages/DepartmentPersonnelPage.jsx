@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Layout } from '@/presentation/components/layout/Layout';
 import { Card } from '@/presentation/components/ui/Card';
 import { Badge } from '@/presentation/components/ui/Badge';
+import { IncidentTypeChips } from '@/presentation/components/common/IncidentTypeChips';
 import { Button } from '@/presentation/components/ui/Button';
 import { Input } from '@/presentation/components/ui/Input';
 import { Label } from '@/presentation/components/ui/Label';
@@ -650,7 +651,13 @@ export function DepartmentPersonnelPage() {
                           <td className="px-6 py-3">
                             <button type="button" onClick={() => navigate(`/incidents/${incident.id}`)} className="text-sm font-medium text-primary hover:underline">{incident.id}</button>
                           </td>
-                          <td className="px-6 py-3 text-sm text-foreground capitalize">{incident.emergencyType}</td>
+                          <td className="px-6 py-3 text-sm text-foreground">
+                            <IncidentTypeChips
+                              incidentTypes={incident.incidentTypes}
+                              fallbackType={incident.emergencyType}
+                              compact
+                            />
+                          </td>
                           <td className="px-6 py-3 text-sm text-muted"><span className="inline-flex items-center gap-1"><MapPin className="w-4 h-4" /> {incident.barangay}</span></td>
                           <td className="px-6 py-3"><Badge className="bg-indigo-500/20 text-indigo-400">{incident.status}</Badge></td>
                           <td className="px-6 py-3 text-sm text-muted">{getAssignment(incident.id) ? getAssignment(incident.id).name : '—'}</td>

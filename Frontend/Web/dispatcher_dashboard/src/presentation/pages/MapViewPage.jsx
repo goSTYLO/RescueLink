@@ -8,6 +8,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
 import { getIncidents, normalizeIncidentStatus } from '@/data/api/incidents.api';
+import { isVolunteerResolved } from '@/core/utils/incidentDisplay';
 import { DEV_MODE } from '@/core/config/app.config';
 import { useIncidentWebSocketStatus } from '@/presentation/context/IncidentWebSocketContext';
 import { MapContainer, Marker, Popup, TileLayer, Tooltip } from 'react-leaflet';
@@ -38,6 +39,7 @@ function mapApiIncidentToMap(api) {
     reporterName: [api.reporter_first_name, api.reporter_last_name].filter(Boolean).join(' ').trim() || 'Reporter',
     timeReported,
     status: canonicalStatus,
+    responderStatus: api.responder_status || null,
     location: {
       lat: Number(api.latitude),
       lng: Number(api.longitude),
@@ -131,6 +133,7 @@ export function MapViewPage() {
 
   const filteredIncidents = useMemo(() => {
     return incidents.filter((inc) => {
+      if (isVolunteerResolved(inc.responderStatus)) return false;
       if (!ACTIVE_STATUSES.has(inc.status)) return false;
       if (!Number.isFinite(Number(inc.location?.lat)) || !Number.isFinite(Number(inc.location?.lng))) return false;
       if (filterDepartment !== 'All' && inc.emergencyType !== filterDepartment) return false;

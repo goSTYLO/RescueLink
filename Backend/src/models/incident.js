@@ -1,6 +1,7 @@
 const pool = require('../config/db');
 const { encrypt, decrypt } = require('../utils/encryption');
 const { ROLES } = require('../config/roles');
+const { incidentTypesFromRow } = require('../utils/incidentTypeNormalize');
 
 function looksEncryptedValue(value) {
   return typeof value === 'string'
@@ -65,6 +66,7 @@ function decodeReporterFields(row, options = {}) {
 
   return {
     ...row,
+    incident_types: incidentTypesFromRow(row),
     reporter_first_name: tryDecryptValue(row.reporter_first_name),
     reporter_last_name: tryDecryptValue(row.reporter_last_name),
     reporter_phone: includeReporterPhone ? tryDecryptValue(row.reporter_phone) : row.reporter_phone,
@@ -194,9 +196,11 @@ const Incident = {
     // Keep incident list payloads bounded to protect API latency under encrypted datasets.
     const cappedLimit = Math.min(limit, 60);
 
-    let query = `SELECT ir.report_id, ir.user_id, ir.incident_type, ir.severity_level, ir.status,
+    let query = `SELECT ir.report_id, ir.user_id, ir.incident_type, ir.incident_types, ir.severity_level, ir.status,
                         ir.description, ir.latitude, ir.longitude, ir.barangay, ir.created_at,
                         ir.ai_pending, ir.ai_attempted, ir.is_duplicate, ir.parent_report_id, ir.flagged_for_review,
+                        ir.secondary_classification, ir.secondary_confidence,
+                        ir.responder_status, ir.accepted_by_user_id, ir.accepted_at,
                         u.first_name AS reporter_first_name, u.last_name AS reporter_last_name, u.phone_number AS reporter_phone
       FROM incident_reports ir
       LEFT JOIN users u ON ir.user_id = u.user_id
@@ -277,10 +281,51 @@ const Incident = {
 
   async findByUserId(
     user_id,
-    { limit = 20, offset = 0, severity_level = null, status = null, incident_type = null, barangay = null } = {}
+    options = {}
+  ) {
+    return this.findByUserInvolvement(user_id, { ...options, involvement: 'reported' });
+  },
+
+  async findByUserInvolvement(
+    user_id,
+    {
+      limit = 20,
+      offset = 0,
+      severity_level = null,
+      status = null,
+      incident_type = null,
+      barangay = null,
+      involvement = 'reported',
+    } = {}
   ) {
     const cappedLimit = Math.min(limit, 100);
-    let query = 'SELECT * FROM incident_reports WHERE user_id = $1';
+    const normalizedInvolvement = ['reported', 'accepted', 'all'].includes(involvement)
+      ? involvement
+      : 'reported';
+
+    let whereClause;
+    switch (normalizedInvolvement) {
+      case 'accepted':
+        whereClause = 'accepted_by_user_id = $1';
+        break;
+      case 'all':
+        whereClause = '(user_id = $1 OR accepted_by_user_id = $1)';
+        break;
+      default:
+        whereClause = 'user_id = $1';
+        break;
+    }
+
+    let query = `
+      SELECT *,
+        CASE
+          WHEN user_id = $1 AND accepted_by_user_id = $1 THEN 'both'
+          WHEN user_id = $1 THEN 'reported'
+          WHEN accepted_by_user_id = $1 THEN 'accepted'
+          ELSE NULL
+        END AS involvement
+      FROM incident_reports
+      WHERE ${whereClause}`;
     const params = [user_id];
     let paramCount = 1;
 
@@ -436,6 +481,10 @@ const Incident = {
     confidence_score,
     secondary_predicted_type = null,
     secondary_confidence_score = null,
+    stt_confidence = null,
+    max_confidence_score = null,
+    fallback_used = false,
+    keyword_promoted = false,
     low_confidence_flag = false,
     is_duplicate = false,
     is_override = false,
@@ -446,8 +495,9 @@ const Incident = {
         `INSERT INTO ai_classifications(
           report_id, predicted_type, predicted_severity, confidence_score,
           secondary_predicted_type, secondary_confidence_score,
+          stt_confidence, max_confidence_score, fallback_used, keyword_promoted,
           low_confidence_flag, is_duplicate, is_override, retry_count
-        ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+        ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *`,
         [
           report_id,
           predicted_type,
@@ -455,6 +505,10 @@ const Incident = {
           confidence_score,
           secondary_predicted_type,
           secondary_confidence_score,
+          stt_confidence,
+          max_confidence_score,
+          fallback_used,
+          keyword_promoted,
           low_confidence_flag,
           is_duplicate,
           is_override,
@@ -463,7 +517,7 @@ const Incident = {
       );
       return res.rows[0];
     } catch (error) {
-      if (error.code === '42703' || /secondary_predicted_type|secondary_confidence_score/i.test(error.message)) {
+      if (error.code === '42703' || /secondary_predicted_type|secondary_confidence_score|stt_confidence|fallback_used|keyword_promoted|max_confidence_score/i.test(error.message)) {
         const fallback = await pool.query(
           `INSERT INTO ai_classifications(
             report_id, predicted_type, predicted_severity, confidence_score,
@@ -489,6 +543,83 @@ const Incident = {
   },
 
   /**
+   * List incidents that have stored audio (for bulk reclassification jobs).
+   */
+  async listIncidentsWithAudio({ reportId = null, limit = null, offset = 0 } = {}) {
+    const params = [];
+    let paramCount = 0;
+    let query = `
+      SELECT ir.report_id, ir.audio_path, ir.incident_type, ir.incident_types, ir.created_at,
+             latest.is_override
+      FROM incident_reports ir
+      LEFT JOIN LATERAL (
+        SELECT ac.is_override
+        FROM ai_classifications ac
+        WHERE ac.report_id = ir.report_id
+        ORDER BY ac.processed_at DESC NULLS LAST, ac.classification_id DESC
+        LIMIT 1
+      ) latest ON true
+      WHERE ir.audio_path IS NOT NULL AND btrim(ir.audio_path) <> ''
+    `;
+
+    if (reportId != null) {
+      paramCount += 1;
+      query += ` AND ir.report_id = $${paramCount}`;
+      params.push(reportId);
+    }
+
+    query += ' ORDER BY ir.report_id ASC';
+
+    if (limit != null) {
+      paramCount += 1;
+      query += ` LIMIT $${paramCount}`;
+      params.push(limit);
+      paramCount += 1;
+      query += ` OFFSET $${paramCount}`;
+      params.push(offset);
+    }
+
+    const res = await pool.query(query, params);
+    return res.rows;
+  },
+
+  /**
+   * Persist a fresh AI classification run on incident + ai_classifications (append row).
+   */
+  async applyAiClassificationResult(report_id, aiResult, { is_override = false, retry_count = 0 } = {}) {
+    await this.updateWithAiResults(report_id, {
+      incident_type: aiResult.primaryType,
+      severity_level: aiResult.severity,
+      primary_classification: aiResult.primaryType,
+      primary_confidence: aiResult.primaryConfidence,
+      secondary_classification: aiResult.secondaryType,
+      secondary_confidence: aiResult.secondaryConfidence,
+      stt_confidence: aiResult.sttConfidence,
+      incident_types: aiResult.incidentTypes,
+      transcription: aiResult.transcription,
+      ai_pending: false,
+      ai_attempted: true,
+    });
+
+    return this.createClassification({
+      report_id,
+      predicted_type: aiResult.primaryType,
+      predicted_severity: aiResult.severity,
+      confidence_score: aiResult.primaryConfidence,
+      secondary_predicted_type: aiResult.secondaryType,
+      secondary_confidence_score: aiResult.secondaryConfidence,
+      stt_confidence: aiResult.sttConfidence,
+      max_confidence_score: aiResult.maxConfidence,
+      fallback_used: aiResult.fallbackUsed,
+      keyword_promoted: aiResult.keywordPromoted,
+      low_confidence_flag: aiResult.lowConfidenceFlag,
+      is_duplicate: false,
+      is_override,
+      retry_count,
+    });
+  },
+
+  /**
    * Update incident with AI classification results
    */
   async updateWithAiResults(report_id, {
@@ -498,17 +629,23 @@ const Incident = {
     primary_confidence = null,
     secondary_classification = null,
     secondary_confidence = null,
+    stt_confidence = null,
+    incident_types = [],
     transcription = null,
     ai_pending = false,
     ai_attempted = true
   }) {
+    const normalizedIncidentTypes = Array.isArray(incident_types)
+      ? incident_types.filter(Boolean)
+      : [];
+
     try {
       const res = await pool.query(
         `UPDATE incident_reports 
          SET incident_type = $1, severity_level = $2, primary_classification = $3, primary_confidence = $4,
-             secondary_classification = $5, secondary_confidence = $6, transcription = $7,
-             ai_pending = $8, ai_attempted = $9
-         WHERE report_id = $10 RETURNING *`,
+             secondary_classification = $5, secondary_confidence = $6, incident_types = $7, transcription = $8,
+             stt_confidence = $9, ai_pending = $10, ai_attempted = $11
+         WHERE report_id = $12 RETURNING *`,
         [
           incident_type,
           severity_level,
@@ -516,7 +653,9 @@ const Incident = {
           primary_confidence,
           secondary_classification,
           secondary_confidence,
+          normalizedIncidentTypes,
           transcription,
+          stt_confidence,
           ai_pending,
           ai_attempted,
           report_id,
@@ -524,7 +663,7 @@ const Incident = {
       );
       return res.rows[0];
     } catch (error) {
-      if (error.code === '42703' || /primary_classification|secondary_classification/i.test(error.message)) {
+      if (error.code === '42703' || /primary_classification|secondary_classification|incident_types|stt_confidence/i.test(error.message)) {
         const fallback = await pool.query(
           `UPDATE incident_reports
            SET incident_type = $1, severity_level = $2, transcription = $3,

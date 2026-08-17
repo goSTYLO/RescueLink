@@ -15,8 +15,8 @@ const duplicateConfig = require('../config/duplicateDetection');
 const { saveAudioFile, saveMediaFiles, deleteIncidentFiles, fileExists, getAbsolutePath } = require('../utils/fileValidation');
 const { logDispatcherAction, logUserAction } = require('../utils/auditLog');
 const { ROLES } = require('../config/roles');
-const { persistIncidentNotifications } = require('../services/notificationPersistence');
 const { isResourceOwner, getOwnershipFilter } = require('../utils/ownership');
+const { buildIncidentEventPayload, emitIncidentEvent } = require('../utils/incidentEvents');
 const path = require('path');
 const fs = require('fs').promises;
 
@@ -69,35 +69,6 @@ async function logIncidentAction(req, action, resourceId, details) {
   } catch (err) {
     console.error('Audit logging error:', err.message);
   }
-}
-
-function buildIncidentEventPayload(incident) {
-  return {
-    report_id: incident.report_id ?? incident.reportId,
-    reporter_id: incident.user_id ?? incident.userId ?? incident.reporter_id,
-    status: incident.status,
-    incident_type: incident.incident_type,
-    severity_level: incident.severity_level,
-    barangay: incident.barangay,
-    description: incident.description ?? null,
-    latitude: incident.latitude ?? null,
-    longitude: incident.longitude ?? null,
-    accepted_by_user_id: incident.accepted_by_user_id ?? null,
-    created_at: incident.created_at ?? null,
-    updated_at: incident.updated_at ?? incident.created_at ?? new Date().toISOString(),
-  };
-}
-
-function emitIncidentEvent(req, event, incident) {
-  const wss = req.app?.locals?.wss;
-  if (!incident) return;
-  const data = buildIncidentEventPayload(incident);
-  if (wss?.broadcast) {
-    wss.broadcast(event, data).catch(() => {});
-  }
-  persistIncidentNotifications(event, data).catch((err) =>
-    console.error('[emitIncidentEvent] Notification persistence failed:', err.message)
-  );
 }
 
 /** Notify online volunteer responders when a new actionable incident is created. */
@@ -686,16 +657,18 @@ const incidentController = {
         return res.status(401).json({ error: 'Authentication required' });
       }
 
-      const { limit, offset, status, incident_type } = req.query;
+      const { limit, offset, status, incident_type, involvement } = req.query;
       const { limit: validatedLimit, offset: validatedOffset } = validatePagination(limit, offset);
       const validatedStatus = validateAllowedValue(status, ['pending', 'verified', 'in_progress', 'resolved', 'closed'], 'status');
       const validatedIncidentType = validateAllowedValue(incident_type, ['fire', 'medical', 'police', 'disaster', 'sos', 'other', 'accident'], 'incident_type');
+      const validatedInvolvement = validateAllowedValue(involvement, ['reported', 'accepted', 'all'], 'involvement') || 'reported';
 
-      const incidents = await Incident.findByUserId(user_id, {
+      const incidents = await Incident.findByUserInvolvement(user_id, {
         limit: validatedLimit,
         offset: validatedOffset,
         status: validatedStatus,
-        incident_type: validatedIncidentType
+        incident_type: validatedIncidentType,
+        involvement: validatedInvolvement,
       });
 
       res.json(incidents);
@@ -838,9 +811,11 @@ const incidentController = {
           incident_type: aiResult.primaryType,
           severity_level: aiResult.severity,
           primary_classification: aiResult.primaryType,
-          primary_confidence: aiResult.maxConfidence,
+          primary_confidence: aiResult.primaryConfidence,
           secondary_classification: aiResult.secondaryType,
           secondary_confidence: aiResult.secondaryConfidence,
+          stt_confidence: aiResult.sttConfidence,
+          incident_types: aiResult.incidentTypes,
           transcription: aiResult.transcription,
           ai_pending: false,
           ai_attempted: true
@@ -851,9 +826,13 @@ const incidentController = {
           report_id: reportId,
           predicted_type: aiResult.primaryType,
           predicted_severity: aiResult.severity,
-          confidence_score: aiResult.maxConfidence,
+          confidence_score: aiResult.primaryConfidence,
           secondary_predicted_type: aiResult.secondaryType,
           secondary_confidence_score: aiResult.secondaryConfidence,
+          stt_confidence: aiResult.sttConfidence,
+          max_confidence_score: aiResult.maxConfidence,
+          fallback_used: aiResult.fallbackUsed,
+          keyword_promoted: aiResult.keywordPromoted,
           low_confidence_flag: aiResult.lowConfidenceFlag,
           is_duplicate: false,
           is_override: false,
@@ -889,9 +868,13 @@ const incidentController = {
             primary_type: aiResult.primaryType,
             secondary_type: aiResult.secondaryType || null,
             severity: aiResult.severity,
-            confidence: aiResult.maxConfidence,
+            confidence: aiResult.primaryConfidence,
+            max_confidence: aiResult.maxConfidence,
+            stt_confidence: aiResult.sttConfidence,
             secondary_confidence: aiResult.secondaryConfidence ?? null,
             low_confidence_flag: aiResult.lowConfidenceFlag,
+            fallback_used: aiResult.fallbackUsed,
+            keyword_promoted: aiResult.keywordPromoted,
             transcription: aiResult.transcription
           },
           security_scan: {

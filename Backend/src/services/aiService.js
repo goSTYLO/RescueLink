@@ -6,6 +6,7 @@
 
 const axios = require('axios');
 const FormData = require('form-data');
+const { normalizeAiIncidentTypes } = require('../utils/incidentTypeNormalize');
 require('dotenv').config();
 
 // Configuration
@@ -67,6 +68,60 @@ const guardedRequest = async (requestFn) => {
     markFailure();
     throw error;
   }
+};
+
+const normalizeConfidence = (value) => {
+  if (value == null || Number.isNaN(Number(value))) return null;
+  const numeric = Number(value);
+  return numeric <= 1 ? numeric : numeric / 100;
+};
+
+const resolveConfidenceForType = (type, confidenceScores) => {
+  if (!type || !confidenceScores || typeof confidenceScores !== 'object') return null;
+  if (confidenceScores[type] != null) {
+    return normalizeConfidence(confidenceScores[type]);
+  }
+  const matchedKey = Object.keys(confidenceScores).find(
+    (key) => String(key).trim().toLowerCase() === String(type).trim().toLowerCase()
+  );
+  return matchedKey ? normalizeConfidence(confidenceScores[matchedKey]) : null;
+};
+
+const mapAiClassificationResult = (result, extras = {}) => {
+  const confidenceScores = result.confidence_scores || {};
+  const maxConfidence = Math.max(
+    ...Object.values(confidenceScores),
+    Number(result.max_confidence) || 0,
+    0,
+  );
+  const incidentTypes = normalizeAiIncidentTypes(result.incident_types || []);
+  const primaryType = incidentTypes[0] || null;
+  const secondaryType = incidentTypes[1] || null;
+  const mappedSeverity = SEVERITY_MAP[result.severity] || 'medium';
+  const primaryConfidence = resolveConfidenceForType(primaryType, confidenceScores)
+    ?? normalizeConfidence(result.primary_confidence)
+    ?? maxConfidence;
+  const lowConfidenceFlag = maxConfidence < AI_LOW_CONFIDENCE_THRESHOLD
+    || Boolean(result.fallback_used);
+
+  return {
+    transcription: result.transcription || null,
+    incidentTypes,
+    severity: mappedSeverity,
+    severityRaw: result.severity,
+    confidenceScores,
+    maxConfidence,
+    primaryConfidence,
+    sttConfidence: normalizeConfidence(result.stt_confidence),
+    fallbackUsed: Boolean(result.fallback_used),
+    fallbackReason: result.fallback_reason || null,
+    lowConfidenceFlag,
+    primaryType,
+    secondaryType,
+    secondaryConfidence: resolveConfidenceForType(secondaryType, confidenceScores),
+    keywordPromoted: Boolean(result.keyword_promoted),
+    ...extras,
+  };
 };
 
 /**
@@ -157,50 +212,13 @@ const classifyAudio = async (audioBuffer, filename, requestId = null) => {
     }
     
     const result = response.data;
-    
-    // Map severity from AI output to database format
-    const mappedSeverity = SEVERITY_MAP[result.severity] || 'medium';
-    
-    // Calculate max confidence score
-    const confidenceScores = result.confidence_scores || {};
-    const maxConfidence = Math.max(...Object.values(confidenceScores), 0);
-    
-    // Determine if confidence is low (requires human review)
-    const lowConfidenceFlag = maxConfidence < AI_LOW_CONFIDENCE_THRESHOLD;
-    
-    // Get top incident types (ordered by AI response)
-    let primaryType = null;
-    let secondaryType = null;
-    if (result.incident_types && result.incident_types.length > 0) {
-      primaryType = result.incident_types[0];
-      secondaryType = result.incident_types[1] || null;
-    }
 
-    const normalizeConfidence = (value) => {
-      if (value == null || Number.isNaN(Number(value))) return null;
-      const numeric = Number(value);
-      return numeric <= 1 ? numeric : numeric / 100;
-    };
-    const secondaryConfidence = secondaryType
-      ? normalizeConfidence(confidenceScores[secondaryType] ?? null)
-      : null;
-    
-    const resultPayload = {
-      transcription: result.transcription || null,
-      incidentTypes: result.incident_types || [],
-      severity: mappedSeverity,
-      severityRaw: result.severity, // Keep original for logging
-      confidenceScores: confidenceScores,
-      maxConfidence: maxConfidence,
-      lowConfidenceFlag: lowConfidenceFlag,
-      primaryType: primaryType,
-      secondaryType: secondaryType,
-      secondaryConfidence: secondaryConfidence,
+    const resultPayload = mapAiClassificationResult(result, {
       duration: result.duration,
       language: result.language,
-      latency: result.latency
-    };
-    console.log(`[backend][ai][classify] request_id=${requestId || 'none'} filename=${filename} status=success latency_ms=${Date.now() - startTime} severity=${resultPayload.severity} low_confidence=${resultPayload.lowConfidenceFlag}`);
+      latency: result.latency,
+    });
+    console.log(`[backend][ai][classify] request_id=${requestId || 'none'} filename=${filename} status=success latency_ms=${Date.now() - startTime} severity=${resultPayload.severity} types=${(resultPayload.incidentTypes || []).join(',') || 'none'} low_confidence=${resultPayload.lowConfidenceFlag}`);
     return resultPayload;
   } catch (error) {
     console.error(`[backend][ai][classify] request_id=${requestId || 'none'} filename=${filename} status=error latency_ms=${Date.now() - startTime} error=${error.message}`);
@@ -231,38 +249,7 @@ const classifyText = async (text) => {
     }
     
     const result = response.data;
-    const mappedSeverity = SEVERITY_MAP[result.severity] || 'medium';
-    const confidenceScores = result.confidence_scores || {};
-    const maxConfidence = Math.max(...Object.values(confidenceScores), 0);
-    const lowConfidenceFlag = maxConfidence < AI_LOW_CONFIDENCE_THRESHOLD;
-    
-    let primaryType = null;
-    let secondaryType = null;
-    if (result.incident_types && result.incident_types.length > 0) {
-      primaryType = result.incident_types[0];
-      secondaryType = result.incident_types[1] || null;
-    }
-
-    const normalizeConfidence = (value) => {
-      if (value == null || Number.isNaN(Number(value))) return null;
-      const numeric = Number(value);
-      return numeric <= 1 ? numeric : numeric / 100;
-    };
-    const secondaryConfidence = secondaryType
-      ? normalizeConfidence(confidenceScores[secondaryType] ?? null)
-      : null;
-    
-    return {
-      incidentTypes: result.incident_types || [],
-      severity: mappedSeverity,
-      severityRaw: result.severity,
-      confidenceScores: confidenceScores,
-      maxConfidence: maxConfidence,
-      lowConfidenceFlag: lowConfidenceFlag,
-      primaryType: primaryType,
-      secondaryType: secondaryType,
-      secondaryConfidence: secondaryConfidence,
-    };
+    return mapAiClassificationResult(result);
   } catch (error) {
     console.error('❌ Text classification failed:', error.message);
     throw new Error(`Classification failed: ${error.message}`);
@@ -348,5 +335,8 @@ module.exports = {
     markFailure,
     markSuccess,
     isCircuitOpen,
+    mapAiClassificationResult,
+    normalizeConfidence,
+    resolveConfidenceForType,
   }
 };

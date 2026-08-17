@@ -248,6 +248,7 @@ class IncidentService {
     int? offset,
     String? status,
     String? incidentType,
+    String? involvement,
   }) async {
     var path = '/api/incidents/user/my';
     final params = <String>[];
@@ -255,6 +256,9 @@ class IncidentService {
     if (offset != null) params.add('offset=$offset');
     if (status != null && status.isNotEmpty) params.add('status=${Uri.encodeComponent(status)}');
     if (incidentType != null && incidentType.isNotEmpty) params.add('incident_type=${Uri.encodeComponent(incidentType)}');
+    if (involvement != null && involvement.isNotEmpty) {
+      params.add('involvement=${Uri.encodeComponent(involvement)}');
+    }
     if (params.isNotEmpty) path = '$path?${params.join('&')}';
     final uri = Uri.parse('${AppConfig.apiBaseUrl}$path');
     final response = await _client.get(uri, headers: _authHeaders());

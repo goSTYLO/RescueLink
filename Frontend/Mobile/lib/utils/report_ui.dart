@@ -281,9 +281,242 @@ String incidentTypeLabel(String? value) {
       return 'Police';
     case 'disaster':
       return 'Disaster';
+    case 'accident':
+      return 'Accident';
     default:
       return v[0].toUpperCase() + v.substring(1);
   }
+}
+
+List<String> incidentTypesFrom(Map<String, dynamic>? incident) {
+  if (incident == null) return const [];
+
+  final raw = incident['incident_types'];
+  if (raw is List && raw.isNotEmpty) {
+    return raw
+        .map((item) => item?.toString().trim() ?? '')
+        .where((value) => value.isNotEmpty)
+        .toList();
+  }
+
+  final primary = incident['incident_type']?.toString().trim();
+  final secondary = incident['secondary_classification']?.toString().trim();
+  return [
+    if (primary != null && primary.isNotEmpty) primary,
+    if (secondary != null && secondary.isNotEmpty) secondary,
+  ];
+}
+
+String incidentTypesLabel(
+  Map<String, dynamic>? incident, {
+  String fallback = 'Emergency',
+}) {
+  final types = incidentTypesFrom(incident);
+  if (types.isEmpty) return fallback;
+  return types.map(incidentTypeLabel).join(' · ');
+}
+
+String? primaryIncidentType(Map<String, dynamic>? incident) {
+  final types = incidentTypesFrom(incident);
+  if (types.isNotEmpty) return types.first;
+  final fallback = incident?['incident_type']?.toString().trim();
+  return (fallback != null && fallback.isNotEmpty) ? fallback : null;
+}
+
+Color incidentTypeColor(String? value) {
+  final t = (value ?? '').trim().toLowerCase();
+  if (t.isEmpty) return const Color(0xFFEF4444);
+  if (t == 'sos') return const Color(0xFFEF4444);
+  if (t.contains('fire')) return const Color(0xFFEA580C);
+  if (t.contains('medical') || t.contains('health') || t.contains('accident')) {
+    return const Color(0xFFEC4899);
+  }
+  if (t.contains('police') || t.contains('crime')) return const Color(0xFF2563EB);
+  if (t.contains('disaster') || t.contains('flood')) return const Color(0xFF0EA5E9);
+  return const Color(0xFF64748B);
+}
+
+List<String> aiClassificationTypesFrom(
+  Map<String, dynamic>? incident, [
+  Map<String, dynamic>? aiClassification,
+]) {
+  final fromIncident = incidentTypesFrom(incident);
+  if (fromIncident.isNotEmpty) return fromIncident;
+
+  if (aiClassification != null) {
+    final raw = aiClassification['incident_types'];
+    if (raw is List && raw.isNotEmpty) {
+      return raw
+          .map((item) => item?.toString().trim() ?? '')
+          .where((value) => value.isNotEmpty)
+          .toList();
+    }
+    final primary = aiClassification['predicted_type']?.toString().trim();
+    final secondary = aiClassification['secondary_predicted_type']?.toString().trim();
+    return [
+      if (primary != null && primary.isNotEmpty) primary,
+      if (secondary != null && secondary.isNotEmpty) secondary,
+    ];
+  }
+
+  return const [];
+}
+
+Widget _incidentTypeChip({
+  required String type,
+  required bool isPrimary,
+  required Color accentColor,
+  bool compact = false,
+}) {
+  return Container(
+    padding: EdgeInsets.symmetric(
+      horizontal: compact ? 7 : 10,
+      vertical: compact ? 3 : 6,
+    ),
+    decoration: BoxDecoration(
+      color: isPrimary
+          ? accentColor.withValues(alpha: 0.14)
+          : accentColor.withValues(alpha: 0.05),
+      borderRadius: BorderRadius.circular(compact ? 14 : 20),
+      border: Border.all(
+        color: isPrimary
+            ? accentColor.withValues(alpha: 0.45)
+            : accentColor.withValues(alpha: 0.28),
+        width: isPrimary ? 1.2 : 1,
+      ),
+    ),
+    child: Text(
+      incidentTypeLabel(type),
+      style: TextStyle(
+        fontSize: compact ? 11 : 13,
+        fontWeight: isPrimary ? FontWeight.w700 : FontWeight.w600,
+        color: isPrimary ? accentColor : accentColor.withValues(alpha: 0.85),
+      ),
+    ),
+  );
+}
+
+List<Widget> incidentTypeChipWidgets({
+  required Map<String, dynamic>? incident,
+  Map<String, dynamic>? aiClassification,
+  int maxVisible = 3,
+  bool compact = true,
+}) {
+  final types = aiClassificationTypesFrom(incident, aiClassification);
+  if (types.isEmpty) {
+    final fallback = incident?['incident_type']?.toString();
+    if (fallback == null || fallback.isEmpty) {
+      return [
+        Text(
+          'Emergency',
+          style: TextStyle(
+            fontSize: compact ? 13 : 16,
+            fontWeight: FontWeight.w600,
+            color: incidentTypeColor(null),
+          ),
+        ),
+      ];
+    }
+    return [
+      _incidentTypeChip(
+        type: fallback,
+        isPrimary: true,
+        accentColor: incidentTypeColor(fallback),
+        compact: compact,
+      ),
+    ];
+  }
+
+  final visible = types.take(maxVisible).toList();
+  final overflow = types.length - visible.length;
+
+  return [
+    for (var i = 0; i < visible.length; i++) ...[
+      if (i > 0) SizedBox(width: compact ? 4 : 6),
+      _incidentTypeChip(
+        type: visible[i],
+        isPrimary: i == 0,
+        accentColor: incidentTypeColor(visible[i]),
+        compact: compact,
+      ),
+    ],
+    if (overflow > 0) ...[
+      SizedBox(width: compact ? 4 : 6),
+      Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: compact ? 6 : 8,
+          vertical: compact ? 3 : 5,
+        ),
+        decoration: BoxDecoration(
+          color: const Color(0xFF64748B).withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(compact ? 14 : 20),
+          border: Border.all(color: const Color(0xFF64748B).withValues(alpha: 0.25)),
+        ),
+        child: Text(
+          '+$overflow',
+          style: TextStyle(
+            fontSize: compact ? 10 : 12,
+            fontWeight: FontWeight.w600,
+            color: const Color(0xFF64748B),
+          ),
+        ),
+      ),
+    ],
+  ];
+}
+
+Widget incidentTypeChips({
+  required Map<String, dynamic>? incident,
+  Map<String, dynamic>? aiClassification,
+  Color? primaryColor,
+}) {
+  final types = aiClassificationTypesFrom(incident, aiClassification);
+  final accent = primaryColor ??
+      incidentTypeColor(
+        primaryIncidentType(incident) ?? (types.isNotEmpty ? types.first : null),
+      );
+
+  if (types.isEmpty) {
+    return Text(
+      incidentTypeLabel(incident?['incident_type'] as String?),
+      style: TextStyle(fontWeight: FontWeight.w600, color: accent),
+    );
+  }
+
+  return Wrap(
+    spacing: 8,
+    runSpacing: 8,
+    children: [
+      for (var i = 0; i < types.length; i++)
+        _incidentTypeChip(
+          type: types[i],
+          isPrimary: i == 0,
+          accentColor: i == 0 ? accent : incidentTypeColor(types[i]),
+        ),
+    ],
+  );
+}
+
+Widget compactIncidentTypeChips({
+  required Map<String, dynamic>? incident,
+  Map<String, dynamic>? aiClassification,
+  int maxVisible = 2,
+}) {
+  final chips = incidentTypeChipWidgets(
+    incident: incident,
+    aiClassification: aiClassification,
+    maxVisible: maxVisible,
+    compact: true,
+  );
+
+  return SingleChildScrollView(
+    scrollDirection: Axis.horizontal,
+    clipBehavior: Clip.none,
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: chips,
+    ),
+  );
 }
 
 String severityLabel(String? value) {
