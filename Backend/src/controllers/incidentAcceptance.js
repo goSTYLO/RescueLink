@@ -11,6 +11,7 @@ const { validateInteger, validateString, validateAllowedValue, validatePaginatio
 const { logDispatcherAction } = require('../utils/auditLog');
 const Notification = require('../models/notification');
 const { buildIncidentEventPayload, emitIncidentEvent } = require('../utils/incidentEvents');
+const { tryDecryptValue } = require('../utils/encryption');
 
 const RESPONDER_STATUSES = ['Assigned', 'En Route', 'On Scene', 'Resolved'];
 const STATUS_TRANSITIONS = {
@@ -22,12 +23,86 @@ const STATUS_TRANSITIONS = {
 
 const ALERT_RADIUS_KM = parseFloat(process.env.RESPONDER_ALERT_RADIUS_KM || '10');
 
+/** Parse latitude/longitude that may be stored as numbers or encrypted text. */
+function parseCoordinate(value) {
+  const decrypted = tryDecryptValue(value);
+  if (decrypted === null || decrypted === undefined) return null;
+  if (typeof decrypted === 'number') {
+    return Number.isFinite(decrypted) ? decrypted : null;
+  }
+  const text = String(decrypted).trim();
+  if (!/^-?[0-9]+(\.[0-9]+)?$/.test(text)) return null;
+  const parsed = Number(text);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+/** Avoid casting encrypted coordinate strings to float8 in SQL. */
+function sqlSafeDouble(columnRef) {
+  return `(CASE WHEN ${columnRef}::text ~ '^-?[0-9]+(\\.[0-9]+)?$' THEN (${columnRef}::text)::double precision ELSE NULL END)`;
+}
+
+function mapActiveIncidentRow(row, volunteerLat, volunteerLon) {
+  const latitude = parseCoordinate(row.latitude);
+  const longitude = parseCoordinate(row.longitude);
+  let distance_km = row.distance_km != null ? Number(row.distance_km) : null;
+  if (
+    (distance_km == null || Number.isNaN(distance_km))
+    && latitude != null
+    && longitude != null
+    && volunteerLat != null
+    && volunteerLon != null
+  ) {
+    distance_km = Math.round(haversineKm(volunteerLat, volunteerLon, latitude, longitude) * 10) / 10;
+  }
+  return {
+    ...row,
+    latitude,
+    longitude,
+    distance_km: Number.isFinite(distance_km) ? distance_km : null,
+  };
+}
+
+function filterNearbyOpenIncidents(rows, userId, volunteerLat, volunteerLon) {
+  return rows.filter((row) => {
+    const acceptedBy = row.accepted_by_user_id != null ? Number(row.accepted_by_user_id) : null;
+    if (acceptedBy === userId) return true;
+    if (acceptedBy != null) return false;
+
+    if (volunteerLat == null || volunteerLon == null) return true;
+    if (row.latitude == null || row.longitude == null) return false;
+
+    const distance = row.distance_km ?? haversineKm(volunteerLat, volunteerLon, row.latitude, row.longitude);
+    return distance <= ALERT_RADIUS_KM;
+  });
+}
+
+async function loadVolunteerCoordinates(userId) {
+  try {
+    const result = await pool.query(
+      'SELECT latitude, longitude FROM users WHERE user_id = $1',
+      [userId]
+    );
+    const row = result.rows[0] || {};
+    return {
+      latitude: parseCoordinate(row.latitude),
+      longitude: parseCoordinate(row.longitude),
+    };
+  } catch (err) {
+    if (err.code === '42703') {
+      return { latitude: null, longitude: null };
+    }
+    throw err;
+  }
+}
+
 // ─── Self-healing DB Schema Helper ──────────────────────────────────────────
 async function ensurePhase3Schema() {
   try {
     await pool.query(`
       ALTER TABLE responders ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(user_id) ON DELETE SET NULL;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS responder_online BOOLEAN DEFAULT FALSE;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION;
       ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS accepted_by_user_id INTEGER REFERENCES users(user_id) ON DELETE SET NULL;
       ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS responder_status VARCHAR(50);
       ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS accepted_at TIMESTAMP WITH TIME ZONE;
@@ -101,15 +176,18 @@ function emitWsToUser(req, userId, event, data) {
 
 // ─── Helper: radius check when responder location columns exist ────────────────
 async function assertResponderRadius(req, userId, incidentLat, incidentLon) {
-  if (incidentLat == null || incidentLon == null) return;
+  const lat = parseCoordinate(incidentLat);
+  const lon = parseCoordinate(incidentLon);
+  if (lat == null || lon == null) return;
   try {
     const responderRow = await pool.query(
       'SELECT latitude, longitude FROM users WHERE user_id = $1',
       [userId]
     );
-    const { latitude: rLat, longitude: rLon } = responderRow.rows[0] || {};
+    const rLat = parseCoordinate(responderRow.rows[0]?.latitude);
+    const rLon = parseCoordinate(responderRow.rows[0]?.longitude);
     if (rLat != null && rLon != null) {
-      const dist = haversineKm(rLat, rLon, incidentLat, incidentLon);
+      const dist = haversineKm(rLat, rLon, lat, lon);
       if (dist > ALERT_RADIUS_KM) {
         const err = new Error(`Incident is ${dist.toFixed(1)} km away — outside your alert radius (${ALERT_RADIUS_KM} km).`);
         err.statusCode = 403;
@@ -415,14 +493,16 @@ async function getBackupRequests(req, res) {
 // ─── GET /api/incidents/responder/active ─────────────────────────────────────
 // Returns the volunteer's own active assignments plus nearby unaccepted open incidents
 // matching supported_incident_types (SOS always included). Radius uses ALERT_RADIUS_KM.
-async function getActiveAssigned(req, res) {
-  try {
-    const userId = req.user.user_id;
-    const result = await pool.query(
-      `WITH volunteer AS (
+function buildActiveAssignedSql(includeUserLocation) {
+  const volunteerLat = includeUserLocation ? sqlSafeDouble('u.latitude') : 'NULL::double precision';
+  const volunteerLon = includeUserLocation ? sqlSafeDouble('u.longitude') : 'NULL::double precision';
+  const incidentLat = sqlSafeDouble('ir.latitude');
+  const incidentLon = sqlSafeDouble('ir.longitude');
+
+  return `WITH volunteer AS (
          SELECT u.user_id,
-                u.latitude,
-                u.longitude,
+                ${volunteerLat} AS latitude,
+                ${volunteerLon} AS longitude,
                 COALESCE(r.supported_incident_types, ARRAY[]::text[]) AS supported_types
            FROM users u
            LEFT JOIN responders r ON r.user_id = u.user_id
@@ -443,15 +523,15 @@ async function getActiveAssigned(req, res) {
               CASE
                 WHEN v.latitude IS NOT NULL
                  AND v.longitude IS NOT NULL
-                 AND ir.latitude IS NOT NULL
-                 AND ir.longitude IS NOT NULL
+                 AND ${incidentLat} IS NOT NULL
+                 AND ${incidentLon} IS NOT NULL
                 THEN ROUND(
                   (
                     6371 * 2 * ASIN(
                       SQRT(
-                        POWER(SIN(RADIANS((ir.latitude::float8 - v.latitude::float8) / 2)), 2) +
-                        COS(RADIANS(v.latitude::float8)) * COS(RADIANS(ir.latitude::float8)) *
-                        POWER(SIN(RADIANS((ir.longitude::float8 - v.longitude::float8) / 2)), 2)
+                        POWER(SIN(RADIANS((${incidentLat} - v.latitude) / 2)), 2) +
+                        COS(RADIANS(v.latitude)) * COS(RADIANS(${incidentLat})) *
+                        POWER(SIN(RADIANS((${incidentLon} - v.longitude) / 2)), 2)
                       )
                     )
                   )::numeric,
@@ -478,14 +558,14 @@ async function getActiveAssigned(req, res) {
           AND (
             v.latitude IS NULL
             OR v.longitude IS NULL
-            OR ir.latitude IS NULL
-            OR ir.longitude IS NULL
+            OR ${incidentLat} IS NULL
+            OR ${incidentLon} IS NULL
             OR (
               6371 * 2 * ASIN(
                 SQRT(
-                  POWER(SIN(RADIANS((ir.latitude::float8 - v.latitude::float8) / 2)), 2) +
-                  COS(RADIANS(v.latitude::float8)) * COS(RADIANS(ir.latitude::float8)) *
-                  POWER(SIN(RADIANS((ir.longitude::float8 - v.longitude::float8) / 2)), 2)
+                  POWER(SIN(RADIANS((${incidentLat} - v.latitude) / 2)), 2) +
+                  COS(RADIANS(v.latitude)) * COS(RADIANS(${incidentLat})) *
+                  POWER(SIN(RADIANS((${incidentLon} - v.longitude) / 2)), 2)
                 )
               )
             ) <= $2
@@ -494,10 +574,34 @@ async function getActiveAssigned(req, res) {
         ORDER BY
           CASE WHEN ir.accepted_by_user_id = $1 THEN 0 ELSE 1 END,
           distance_km NULLS LAST,
-          ir.created_at DESC`,
-      [userId, ALERT_RADIUS_KM]
+          ir.created_at DESC`;
+}
+
+async function queryActiveAssigned(userId) {
+  try {
+    return await pool.query(buildActiveAssignedSql(true), [userId, ALERT_RADIUS_KM]);
+  } catch (err) {
+    if (err.code !== '42703') throw err;
+    return pool.query(buildActiveAssignedSql(false), [userId, ALERT_RADIUS_KM]);
+  }
+}
+
+async function getActiveAssigned(req, res) {
+  try {
+    const userId = req.user.user_id;
+    await ensurePhase3Schema();
+    const volunteerCoords = await loadVolunteerCoordinates(userId);
+    const result = await queryActiveAssigned(userId);
+    const mapped = result.rows.map((row) =>
+      mapActiveIncidentRow(row, volunteerCoords.latitude, volunteerCoords.longitude)
     );
-    res.json(result.rows);
+    const rows = filterNearbyOpenIncidents(
+      mapped,
+      userId,
+      volunteerCoords.latitude,
+      volunteerCoords.longitude
+    );
+    res.json(rows);
   } catch (err) {
     console.error('getActiveAssigned error:', err);
     res.status(500).json({ error: 'Internal server error.' });
@@ -602,8 +706,8 @@ async function getIncidentPreview(req, res) {
       transcription: incident.transcription || null,
       audio_path: incident.audio_path || null,
       media_paths: mediaPaths,
-      latitude: incident.latitude,
-      longitude: incident.longitude,
+      latitude: parseCoordinate(incident.latitude),
+      longitude: parseCoordinate(incident.longitude),
       created_at: incident.created_at,
       updated_at: incident.created_at,
       reporter_first_name: incident.reporter_first_name,
@@ -639,4 +743,5 @@ module.exports = {
   ALERT_RADIUS_KM,
   incidentMatchesVolunteerSpecialization,
   isWithinVolunteerRadius,
+  parseCoordinate,
 };

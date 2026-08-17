@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../../services/notification_service.dart';
 import '../../utils/report_ui.dart';
+import '../../widgets/animated_collapse.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/skeleton_placeholder.dart';
 
@@ -510,72 +511,78 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     height: 1.25,
                   ),
                 ),
-                if (isExpanded) ...[
-                  const SizedBox(height: 10),
-                  if (incidentTypeChips != null ||
-                      (incidentType != null && incidentType.isNotEmpty))
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 4),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Incident type: ',
+                AnimatedCollapse(
+                  expanded: isExpanded,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 10),
+                      if (incidentTypeChips != null ||
+                          (incidentType != null && incidentType.isNotEmpty))
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Incident type: ',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                              Expanded(
+                                child: incidentTypeChips ??
+                                    Text(
+                                      _incidentTypeLabel(incidentType),
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Theme.of(context).colorScheme.onSurface,
+                                      ),
+                                    ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      if (eventType == 'status_updated' && incidentStatus != null && incidentStatus.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
+                          child: Text(
+                            'Status updated to ${_statusLabel(incidentStatus)}',
                             style: TextStyle(
                               fontSize: 12,
-                              fontWeight: FontWeight.w500,
                               color: Theme.of(context).colorScheme.onSurfaceVariant,
                             ),
                           ),
-                          Expanded(
-                            child: incidentTypeChips ??
-                                Text(
-                                  _incidentTypeLabel(incidentType),
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Theme.of(context).colorScheme.onSurface,
-                                  ),
-                                ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  if (eventType == 'status_updated' && incidentStatus != null && incidentStatus.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 4),
-                      child: Text(
-                        'Status updated to ${_statusLabel(incidentStatus)}',
+                        ),
+                      Text(
+                        description,
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: 13,
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          height: 1.3,
                         ),
                       ),
-                    ),
-                  Text(
-                    description,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      height: 1.3,
-                    ),
+                      if (reportId != null && onTap != null) ...[
+                        const SizedBox(height: 8),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: TextButton.icon(
+                            onPressed: () => onTap(reportId),
+                            icon: const Icon(Icons.visibility, size: 16),
+                            label: const Text('View'),
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
-                  if (reportId != null && onTap != null) ...[
-                    const SizedBox(height: 8),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: TextButton.icon(
-                        onPressed: () => onTap(reportId),
-                        icon: const Icon(Icons.visibility, size: 16),
-                        label: const Text('View'),
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                          minimumSize: Size.zero,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
+                ),
                 const SizedBox(height: 4),
                 Text(
                   time,
@@ -598,8 +605,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               ),
             ),
           const SizedBox(width: 4),
-          Icon(
-            isExpanded ? Icons.expand_less : Icons.expand_more,
+          AnimatedExpandIcon(
+            expanded: isExpanded,
             size: 20,
             color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),

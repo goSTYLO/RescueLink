@@ -2,7 +2,7 @@ const Responder = require('../models/responder');
 const User = require('../models/user');
 const Department = require('../models/department');
 const pool = require('../config/db');
-const { validateInteger, validateString, validateOptionalString, validatePagination, validateAllowedValue } = require('../utils/validation');
+const { validateInteger, validateString, validateOptionalString, validatePagination, validateAllowedValue, validateLatitude, validateLongitude } = require('../utils/validation');
 const { logDispatcherAction } = require('../utils/auditLog');
 const { ROLES } = require('../config/roles');
 
@@ -337,29 +337,74 @@ const responderController = {
   async updateOnlineStatus(req, res) {
     try {
       const userId = req.user.user_id;
-      const { online } = req.body;
+      const { online, latitude, longitude } = req.body;
       if (typeof online !== 'boolean') {
         return res.status(400).json({ error: '"online" must be a boolean.' });
       }
+
+      const hasLocation = latitude !== undefined && longitude !== undefined;
+      let validatedLatitude = null;
+      let validatedLongitude = null;
+      if (hasLocation) {
+        validatedLatitude = validateLatitude(latitude);
+        validatedLongitude = validateLongitude(longitude);
+      }
+
+      const ensureLocationColumns = async () => {
+        await pool.query(`
+          ALTER TABLE users ADD COLUMN IF NOT EXISTS responder_online BOOLEAN DEFAULT FALSE;
+          ALTER TABLE users ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION;
+          ALTER TABLE users ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION;
+        `);
+      };
+
       try {
-        await pool.query(
-          'UPDATE users SET responder_online = $1 WHERE user_id = $2',
-          [online, userId]
-        );
-      } catch (err) {
-        if (err.code === '42703' && err.message.includes('responder_online')) {
-          // Self-heal: add column dynamically if migration was missed
-          await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS responder_online BOOLEAN DEFAULT FALSE');
+        if (hasLocation) {
+          await pool.query(
+            `UPDATE users
+                SET responder_online = $1,
+                    latitude = $2,
+                    longitude = $3
+              WHERE user_id = $4`,
+            [online, validatedLatitude, validatedLongitude, userId]
+          );
+        } else {
           await pool.query(
             'UPDATE users SET responder_online = $1 WHERE user_id = $2',
             [online, userId]
           );
+        }
+      } catch (err) {
+        if (err.code === '42703') {
+          await ensureLocationColumns();
+          if (hasLocation) {
+            await pool.query(
+              `UPDATE users
+                  SET responder_online = $1,
+                      latitude = $2,
+                      longitude = $3
+                WHERE user_id = $4`,
+              [online, validatedLatitude, validatedLongitude, userId]
+            );
+          } else {
+            await pool.query(
+              'UPDATE users SET responder_online = $1 WHERE user_id = $2',
+              [online, userId]
+            );
+          }
         } else {
           throw err;
         }
       }
-      res.json({ online, user_id: userId });
+      res.json({
+        online,
+        user_id: userId,
+        ...(hasLocation ? { latitude: validatedLatitude, longitude: validatedLongitude } : {}),
+      });
     } catch (err) {
+      if (err.message?.includes('must be') || err.message?.includes('Invalid')) {
+        return res.status(400).json({ error: err.message });
+      }
       console.error('updateOnlineStatus error:', err);
       res.status(500).json({ error: 'Internal server error.' });
     }

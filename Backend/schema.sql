@@ -378,6 +378,8 @@ CREATE INDEX IF NOT EXISTS idx_responders_user_id ON responders(user_id);
 
 -- Responder online/offline toggle (persisted server-side)
 ALTER TABLE users ADD COLUMN IF NOT EXISTS responder_online BOOLEAN DEFAULT FALSE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION;
 CREATE INDEX IF NOT EXISTS idx_users_responder_online ON users(responder_online) WHERE responder_online = TRUE;
 
 -- Acceptance fields on incident_reports

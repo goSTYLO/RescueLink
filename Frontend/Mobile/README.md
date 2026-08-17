@@ -8,7 +8,8 @@ Users with role `responder` (promoted upon application approval) unlock a dedica
 - **Role Gating**: Tab 3 (`Responder`) is conditionally inserted into the bottom navigation bar (`[Home, Reports, Responder, Settings]`).
 - **Responder Dashboard (`ResponderDashboardScreen`)**:
   - **Online/Offline Toggle**: Persisted server-side via `PATCH /api/responders/me/online-status`.
-  - **Active Assignments**: List of active incidents assigned to the responder with status indicators (`Assigned`, `En Route`, `On Scene`, `Resolved`).
+  - **Nearby Open Incidents**: Persistent backlog of unaccepted incidents within alert radius and matching the volunteer's specialization (from `GET /api/incidents/responder/active`). List and full-screen map views with type filter and nearest/newest sort.
+  - **Re-entry after alert**: Dismissing the incident alert modal refreshes this list; incidents remain accessible on the Responder tab even if the modal was closed without accepting.
 - **Incident Alert Modal (`IncidentAlertModal`)**:
   - Automatically pops up on receiving a `responder:incident_alert` WebSocket event when responder is online.
   - Displays incident type, severity, and barangay location.

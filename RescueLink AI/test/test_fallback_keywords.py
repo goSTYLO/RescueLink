@@ -69,5 +69,50 @@ class TestIncident821Collision(unittest.TestCase):
         self.assertFalse(no_above)
 
 
+class TestIncident824LostChild(unittest.TestCase):
+    INCIDENT_824_TEXT = (
+        "May nakita po kami yung bata dito ngayon, hindi niya daw pumahanap yung magulang nya, "
+        "andito po siya sa tapat ng bahay namin ngayon, yun lang po."
+    )
+    INCIDENT_824_SCORES = {
+        "Fire": 0.9931,
+        "Crime": 0.0148,
+        "Accident": 0.0095,
+        "Medical": 0.0114,
+        "Natural Disaster": 0.0049,
+        "Other": 0.9834,
+    }
+
+    def test_detects_lost_child_keywords_not_fire(self):
+        matched = detect_keyword_matched_types(self.INCIDENT_824_TEXT, incident_labels=LABELS)
+        self.assertIn("Other", matched)
+        self.assertNotIn("Fire", matched)
+
+    def test_rank_drops_false_fire_for_lost_child_at_house(self):
+        ranked, _, no_above = rank_and_promote_incident_types(
+            self.INCIDENT_824_TEXT,
+            self.INCIDENT_824_SCORES,
+            threshold=0.5,
+            incident_labels=LABELS,
+        )
+        self.assertEqual(ranked, ["Other"])
+        self.assertFalse(no_above)
+
+    def test_real_house_fire_with_child_keeps_fire(self):
+        text = "May sunog sa bahay may bata na naiwan"
+        scores = {
+            "Fire": 0.9994,
+            "Crime": 0.1255,
+            "Accident": 0.0201,
+            "Medical": 0.0632,
+            "Natural Disaster": 0.0065,
+            "Other": 0.0451,
+        }
+        ranked, _, _ = rank_and_promote_incident_types(
+            text, scores, threshold=0.5, incident_labels=LABELS
+        )
+        self.assertEqual(ranked, ["Fire"])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -12,7 +12,6 @@ import '../../utils/incident_navigation.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/staggered_fade_in.dart';
 import '../responder/responder_dashboard_screen.dart';
-import '../responder/responder_incident_preview_screen.dart';
 
 class HomePlaceholderScreen extends StatefulWidget {
   final Future<void> Function(ThemeMode mode)? onThemeChanged;
@@ -65,7 +64,8 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
   bool _revokeModalShowing = false;
   bool _approveModalShowing = false;
   final ResponderAlertCoordinator _responderAlertCoordinator = ResponderAlertCoordinator();
-  final GlobalKey _responderDashboardKey = GlobalKey();
+  final GlobalKey<ResponderDashboardScreenState> _responderDashboardKey =
+      GlobalKey<ResponderDashboardScreenState>();
 
   // SOS hold animation
   late AnimationController _sosHoldController;
@@ -148,12 +148,27 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
     } catch (_) {}
   }
 
+  static const int _responderTabIndex = 2;
+
   Future<void> _initResponderAlerts() async {
     final online = await _responderAlertCoordinator.refreshOnlineStatus();
     if (!mounted) return;
     setState(() => _responderOnline = online);
     _responderAlertCoordinator.updateContext(context);
+    _responderAlertCoordinator.onAlertDismissed = _onResponderAlertDismissed;
     _responderAlertCoordinator.start();
+  }
+
+  void _onResponderAlertDismissed() {
+    _responderDashboardKey.currentState?.refreshIncidents();
+    if (_currentIndex != _responderTabIndex && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Incident available on Responder tab'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   Future<void> _syncResponderOnlineFromServer() async {
@@ -170,18 +185,6 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
     if (!online) {
       _responderAlertCoordinator.clearShownAlerts();
     }
-  }
-
-  void _openIncidentForCurrentRole(int reportId) {
-    if (_isResponder) {
-      Navigator.of(context, rootNavigator: true).push(
-        MaterialPageRoute<void>(
-          builder: (_) => ResponderIncidentPreviewScreen(reportId: reportId),
-        ),
-      );
-      return;
-    }
-    widget.onReportTap?.call(reportId);
   }
 
   void _openIncidentByInvolvement(int reportId, {Map<String, dynamic>? incidentHint}) {
@@ -1202,7 +1205,6 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
         ResponderDashboardScreen(
           key: _responderDashboardKey,
           online: _responderOnline,
-          onIncidentTap: _openIncidentForCurrentRole,
           onNotificationsTap: () => _openNotifications(context),
           unreadNotificationCount: _apiUnreadCount + _unreadReportsCount,
           onOnlineStatusChanged: _onResponderOnlineChanged,

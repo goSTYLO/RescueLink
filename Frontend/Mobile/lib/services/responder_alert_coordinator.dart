@@ -7,6 +7,9 @@ import '../screens/responder/responder_incident_preview_screen.dart';
 import 'responder_service.dart';
 import 'websocket_service.dart';
 
+/// Called when an incident alert modal is dismissed (decline, accept, view details, or close).
+typedef ResponderAlertDismissedCallback = void Function();
+
 /// App-wide handler for `responder:incident_alert` WebSocket events.
 class ResponderAlertCoordinator {
   StreamSubscription<IncidentEvent>? _subscription;
@@ -14,6 +17,8 @@ class ResponderAlertCoordinator {
   bool _online = false;
   bool _started = false;
   bool _modalShowing = false;
+
+  ResponderAlertDismissedCallback? onAlertDismissed;
 
   bool get online => _online;
 
@@ -56,6 +61,10 @@ class ResponderAlertCoordinator {
   /// Handle a responder alert event (also callable from [HomePlaceholderScreen]).
   Future<void> handleEvent(BuildContext context, IncidentEvent event) =>
       _handleEvent(context, event);
+
+  void _notifyDismissed() {
+    onAlertDismissed?.call();
+  }
 
   Future<void> _handleEvent(BuildContext context, IncidentEvent event) async {
     if (event.event != 'responder:incident_alert') return;
@@ -114,6 +123,7 @@ class ResponderAlertCoordinator {
       ),
     );
     _modalShowing = false;
+    _notifyDismissed();
   }
 
   Future<bool> refreshOnlineStatus() async {

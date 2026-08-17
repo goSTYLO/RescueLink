@@ -3,6 +3,7 @@ import '../../services/auth_service.dart';
 import '../../services/theme_service.dart';
 import '../../services/responder_application_service.dart';
 import '../../utils/responsive.dart';
+import '../../widgets/animated_collapse.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/skeleton_placeholder.dart';
 import 'responder_application/responder_onboarding_screen.dart';
@@ -707,18 +708,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                     ),
                   ),
-                  Icon(
-                    isExpanded ? Icons.expand_less : Icons.expand_more,
+                  AnimatedExpandIcon(
+                    expanded: isExpanded,
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ],
               ),
             ),
           ),
-          if (isExpanded) ...[
-            const Divider(height: 1),
-            ...children,
-          ],
+          AnimatedCollapse(
+            expanded: isExpanded,
+            child: Column(
+              children: [
+                const Divider(height: 1),
+                ...children,
+              ],
+            ),
+          ),
         ],
       ),
     );

@@ -2,17 +2,42 @@ jest.mock('../src/config/db', () => ({
   query: jest.fn(),
 }));
 
+jest.mock('../src/utils/encryption', () => ({
+  tryDecryptValue: jest.fn((value) => {
+    if (value === 'enc:16.05') return '16.05';
+    if (value === 'enc:120.34') return '120.34';
+    return value;
+  }),
+}));
+
 const pool = require('../src/config/db');
 const {
   getActiveAssigned,
   ALERT_RADIUS_KM,
   incidentMatchesVolunteerSpecialization,
   isWithinVolunteerRadius,
+  parseCoordinate,
 } = require('../src/controllers/incidentAcceptance');
 
 describe('responder active incidents', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+  });
+
+  describe('parseCoordinate', () => {
+    it('parses plain numeric coordinates', () => {
+      expect(parseCoordinate(16.05)).toBe(16.05);
+      expect(parseCoordinate('120.34')).toBe(120.34);
+    });
+
+    it('parses decrypted coordinate strings', () => {
+      expect(parseCoordinate('enc:16.05')).toBe(16.05);
+      expect(parseCoordinate('enc:120.34')).toBe(120.34);
+    });
+
+    it('returns null for non-numeric encrypted payloads', () => {
+      expect(parseCoordinate('43214df11f20d093f925d1de1f2847fe')).toBeNull();
+    });
   });
 
   describe('incidentMatchesVolunteerSpecialization', () => {
@@ -50,27 +75,78 @@ describe('responder active incidents', () => {
   });
 
   describe('getActiveAssigned handler', () => {
-    it('queries with user id and alert radius then returns rows', async () => {
+    it('ensures schema, loads volunteer coords, then queries active incidents', async () => {
       const rows = [
-        { report_id: 10, incident_type: 'medical', accepted_by_user_id: null },
-        { report_id: 11, incident_type: 'sos', accepted_by_user_id: 4, responder_status: 'Assigned' },
+        {
+          report_id: 10,
+          incident_type: 'medical',
+          accepted_by_user_id: null,
+          latitude: 16.05,
+          longitude: 120.34,
+        },
+        {
+          report_id: 11,
+          incident_type: 'sos',
+          accepted_by_user_id: 4,
+          responder_status: 'Assigned',
+          latitude: 16.04,
+          longitude: 120.33,
+        },
       ];
-      pool.query.mockResolvedValueOnce({ rows });
+      pool.query
+        .mockResolvedValueOnce({ rows: [] }) // ensurePhase3Schema
+        .mockResolvedValueOnce({ rows: [{ latitude: 16.043, longitude: 120.333 }] })
+        .mockResolvedValueOnce({ rows });
 
       const res = { json: jest.fn() };
       await getActiveAssigned({ user: { user_id: 4 } }, res);
 
-      expect(pool.query).toHaveBeenCalledTimes(1);
-      const [sql, params] = pool.query.mock.calls[0];
+      expect(pool.query).toHaveBeenCalledTimes(3);
+      const [sql, params] = pool.query.mock.calls[2];
       expect(sql).toContain('accepted_by_user_id IS NULL');
       expect(sql).toContain('supported_incident_types');
       expect(sql).toContain('distance_km');
+      expect(sql).toContain("~ '^-?[0-9]+(\\.[0-9]+)?$'");
       expect(params).toEqual([4, ALERT_RADIUS_KM]);
-      expect(res.json).toHaveBeenCalledWith(rows);
+      expect(res.json).toHaveBeenCalledWith([
+        expect.objectContaining({ report_id: 10, latitude: 16.05, longitude: 120.34 }),
+        expect.objectContaining({ report_id: 11, latitude: 16.04, longitude: 120.33 }),
+      ]);
+    });
+
+    it('falls back when user location columns are missing', async () => {
+      const rows = [{
+        report_id: 10,
+        incident_type: 'medical',
+        accepted_by_user_id: null,
+        latitude: 16.05,
+        longitude: 120.34,
+      }];
+      const missingColumnErr = new Error('column u.latitude does not exist');
+      missingColumnErr.code = '42703';
+
+      pool.query
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [{ latitude: null, longitude: null }] })
+        .mockRejectedValueOnce(missingColumnErr)
+        .mockResolvedValueOnce({ rows });
+
+      const res = { json: jest.fn() };
+      await getActiveAssigned({ user: { user_id: 4 } }, res);
+
+      expect(pool.query).toHaveBeenCalledTimes(4);
+      const [fallbackSql] = pool.query.mock.calls[3];
+      expect(fallbackSql).toContain('NULL::double precision AS latitude');
+      expect(res.json).toHaveBeenCalledWith([
+        expect.objectContaining({ report_id: 10, latitude: 16.05, longitude: 120.34 }),
+      ]);
     });
 
     it('returns 500 when query fails', async () => {
-      pool.query.mockRejectedValueOnce(new Error('db down'));
+      pool.query
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [{ latitude: 16.043, longitude: 120.333 }] })
+        .mockRejectedValueOnce(new Error('db down'));
       const res = { json: jest.fn(), status: jest.fn().mockReturnThis() };
       await getActiveAssigned({ user: { user_id: 4 } }, res);
       expect(res.status).toHaveBeenCalledWith(500);

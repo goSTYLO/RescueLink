@@ -12,6 +12,7 @@ import '../../services/notification_service.dart';
 import '../../services/websocket_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/report_ui.dart';
+import '../../widgets/animated_collapse.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/gradient_header.dart';
 import '../../widgets/skeleton_placeholder.dart';
@@ -1327,18 +1328,24 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
                       ),
                     ),
                   ),
-                  Icon(
-                    isExpanded ? Icons.expand_less : Icons.expand_more,
+                  AnimatedExpandIcon(
+                    expanded: isExpanded,
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ],
               ),
             ),
           ),
-          if (isExpanded) ...[
-            const SizedBox(height: 14),
-            child,
-          ],
+          AnimatedCollapse(
+            expanded: isExpanded,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SizedBox(height: 14),
+                child,
+              ],
+            ),
+          ),
         ],
       ),
     );

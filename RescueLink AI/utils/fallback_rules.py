@@ -13,6 +13,11 @@ FALLBACK_INCIDENT_KEYWORDS = {
         "sugat", "nasugatan", "nasaktan", "may sugat", "may sugat ang",
     ],
     "Natural Disaster": ["baha", "flood", "bagyo", "storm", "landslide", "lindol", "earthquake", "disaster"],
+    "Other": [
+        "nawawala", "nawawalang", "lost child", "missing person", "missing child",
+        "magulang", "hinahanap", "hahanapin", "pumahanap", "walang kasama",
+        "nawawalang bata", "nawawalang tao", "lost person",
+    ],
 }
 
 FALLBACK_SEVERITY_KEYWORDS = {
@@ -141,9 +146,10 @@ def rank_and_promote_incident_types(
             selected.add(matched_type)
             keyword_promoted = True
 
-    # Suppress common model false positives: Fire with no text evidence when
-    # collision/injury keywords are present (Tagalog crash reports).
-    if keyword_matched_set.intersection({"Accident", "Medical"}):
+    # Suppress model false-positive Fire when text supports other types but not fire
+    # (e.g. car crash + injury, or lost child at a house — no sunog/usok/apoy).
+    fire_competing_types = {"Accident", "Medical", "Other"}
+    if keyword_matched_set.intersection(fire_competing_types):
         if (
             "Fire" in selected
             and "Fire" not in keyword_matched_set

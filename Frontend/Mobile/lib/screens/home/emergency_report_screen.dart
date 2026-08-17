@@ -11,6 +11,7 @@ import 'package:video_player/video_player.dart';
 import '../../services/auth_service.dart';
 import '../../services/incident_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/animated_collapse.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/gradient_header.dart';
 import '../../widgets/skeleton_placeholder.dart';
@@ -854,32 +855,36 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
                                       ),
                                     ),
                                   ),
-                                  Icon(
-                                    _additionalDetailsExpanded
-                                        ? Icons.expand_less
-                                        : Icons.expand_more,
+                                  AnimatedExpandIcon(
+                                    expanded: _additionalDetailsExpanded,
                                     color: theme.colorScheme.onSurfaceVariant,
                                   ),
                                 ],
                               ),
-                              if (_additionalDetailsExpanded) ...[
-                                const SizedBox(height: 12),
-                                TextField(
-                                  controller: _detailsController,
-                                  maxLines: 4,
-                                  enabled: !_isSubmitting,
-                                  decoration: InputDecoration(
-                                    hintText: 'Describe the emergency situation..',
-                                    filled: true,
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                      borderSide: BorderSide.none,
+                              AnimatedCollapse(
+                                expanded: _additionalDetailsExpanded,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  children: [
+                                    const SizedBox(height: 12),
+                                    TextField(
+                                      controller: _detailsController,
+                                      maxLines: 4,
+                                      enabled: !_isSubmitting,
+                                      decoration: InputDecoration(
+                                        hintText: 'Describe the emergency situation..',
+                                        filled: true,
+                                        border: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(12),
+                                          borderSide: BorderSide.none,
+                                        ),
+                                        contentPadding: const EdgeInsets.symmetric(
+                                            horizontal: 16, vertical: 14),
+                                      ),
                                     ),
-                                    contentPadding: const EdgeInsets.symmetric(
-                                        horizontal: 16, vertical: 14),
-                                  ),
+                                  ],
                                 ),
-                              ],
+                              ),
                             ],
                           ),
                         ),

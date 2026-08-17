@@ -54,11 +54,20 @@ class ResponderService {
   }
 
   /// PATCH /api/responders/me/online-status
-  Future<void> toggleOnlineStatus(bool online) async {
+  Future<void> toggleOnlineStatus(
+    bool online, {
+    double? latitude,
+    double? longitude,
+  }) async {
     final uri = Uri.parse('${AppConfig.apiBaseUrl}/api/responders/me/online-status');
     try {
+      final body = <String, dynamic>{'online': online};
+      if (latitude != null && longitude != null) {
+        body['latitude'] = latitude;
+        body['longitude'] = longitude;
+      }
       final res = await _client
-          .patch(uri, headers: _headers(), body: jsonEncode({'online': online}))
+          .patch(uri, headers: _headers(), body: jsonEncode(body))
           .timeout(AppConfig.apiTimeout);
       await _handleResponse(res);
     } on SocketException {

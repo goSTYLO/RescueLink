@@ -5,6 +5,7 @@ import 'package:latlong2/latlong.dart';
 import '../../services/responder_service.dart';
 import '../../services/websocket_service.dart';
 import '../../utils/report_ui.dart';
+import '../../widgets/animated_collapse.dart';
 import '../../widgets/glass_card.dart';
 
 /// Full-detail screen opened after a responder accepts an incident.
@@ -34,6 +35,7 @@ class _ResponderIncidentDetailScreenState
   Map<String, dynamic>? _incident;
   String? _error;
   bool _submitting = false;
+  final Set<String> _expandedSections = {'map', 'progress', 'info'};
 
   StreamSubscription<IncidentEvent>? _wsSub;
 
@@ -271,92 +273,104 @@ class _ResponderIncidentDetailScreenState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Map
-          if (lat != null && lon != null)
-            ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: SizedBox(
-                height: 220,
-                child: FlutterMap(
-                  options: MapOptions(
-                    initialCenter: LatLng(lat, lon),
-                    initialZoom: 15,
+          if (lat != null && lon != null) ...[
+            _collapsibleCard(
+              key: 'map',
+              title: 'Incident Location',
+              icon: Icons.map_outlined,
+              iconColor: const Color(0xFF22C55E),
+              textPrimary: textPrimary,
+              textSec: textSec,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: SizedBox(
+                  height: 220,
+                  child: FlutterMap(
+                    options: MapOptions(
+                      initialCenter: LatLng(lat, lon),
+                      initialZoom: 15,
+                    ),
+                    children: [
+                      TileLayer(
+                        urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                        userAgentPackageName: 'com.rescuelink.mobile',
+                      ),
+                      MarkerLayer(
+                        markers: [
+                          Marker(
+                            point: LatLng(lat, lon),
+                            width: 40,
+                            height: 40,
+                            child: const Icon(Icons.location_pin, color: Color(0xFFEF4444), size: 40),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
-                  children: [
-                    TileLayer(
-                      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                      userAgentPackageName: 'com.rescuelink.mobile',
-                    ),
-                    MarkerLayer(
-                      markers: [
-                        Marker(
-                          point: LatLng(lat, lon),
-                          width: 40,
-                          height: 40,
-                          child: const Icon(Icons.location_pin, color: Color(0xFFEF4444), size: 40),
-                        ),
-                      ],
-                    ),
-                  ],
                 ),
               ),
             ),
-          const SizedBox(height: 20),
+            const SizedBox(height: 16),
+          ],
 
-          // Status stepper
-          GlassCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Response Progress',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-                const SizedBox(height: 16),
-                Row(
-                  children: List.generate(_statuses.length * 2 - 1, (i) {
-                    if (i.isOdd) {
-                      // Connector line
-                      final stepIndex = (i - 1) ~/ 2;
-                      return Expanded(
-                        child: Container(
-                          height: 2,
-                          color: stepIndex < currentIndex
-                              ? const Color(0xFF10B981)
-                              : const Color(0xFFCBD5E1),
-                        ),
-                      );
-                    }
-                    final stepIndex = i ~/ 2;
-                    final color = _stepColor(stepIndex, currentIndex);
-                    return Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 24,
-                          height: 24,
-                          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-                          child: stepIndex < currentIndex
-                              ? const Icon(Icons.check, color: Colors.white, size: 14)
-                              : stepIndex == currentIndex
-                                  ? const Icon(Icons.circle, color: Colors.white, size: 8)
-                                  : null,
-                        ),
-                        const SizedBox(height: 4),
-                        Text(_statuses[stepIndex],
-                            style: TextStyle(
-                                fontSize: 9,
-                                fontWeight: stepIndex == currentIndex ? FontWeight.bold : FontWeight.normal,
-                                color: color)),
-                      ],
-                    );
-                  }),
-                ),
-              ],
+          _collapsibleCard(
+            key: 'progress',
+            title: 'Response Progress',
+            icon: Icons.timeline,
+            iconColor: const Color(0xFFEF4444),
+            textPrimary: textPrimary,
+            textSec: textSec,
+            child: Row(
+              children: List.generate(_statuses.length * 2 - 1, (i) {
+                if (i.isOdd) {
+                  final stepIndex = (i - 1) ~/ 2;
+                  return Expanded(
+                    child: Container(
+                      height: 2,
+                      color: stepIndex < currentIndex
+                          ? const Color(0xFF10B981)
+                          : const Color(0xFFCBD5E1),
+                    ),
+                  );
+                }
+                final stepIndex = i ~/ 2;
+                final color = _stepColor(stepIndex, currentIndex);
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 24,
+                      height: 24,
+                      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                      child: stepIndex < currentIndex
+                          ? const Icon(Icons.check, color: Colors.white, size: 14)
+                          : stepIndex == currentIndex
+                              ? const Icon(Icons.circle, color: Colors.white, size: 8)
+                              : null,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _statuses[stepIndex],
+                      style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: stepIndex == currentIndex ? FontWeight.bold : FontWeight.normal,
+                        color: color,
+                      ),
+                    ),
+                  ],
+                );
+              }),
             ),
           ),
           const SizedBox(height: 16),
 
-          // Info
-          GlassCard(
+          _collapsibleCard(
+            key: 'info',
+            title: 'Incident Details',
+            icon: Icons.info_outline,
+            iconColor: const Color(0xFF2563EB),
+            textPrimary: textPrimary,
+            textSec: textSec,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -409,6 +423,70 @@ class _ResponderIncidentDetailScreenState
               ),
           ],
           const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+
+  Widget _collapsibleCard({
+    required String key,
+    required String title,
+    required IconData icon,
+    required Color iconColor,
+    required Color textPrimary,
+    required Color textSec,
+    required Widget child,
+  }) {
+    final isExpanded = _expandedSections.contains(key);
+    return GlassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          InkWell(
+            onTap: () {
+              setState(() {
+                if (isExpanded) {
+                  _expandedSections.remove(key);
+                } else {
+                  _expandedSections.add(key);
+                }
+              });
+            },
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: [
+                  Icon(icon, color: iconColor, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: textPrimary,
+                      ),
+                    ),
+                  ),
+                  AnimatedExpandIcon(
+                    expanded: isExpanded,
+                    color: textSec,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          AnimatedCollapse(
+            expanded: isExpanded,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SizedBox(height: 14),
+                child,
+              ],
+            ),
+          ),
         ],
       ),
     );
