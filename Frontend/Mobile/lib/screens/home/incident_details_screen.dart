@@ -104,6 +104,8 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
         const refreshEvents = {
           'incident:accepted',
           'responder:status_changed',
+          'responder:backup_requested',
+          'responder:backup_acknowledged',
           'incident:status_updated',
           'incident:dispatched',
         };
@@ -1014,6 +1016,13 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
                                         'Department',
                                         assignedDepartmentDisplayName(
                                             _incident)),
+                                    if (BackupStatusUi.assignedBackupTeamLabel(_incident) != null) ...[
+                                      const SizedBox(height: 10),
+                                      _simpleRow(
+                                        'Backup unit',
+                                        BackupStatusUi.assignedBackupTeamLabel(_incident)!,
+                                      ),
+                                    ],
                                     const SizedBox(height: 10),
                                     _simpleRow(
                                         'Severity',
@@ -1164,6 +1173,51 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
               color: ReportStatusUi.badgeText(status),
             ),
           ),
+          if (BackupStatusUi.hasPendingBackup(_incident)) ...[
+            const SizedBox(height: 12),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.info_outline,
+                  size: 18,
+                  color: ReportStatusUi.badgeText(status),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Additional backup has been requested for your incident. Official units may be dispatched.',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: ReportStatusUi.badgeText(status),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ] else if (BackupStatusUi.hasBackupUnitDispatched(_incident)) ...[
+            const SizedBox(height: 12),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.local_shipping_outlined,
+                  size: 18,
+                  color: ReportStatusUi.badgeText(status),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Official backup unit ${BackupStatusUi.assignedBackupTeamLabel(_incident)!} has been dispatched.',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: ReportStatusUi.badgeText(status),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );

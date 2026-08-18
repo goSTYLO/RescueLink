@@ -62,6 +62,8 @@ function mapActiveIncidentRow(row, volunteerLat, volunteerLon) {
     latitude,
     longitude,
     distance_km: Number.isFinite(distance_km) ? distance_km : null,
+    has_pending_backup: Boolean(row.has_pending_backup),
+    latest_backup_status: row.latest_backup_status || null,
   };
 }
 
@@ -691,6 +693,17 @@ function buildActiveAssignedSql(includeUserLocation) {
               ir.accepted_at,
               ir.created_at,
               ir.accepted_by_user_id,
+              EXISTS (
+                SELECT 1 FROM backup_requests br
+                 WHERE br.report_id = ir.report_id
+                   AND COALESCE(br.status, 'pending') = 'pending'
+              ) AS has_pending_backup,
+              (
+                SELECT br.status FROM backup_requests br
+                 WHERE br.report_id = ir.report_id
+                 ORDER BY br.created_at DESC
+                 LIMIT 1
+              ) AS latest_backup_status,
               CASE
                 WHEN v.latitude IS NOT NULL
                  AND v.longitude IS NOT NULL

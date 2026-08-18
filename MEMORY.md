@@ -47,12 +47,15 @@ Added: 2026-08-17 — volunteer resolve sync to dispatcher dashboard.
 - Mobile `POST /api/incidents/:id/backup` creates a `backup_requests` row (`status`: `pending` | `acknowledged`) and emits **`responder:backup_requested`** with enriched payload (`backup_request_id`, `target`, `notes`, `requested_by_name`, incident metadata).
 - Staff notifications fan out to dispatcher/admin/supervisor and users in **assigned departments** — not stored on the requesting volunteer.
 - **`PATCH /api/incidents/:id/backup/:backupId/acknowledge`** (dispatcher/admin/supervisor; department roles only when dispatched) sets `acknowledged_*` and emits **`responder:backup_acknowledged`** so list badges refresh.
-- List API: `?volunteer_accepted=true` filters `accepted_by_user_id IS NOT NULL` (includes Resolved); returns `accepted_by_name`, `accepted_by_phone`, `has_pending_backup`, `pending_backup_request_id`, and incident lat/lng.
-- Web: bell titled backup items; **`BACKUP REQUESTED`** badge on dashboard rows (All Incidents + Volunteer Response) with Acknowledge + Dispatch (`?tab=details&focus=dispatch` → Notify/Add Department). Department-role Swal toast only when incident is dispatched to their department; no dispatcher toast.
+- List API: `?volunteer_accepted=true` filters `accepted_by_user_id IS NOT NULL` (includes Resolved); returns `accepted_by_name`, `accepted_by_phone`, `has_pending_backup`, `pending_backup_request_id`, `latest_backup_status`, and incident lat/lng.
+- **`GET /api/incidents/:id`** (and with-AI variant) includes `has_pending_backup` + `latest_backup_status`; volunteer **acceptor** (`accepted_by_user_id`) may read the incident they accepted.
+- Web: bell titled backup items; **`BACKUP REQUESTED`** badge on dashboard rows and incident details header; **Send Backup** inline with Notify Department (scroll/focus dispatch — same as Dispatch units). Acknowledge via dialog.
+- Mobile citizen incident details: amber info line on status card while backup pending; refetch on `responder:backup_requested` / `responder:backup_acknowledged`.
+- Mobile volunteer incident details: loads via `getIncidentById` (acceptor access); **Backup requested** / **Backup acknowledged** / **Backup unit dispatched** chips; hides **Request Backup** while pending; WS refetch on backup, dispatch, and status events. Volunteer acceptors receive `incident:dispatched` over WebSocket even when not in the assigned department.
 - **Volunteer Response** tab mirrors main filters/pagination; columns include volunteer name/phone/status and **distance from viewer department HQ to incident** (CDRRMO HQ fallback for dispatchers without a department).
 - Nearby-volunteer backup accept/decline fan-out remains out of scope.
 
-Added: 2026-08-18 — backup acknowledge lifecycle + volunteer response web tab.
+Added: 2026-08-18 — backup acknowledge lifecycle + volunteer response web tab + incident-details backup UI (web Send Backup, mobile chips).
 
 ## Incident close (dispatcher/admin force-close)
 

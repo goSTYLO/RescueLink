@@ -169,17 +169,6 @@ function init(server) {
           supportedIncidentTypes = rRes.rows[0].supported_incident_types;
         }
       } catch (_) {}
-    } else {
-      // Approved volunteer pool members may still have JWT role 'user' until re-login.
-      try {
-        const rRes = await pool.query('SELECT supported_incident_types FROM responders WHERE user_id = $1', [userId]);
-        if (rRes.rows[0]) {
-          role = ROLES.RESPONDER;
-          if (Array.isArray(rRes.rows[0].supported_incident_types)) {
-            supportedIncidentTypes = rRes.rows[0].supported_incident_types;
-          }
-        }
-      } catch (_) {}
     }
 
     clients.set(ws, { userId, role, departmentId, supportedIncidentTypes });
@@ -210,14 +199,16 @@ function init(server) {
 
     const reportId = data.report_id ?? data.reportId;
     let reporterId = data.reporter_id ?? data.reporterId ?? data.user_id ?? data.userId;
+    let acceptorUserId = data.accepted_by_user_id ?? data.acceptedByUserId ?? null;
 
-    if (reporterId == null && reportId) {
+    if ((reporterId == null || acceptorUserId == null) && reportId) {
       try {
         const repRes = await pool.query(
-          'SELECT user_id FROM incident_reports WHERE report_id = $1',
+          'SELECT user_id, accepted_by_user_id FROM incident_reports WHERE report_id = $1',
           [reportId]
         );
-        reporterId = repRes.rows[0]?.user_id ?? null;
+        if (reporterId == null) reporterId = repRes.rows[0]?.user_id ?? null;
+        if (acceptorUserId == null) acceptorUserId = repRes.rows[0]?.accepted_by_user_id ?? null;
       } catch (_) {}
     }
     let assignedDeptIds = data.assigned_department_ids ?? data.assignedDepartmentIds ?? null;
@@ -308,9 +299,9 @@ function init(server) {
         continue;
       }
 
-      // Reporter (user): only own incidents
+      // Reporter (user): own incidents only — never volunteer alert modals
       if (role === ROLES.USER) {
-        if (reporterId != null && reporterId === userId) {
+        if (!isResponderAlert && reporterId != null && reporterId === userId) {
           toSend.push(ws);
         }
         continue;
@@ -319,6 +310,9 @@ function init(server) {
       // Responder: filter by supported incident types if event is responder alert
       if (role === ROLES.RESPONDER) {
         if (isResponderAlert) {
+          if (reporterId != null && Number(reporterId) === Number(userId)) {
+            continue;
+          }
           const userRow = onlineResponderMap?.get(userId);
           if (!userRow?.responder_online) continue;
 
@@ -341,6 +335,11 @@ function init(server) {
             if (dist > ALERT_RADIUS_KM) continue;
           }
 
+          toSend.push(ws);
+          continue;
+        }
+        // Volunteer who accepted the incident: backup/dispatch/status updates for their assignment
+        if (acceptorUserId != null && Number(acceptorUserId) === Number(userId)) {
           toSend.push(ws);
           continue;
         }

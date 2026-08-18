@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../screens/responder/incident_alert_modal.dart';
 import '../screens/responder/responder_incident_detail_screen.dart';
 import '../screens/responder/responder_incident_preview_screen.dart';
+import 'auth_service.dart';
 import 'responder_service.dart';
 import 'websocket_service.dart';
 
@@ -68,10 +69,17 @@ class ResponderAlertCoordinator {
 
   Future<void> _handleEvent(BuildContext context, IncidentEvent event) async {
     if (event.event != 'responder:incident_alert') return;
+    if (AuthService().getUserRole() != 'responder') return;
     // Server only delivers this event to online, role-matched responders.
     // Do not gate on the local _online cache — it may be stale until the
     // Responder tab is opened.
     if (_modalShowing) return;
+
+    final selfId = AuthService().getUserId();
+    final reporterId = event.reporterId;
+    if (selfId != null && reporterId != null && selfId == reporterId) {
+      return;
+    }
 
     final reportId = _parseReportId(event);
     if (reportId == null || _shownAlertIds.contains(reportId)) return;

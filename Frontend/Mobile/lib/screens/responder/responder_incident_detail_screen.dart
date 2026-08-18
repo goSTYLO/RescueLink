@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../../services/responder_service.dart';
+import '../../services/incident_service.dart';
 import '../../services/websocket_service.dart';
 import '../../utils/report_ui.dart';
 import '../../widgets/animated_collapse.dart';
@@ -30,6 +31,7 @@ class ResponderIncidentDetailScreen extends StatefulWidget {
 class _ResponderIncidentDetailScreenState
     extends State<ResponderIncidentDetailScreen> {
   final ResponderService _service = ResponderService();
+  final IncidentService _incidentService = IncidentService();
 
   bool _loading = true;
   Map<String, dynamic>? _incident;
@@ -64,6 +66,19 @@ class _ResponderIncidentDetailScreenState
       if (event.event == 'application:status_changed' &&
           event.data['status']?.toString().toLowerCase() == 'revoked') {
         Navigator.of(context).pop();
+        return;
+      }
+      final rid = parseInt(event.reportId ?? event.data['report_id']);
+      if (rid != widget.reportId) return;
+      const refreshEvents = {
+        'responder:status_changed',
+        'responder:backup_requested',
+        'responder:backup_acknowledged',
+        'incident:status_updated',
+        'incident:dispatched',
+      };
+      if (refreshEvents.contains(event.event)) {
+        _loadIncident();
       }
     });
   }
@@ -72,6 +87,7 @@ class _ResponderIncidentDetailScreenState
   void dispose() {
     _wsSub?.cancel();
     _service.close();
+    _incidentService.close();
     super.dispose();
   }
 
@@ -81,6 +97,20 @@ class _ResponderIncidentDetailScreenState
       setState(() { _loading = true; _error = null; });
     }
     try {
+      try {
+        final detail = await _incidentService.getIncidentById(widget.reportId);
+        if (mounted) {
+          setState(() {
+            _incident = detail;
+            _loading = false;
+            _error = null;
+          });
+        }
+        return;
+      } on IncidentServiceException {
+        // Fall back to active/history list when direct GET is unavailable.
+      }
+
       final list = await _service.getActiveIncidents();
       final found = list
           .where((i) => parseInt(i['report_id']) == widget.reportId)
@@ -203,9 +233,17 @@ class _ResponderIncidentDetailScreenState
       try {
         await _service.requestBackup(widget.reportId, selected, notes: controller.text.trim());
         if (mounted) {
+          setState(() {
+            _incident = {
+              if (_incident != null) ..._incident!,
+              'has_pending_backup': true,
+              'latest_backup_status': 'pending',
+            };
+          });
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Backup request sent.'), backgroundColor: Color(0xFF10B981)),
           );
+          await _loadIncident();
         }
       } on ResponderServiceException catch (e) {
         if (mounted) {
@@ -221,6 +259,57 @@ class _ResponderIncidentDetailScreenState
     if (index < currentIndex) return const Color(0xFF10B981);
     if (index == currentIndex) return const Color(0xFFEF4444);
     return const Color(0xFFCBD5E1);
+  }
+
+  Widget _buildBackupStatusChip({
+    required String label,
+    required IconData icon,
+    required Color backgroundColor,
+    required Color borderColor,
+    required Color textColor,
+    String? subtitle,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: borderColor),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: textColor, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: textColor,
+                  ),
+                ),
+                if (subtitle != null && subtitle.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: textColor.withValues(alpha: 0.85),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -389,6 +478,36 @@ class _ResponderIncidentDetailScreenState
           ),
           const SizedBox(height: 20),
 
+          if (BackupStatusUi.hasPendingBackup(inc))
+            _buildBackupStatusChip(
+              label: 'Backup requested',
+              icon: Icons.shield_outlined,
+              backgroundColor: const Color(0xFFFEF3C7),
+              borderColor: const Color(0xFFF59E0B),
+              textColor: const Color(0xFFB45309),
+            )
+          else if (BackupStatusUi.hasBackupUnitDispatched(inc))
+            _buildBackupStatusChip(
+              label: 'Backup unit dispatched',
+              subtitle: BackupStatusUi.assignedBackupTeamLabel(inc),
+              icon: Icons.local_shipping_outlined,
+              backgroundColor: const Color(0xFFDBEAFE),
+              borderColor: const Color(0xFF2563EB),
+              textColor: const Color(0xFF1D4ED8),
+            )
+          else if (BackupStatusUi.isBackupAcknowledged(inc))
+            _buildBackupStatusChip(
+              label: 'Backup acknowledged',
+              icon: Icons.check_circle_outline,
+              backgroundColor: const Color(0xFFD1FAE5),
+              borderColor: const Color(0xFF10B981),
+              textColor: const Color(0xFF047857),
+            ),
+          if (BackupStatusUi.hasPendingBackup(inc) ||
+              BackupStatusUi.isBackupAcknowledged(inc) ||
+              BackupStatusUi.hasBackupUnitDispatched(inc))
+            const SizedBox(height: 12),
+
           // Actions
           if (!widget.readOnly) ...[
             if (next != null)
@@ -408,7 +527,7 @@ class _ResponderIncidentDetailScreenState
                 ),
               ),
             const SizedBox(height: 10),
-            if (currentStatus != 'Resolved')
+            if (currentStatus != 'Resolved' && !BackupStatusUi.hasPendingBackup(inc))
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(

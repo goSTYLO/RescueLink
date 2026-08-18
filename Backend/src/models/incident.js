@@ -184,13 +184,44 @@ const Incident = {
 
   async findById(report_id) {
     const res = await pool.query(
-      `SELECT ir.*, u.first_name AS reporter_first_name, u.last_name AS reporter_last_name, u.phone_number AS reporter_phone
+      `SELECT ir.*,
+              u.first_name AS reporter_first_name,
+              u.last_name AS reporter_last_name,
+              u.phone_number AS reporter_phone,
+              EXISTS (
+                SELECT 1 FROM backup_requests br
+                 WHERE br.report_id = ir.report_id
+                   AND COALESCE(br.status, 'pending') = 'pending'
+              ) AS has_pending_backup,
+              (
+                SELECT br.id FROM backup_requests br
+                 WHERE br.report_id = ir.report_id
+                   AND COALESCE(br.status, 'pending') = 'pending'
+                 ORDER BY br.created_at DESC
+                 LIMIT 1
+              ) AS pending_backup_request_id,
+              (
+                SELECT br.status FROM backup_requests br
+                 WHERE br.report_id = ir.report_id
+                 ORDER BY br.created_at DESC
+                 LIMIT 1
+              ) AS latest_backup_status
        FROM incident_reports ir
        LEFT JOIN users u ON ir.user_id = u.user_id
        WHERE ir.report_id = $1`,
       [report_id]
     );
-    return decodeReporterFields(res.rows[0]);
+    const row = res.rows[0];
+    if (!row) return null;
+    const decoded = decodeReporterFields(row);
+    return {
+      ...decoded,
+      has_pending_backup: Boolean(row.has_pending_backup),
+      pending_backup_request_id: row.pending_backup_request_id != null
+        ? Number(row.pending_backup_request_id)
+        : null,
+      latest_backup_status: row.latest_backup_status || null,
+    };
   },
 
   async findAll({
@@ -231,7 +262,13 @@ const Incident = {
                              AND COALESCE(br.status, 'pending') = 'pending'
                            ORDER BY br.created_at DESC
                            LIMIT 1
-                        ) AS pending_backup_request_id
+                        ) AS pending_backup_request_id,
+                        (
+                          SELECT br.status FROM backup_requests br
+                           WHERE br.report_id = ir.report_id
+                           ORDER BY br.created_at DESC
+                           LIMIT 1
+                        ) AS latest_backup_status
       FROM incident_reports ir
       LEFT JOIN users u ON ir.user_id = u.user_id
       LEFT JOIN users acceptor ON acceptor.user_id = ir.accepted_by_user_id
@@ -319,6 +356,7 @@ const Incident = {
         pending_backup_request_id: row.pending_backup_request_id != null
           ? Number(row.pending_backup_request_id)
           : null,
+        latest_backup_status: row.latest_backup_status || null,
       };
     });
   },

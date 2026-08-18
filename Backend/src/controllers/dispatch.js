@@ -7,20 +7,13 @@ const { validateInteger, validateOptionalString, validatePagination } = require(
 const { logDispatcherAction } = require('../utils/auditLog');
 const { ROLES } = require('../config/roles');
 const { persistIncidentNotifications } = require('../services/notificationPersistence');
+const { buildIncidentEventPayload } = require('../utils/incidentEvents');
 
 function emitDispatchEvent(req, event, reportId, incident = null) {
   const wss = req.app?.locals?.wss;
   if (!reportId) return;
   const data = incident
-    ? {
-        report_id: reportId,
-        reporter_id: incident.user_id ?? incident.userId ?? incident.reporter_id,
-        status: incident.status,
-        incident_type: incident.incident_type,
-        severity_level: incident.severity_level,
-        barangay: incident.barangay,
-        updated_at: incident.updated_at ?? incident.created_at ?? new Date().toISOString(),
-      }
+    ? buildIncidentEventPayload(incident)
     : { report_id: reportId, updated_at: new Date().toISOString() };
   if (wss?.broadcast) {
     wss.broadcast(event, data).catch(() => {});

@@ -96,7 +96,9 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
         unawaited(_handleApplicationStatusChanged(event.data));
       }
       if (event.event == 'responder:incident_alert') {
-        unawaited(_responderAlertCoordinator.handleEvent(context, event));
+        if (_isResponder) {
+          unawaited(_responderAlertCoordinator.handleEvent(context, event));
+        }
         return;
       }
       final title = _formatNotificationTitle(event);

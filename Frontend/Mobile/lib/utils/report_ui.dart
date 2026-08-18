@@ -610,3 +610,41 @@ String _month(int m) {
   ];
   return months[m - 1];
 }
+
+/// Backup request status helpers shared by citizen and volunteer incident detail screens.
+class BackupStatusUi {
+  static bool hasPendingBackup(Map<String, dynamic>? incident) {
+    if (incident == null) return false;
+    if (incident['has_pending_backup'] == true) return true;
+    final status = (incident['latest_backup_status'] as String?)?.trim().toLowerCase();
+    return status == 'pending';
+  }
+
+  static bool isBackupAcknowledged(Map<String, dynamic>? incident) {
+    if (incident == null || hasPendingBackup(incident)) return false;
+    final status = (incident['latest_backup_status'] as String?)?.trim().toLowerCase();
+    return status == 'acknowledged';
+  }
+
+  static bool hasBackupContext(Map<String, dynamic>? incident) {
+    if (incident == null) return false;
+    if (hasPendingBackup(incident) || isBackupAcknowledged(incident)) return true;
+    final status = (incident['latest_backup_status'] as String?)?.trim();
+    return status != null && status.isNotEmpty;
+  }
+
+  static String? assignedBackupTeamLabel(Map<String, dynamic>? incident) {
+    if (incident == null || !hasBackupContext(incident)) return null;
+    final team = (incident['assigned_team_name'] as String?)?.trim();
+    if (team == null || team.isEmpty) return null;
+    final dept = assignedDepartmentDisplayName(incident);
+    if (dept != 'Not assigned' && dept.isNotEmpty) {
+      return '$team ($dept)';
+    }
+    return team;
+  }
+
+  static bool hasBackupUnitDispatched(Map<String, dynamic>? incident) {
+    return assignedBackupTeamLabel(incident) != null;
+  }
+}

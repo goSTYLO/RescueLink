@@ -612,4 +612,41 @@ describe('Volunteer Responder Incident Alerts', () => {
     expect(previewRes.status).toBe(200);
     expect(previewRes.body.report_id).toBe(reportId);
   });
+
+  test('reporter does not receive responder:incident_alert for their own SOS', async () => {
+    const reporterToken = await tryLoginReporter('639005000001', 'user123')
+      || await tryLoginReporter('09005000001', 'user123');
+    if (!reporterToken) return;
+
+    const ws = await connectWebSocket(reporterToken);
+    await createEmergencyIncident(reporterToken);
+    await waitForNoEvent(ws, 'responder:incident_alert', 2500);
+
+    ws.close();
+  });
+
+  test('plain citizen does not receive responder:incident_alert for another user incident', async () => {
+    const reporterToken = await tryLoginReporter('639005000001', 'user123')
+      || await tryLoginReporter('09005000001', 'user123');
+    if (!reporterToken) return;
+
+    const adminToken = await loginDispatcher('admin@rescuelink.test', 'admin123');
+    const ws = await connectWebSocket(reporterToken);
+    await createEmergencyIncident(adminToken);
+    await waitForNoEvent(ws, 'responder:incident_alert', 2500);
+
+    ws.close();
+  });
+
+  test('online volunteer does not receive responder:incident_alert for incident they reported', async () => {
+    const volunteer = await promoteToVolunteerResponder({ online: true });
+    volunteerUserId = volunteer.userId;
+    volunteerOriginalRole = volunteer.originalRole;
+
+    const ws = await connectWebSocket(volunteer.token);
+    await createEmergencyIncident(volunteer.token);
+    await waitForNoEvent(ws, 'responder:incident_alert', 2500);
+
+    ws.close();
+  });
 });

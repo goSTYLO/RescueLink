@@ -20,6 +20,20 @@ const { buildIncidentEventPayload, emitIncidentEvent } = require('../utils/incid
 const path = require('path');
 const fs = require('fs').promises;
 
+/** Reporter or volunteer who accepted the incident may read full incident detail. */
+function canReadOwnOrAcceptedIncident(user, incident) {
+  if (isResourceOwner(user, incident.user_id)) return true;
+  if (
+    user?.role === ROLES.RESPONDER
+    && user.user_id != null
+    && incident.accepted_by_user_id != null
+    && Number(incident.accepted_by_user_id) === Number(user.user_id)
+  ) {
+    return true;
+  }
+  return false;
+}
+
 function estimateEtaMinutes(distanceMeters, speedKmh = 35) {
   const speedMetersPerMinute = (speedKmh * 1000) / 60;
   return Math.max(1, Math.round(distanceMeters / speedMetersPerMinute));
@@ -523,7 +537,7 @@ const incidentController = {
           }
         }
       }
-      if (!isResourceOwner(req.user, incident.user_id)) {
+      if (!canReadOwnOrAcceptedIncident(req.user, incident)) {
         return res.status(403).json({ error: 'Forbidden. You can only access your own incidents.' });
       }
 
@@ -1572,7 +1586,7 @@ const incidentController = {
           }
         }
       }
-      if (!isResourceOwner(req.user, incident.user_id)) {
+      if (!canReadOwnOrAcceptedIncident(req.user, incident)) {
         return res.status(403).json({ error: 'Forbidden. You can only access your own incidents.' });
       }
 

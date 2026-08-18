@@ -1,6 +1,8 @@
 import { Layout } from '@/presentation/components/layout/Layout';
 import { SelectParentIncidentDialog } from '@/presentation/components/common/SelectParentIncidentDialog';
 import { VolunteerStatusBadge } from '@/presentation/components/common/VolunteerStatusBadge';
+import { BackupRequestedBadge } from '@/presentation/components/common/BackupRequestedBadge';
+import { BackupRequestDialog } from '@/presentation/components/common/BackupRequestDialog';
 import { IncidentMap } from '@/presentation/components/common/IncidentMap';
 import { Badge } from '@/presentation/components/ui/Badge';
 import { Button } from '@/presentation/components/ui/Button';
@@ -27,7 +29,7 @@ import {
   units
 } from '@/data/mock/mockData';
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { getIncidentById, getIncidentAudioUrl, getIncidentMediaUrl, getIncidentWithAi, reclassifyIncident, updateIncidentStatus, verifyIncident, getCoordinationNotes, addCoordinationNote, getIncidentDuplicates, getPotentialDuplicates, linkDuplicate, unlinkDuplicate, clearDuplicateFlag } from '@/data/api/incidents.api';
+import { getIncidentById, getIncidentAudioUrl, getIncidentMediaUrl, getIncidentWithAi, reclassifyIncident, updateIncidentStatus, verifyIncident, getCoordinationNotes, addCoordinationNote, getIncidentDuplicates, getPotentialDuplicates, linkDuplicate, unlinkDuplicate, clearDuplicateFlag, acknowledgeBackupRequest } from '@/data/api/incidents.api';
 import { getResponders, getResponderTeams, updateResponderStatus, updateResponderTeamStatus, getTeamMembers } from '@/data/api/responders.api';
 import { createDispatch, undoDepartmentNotification } from '@/data/api/dispatches.api';
 import { getDepartments } from '@/data/api/departments.api';
@@ -120,6 +122,8 @@ function mapApiToIncidentDetails(api, aiClassification = null) {
     acceptedByName: api.accepted_by_name || null,
     acceptedByPhone: api.accepted_by_phone || null,
     acceptedAt: api.accepted_at || null,
+    hasPendingBackup: Boolean(api.has_pending_backup),
+    pendingBackupRequestId: api.pending_backup_request_id ?? null,
     description: api.description || 'No description provided.',
     location: { lat: api.latitude, lng: api.longitude },
     aiSuggestion: null,
@@ -480,6 +484,8 @@ export function IncidentDetailsPage() {
   const [verifyLoading, setVerifyLoading] = useState(false);
   const [resolveLoading, setResolveLoading] = useState(false);
   const [closeLoading, setCloseLoading] = useState(false);
+  const [backupDialogOpen, setBackupDialogOpen] = useState(false);
+  const [acknowledgingBackup, setAcknowledgingBackup] = useState(false);
   const [reclassDialogOpen, setReclassDialogOpen] = useState(false);
   const [reclassLoading, setReclassLoading] = useState(false);
   const [manualReclassInfoExpanded, setManualReclassInfoExpanded] = useState(false);
@@ -1168,6 +1174,41 @@ export function IncidentDetailsPage() {
     }
   };
 
+  const handleAcknowledgeBackup = async () => {
+    const numericId = /^\d+$/.test(String(id));
+    if (!numericId || !incident?.pendingBackupRequestId) return;
+    setAcknowledgingBackup(true);
+    try {
+      await acknowledgeBackupRequest(id, incident.pendingBackupRequestId);
+      setBackupDialogOpen(false);
+      await fetchIncident({ silent: true });
+      window.dispatchEvent(new CustomEvent('incident:updated', { detail: { incidentId: id } }));
+      await Swal.fire({
+        icon: 'success',
+        title: 'Backup acknowledged',
+        timer: 1500,
+        showConfirmButton: false,
+      });
+    } catch (err) {
+      await Swal.fire({
+        icon: 'error',
+        title: 'Acknowledge failed',
+        text: err.message || 'Could not acknowledge backup request.',
+        confirmButtonColor: '#134178',
+      });
+    } finally {
+      setAcknowledgingBackup(false);
+    }
+  };
+
+  const handleDispatchBackup = () => {
+    setBackupDialogOpen(false);
+    dispatchSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (showNotifyDepartmentButton) {
+      openNotifyDepartmentDialog();
+    }
+  };
+
   const handleMarkDuplicate = async (parentReportId) => {
     const numericId = /^\d+$/.test(String(id));
     if (!numericId) return;
@@ -1389,6 +1430,16 @@ export function IncidentDetailsPage() {
           Notify Department
         </Button>
       )}
+      {incident?.hasPendingBackup && canVerifyIncident && (
+        <Button
+          variant="outline"
+          className={`gap-2 rounded-xl border-amber-500/40 text-amber-700 hover:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-500/10 ${compact ? 'h-8 px-3 text-xs rounded-lg' : ''}`}
+          onClick={handleDispatchBackup}
+        >
+          <Shield className="w-4 h-4" />
+          Send Backup
+        </Button>
+      )}
       {showUndoNotifyButton && (
         <Button
           variant="outline"
@@ -1556,6 +1607,9 @@ export function IncidentDetailsPage() {
                   {incident.status}
                 </Badge>
                 <VolunteerStatusBadge responderStatus={incident.responderStatus} className="rounded-lg px-3 py-1" />
+                {incident.hasPendingBackup && (
+                  <BackupRequestedBadge onClick={() => setBackupDialogOpen(true)} />
+                )}
                 <Badge className={`${getSeverityColor(incident.severity)} rounded-lg px-3 py-1`}>
                   {incident.severity}
                 </Badge>
@@ -3022,6 +3076,15 @@ export function IncidentDetailsPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        <BackupRequestDialog
+          open={backupDialogOpen}
+          onOpenChange={setBackupDialogOpen}
+          incidentId={incident?.id ?? id}
+          onAcknowledge={handleAcknowledgeBackup}
+          onDispatch={handleDispatchBackup}
+          acknowledging={acknowledgingBackup}
+        />
 
         <SelectParentIncidentDialog
           open={browseParentDialogOpen}
