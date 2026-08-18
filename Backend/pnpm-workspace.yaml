@@ -1,0 +1,6 @@
+allowBuilds:
+  '@firebase/util': true
+  ffmpeg-static: true
+  protobufjs: true
+  sharp: true
+  unrs-resolver: true

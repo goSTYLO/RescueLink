@@ -2,3 +2,4 @@ RescueLink AI/.env
 Backend/.env
 Blockchain/.env
 graphify-out/
+pnpm-lock.yaml
