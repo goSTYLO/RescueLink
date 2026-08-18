@@ -17,6 +17,7 @@ const { logDispatcherAction, logUserAction } = require('../utils/auditLog');
 const { ROLES } = require('../config/roles');
 const { isResourceOwner, getOwnershipFilter } = require('../utils/ownership');
 const { buildIncidentEventPayload, emitIncidentEvent } = require('../utils/incidentEvents');
+const { attachBackupVolunteers } = require('./incidentAcceptance');
 const path = require('path');
 const fs = require('fs').promises;
 
@@ -527,6 +528,8 @@ const incidentController = {
       const incidentDispatches = await getDispatchesForReport(validatedId, 50);
       await attachAssignedDepartment(incident, validatedId, incidentDispatches);
       await attachAcceptedResponder(incident);
+      await attachBackupVolunteers(incident, validatedId);
+      await attachBackupVolunteers(incident, validatedId);
       await ensureIncidentBarangay(incident);
       await attachDispatchEta(incident, validatedId, incidentDispatches);
       await buildIncidentTimeline(incident, validatedId, incidentDispatches);
@@ -538,12 +541,27 @@ const incidentController = {
         }
       }
       if (!canReadOwnOrAcceptedIncident(req.user, incident)) {
-        return res.status(403).json({ error: 'Forbidden. You can only access your own incidents.' });
+        let backupJoiner = false;
+        if (req.user?.role === ROLES.RESPONDER && req.user.user_id) {
+          try {
+            const joined = await pool.query(
+              `SELECT 1 FROM backup_responses
+                WHERE report_id = $1 AND user_id = $2 AND status = 'joined'
+                LIMIT 1`,
+              [validatedId, req.user.user_id]
+            );
+            backupJoiner = joined.rows.length > 0;
+          } catch (_) {}
+        }
+        if (!backupJoiner) {
+          return res.status(403).json({ error: 'Forbidden. You can only access your own incidents.' });
+        }
       }
 
       const incidentDispatches = await getDispatchesForReport(validatedId, 50);
       await attachAssignedDepartment(incident, validatedId, incidentDispatches);
       await attachAcceptedResponder(incident);
+      await attachBackupVolunteers(incident, validatedId);
       await ensureIncidentBarangay(incident);
       await attachDispatchEta(incident, validatedId, incidentDispatches);
       await buildIncidentTimeline(incident, validatedId, incidentDispatches);
@@ -1587,13 +1605,28 @@ const incidentController = {
         }
       }
       if (!canReadOwnOrAcceptedIncident(req.user, incident)) {
-        return res.status(403).json({ error: 'Forbidden. You can only access your own incidents.' });
+        let backupJoiner = false;
+        if (req.user?.role === ROLES.RESPONDER && req.user.user_id) {
+          try {
+            const joined = await pool.query(
+              `SELECT 1 FROM backup_responses
+                WHERE report_id = $1 AND user_id = $2 AND status = 'joined'
+                LIMIT 1`,
+              [validatedId, req.user.user_id]
+            );
+            backupJoiner = joined.rows.length > 0;
+          } catch (_) {}
+        }
+        if (!backupJoiner) {
+          return res.status(403).json({ error: 'Forbidden. You can only access your own incidents.' });
+        }
       }
 
       // Get AI classification if exists
       const incidentDispatches = await getDispatchesForReport(validatedId, 50);
       await attachAssignedDepartment(incident, validatedId, incidentDispatches);
       await attachAcceptedResponder(incident);
+      await attachBackupVolunteers(incident, validatedId);
       await ensureIncidentBarangay(incident);
       await attachDispatchEta(incident, validatedId, incidentDispatches);
       await buildIncidentTimeline(incident, validatedId, incidentDispatches);

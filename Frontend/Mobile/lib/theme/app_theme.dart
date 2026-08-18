@@ -90,6 +90,10 @@ class AppTheme {
           ),
         ),
       ),
+      snackBarTheme: const SnackBarThemeData(
+        showCloseIcon: true,
+        behavior: SnackBarBehavior.floating,
+      ),
     );
   }
 
@@ -147,6 +151,10 @@ class AppTheme {
             borderRadius: BorderRadius.circular(12),
           ),
         ),
+      ),
+      snackBarTheme: const SnackBarThemeData(
+        showCloseIcon: true,
+        behavior: SnackBarBehavior.floating,
       ),
     );
   }

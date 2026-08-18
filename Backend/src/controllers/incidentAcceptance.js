@@ -135,6 +135,27 @@ async function ensurePhase3Schema() {
       ALTER TABLE backup_requests ADD COLUMN IF NOT EXISTS acknowledged_by_user_id INTEGER REFERENCES users(user_id);
       ALTER TABLE backup_requests ADD COLUMN IF NOT EXISTS acknowledged_at TIMESTAMP WITH TIME ZONE;
       UPDATE backup_requests SET status = 'pending' WHERE status IS NULL;
+      ALTER TABLE backup_requests ADD COLUMN IF NOT EXISTS broadcast_at TIMESTAMP WITH TIME ZONE;
+      ALTER TABLE backup_requests ADD COLUMN IF NOT EXISTS broadcast_count INTEGER DEFAULT 0;
+      CREATE TABLE IF NOT EXISTS backup_responses (
+        id SERIAL PRIMARY KEY,
+        backup_request_id INTEGER NOT NULL REFERENCES backup_requests(id) ON DELETE CASCADE,
+        report_id INTEGER NOT NULL REFERENCES incident_reports(report_id) ON DELETE CASCADE,
+        user_id INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+        status VARCHAR(20) NOT NULL DEFAULT 'joined'
+          CHECK (status IN ('joined', 'declined', 'withdrawn')),
+        responder_status VARCHAR(50) DEFAULT 'Assigned'
+          CHECK (responder_status IN ('Assigned', 'En Route', 'On Scene', 'Resolved')),
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (backup_request_id, user_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_backup_responses_report_joined
+        ON backup_responses(report_id, status)
+        WHERE status = 'joined';
+      CREATE INDEX IF NOT EXISTS idx_backup_responses_user_joined
+        ON backup_responses(user_id, status)
+        WHERE status = 'joined';
     `);
   } catch (err) {
     console.warn('ensurePhase3Schema warning:', err.message);
@@ -248,6 +269,194 @@ async function notifyStaffBackupRequest(reportId, message) {
     );
   } catch (err) {
     console.warn('notifyStaffBackupRequest warning:', err.message);
+  }
+}
+
+async function loadBackupResponseExclusions(backupRequestId) {
+  if (!backupRequestId) return new Set();
+  try {
+    const result = await pool.query(
+      `SELECT user_id FROM backup_responses
+        WHERE backup_request_id = $1 AND status IN ('joined', 'declined')`,
+      [backupRequestId]
+    );
+    return new Set(result.rows.map((row) => Number(row.user_id)));
+  } catch (_) {
+    return new Set();
+  }
+}
+
+async function findEligibleNearbyVolunteerUserIds(reportId, backupRequestId, incident) {
+  const incLat = parseCoordinate(incident.latitude);
+  const incLon = parseCoordinate(incident.longitude);
+  const incidentType = incident.incident_type;
+  const excluded = await loadBackupResponseExclusions(backupRequestId);
+  if (incident.accepted_by_user_id != null) {
+    excluded.add(Number(incident.accepted_by_user_id));
+  }
+
+  try {
+    const reporterRes = await pool.query(
+      'SELECT user_id FROM incident_reports WHERE report_id = $1',
+      [reportId]
+    );
+    if (reporterRes.rows[0]?.user_id != null) {
+      excluded.add(Number(reporterRes.rows[0].user_id));
+    }
+  } catch (_) {}
+
+  let volunteers;
+  try {
+    volunteers = await pool.query(
+      `SELECT u.user_id, u.latitude, u.longitude, r.supported_incident_types
+         FROM users u
+         LEFT JOIN responders r ON r.user_id = u.user_id
+        WHERE u.role = 'responder' AND COALESCE(u.responder_online, FALSE) = TRUE`
+    );
+  } catch (err) {
+    if (err.code !== '42703') throw err;
+    volunteers = await pool.query(
+      `SELECT u.user_id, NULL::double precision AS latitude, NULL::double precision AS longitude,
+              r.supported_incident_types
+         FROM users u
+         LEFT JOIN responders r ON r.user_id = u.user_id
+        WHERE u.role = 'responder' AND COALESCE(u.responder_online, FALSE) = TRUE`
+    );
+  }
+
+  const eligible = [];
+  for (const row of volunteers.rows) {
+    const uid = Number(row.user_id);
+    if (excluded.has(uid)) continue;
+    if (!incidentMatchesVolunteerSpecialization(incidentType, row.supported_incident_types)) continue;
+    const rLat = parseCoordinate(row.latitude);
+    const rLon = parseCoordinate(row.longitude);
+    if (!isWithinVolunteerRadius(rLat, rLon, incLat, incLon)) continue;
+    eligible.push(uid);
+  }
+  return eligible;
+}
+
+async function notifyVolunteersBackupAlert(reportId, backupRequestId, message, userIds) {
+  await Promise.all(
+    userIds.map((user_id) =>
+      Notification.create({
+        user_id,
+        report_id: reportId,
+        message,
+        sent_via: 'websocket',
+        event_type: 'backup_alert',
+      }).catch(() => {})
+    )
+  );
+}
+
+async function emitNearbyBackupAlert(req, reportId, backupRequestId, incident, requestedByName, notes) {
+  const payload = {
+    ...buildIncidentEventPayload({
+      report_id: reportId,
+      user_id: incident.user_id ?? null,
+      incident_type: incident.incident_type,
+      severity_level: incident.severity_level,
+      barangay: incident.barangay,
+      description: incident.description ?? null,
+      latitude: incident.latitude,
+      longitude: incident.longitude,
+      accepted_by_user_id: incident.accepted_by_user_id,
+      responder_status: incident.responder_status ?? null,
+      status: incident.status,
+      created_at: incident.created_at ?? null,
+    }),
+    backup_request_id: backupRequestId,
+    is_backup: true,
+    requested_by_name: requestedByName,
+    notes: notes || null,
+  };
+  emitWs(req, 'responder:backup_alert', payload);
+
+  const eligibleIds = await findEligibleNearbyVolunteerUserIds(reportId, backupRequestId, incident);
+  const alertMessage = `Backup needed for Incident #${reportId}. ${requestedByName} requested nearby volunteer support.`;
+  await notifyVolunteersBackupAlert(reportId, backupRequestId, alertMessage, eligibleIds);
+
+  await pool.query(
+    `UPDATE backup_requests
+        SET broadcast_at = CURRENT_TIMESTAMP,
+            broadcast_count = $2
+      WHERE id = $1`,
+    [backupRequestId, eligibleIds.length]
+  );
+  return eligibleIds.length;
+}
+
+async function attachBackupVolunteers(incident, reportId) {
+  if (!incident || reportId == null) return incident;
+  try {
+    const result = await pool.query(
+      `SELECT brs.user_id, brs.responder_status, brs.status, brs.created_at, brs.updated_at,
+              brs.backup_request_id,
+              u.first_name, u.last_name, u.phone_number,
+              TRIM(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')) AS name
+         FROM backup_responses brs
+         JOIN users u ON u.user_id = brs.user_id
+        WHERE brs.report_id = $1 AND brs.status = 'joined'
+        ORDER BY brs.created_at ASC`,
+      [reportId]
+    );
+    incident.backup_volunteers = result.rows.map((row) => ({
+      user_id: row.user_id,
+      name: row.name || 'Volunteer',
+      first_name: row.first_name,
+      last_name: row.last_name,
+      phone_number: row.phone_number,
+      responder_status: row.responder_status,
+      backup_request_id: row.backup_request_id,
+      joined_at: row.created_at,
+      updated_at: row.updated_at,
+    }));
+    incident.backup_volunteer_count = incident.backup_volunteers.length;
+  } catch (err) {
+    if (err.code !== '42P01') {
+      console.warn('attachBackupVolunteers warning:', err.message);
+    }
+    incident.backup_volunteers = [];
+    incident.backup_volunteer_count = 0;
+  }
+  return incident;
+}
+
+async function loadBackupRequestContext(reportId, backupId) {
+  const result = await pool.query(
+    `SELECT br.*, ir.accepted_by_user_id, ir.status AS incident_status,
+            ir.latitude, ir.longitude, ir.incident_type, ir.user_id AS reporter_user_id
+       FROM backup_requests br
+       JOIN incident_reports ir ON ir.report_id = br.report_id
+      WHERE br.id = $1 AND br.report_id = $2`,
+    [backupId, reportId]
+  );
+  return result.rows[0] || null;
+}
+
+function isIncidentActiveForBackup(incidentStatus, responderStatus) {
+  const status = String(incidentStatus || '').toLowerCase();
+  if (status === 'closed' || status === 'resolved') return false;
+  if (String(responderStatus || '') === 'Resolved') return false;
+  return true;
+}
+
+async function assertVolunteerOnline(userId) {
+  try {
+    const row = await pool.query(
+      'SELECT responder_online FROM users WHERE user_id = $1',
+      [userId]
+    );
+    if (!row.rows[0]?.responder_online) {
+      const err = new Error('You must be online to respond to backup requests.');
+      err.statusCode = 403;
+      throw err;
+    }
+  } catch (err) {
+    if (err.code === '42703') return;
+    throw err;
   }
 }
 
@@ -523,8 +732,9 @@ async function requestBackup(req, res) {
     const validNotes = notes ? validateString(notes, 'notes', 1, 500) : null;
 
     const incRow = await pool.query(
-      `SELECT accepted_by_user_id, latitude, longitude, incident_type, barangay, severity_level
-         FROM incident_reports WHERE report_id = $1`,
+      `SELECT ir.accepted_by_user_id, ir.latitude, ir.longitude, ir.incident_type, ir.barangay,
+              ir.severity_level, ir.status, ir.responder_status, ir.user_id, ir.description, ir.created_at
+         FROM incident_reports ir WHERE ir.report_id = $1`,
       [reportId]
     );
     if (!incRow.rows[0]) return res.status(404).json({ error: 'Incident not found.' });
@@ -558,11 +768,25 @@ async function requestBackup(req, res) {
       incident_type: incident.incident_type,
       barangay: tryDecryptValue(incident.barangay),
       severity_level: incident.severity_level,
+      accepted_by_user_id: incident.accepted_by_user_id,
     });
+
+    let broadcastCount = 0;
+    if (validTarget === 'nearby_responders' || validTarget === 'both') {
+      broadcastCount = await emitNearbyBackupAlert(
+        req,
+        reportId,
+        backupRequestId,
+        incident,
+        requestedByName,
+        validNotes
+      );
+    }
 
     await logDispatcherAction(req, 'backup_requested', 'incident', reportId, {
       target: validTarget,
       backup_request_id: backupRequestId,
+      broadcast_count: broadcastCount,
     });
 
     res.status(201).json({
@@ -570,6 +794,7 @@ async function requestBackup(req, res) {
       report_id: reportId,
       target: validTarget,
       backup_request_id: backupRequestId,
+      broadcast_count: broadcastCount,
     });
   } catch (err) {
     if (err.message?.includes('must be') || err.message?.includes('must not')) return res.status(400).json({ error: err.message });
@@ -583,7 +808,7 @@ async function getBackupRequests(req, res) {
   try {
     await ensurePhase3Schema();
     const reportId = validateInteger(req.params.id, 'report ID');
-    const result = await pool.query(
+    const requests = await pool.query(
       `SELECT br.*, u.first_name || ' ' || u.last_name AS requester_name,
               ack.first_name || ' ' || ack.last_name AS acknowledged_by_name
          FROM backup_requests br
@@ -593,10 +818,253 @@ async function getBackupRequests(req, res) {
         ORDER BY br.created_at DESC`,
       [reportId]
     );
-    res.json(result.rows);
+
+    const responses = await pool.query(
+      `SELECT brs.*,
+              u.first_name, u.last_name, u.phone_number,
+              TRIM(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')) AS name
+         FROM backup_responses brs
+         JOIN users u ON u.user_id = brs.user_id
+        WHERE brs.report_id = $1
+        ORDER BY brs.created_at ASC`,
+      [reportId]
+    );
+
+    const responsesByRequest = new Map();
+    for (const row of responses.rows) {
+      const key = row.backup_request_id;
+      if (!responsesByRequest.has(key)) responsesByRequest.set(key, []);
+      responsesByRequest.get(key).push({
+        id: row.id,
+        user_id: row.user_id,
+        name: row.name || 'Volunteer',
+        first_name: row.first_name,
+        last_name: row.last_name,
+        phone_number: row.phone_number,
+        status: row.status,
+        responder_status: row.responder_status,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+      });
+    }
+
+    res.json(
+      requests.rows.map((row) => ({
+        ...row,
+        responses: responsesByRequest.get(row.id) || [],
+      }))
+    );
   } catch (err) {
     if (err.message?.includes('must be')) return res.status(400).json({ error: err.message });
     console.error('getBackupRequests error:', err);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
+}
+
+// ─── POST /api/incidents/:id/backup/:backupId/join ─────────────────────────────
+async function joinBackup(req, res) {
+  try {
+    await ensurePhase3Schema();
+    const reportId = validateInteger(req.params.id, 'report ID');
+    const backupId = validateInteger(req.params.backupId, 'backup request ID');
+    const userId = req.user.user_id;
+
+    const ctx = await loadBackupRequestContext(reportId, backupId);
+    if (!ctx) return res.status(404).json({ error: 'Backup request not found.' });
+    if (Number(ctx.accepted_by_user_id) === Number(userId)) {
+      return res.status(403).json({ error: 'Primary responder cannot join their own backup request.' });
+    }
+    if (!isIncidentActiveForBackup(ctx.incident_status, ctx.responder_status)) {
+      return res.status(409).json({ error: 'Incident is no longer active for backup joins.' });
+    }
+
+    await assertVolunteerOnline(userId);
+    await assertResponderRadius(req, userId, ctx.latitude, ctx.longitude);
+    const specRow = await pool.query(
+      'SELECT supported_incident_types FROM responders WHERE user_id = $1',
+      [userId]
+    );
+    if (!incidentMatchesVolunteerSpecialization(ctx.incident_type, specRow.rows[0]?.supported_incident_types)) {
+      return res.status(403).json({ error: 'This incident type is outside your supported specializations.' });
+    }
+
+    const existing = await pool.query(
+      `SELECT id, status FROM backup_responses WHERE backup_request_id = $1 AND user_id = $2`,
+      [backupId, userId]
+    );
+    if (existing.rows[0]?.status === 'joined') {
+      return res.status(409).json({ error: 'You have already joined this backup request.' });
+    }
+    if (existing.rows[0]?.status === 'declined') {
+      return res.status(409).json({ error: 'You already declined this backup request.' });
+    }
+
+    const insert = await pool.query(
+      `INSERT INTO backup_responses (backup_request_id, report_id, user_id, status, responder_status)
+       VALUES ($1, $2, $3, 'joined', 'Assigned')
+       ON CONFLICT (backup_request_id, user_id)
+       DO UPDATE SET status = 'joined', responder_status = 'Assigned', updated_at = CURRENT_TIMESTAMP
+       RETURNING id, responder_status, created_at`,
+      [backupId, reportId, userId]
+    );
+
+    const nameRow = await pool.query(
+      "SELECT first_name || ' ' || last_name AS full_name FROM users WHERE user_id = $1",
+      [userId]
+    );
+    const volunteerName = nameRow.rows[0]?.full_name || 'Volunteer';
+
+    emitWs(req, 'responder:backup_joined', {
+      report_id: reportId,
+      backup_request_id: backupId,
+      backup_user_id: userId,
+      volunteer_name: volunteerName,
+      responder_status: insert.rows[0]?.responder_status || 'Assigned',
+    });
+
+    await logDispatcherAction(req, 'backup_joined', 'incident', reportId, {
+      backup_request_id: backupId,
+      backup_user_id: userId,
+    });
+
+    res.status(201).json({
+      message: 'Joined backup request.',
+      report_id: reportId,
+      backup_request_id: backupId,
+      backup_response_id: insert.rows[0]?.id,
+      responder_status: insert.rows[0]?.responder_status || 'Assigned',
+      volunteer_name: volunteerName,
+    });
+  } catch (err) {
+    if (err.statusCode === 403) return res.status(403).json({ error: err.message });
+    if (err.message?.includes('must be') || err.message?.includes('must not')) return res.status(400).json({ error: err.message });
+    console.error('joinBackup error:', err);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
+}
+
+// ─── POST /api/incidents/:id/backup/:backupId/decline ────────────────────────
+async function declineBackup(req, res) {
+  try {
+    await ensurePhase3Schema();
+    const reportId = validateInteger(req.params.id, 'report ID');
+    const backupId = validateInteger(req.params.backupId, 'backup request ID');
+    const userId = req.user.user_id;
+
+    const ctx = await loadBackupRequestContext(reportId, backupId);
+    if (!ctx) return res.status(404).json({ error: 'Backup request not found.' });
+
+    await pool.query(
+      `INSERT INTO backup_responses (backup_request_id, report_id, user_id, status, responder_status)
+       VALUES ($1, $2, $3, 'declined', NULL)
+       ON CONFLICT (backup_request_id, user_id)
+       DO UPDATE SET status = 'declined', updated_at = CURRENT_TIMESTAMP`,
+      [backupId, reportId, userId]
+    );
+
+    emitWs(req, 'responder:backup_declined', {
+      report_id: reportId,
+      backup_request_id: backupId,
+      backup_user_id: userId,
+    });
+
+    res.json({ message: 'Backup request declined.', report_id: reportId, backup_request_id: backupId });
+  } catch (err) {
+    if (err.message?.includes('must be')) return res.status(400).json({ error: err.message });
+    console.error('declineBackup error:', err);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
+}
+
+// ─── POST /api/incidents/:id/backup/:backupId/withdraw ───────────────────────
+async function withdrawBackup(req, res) {
+  try {
+    await ensurePhase3Schema();
+    const reportId = validateInteger(req.params.id, 'report ID');
+    const backupId = validateInteger(req.params.backupId, 'backup request ID');
+    const userId = req.user.user_id;
+
+    const existing = await pool.query(
+      `SELECT id, status FROM backup_responses
+        WHERE backup_request_id = $1 AND report_id = $2 AND user_id = $3`,
+      [backupId, reportId, userId]
+    );
+    if (!existing.rows[0] || existing.rows[0].status !== 'joined') {
+      return res.status(404).json({ error: 'Active backup assignment not found.' });
+    }
+
+    await pool.query(
+      `UPDATE backup_responses
+          SET status = 'withdrawn', updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1`,
+      [existing.rows[0].id]
+    );
+
+    emitWs(req, 'responder:backup_withdrawn', {
+      report_id: reportId,
+      backup_request_id: backupId,
+      backup_user_id: userId,
+    });
+
+    res.json({ message: 'Withdrew from backup assignment.', report_id: reportId, backup_request_id: backupId });
+  } catch (err) {
+    if (err.message?.includes('must be')) return res.status(400).json({ error: err.message });
+    console.error('withdrawBackup error:', err);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
+}
+
+// ─── PATCH /api/incidents/:id/backup/:backupId/responder-status ────────────────
+async function updateBackupResponderStatus(req, res) {
+  try {
+    await ensurePhase3Schema();
+    const reportId = validateInteger(req.params.id, 'report ID');
+    const backupId = validateInteger(req.params.backupId, 'backup request ID');
+    const userId = req.user.user_id;
+    const newStatus = validateAllowedValue(req.body.status, RESPONDER_STATUSES, 'status');
+
+    const row = await pool.query(
+      `SELECT id, responder_status FROM backup_responses
+        WHERE backup_request_id = $1 AND report_id = $2 AND user_id = $3 AND status = 'joined'`,
+      [backupId, reportId, userId]
+    );
+    if (!row.rows[0]) {
+      return res.status(404).json({ error: 'Active backup assignment not found.' });
+    }
+
+    const currentStatus = row.rows[0].responder_status || 'Assigned';
+    const allowed = STATUS_TRANSITIONS[currentStatus] || [];
+    if (!allowed.includes(newStatus)) {
+      return res.status(400).json({
+        error: `Invalid transition from "${currentStatus}" to "${newStatus}". Allowed: ${allowed.join(', ') || 'none'}.`,
+      });
+    }
+
+    await pool.query(
+      `UPDATE backup_responses
+          SET responder_status = $1, updated_at = CURRENT_TIMESTAMP
+        WHERE id = $2`,
+      [newStatus, row.rows[0].id]
+    );
+
+    emitWs(req, 'responder:backup_status_changed', {
+      report_id: reportId,
+      backup_request_id: backupId,
+      backup_user_id: userId,
+      old_status: currentStatus,
+      new_status: newStatus,
+    });
+
+    res.json({
+      message: 'Backup responder status updated.',
+      report_id: reportId,
+      backup_request_id: backupId,
+      old_status: currentStatus,
+      new_status: newStatus,
+    });
+  } catch (err) {
+    if (err.message?.includes('must be') || err.message?.includes('must not')) return res.status(400).json({ error: err.message });
+    console.error('updateBackupResponderStatus error:', err);
     res.status(500).json({ error: 'Internal server error.' });
   }
 }
@@ -779,12 +1247,62 @@ async function getActiveAssigned(req, res) {
     const mapped = result.rows.map((row) =>
       mapActiveIncidentRow(row, volunteerCoords.latitude, volunteerCoords.longitude)
     );
-    const rows = filterNearbyOpenIncidents(
+    let rows = filterNearbyOpenIncidents(
       mapped,
       userId,
       volunteerCoords.latitude,
       volunteerCoords.longitude
     );
+
+    try {
+      const backupResult = await pool.query(
+        `SELECT ir.report_id, ir.incident_type, ir.severity_level, ir.barangay,
+                ir.latitude, ir.longitude, ir.description, ir.status,
+                ir.responder_status AS primary_responder_status,
+                ir.accepted_at, ir.created_at, ir.accepted_by_user_id,
+                brs.responder_status, brs.backup_request_id, brs.id AS backup_response_id,
+                EXISTS (
+                  SELECT 1 FROM backup_requests br
+                   WHERE br.report_id = ir.report_id
+                     AND COALESCE(br.status, 'pending') = 'pending'
+                ) AS has_pending_backup,
+                (
+                  SELECT br.status FROM backup_requests br
+                   WHERE br.report_id = ir.report_id
+                   ORDER BY br.created_at DESC
+                   LIMIT 1
+                ) AS latest_backup_status
+           FROM backup_responses brs
+           JOIN incident_reports ir ON ir.report_id = brs.report_id
+          WHERE brs.user_id = $1
+            AND brs.status = 'joined'
+            AND COALESCE(brs.responder_status, 'Assigned') != 'Resolved'`,
+        [userId]
+      );
+      const existingIds = new Set(rows.map((row) => Number(row.report_id)));
+      for (const row of backupResult.rows) {
+        if (existingIds.has(Number(row.report_id))) continue;
+        const mappedBackup = mapActiveIncidentRow(
+          {
+            ...row,
+            responder_status: row.responder_status || 'Assigned',
+          },
+          volunteerCoords.latitude,
+          volunteerCoords.longitude
+        );
+        rows.push({
+          ...mappedBackup,
+          is_backup_assignment: true,
+          backup_request_id: row.backup_request_id,
+          backup_response_id: row.backup_response_id,
+        });
+      }
+    } catch (backupErr) {
+      if (backupErr.code !== '42P01') {
+        console.warn('getActiveAssigned backup merge warning:', backupErr.message);
+      }
+    }
+
     res.json(rows);
   } catch (err) {
     console.error('getActiveAssigned error:', err);
@@ -921,12 +1439,18 @@ module.exports = {
   updateResponderStatus,
   requestBackup,
   getBackupRequests,
+  joinBackup,
+  declineBackup,
+  withdrawBackup,
+  updateBackupResponderStatus,
   acknowledgeBackupRequest,
   getActiveAssigned,
   getResponderHistory,
   getIncidentPreview,
+  attachBackupVolunteers,
   ALERT_RADIUS_KM,
   incidentMatchesVolunteerSpecialization,
   isWithinVolunteerRadius,
   parseCoordinate,
+  findEligibleNearbyVolunteerUserIds,
 };

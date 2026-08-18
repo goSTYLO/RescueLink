@@ -647,4 +647,18 @@ class BackupStatusUi {
   static bool hasBackupUnitDispatched(Map<String, dynamic>? incident) {
     return assignedBackupTeamLabel(incident) != null;
   }
+
+  static List<Map<String, dynamic>> joinedBackupVolunteers(Map<String, dynamic>? incident) {
+    final raw = incident?['backup_volunteers'];
+    if (raw is! List) return const [];
+    return raw
+        .whereType<Map>()
+        .map((entry) => entry.cast<String, dynamic>())
+        .where((entry) => (entry['status'] as String?) != 'declined')
+        .toList();
+  }
+
+  static bool hasJoinedBackupVolunteers(Map<String, dynamic>? incident) {
+    return joinedBackupVolunteers(incident).isNotEmpty;
+  }
 }

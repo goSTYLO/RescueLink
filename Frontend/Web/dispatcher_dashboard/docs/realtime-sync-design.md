@@ -23,9 +23,11 @@ This design documents a migration path from polling-first sync to realtime updat
    - `incident:accepted` — volunteer accepted an incident; bell shows acceptor context; lists refetch for Volunteer Response tab.
 6. **Backup request events**
    - `responder:backup_requested` — primary responder requested backup; enriched payload includes `backup_request_id`, `target`, `notes`, `requested_by_name`, and incident summary fields.
-   - Web bell shows a titled backup item; dashboard rows show **BACKUP REQUESTED** when `has_pending_backup` is true.
+   - Web bell shows a titled backup item; dashboard rows show **BACKUP REQUESTED** when `open_backup_status` is `pending`, or **BACKUP ACKNOWLEDGED** when acknowledged — both while `has_open_backup_request` is true and no official team is assigned (`hasOpenBackupUi`).
    - Department roles receive a Swal toast only when the incident is dispatched to their department; dispatcher/admin/supervisor get bell + badge only (no toast).
-   - `responder:backup_acknowledged` — staff acknowledged a pending backup; lists refetch so the badge clears/updates.
+   - `responder:backup_acknowledged` — admin/dispatcher acknowledged; lists refetch; badge label updates but remains until backup team assigned.
+   - `responder:backup_alert` — nearby online volunteers in radius/specialization receive a backup modal (not `incident:alert`); excludes primary acceptor, reporter, and users who already joined/declined.
+   - `responder:backup_joined` / `responder:backup_declined` / `responder:backup_withdrawn` / `responder:backup_status_changed` — refetch incident details, Volunteer Response tab, and bell; joiners appear in **Backup volunteers** panel without clearing staff **BACKUP REQUESTED** until acknowledge/dispatch path completes.
 7. **De-dup policy**
    - Use `report_id` as the canonical key.
    - Ignore duplicate events with same `report_id` + `updated_at`.

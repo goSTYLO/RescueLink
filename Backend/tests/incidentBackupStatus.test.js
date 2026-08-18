@@ -42,6 +42,9 @@ describe('incident backup status fields', () => {
         has_pending_backup: false,
         pending_backup_request_id: null,
         latest_backup_status: 'acknowledged',
+        has_open_backup_request: true,
+        active_backup_request_id: 7,
+        open_backup_status: 'acknowledged',
       }],
     });
 
@@ -49,8 +52,13 @@ describe('incident backup status fields', () => {
 
     const sql = pool.query.mock.calls[0][0];
     expect(sql).toContain('latest_backup_status');
+    expect(sql).toContain('has_open_backup_request');
+    expect(sql).toContain('active_backup_request_id');
     expect(result.latest_backup_status).toBe('acknowledged');
     expect(result.has_pending_backup).toBe(false);
+    expect(result.has_open_backup_request).toBe(true);
+    expect(result.active_backup_request_id).toBe(7);
+    expect(result.open_backup_status).toBe('acknowledged');
   });
 
   it('findAll selects latest_backup_status for list payloads', async () => {

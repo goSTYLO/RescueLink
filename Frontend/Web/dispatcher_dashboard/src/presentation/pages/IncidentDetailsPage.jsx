@@ -36,7 +36,7 @@ import { getDepartments } from '@/data/api/departments.api';
 import { DEV_MODE } from '@/core/config/app.config';
 import { ROLES, normalizeRole, getRoleDisplayLabel } from '@/core/constants';
 import { normalizeIncidentTaskType, doesTeamSupportIncidentType } from '@/core/utils/incidentClassification';
-import { formatIncidentTypeLabel, incidentTypesFromApi, formatIncidentTypesLabel, isIncidentEffectivelyResolved } from '@/core/utils/incidentDisplay';
+import { formatIncidentTypeLabel, incidentTypesFromApi, formatIncidentTypesLabel, isIncidentEffectivelyResolved, hasOpenBackupUi, getBackupDialogCapabilities } from '@/core/utils/incidentDisplay';
 import { IncidentTypeChips } from '@/presentation/components/common/IncidentTypeChips';
 import { Loader2 } from 'lucide-react';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
@@ -124,6 +124,14 @@ function mapApiToIncidentDetails(api, aiClassification = null) {
     acceptedAt: api.accepted_at || null,
     hasPendingBackup: Boolean(api.has_pending_backup),
     pendingBackupRequestId: api.pending_backup_request_id ?? null,
+    hasOpenBackupRequest: Boolean(api.has_open_backup_request),
+    activeBackupRequestId: api.active_backup_request_id ?? null,
+    openBackupStatus: api.open_backup_status || null,
+    latestBackupStatus: api.latest_backup_status || null,
+    backupVolunteers: Array.isArray(api.backup_volunteers) ? api.backup_volunteers : [],
+    backupVolunteerCount: api.backup_volunteer_count ?? (Array.isArray(api.backup_volunteers) ? api.backup_volunteers.length : 0),
+    pendingBackupTarget: api.pending_backup_target || null,
+    pendingBackupBroadcastCount: api.pending_backup_broadcast_count ?? null,
     description: api.description || 'No description provided.',
     location: { lat: api.latitude, lng: api.longitude },
     aiSuggestion: null,
@@ -202,6 +210,7 @@ export function IncidentDetailsPage() {
   const [searchParams] = useSearchParams();
   const detailsTab = searchParams.get('tab') || 'details';
   const focusDispatch = searchParams.get('focus') === 'dispatch';
+  const focusAssign = searchParams.get('focus') === 'assign';
   const dispatchSectionRef = useRef(null);
   const { theme } = useTheme();
   const isLight = theme === 'light';
@@ -612,6 +621,20 @@ export function IncidentDetailsPage() {
     }, 400);
     return () => clearTimeout(timer);
   }, [focusDispatch, incident, detailsTab, showNotifyDepartmentButton, openNotifyDepartmentDialog]);
+
+  useEffect(() => {
+    if (!focusAssign || !incident || detailsTab !== 'details') return;
+    const timer = setTimeout(() => {
+      if (canSelectTeamForDepartment && !incident?.assignedTeamName && assignedDepartmentCodeForTeamActions) {
+        const preferred = responderTeams.find(
+          (team) => String(team.department_code || '').toLowerCase() === String(assignedDepartmentCodeForTeamActions || '').toLowerCase()
+        );
+        setAssignTeamName(preferred?.team_name || '');
+        setAssignTeamDialogOpen(true);
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [focusAssign, incident, detailsTab, canSelectTeamForDepartment, assignedDepartmentCodeForTeamActions, responderTeams]);
 
   useEffect(() => {
     const token = sessionStorage.getItem('token');
@@ -1176,10 +1199,20 @@ export function IncidentDetailsPage() {
 
   const handleAcknowledgeBackup = async () => {
     const numericId = /^\d+$/.test(String(id));
-    if (!numericId || !incident?.pendingBackupRequestId) return;
+    const backupId = incident?.activeBackupRequestId;
+    if (!numericId || !backupId) return;
+    if (String(incident?.openBackupStatus || '').toLowerCase() === 'acknowledged') {
+      await Swal.fire({
+        icon: 'info',
+        title: 'Already acknowledged',
+        text: 'This backup request was already acknowledged. Notify a department or assign a backup team.',
+        confirmButtonColor: '#134178',
+      });
+      return;
+    }
     setAcknowledgingBackup(true);
     try {
-      await acknowledgeBackupRequest(id, incident.pendingBackupRequestId);
+      await acknowledgeBackupRequest(id, backupId);
       setBackupDialogOpen(false);
       await fetchIncident({ silent: true });
       window.dispatchEvent(new CustomEvent('incident:updated', { detail: { incidentId: id } }));
@@ -1201,11 +1234,27 @@ export function IncidentDetailsPage() {
     }
   };
 
+  const handleAssignTeamBackup = () => {
+    setBackupDialogOpen(false);
+    openAssignTeamDialog();
+  };
+
+  const backupDialogCapabilities = getBackupDialogCapabilities(incident, currentUser.role);
+
   const handleDispatchBackup = () => {
     setBackupDialogOpen(false);
     dispatchSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     if (showNotifyDepartmentButton) {
       openNotifyDepartmentDialog();
+      return;
+    }
+    if ((notifiedDepartments?.length ?? 0) > 0) {
+      void Swal.fire({
+        icon: 'info',
+        title: 'Department already notified',
+        text: 'The department has been notified. They can assign a backup team from their dashboard or the assignment section below.',
+        confirmButtonColor: '#134178',
+      });
     }
   };
 
@@ -1430,7 +1479,7 @@ export function IncidentDetailsPage() {
           Notify Department
         </Button>
       )}
-      {incident?.hasPendingBackup && canVerifyIncident && (
+      {hasOpenBackupUi(incident) && canNotifyDepartment && (
         <Button
           variant="outline"
           className={`gap-2 rounded-xl border-amber-500/40 text-amber-700 hover:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-500/10 ${compact ? 'h-8 px-3 text-xs rounded-lg' : ''}`}
@@ -1601,14 +1650,30 @@ export function IncidentDetailsPage() {
                     )}
                   </div>
                 )}
+                {incident.backupVolunteers?.length > 0 && (
+                  <div className="mt-3 rounded-lg border border-indigo-500/30 bg-indigo-500/5 px-3 py-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700 dark:text-indigo-300">Backup volunteers</p>
+                    <ul className="mt-2 space-y-1 text-sm">
+                      {incident.backupVolunteers.map((vol) => (
+                        <li key={vol.user_id || vol.name} className="flex items-center justify-between gap-2">
+                          <span>{vol.name || 'Volunteer'}</span>
+                          <span className="text-xs text-muted">{vol.responder_status || 'Assigned'}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
               <div className="flex items-center gap-2 flex-wrap">
                 <Badge className={`${getStatusColor(incident.status)} rounded-lg px-3 py-1`}>
                   {incident.status}
                 </Badge>
                 <VolunteerStatusBadge responderStatus={incident.responderStatus} className="rounded-lg px-3 py-1" />
-                {incident.hasPendingBackup && (
-                  <BackupRequestedBadge onClick={() => setBackupDialogOpen(true)} />
+                {hasOpenBackupUi(incident) && (
+                  <BackupRequestedBadge
+                    status={incident.openBackupStatus || 'pending'}
+                    onClick={() => setBackupDialogOpen(true)}
+                  />
                 )}
                 <Badge className={`${getSeverityColor(incident.severity)} rounded-lg px-3 py-1`}>
                   {incident.severity}
@@ -3083,7 +3148,15 @@ export function IncidentDetailsPage() {
           incidentId={incident?.id ?? id}
           onAcknowledge={handleAcknowledgeBackup}
           onDispatch={handleDispatchBackup}
+          onAssignTeam={handleAssignTeamBackup}
           acknowledging={acknowledgingBackup}
+          target={incident?.pendingBackupTarget}
+          broadcastCount={incident?.pendingBackupBroadcastCount}
+          backupVolunteers={incident?.backupVolunteers || []}
+          openBackupStatus={incident?.openBackupStatus || 'pending'}
+          canAcknowledge={backupDialogCapabilities.canAcknowledge}
+          canNotifyDepartment={backupDialogCapabilities.canNotifyDepartment}
+          canAssignTeam={backupDialogCapabilities.canAssignTeam}
         />
 
         <SelectParentIncidentDialog

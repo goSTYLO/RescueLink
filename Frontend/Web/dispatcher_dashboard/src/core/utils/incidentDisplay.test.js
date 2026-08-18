@@ -1,7 +1,10 @@
 import {
   isIncidentEffectivelyResolved,
   isVolunteerResolved,
+  hasOpenBackupUi,
+  getBackupDialogCapabilities,
 } from '@/core/utils/incidentDisplay';
+import { ROLES } from '@/core/constants';
 
 describe('isIncidentEffectivelyResolved', () => {
   it('returns true when lifecycle status is resolved', () => {
@@ -34,5 +37,52 @@ describe('isVolunteerResolved', () => {
   it('is case-insensitive', () => {
     expect(isVolunteerResolved('resolved')).toBe(true);
     expect(isVolunteerResolved('Resolved')).toBe(true);
+  });
+});
+
+describe('hasOpenBackupUi', () => {
+  it('stays visible for acknowledged backup', () => {
+    expect(hasOpenBackupUi({
+      hasOpenBackupRequest: true,
+      openBackupStatus: 'acknowledged',
+    })).toBe(true);
+  });
+
+  it('falls back to latest_backup_status when open flag missing', () => {
+    expect(hasOpenBackupUi({
+      hasOpenBackupRequest: false,
+      latestBackupStatus: 'acknowledged',
+    })).toBe(true);
+  });
+
+  it('stays visible when primary team exists but backup is still open', () => {
+    expect(hasOpenBackupUi({
+      openBackupStatus: 'acknowledged',
+      assignedTeamName: 'Alpha Team',
+    })).toBe(true);
+  });
+});
+
+describe('getBackupDialogCapabilities', () => {
+  const openIncident = {
+    hasOpenBackupRequest: true,
+    openBackupStatus: 'pending',
+    assignedTeamName: null,
+  };
+
+  it('allows dispatcher to acknowledge pending backup', () => {
+    const caps = getBackupDialogCapabilities(openIncident, ROLES.DISPATCHER);
+    expect(caps.canAcknowledge).toBe(true);
+    expect(caps.canNotifyDepartment).toBe(true);
+    expect(caps.canAssignTeam).toBe(false);
+  });
+
+  it('allows department admin to assign team but not acknowledge', () => {
+    const caps = getBackupDialogCapabilities({
+      ...openIncident,
+      openBackupStatus: 'acknowledged',
+    }, ROLES.DEPARTMENT_ADMIN);
+    expect(caps.canAcknowledge).toBe(false);
+    expect(caps.canAssignTeam).toBe(true);
   });
 });

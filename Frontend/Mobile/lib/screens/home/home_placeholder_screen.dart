@@ -101,6 +101,12 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
         }
         return;
       }
+      if (event.event == 'responder:backup_alert') {
+        if (_isResponder) {
+          unawaited(_responderAlertCoordinator.handleEvent(context, event));
+        }
+        return;
+      }
       final title = _formatNotificationTitle(event);
       if (_currentIndex != 1) {
         setState(() => _unreadReportsCount++);
@@ -420,6 +426,10 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
         return 'Application $appStatus';
       case 'responder:backup_requested':
         return '${prefix}Backup requested';
+      case 'responder:backup_alert':
+        return '${prefix}Backup needed nearby';
+      case 'responder:backup_joined':
+        return '${prefix}Backup volunteer joined';
       default:
         return reportId != null ? '${prefix}Updated' : null;
     }

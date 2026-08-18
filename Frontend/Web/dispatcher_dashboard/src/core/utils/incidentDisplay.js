@@ -1,3 +1,5 @@
+import { normalizeRole, ROLES } from '@/core/constants';
+
 const TYPE_MAP = {
   fire: 'Fire',
   medical: 'Medical',
@@ -108,6 +110,43 @@ export function isIncidentEffectivelyResolved(incident) {
   return isVolunteerResolved(incident?.responderStatus);
 }
 
+/** Whether a backup request is still open (pending or acknowledged). */
+export function hasOpenBackupRequestActive(incident) {
+  if (!incident) return false;
+  if (Boolean(incident.hasOpenBackupRequest)) return true;
+  if (Boolean(incident.hasPendingBackup)) return true;
+  const status = String(
+    incident.openBackupStatus || incident.latestBackupStatus || ''
+  ).toLowerCase();
+  return status === 'pending' || status === 'acknowledged';
+}
+
+/** Staff backup badge / Send Backup remain while a backup request is open. */
+export function hasOpenBackupUi(incident) {
+  return hasOpenBackupRequestActive(incident);
+}
+
+export function getBackupDialogCapabilities(incident, role) {
+  const normalized = normalizeRole(role);
+  const isGlobalStaff = (
+    normalized === ROLES.SUPER_ADMIN
+    || normalized === ROLES.DISPATCHER
+    || normalized === ROLES.SUPERVISOR
+  );
+  const isDeptStaff = (
+    normalized === ROLES.DEPARTMENT_ADMIN
+    || normalized === ROLES.DEPARTMENT_HEAD
+    || normalized === ROLES.PERSONNEL
+  );
+  const open = hasOpenBackupRequestActive(incident);
+  const status = String(incident?.openBackupStatus || '').toLowerCase();
+  return {
+    canAcknowledge: isGlobalStaff && open && status === 'pending',
+    canNotifyDepartment: isGlobalStaff && open,
+    canAssignTeam: isDeptStaff && open && !String(incident?.assignedTeamName || '').trim(),
+  };
+}
+
 export function isIncidentActiveForDashboard(incident) {
   const status = String(incident?.status || '').toLowerCase();
   if (status === 'resolved' || status === 'closed') return false;
@@ -167,6 +206,14 @@ export function mapApiIncidentToDisplay(api) {
     longitude: api?.longitude ?? null,
     hasPendingBackup: Boolean(api?.has_pending_backup),
     pendingBackupRequestId: api?.pending_backup_request_id ?? null,
+    hasOpenBackupRequest: Boolean(api?.has_open_backup_request),
+    activeBackupRequestId: api?.active_backup_request_id ?? null,
+    openBackupStatus: api?.open_backup_status || null,
+    latestBackupStatus: api?.latest_backup_status || null,
+    backupVolunteers: Array.isArray(api?.backup_volunteers) ? api.backup_volunteers : [],
+    backupVolunteerCount: api?.backup_volunteer_count ?? (Array.isArray(api?.backup_volunteers) ? api.backup_volunteers.length : 0),
+    pendingBackupTarget: api?.pending_backup_target || null,
+    pendingBackupBroadcastCount: api?.pending_backup_broadcast_count ?? null,
     timeReported,
     timeReportedTs,
     verified: api?.verified ?? false,

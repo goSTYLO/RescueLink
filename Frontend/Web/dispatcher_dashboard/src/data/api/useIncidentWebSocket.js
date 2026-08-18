@@ -26,6 +26,7 @@ export function useIncidentWebSocket() {
   const [lastHighSeverity, setLastHighSeverity] = useState(null);
   const [lastDispatched, setLastDispatched] = useState(null);
   const [lastBackupRequested, setLastBackupRequested] = useState(null);
+  const [lastBackupJoined, setLastBackupJoined] = useState(null);
   const wsRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
   const reconnectAttemptRef = useRef(0);
@@ -85,6 +86,10 @@ export function useIncidentWebSocket() {
 
           if (eventName === 'responder:backup_requested') {
             setLastBackupRequested({ eventName, data });
+          }
+
+          if (eventName === 'responder:backup_joined') {
+            setLastBackupJoined({ eventName, data });
           }
 
           const title = formatNotificationTitle(eventName, data);
@@ -170,6 +175,8 @@ export function useIncidentWebSocket() {
     clearLastDispatched: () => setLastDispatched(null),
     lastBackupRequested,
     clearLastBackupRequested: () => setLastBackupRequested(null),
+    lastBackupJoined,
+    clearLastBackupJoined: () => setLastBackupJoined(null),
   };
 }
 
@@ -199,6 +206,14 @@ function formatNotificationTitle(eventName, data) {
     }
     case 'responder:backup_acknowledged':
       return `Backup acknowledged for Incident #${data.report_id}`;
+    case 'responder:backup_joined': {
+      const joiner = data.volunteer_name ? ` — ${data.volunteer_name}` : '';
+      return `Backup volunteer joined Incident #${data.report_id}${joiner}`;
+    }
+    case 'responder:backup_declined':
+      return `Backup declined on Incident #${data.report_id}`;
+    case 'responder:backup_status_changed':
+      return `Backup volunteer status on Incident #${data.report_id}: ${data.new_status || data.responder_status || 'updated'}`;
     case 'incident:accepted': {
       const accepter = data.accepted_by_name ? ` by ${data.accepted_by_name}` : '';
       return `Volunteer accepted Incident #${data.report_id}${accepter}`;
@@ -219,6 +234,8 @@ function formatNotificationBody(eventName, data) {
       return `Volunteer responder status: ${data.new_status || data.responder_status || 'updated'}`;
     case 'responder:backup_requested':
       return `Target: ${data.target || 'cdrrmo'}${data.notes ? ` — ${data.notes}` : ''}`;
+    case 'responder:backup_joined':
+      return `Status: ${data.responder_status || 'Assigned'}`;
     case 'incident:accepted':
       return `Volunteer status: ${data.responder_status || 'Assigned'}`;
     case 'incident:dispatched':

@@ -105,6 +105,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       case 'responder_assigned': return 'Responder Assigned';
       case 'responder_status_updated': return 'Responder Update';
       case 'backup_requested': return 'Backup Requested';
+      case 'backup_alert': return 'Backup Needed';
+      case 'backup_joined': return 'Backup Volunteer Joined';
       default:
         return eventType.replaceAll('_', ' ').split(' ').map((w) => w.isEmpty ? '' : '${w[0].toUpperCase()}${w.length > 1 ? w.substring(1).toLowerCase() : ''}').join(' ');
     }
@@ -151,6 +153,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       return msg.isNotEmpty ? msg : '$incidentLabel • Responder status updated';
     }
     if (eventType == 'backup_requested') return '$incidentLabel • Backup has been requested';
+    if (eventType == 'backup_alert') return '$incidentLabel • Nearby backup needed';
+    if (eventType == 'backup_joined') return '$incidentLabel • A volunteer joined as backup';
     // Existing
     if (eventType == 'status_updated') {
       final status = item['incident_status'] as String?;
@@ -222,6 +226,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
     if (eventType == 'backup_requested') {
       return (icon: Icons.campaign_rounded, iconBg: const Color(0xFFFEE2E2), iconColor: const Color(0xFFEF4444));
+    }
+    if (eventType == 'backup_alert') {
+      return (icon: Icons.group_add_rounded, iconBg: const Color(0xFFE0E7FF), iconColor: const Color(0xFF4338CA));
+    }
+    if (eventType == 'backup_joined') {
+      return (icon: Icons.handshake_rounded, iconBg: const Color(0xFFDBEAFE), iconColor: const Color(0xFF2563EB));
     }
     // Channel-based fallback
     final sentVia = (notification['sent_via'] as String?)?.toLowerCase() ?? '';

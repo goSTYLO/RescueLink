@@ -4,17 +4,17 @@ import 'package:flutter/services.dart';
 import '../screens/responder/incident_alert_modal.dart';
 import '../screens/responder/responder_incident_detail_screen.dart';
 import '../screens/responder/responder_incident_preview_screen.dart';
+import '../utils/report_ui.dart';
 import 'auth_service.dart';
 import 'responder_service.dart';
 import 'websocket_service.dart';
 
-/// Called when an incident alert modal is dismissed (decline, accept, view details, or close).
 typedef ResponderAlertDismissedCallback = void Function();
 
-/// App-wide handler for `responder:incident_alert` WebSocket events.
+/// App-wide handler for responder incident and backup alert WebSocket events.
 class ResponderAlertCoordinator {
   StreamSubscription<IncidentEvent>? _subscription;
-  final Set<int> _shownAlertIds = <int>{};
+  final Set<String> _shownAlertIds = <String>{};
   bool _online = false;
   bool _started = false;
   bool _modalShowing = false;
@@ -59,7 +59,22 @@ class ResponderAlertCoordinator {
     return int.tryParse(id?.toString() ?? '');
   }
 
-  /// Handle a responder alert event (also callable from [HomePlaceholderScreen]).
+  int? _parseBackupRequestId(IncidentEvent event) {
+    final id = event.data['backup_request_id'];
+    if (id is int) return id;
+    if (id is num) return id.toInt();
+    return int.tryParse(id?.toString() ?? '');
+  }
+
+  String _alertKey(IncidentEvent event) {
+    final reportId = _parseReportId(event);
+    if (event.event == 'responder:backup_alert') {
+      final backupId = _parseBackupRequestId(event);
+      return 'backup:${reportId ?? 0}:${backupId ?? 0}';
+    }
+    return 'incident:${reportId ?? 0}';
+  }
+
   Future<void> handleEvent(BuildContext context, IncidentEvent event) =>
       _handleEvent(context, event);
 
@@ -68,11 +83,10 @@ class ResponderAlertCoordinator {
   }
 
   Future<void> _handleEvent(BuildContext context, IncidentEvent event) async {
-    if (event.event != 'responder:incident_alert') return;
+    final isIncidentAlert = event.event == 'responder:incident_alert';
+    final isBackupAlert = event.event == 'responder:backup_alert';
+    if (!isIncidentAlert && !isBackupAlert) return;
     if (AuthService().getUserRole() != 'responder') return;
-    // Server only delivers this event to online, role-matched responders.
-    // Do not gate on the local _online cache — it may be stale until the
-    // Responder tab is opened.
     if (_modalShowing) return;
 
     final selfId = AuthService().getUserId();
@@ -81,9 +95,12 @@ class ResponderAlertCoordinator {
       return;
     }
 
+    final alertKey = _alertKey(event);
+    if (_shownAlertIds.contains(alertKey)) return;
+    _shownAlertIds.add(alertKey);
+
     final reportId = _parseReportId(event);
-    if (reportId == null || _shownAlertIds.contains(reportId)) return;
-    _shownAlertIds.add(reportId);
+    if (reportId == null) return;
 
     final ctx = _context ?? context;
     if (!ctx.mounted) return;
@@ -101,16 +118,18 @@ class ResponderAlertCoordinator {
       backgroundColor: Colors.transparent,
       builder: (sheetContext) => IncidentAlertModal(
         event: event,
-        onViewDetails: () {
-          Navigator.of(sheetContext).pop();
-          _modalShowing = false;
-          if (!ctx.mounted) return;
-          Navigator.of(ctx, rootNavigator: true).push(
-            MaterialPageRoute<void>(
-              builder: (_) => ResponderIncidentPreviewScreen(reportId: reportId),
-            ),
-          );
-        },
+        onViewDetails: isBackupAlert
+            ? null
+            : () {
+                Navigator.of(sheetContext).pop();
+                _modalShowing = false;
+                if (!ctx.mounted) return;
+                Navigator.of(ctx, rootNavigator: true).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => ResponderIncidentPreviewScreen(reportId: reportId),
+                  ),
+                );
+              },
         onAccepted: (acceptedId, initialIncident) {
           Navigator.of(sheetContext).pop();
           _modalShowing = false;
@@ -120,6 +139,8 @@ class ResponderAlertCoordinator {
               builder: (_) => ResponderIncidentDetailScreen(
                 reportId: acceptedId,
                 initialIncident: initialIncident,
+                isBackupHelper: initialIncident['is_backup_assignment'] == true,
+                backupRequestId: parseInt(initialIncident['backup_request_id']),
               ),
             ),
           );

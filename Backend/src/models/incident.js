@@ -3,6 +3,8 @@ const { encrypt, decrypt } = require('../utils/encryption');
 const { ROLES } = require('../config/roles');
 const { incidentTypesFromRow } = require('../utils/incidentTypeNormalize');
 
+const OPEN_BACKUP_STATUS_SQL = `COALESCE(br.status, 'pending') IN ('pending', 'acknowledged')`;
+
 function looksEncryptedValue(value) {
   return typeof value === 'string'
     && /^[0-9a-f]+$/i.test(value)
@@ -205,7 +207,44 @@ const Incident = {
                  WHERE br.report_id = ir.report_id
                  ORDER BY br.created_at DESC
                  LIMIT 1
-              ) AS latest_backup_status
+              ) AS latest_backup_status,
+              (
+                SELECT br.target FROM backup_requests br
+                 WHERE br.report_id = ir.report_id
+                   AND ${OPEN_BACKUP_STATUS_SQL}
+                 ORDER BY br.created_at DESC
+                 LIMIT 1
+              ) AS pending_backup_target,
+              (
+                SELECT COALESCE(br.broadcast_count, 0) FROM backup_requests br
+                 WHERE br.report_id = ir.report_id
+                   AND ${OPEN_BACKUP_STATUS_SQL}
+                 ORDER BY br.created_at DESC
+                 LIMIT 1
+              ) AS pending_backup_broadcast_count,
+              EXISTS (
+                SELECT 1 FROM backup_requests br
+                 WHERE br.report_id = ir.report_id
+                   AND ${OPEN_BACKUP_STATUS_SQL}
+              ) AS has_open_backup_request,
+              (
+                SELECT br.id FROM backup_requests br
+                 WHERE br.report_id = ir.report_id
+                   AND ${OPEN_BACKUP_STATUS_SQL}
+                 ORDER BY br.created_at DESC
+                 LIMIT 1
+              ) AS active_backup_request_id,
+              (
+                SELECT br.status FROM backup_requests br
+                 WHERE br.report_id = ir.report_id
+                   AND ${OPEN_BACKUP_STATUS_SQL}
+                 ORDER BY br.created_at DESC
+                 LIMIT 1
+              ) AS open_backup_status,
+              (
+                SELECT COUNT(*)::int FROM backup_responses brsp
+                 WHERE brsp.report_id = ir.report_id AND brsp.status = 'joined'
+              ) AS backup_volunteer_count
        FROM incident_reports ir
        LEFT JOIN users u ON ir.user_id = u.user_id
        WHERE ir.report_id = $1`,
@@ -221,6 +260,18 @@ const Incident = {
         ? Number(row.pending_backup_request_id)
         : null,
       latest_backup_status: row.latest_backup_status || null,
+      pending_backup_target: row.pending_backup_target || null,
+      pending_backup_broadcast_count: row.pending_backup_broadcast_count != null
+        ? Number(row.pending_backup_broadcast_count)
+        : null,
+      backup_volunteer_count: row.backup_volunteer_count != null
+        ? Number(row.backup_volunteer_count)
+        : 0,
+      has_open_backup_request: Boolean(row.has_open_backup_request),
+      active_backup_request_id: row.active_backup_request_id != null
+        ? Number(row.active_backup_request_id)
+        : null,
+      open_backup_status: row.open_backup_status || null,
     };
   },
 
@@ -268,7 +319,44 @@ const Incident = {
                            WHERE br.report_id = ir.report_id
                            ORDER BY br.created_at DESC
                            LIMIT 1
-                        ) AS latest_backup_status
+                        ) AS latest_backup_status,
+                        (
+                          SELECT br.target FROM backup_requests br
+                           WHERE br.report_id = ir.report_id
+                             AND ${OPEN_BACKUP_STATUS_SQL}
+                           ORDER BY br.created_at DESC
+                           LIMIT 1
+                        ) AS pending_backup_target,
+                        (
+                          SELECT COALESCE(br.broadcast_count, 0) FROM backup_requests br
+                           WHERE br.report_id = ir.report_id
+                             AND ${OPEN_BACKUP_STATUS_SQL}
+                           ORDER BY br.created_at DESC
+                           LIMIT 1
+                        ) AS pending_backup_broadcast_count,
+                        EXISTS (
+                          SELECT 1 FROM backup_requests br
+                           WHERE br.report_id = ir.report_id
+                             AND ${OPEN_BACKUP_STATUS_SQL}
+                        ) AS has_open_backup_request,
+                        (
+                          SELECT br.id FROM backup_requests br
+                           WHERE br.report_id = ir.report_id
+                             AND ${OPEN_BACKUP_STATUS_SQL}
+                           ORDER BY br.created_at DESC
+                           LIMIT 1
+                        ) AS active_backup_request_id,
+                        (
+                          SELECT br.status FROM backup_requests br
+                           WHERE br.report_id = ir.report_id
+                             AND ${OPEN_BACKUP_STATUS_SQL}
+                           ORDER BY br.created_at DESC
+                           LIMIT 1
+                        ) AS open_backup_status,
+                        (
+                          SELECT COUNT(*)::int FROM backup_responses brsp
+                           WHERE brsp.report_id = ir.report_id AND brsp.status = 'joined'
+                        ) AS backup_volunteer_count
       FROM incident_reports ir
       LEFT JOIN users u ON ir.user_id = u.user_id
       LEFT JOIN users acceptor ON acceptor.user_id = ir.accepted_by_user_id
@@ -357,6 +445,18 @@ const Incident = {
           ? Number(row.pending_backup_request_id)
           : null,
         latest_backup_status: row.latest_backup_status || null,
+        pending_backup_target: row.pending_backup_target || null,
+        pending_backup_broadcast_count: row.pending_backup_broadcast_count != null
+          ? Number(row.pending_backup_broadcast_count)
+          : null,
+        backup_volunteer_count: row.backup_volunteer_count != null
+          ? Number(row.backup_volunteer_count)
+          : 0,
+        has_open_backup_request: Boolean(row.has_open_backup_request),
+        active_backup_request_id: row.active_backup_request_id != null
+          ? Number(row.active_backup_request_id)
+          : null,
+        open_backup_status: row.open_backup_status || null,
       };
     });
   },

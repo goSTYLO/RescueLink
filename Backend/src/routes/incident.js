@@ -91,14 +91,15 @@ router.post('/:id/accept',            authMiddleware, authorize([ROLES.RESPONDER
 router.post('/:id/decline',           authMiddleware, authorize([ROLES.RESPONDER]), incidentAcceptance.declineIncident);
 router.patch('/:id/responder-status', authMiddleware, authorize([ROLES.RESPONDER]), incidentAcceptance.updateResponderStatus);
 router.post('/:id/backup',            authMiddleware, authorize([ROLES.RESPONDER]), incidentAcceptance.requestBackup);
+router.post('/:id/backup/:backupId/join', authMiddleware, authorize([ROLES.RESPONDER]), incidentAcceptance.joinBackup);
+router.post('/:id/backup/:backupId/decline', authMiddleware, authorize([ROLES.RESPONDER]), incidentAcceptance.declineBackup);
+router.post('/:id/backup/:backupId/withdraw', authMiddleware, authorize([ROLES.RESPONDER]), incidentAcceptance.withdrawBackup);
+router.patch('/:id/backup/:backupId/responder-status', authMiddleware, authorize([ROLES.RESPONDER]), incidentAcceptance.updateBackupResponderStatus);
 router.get('/:id/backup',             authMiddleware, authorize([ROLES.DISPATCHER, ROLES.ADMIN]), incidentAcceptance.getBackupRequests);
 router.patch('/:id/backup/:backupId/acknowledge', authMiddleware, authorize([
   ROLES.DISPATCHER,
   ROLES.ADMIN,
   ROLES.SUPERVISOR,
-  ROLES.DEPARTMENT_ADMIN,
-  ROLES.DEPARTMENT_HEAD,
-  ROLES.PERSONNEL,
   'supervisor',
   'Supervisor',
   'super-admin',

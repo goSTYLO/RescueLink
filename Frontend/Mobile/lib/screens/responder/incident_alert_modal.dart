@@ -3,8 +3,7 @@ import '../../services/responder_service.dart';
 import '../../utils/report_ui.dart';
 import '../../services/websocket_service.dart';
 
-/// Bottom-sheet modal triggered when a `responder:incident_alert` WS event arrives.
-/// Shows incident info and Accept / Decline buttons.
+/// Bottom-sheet modal for `responder:incident_alert` or `responder:backup_alert`.
 class IncidentAlertModal extends StatefulWidget {
   final IncidentEvent event;
   final void Function(int reportId, Map<String, dynamic> initialIncident) onAccepted;
@@ -18,6 +17,8 @@ class IncidentAlertModal extends StatefulWidget {
     required this.onDeclined,
     this.onViewDetails,
   });
+
+  bool get isBackupAlert => event.event == 'responder:backup_alert';
 
   @override
   State<IncidentAlertModal> createState() => _IncidentAlertModalState();
@@ -33,19 +34,42 @@ class _IncidentAlertModalState extends State<IncidentAlertModal> {
     return id is int ? id : (id is num ? id.toInt() : int.tryParse(id?.toString() ?? ''));
   }
 
+  int? get _backupRequestId {
+    final id = widget.event.data['backup_request_id'];
+    return id is int ? id : (id is num ? id.toInt() : int.tryParse(id?.toString() ?? ''));
+  }
+
   Future<void> _accept() async {
     final reportId = _reportId;
     if (reportId == null) return;
     setState(() { _loading = true; _error = null; });
     try {
-      final accepted = await _service.acceptIncident(reportId);
-      if (mounted) {
-        final initialIncident = <String, dynamic>{
-          ...widget.event.data,
-          'report_id': reportId,
-          'responder_status': accepted['responder_status']?.toString() ?? 'Assigned',
-        };
-        widget.onAccepted(reportId, initialIncident);
+      if (widget.isBackupAlert) {
+        final backupId = _backupRequestId;
+        if (backupId == null) {
+          throw ResponderServiceException('Backup request id missing.');
+        }
+        final joined = await _service.joinBackup(reportId, backupId);
+        if (mounted) {
+          final initialIncident = <String, dynamic>{
+            ...widget.event.data,
+            'report_id': reportId,
+            'responder_status': joined['responder_status']?.toString() ?? 'Assigned',
+            'is_backup_assignment': true,
+            'backup_request_id': backupId,
+          };
+          widget.onAccepted(reportId, initialIncident);
+        }
+      } else {
+        final accepted = await _service.acceptIncident(reportId);
+        if (mounted) {
+          final initialIncident = <String, dynamic>{
+            ...widget.event.data,
+            'report_id': reportId,
+            'responder_status': accepted['responder_status']?.toString() ?? 'Assigned',
+          };
+          widget.onAccepted(reportId, initialIncident);
+        }
       }
     } on ResponderServiceException catch (e) {
       if (mounted) setState(() { _loading = false; _error = e.message; });
@@ -58,7 +82,14 @@ class _IncidentAlertModalState extends State<IncidentAlertModal> {
     final reportId = _reportId;
     setState(() { _loading = true; });
     try {
-      if (reportId != null) await _service.declineIncident(reportId);
+      if (widget.isBackupAlert) {
+        final backupId = _backupRequestId;
+        if (reportId != null && backupId != null) {
+          await _service.declineBackup(reportId, backupId);
+        }
+      } else if (reportId != null) {
+        await _service.declineIncident(reportId);
+      }
     } catch (_) {}
     if (mounted) widget.onDeclined();
   }
@@ -83,6 +114,9 @@ class _IncidentAlertModalState extends State<IncidentAlertModal> {
     final severityLabel = (severity != null && severity.isNotEmpty)
         ? '${severity[0].toUpperCase()}${severity.substring(1).toLowerCase()}'
         : null;
+    final requestedBy = (data['requested_by_name'] as String?)?.trim();
+    final notes = (data['notes'] as String?)?.trim();
+    final isBackup = widget.isBackupAlert;
 
     return Container(
       decoration: BoxDecoration(
@@ -105,31 +139,50 @@ class _IncidentAlertModalState extends State<IncidentAlertModal> {
               ),
             ),
           ),
-          // Alert banner
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
-              color: const Color(0xFFEF4444).withValues(alpha: 0.1),
+              color: (isBackup ? const Color(0xFFF59E0B) : const Color(0xFFEF4444)).withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.3)),
+              border: Border.all(
+                color: (isBackup ? const Color(0xFFF59E0B) : const Color(0xFFEF4444)).withValues(alpha: 0.3),
+              ),
             ),
             child: Row(
               children: [
-                const Icon(Icons.emergency_rounded, color: Color(0xFFEF4444), size: 28),
+                Icon(
+                  isBackup ? Icons.shield_outlined : Icons.emergency_rounded,
+                  color: isBackup ? const Color(0xFFF59E0B) : const Color(0xFFEF4444),
+                  size: 28,
+                ),
                 const SizedBox(width: 12),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('Incident Alert', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFFEF4444))),
-                    Text('Response needed nearby', style: TextStyle(fontSize: 11, color: textSec)),
-                  ],
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        isBackup ? 'Backup needed' : 'Incident Alert',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: isBackup ? const Color(0xFFF59E0B) : const Color(0xFFEF4444),
+                        ),
+                      ),
+                      Text(
+                        isBackup
+                            ? (requestedBy != null && requestedBy.isNotEmpty
+                                ? '$requestedBy needs nearby backup'
+                                : 'A volunteer needs nearby backup')
+                            : 'Response needed nearby',
+                        style: TextStyle(fontSize: 11, color: textSec),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
           ),
           const SizedBox(height: 20),
-
-          // Incident type + severity
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -158,8 +211,6 @@ class _IncidentAlertModalState extends State<IncidentAlertModal> {
             ],
           ),
           const SizedBox(height: 14),
-
-          // Location
           Row(
             children: [
               Icon(Icons.location_on_outlined, color: textSec, size: 16),
@@ -167,9 +218,12 @@ class _IncidentAlertModalState extends State<IncidentAlertModal> {
               Expanded(child: Text(barangay, style: TextStyle(fontSize: 13, color: textSec))),
             ],
           ),
+          if (isBackup && notes != null && notes.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text('Notes: $notes', style: TextStyle(fontSize: 12, color: textSec)),
+          ],
           const SizedBox(height: 24),
-
-          if (widget.onViewDetails != null) ...[
+          if (widget.onViewDetails != null && !isBackup) ...[
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
@@ -180,21 +234,18 @@ class _IncidentAlertModalState extends State<IncidentAlertModal> {
                   foregroundColor: const Color(0xFF2563EB),
                   side: const BorderSide(color: Color(0xFF2563EB)),
                   padding: const EdgeInsets.symmetric(vertical: 12),
+                  minimumSize: const Size(48, 48),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
               ),
             ),
             const SizedBox(height: 12),
           ],
-
-          // Error
           if (_error != null)
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: Text(_error!, style: const TextStyle(color: Color(0xFFEF4444), fontSize: 13)),
             ),
-
-          // Buttons
           Row(
             children: [
               Expanded(
@@ -204,6 +255,7 @@ class _IncidentAlertModalState extends State<IncidentAlertModal> {
                     foregroundColor: textSec,
                     side: BorderSide(color: textSec.withValues(alpha: 0.4)),
                     padding: const EdgeInsets.symmetric(vertical: 14),
+                    minimumSize: const Size(48, 48),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                   child: const Text('Decline', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
@@ -215,13 +267,17 @@ class _IncidentAlertModalState extends State<IncidentAlertModal> {
                 child: FilledButton(
                   onPressed: _loading ? null : _accept,
                   style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF10B981),
+                    backgroundColor: isBackup ? const Color(0xFFF59E0B) : const Color(0xFF10B981),
                     padding: const EdgeInsets.symmetric(vertical: 14),
+                    minimumSize: const Size(48, 48),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                   child: _loading
                       ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : const Text('Accept Incident', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                      : Text(
+                          isBackup ? 'Join Backup' : 'Accept Incident',
+                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                        ),
                 ),
               ),
             ],

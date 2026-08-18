@@ -18,7 +18,7 @@ import { normalizeRole, ROLES } from '@/core/constants';
 // Feature flag — mirrors USE_BLOCKCHAIN in Backend/.env
 const USE_BLOCKCHAIN = import.meta.env.VITE_USE_BLOCKCHAIN === 'true';
 import { mapIncidentTypeFilterToApi } from '@/core/utils/incidentClassification';
-import { mapApiIncidentToDisplay } from '@/core/utils/incidentDisplay';
+import { mapApiIncidentToDisplay, hasOpenBackupUi, getBackupDialogCapabilities } from '@/core/utils/incidentDisplay';
 import { formatDepartmentToIncidentDistance } from '@/core/utils/geoDistance';
 import { SelectParentIncidentDialog } from '@/presentation/components/common/SelectParentIncidentDialog';
 import { VolunteerStatusBadge } from '@/presentation/components/common/VolunteerStatusBadge';
@@ -381,10 +381,19 @@ export function DashboardPage() {
 
   const handleAcknowledgeBackup = async () => {
     const incident = backupDialogIncident;
-    if (!incident?.pendingBackupRequestId) return;
+    const backupId = incident?.activeBackupRequestId;
+    if (!backupId) return;
+    if (String(incident?.openBackupStatus || '').toLowerCase() === 'acknowledged') {
+      Swal.fire({
+        icon: 'info',
+        title: 'Already acknowledged',
+        text: 'This backup request was already acknowledged. Notify a department to dispatch official units.',
+      });
+      return;
+    }
     setAcknowledgingBackup(true);
     try {
-      await acknowledgeBackupRequest(incident.id, incident.pendingBackupRequestId);
+      await acknowledgeBackupRequest(incident.id, backupId);
       setBackupDialogOpen(false);
       setBackupDialogIncident(null);
       fetchIncidents();
@@ -393,6 +402,14 @@ export function DashboardPage() {
     } finally {
       setAcknowledgingBackup(false);
     }
+  };
+
+  const handleAssignTeamBackup = () => {
+    const incident = backupDialogIncident;
+    if (!incident?.id) return;
+    setBackupDialogOpen(false);
+    setBackupDialogIncident(null);
+    navigate(`/incidents/${incident.id}?tab=details&focus=assign`);
   };
 
   const handleDispatchBackup = () => {
@@ -445,6 +462,7 @@ export function DashboardPage() {
 
   const currentUser = JSON.parse(sessionStorage.getItem('user') || '{}');
   const normalizedRole = normalizeRole(currentUser.role);
+  const backupDialogCapabilities = getBackupDialogCapabilities(backupDialogIncident, currentUser.role);
   const canVerify = (
     normalizedRole === ROLES.SUPER_ADMIN
     || normalizedRole === ROLES.DISPATCHER
@@ -912,8 +930,16 @@ export function DashboardPage() {
                                 {(incident.status || '—').toString().toUpperCase()}
                               </Badge>
                               <VolunteerStatusBadge responderStatus={incident.responderStatus} />
-                              {incident.hasPendingBackup && (
-                                <BackupRequestedBadge onClick={() => openBackupDialog(incident)} />
+                              {hasOpenBackupUi(incident) && (
+                                <BackupRequestedBadge
+                                  status={incident.openBackupStatus || 'pending'}
+                                  onClick={() => openBackupDialog(incident)}
+                                />
+                              )}
+                              {Number(incident.backupVolunteerCount) > 0 && (
+                                <Badge className="bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 rounded-lg px-2 py-0.5 text-[11px] font-semibold w-fit">
+                                  {incident.backupVolunteerCount} BACKUP VOL.
+                                </Badge>
                               )}
                               {incident.status === 'Resolved' && (
                                 <span className="text-[10px] text-muted">
@@ -1009,7 +1035,15 @@ export function DashboardPage() {
           incidentId={backupDialogIncident?.id}
           onAcknowledge={handleAcknowledgeBackup}
           onDispatch={handleDispatchBackup}
+          onAssignTeam={handleAssignTeamBackup}
           acknowledging={acknowledgingBackup}
+          target={backupDialogIncident?.pendingBackupTarget}
+          broadcastCount={backupDialogIncident?.pendingBackupBroadcastCount}
+          backupVolunteers={backupDialogIncident?.backupVolunteers || []}
+          openBackupStatus={backupDialogIncident?.openBackupStatus || 'pending'}
+          canAcknowledge={backupDialogCapabilities.canAcknowledge}
+          canNotifyDepartment={backupDialogCapabilities.canNotifyDepartment}
+          canAssignTeam={backupDialogCapabilities.canAssignTeam}
         />
 
         {/* Finalization Modal — blockchain or audit trail depending on USE_BLOCKCHAIN flag */}

@@ -40,6 +40,8 @@ class ResponderDashboardScreenState extends State<ResponderDashboardScreen> {
     'incident:status_updated',
     'incident:accepted',
     'responder:incident_alert',
+    'responder:backup_alert',
+    'responder:backup_joined',
     'responder:status_changed',
   };
 

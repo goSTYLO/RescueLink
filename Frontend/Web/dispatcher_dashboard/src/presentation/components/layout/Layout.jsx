@@ -115,7 +115,7 @@ export function Layout({ children }) {
   const profileRef = useRef(null);
   const notificationsRef = useRef(null);
 
-  const { status: wsStatus, notifications: wsNotifications, clearNotifications, lastHighSeverity, clearLastHighSeverity, lastDispatched, clearLastDispatched, lastBackupRequested, clearLastBackupRequested } = useIncidentWebSocket();
+  const { status: wsStatus, notifications: wsNotifications, clearNotifications, lastHighSeverity, clearLastHighSeverity, lastDispatched, clearLastDispatched, lastBackupRequested, clearLastBackupRequested, lastBackupJoined, clearLastBackupJoined } = useIncidentWebSocket();
   const [apiNotifications, setApiNotifications] = useState([]);
   const [apiUnreadCount, setApiUnreadCount] = useState(0);
 
@@ -215,6 +215,26 @@ export function Layout({ children }) {
     });
     clearLastBackupRequested();
   }, [lastBackupRequested, clearLastBackupRequested]);
+
+  useEffect(() => {
+    if (!lastBackupJoined?.data) return;
+    const d = lastBackupJoined.data;
+    const reportId = d.report_id ?? d.reportId;
+    const joinerName = d.volunteer_name || 'A volunteer';
+    const title = reportId ? `Backup volunteer joined — Incident #${reportId}` : 'Backup volunteer joined';
+    const body = `${joinerName} joined as backup${d.responder_status ? ` (${d.responder_status})` : ''}`;
+    Swal.fire({
+      icon: 'info',
+      title,
+      text: body,
+      timer: 5000,
+      showConfirmButton: true,
+      timerProgressBar: true,
+      toast: true,
+      position: 'top-end',
+    });
+    clearLastBackupJoined();
+  }, [lastBackupJoined, clearLastBackupJoined]);
 
   useEffect(() => {
     localStorage.setItem(SIDEBAR_STORAGE_KEY, JSON.stringify(isCollapsed));

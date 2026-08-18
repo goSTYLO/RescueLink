@@ -204,7 +204,7 @@ class _ResponderIncidentPreviewScreenState
     } on ResponderServiceException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.message), backgroundColor: const Color(0xFFEF4444)),
+          SnackBar(content: Text(e.message), backgroundColor: const Color(0xFFEF4444), closeIconColor: Colors.white),
         );
       }
     } finally {

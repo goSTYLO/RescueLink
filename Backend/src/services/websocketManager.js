@@ -233,12 +233,36 @@ function init(server) {
     else if (['disaster', 'flood', 'typhoon', 'earthquake'].some((k) => rawType.includes(k))) normalizedType = 'disaster';
 
     const isResponderAlert = event === 'responder:incident_alert';
+    const isBackupAlert = event === 'responder:backup_alert';
     if (isResponderAlert && data.accepted_by_user_id) {
       return;
     }
 
+    let backupExcludedUserIds = new Set();
+    if (isBackupAlert && data.backup_request_id) {
+      try {
+        const exRes = await pool.query(
+          `SELECT user_id FROM backup_responses
+            WHERE backup_request_id = $1 AND status IN ('joined', 'declined')`,
+          [data.backup_request_id]
+        );
+        backupExcludedUserIds = new Set(exRes.rows.map((row) => Number(row.user_id)));
+      } catch (_) {}
+    }
+
+    let backupJoinerUserIds = new Set();
+    if (reportId) {
+      try {
+        const bjRes = await pool.query(
+          `SELECT user_id FROM backup_responses WHERE report_id = $1 AND status = 'joined'`,
+          [reportId]
+        );
+        backupJoinerUserIds = new Set(bjRes.rows.map((row) => Number(row.user_id)));
+      } catch (_) {}
+    }
+
     let onlineResponderMap = null;
-    if (isResponderAlert) {
+    if (isResponderAlert || isBackupAlert) {
       const responderUserIds = [];
       for (const [, meta] of clients) {
         if (meta.role === ROLES.RESPONDER && meta.userId != null) {
@@ -301,7 +325,7 @@ function init(server) {
 
       // Reporter (user): own incidents only — never volunteer alert modals
       if (role === ROLES.USER) {
-        if (!isResponderAlert && reporterId != null && reporterId === userId) {
+        if (!isResponderAlert && !isBackupAlert && reporterId != null && reporterId === userId) {
           toSend.push(ws);
         }
         continue;
@@ -309,6 +333,33 @@ function init(server) {
 
       // Responder: filter by supported incident types if event is responder alert
       if (role === ROLES.RESPONDER) {
+        if (isBackupAlert) {
+          if (acceptorUserId != null && Number(acceptorUserId) === Number(userId)) continue;
+          if (backupExcludedUserIds.has(Number(userId))) continue;
+          const userRow = onlineResponderMap?.get(userId);
+          if (!userRow?.responder_online) continue;
+
+          if (supportedIncidentTypes && supportedIncidentTypes.length > 0) {
+            if (normalizedType !== 'sos' && !supportedIncidentTypes.includes(normalizedType)) {
+              continue;
+            }
+          }
+
+          const rLat = userRow.latitude != null ? Number(userRow.latitude) : null;
+          const rLon = userRow.longitude != null ? Number(userRow.longitude) : null;
+          if (
+            rLat != null && rLon != null &&
+            incidentLat != null && incidentLon != null &&
+            !Number.isNaN(incidentLat) && !Number.isNaN(incidentLon) &&
+            !Number.isNaN(rLat) && !Number.isNaN(rLon)
+          ) {
+            const dist = haversineKm(rLat, rLon, incidentLat, incidentLon);
+            if (dist > ALERT_RADIUS_KM) continue;
+          }
+
+          toSend.push(ws);
+          continue;
+        }
         if (isResponderAlert) {
           if (reporterId != null && Number(reporterId) === Number(userId)) {
             continue;
@@ -340,6 +391,10 @@ function init(server) {
         }
         // Volunteer who accepted the incident: backup/dispatch/status updates for their assignment
         if (acceptorUserId != null && Number(acceptorUserId) === Number(userId)) {
+          toSend.push(ws);
+          continue;
+        }
+        if (backupJoinerUserIds.has(Number(userId))) {
           toSend.push(ws);
           continue;
         }

@@ -15,12 +15,16 @@ class ResponderIncidentDetailScreen extends StatefulWidget {
   final int reportId;
   final bool readOnly;
   final Map<String, dynamic>? initialIncident;
+  final bool isBackupHelper;
+  final int? backupRequestId;
 
   const ResponderIncidentDetailScreen({
     super.key,
     required this.reportId,
     this.readOnly = false,
     this.initialIncident,
+    this.isBackupHelper = false,
+    this.backupRequestId,
   });
 
   @override
@@ -53,6 +57,12 @@ class _ResponderIncidentDetailScreenState
     'Resolved': 'Mark Resolved',
   };
 
+  bool get _isBackupHelper =>
+      widget.isBackupHelper || _incident?['is_backup_assignment'] == true;
+
+  int? get _backupRequestId =>
+      widget.backupRequestId ?? parseInt(_incident?['backup_request_id']);
+
   @override
   void initState() {
     super.initState();
@@ -74,6 +84,10 @@ class _ResponderIncidentDetailScreenState
         'responder:status_changed',
         'responder:backup_requested',
         'responder:backup_acknowledged',
+        'responder:backup_joined',
+        'responder:backup_declined',
+        'responder:backup_status_changed',
+        'responder:backup_withdrawn',
         'incident:status_updated',
         'incident:dispatched',
       };
@@ -154,7 +168,15 @@ class _ResponderIncidentDetailScreenState
   Future<void> _updateStatus(String newStatus) async {
     setState(() => _submitting = true);
     try {
-      await _service.updateResponderStatus(widget.reportId, newStatus);
+      if (_isBackupHelper) {
+        final backupId = _backupRequestId;
+        if (backupId == null) {
+          throw ResponderServiceException('Backup assignment id missing.');
+        }
+        await _service.updateBackupResponderStatus(widget.reportId, backupId, newStatus);
+      } else {
+        await _service.updateResponderStatus(widget.reportId, newStatus);
+      }
       if (mounted) {
         setState(() {
           _incident = {
@@ -163,7 +185,7 @@ class _ResponderIncidentDetailScreenState
           };
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Status updated to $newStatus'), backgroundColor: const Color(0xFF10B981)),
+          SnackBar(content: Text('Status updated to $newStatus'), backgroundColor: const Color(0xFF10B981), closeIconColor: Colors.white),
         );
         if (newStatus == 'Resolved') {
           await Future<void>.delayed(const Duration(milliseconds: 600));
@@ -175,7 +197,7 @@ class _ResponderIncidentDetailScreenState
     } on ResponderServiceException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.message), backgroundColor: const Color(0xFFEF4444)),
+          SnackBar(content: Text(e.message), backgroundColor: const Color(0xFFEF4444), closeIconColor: Colors.white),
         );
       }
     } finally {
@@ -241,14 +263,14 @@ class _ResponderIncidentDetailScreenState
             };
           });
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Backup request sent.'), backgroundColor: Color(0xFF10B981)),
+            const SnackBar(content: Text('Backup request sent.'), backgroundColor: Color(0xFF10B981), closeIconColor: Colors.white),
           );
           await _loadIncident();
         }
       } on ResponderServiceException catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(e.message), backgroundColor: const Color(0xFFEF4444)),
+            SnackBar(content: Text(e.message), backgroundColor: const Color(0xFFEF4444), closeIconColor: Colors.white),
           );
         }
       }
@@ -324,8 +346,12 @@ class _ResponderIncidentDetailScreenState
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: Text('Incident #DGP-${widget.reportId}',
-            style: TextStyle(color: textPrimary, fontWeight: FontWeight.bold)),
+        title: Text(
+          _isBackupHelper
+              ? 'Backup #DGP-${widget.reportId}'
+              : 'Incident #DGP-${widget.reportId}',
+          style: TextStyle(color: textPrimary, fontWeight: FontWeight.bold),
+        ),
         iconTheme: IconThemeData(color: textPrimary),
       ),
       body: _loading
@@ -478,7 +504,15 @@ class _ResponderIncidentDetailScreenState
           ),
           const SizedBox(height: 20),
 
-          if (BackupStatusUi.hasPendingBackup(inc))
+          if (_isBackupHelper)
+            _buildBackupStatusChip(
+              label: 'You joined as backup volunteer',
+              icon: Icons.groups_outlined,
+              backgroundColor: const Color(0xFFE0E7FF),
+              borderColor: const Color(0xFF6366F1),
+              textColor: const Color(0xFF4338CA),
+            )
+          else if (BackupStatusUi.hasPendingBackup(inc))
             _buildBackupStatusChip(
               label: 'Backup requested',
               icon: Icons.shield_outlined,
@@ -503,10 +537,43 @@ class _ResponderIncidentDetailScreenState
               borderColor: const Color(0xFF10B981),
               textColor: const Color(0xFF047857),
             ),
-          if (BackupStatusUi.hasPendingBackup(inc) ||
+          if (_isBackupHelper ||
+              BackupStatusUi.hasPendingBackup(inc) ||
               BackupStatusUi.isBackupAcknowledged(inc) ||
               BackupStatusUi.hasBackupUnitDispatched(inc))
             const SizedBox(height: 12),
+
+          if (!_isBackupHelper && BackupStatusUi.hasJoinedBackupVolunteers(inc)) ...[
+            _collapsibleCard(
+              key: 'backup_volunteers',
+              title: 'Backup volunteers',
+              icon: Icons.groups_outlined,
+              iconColor: const Color(0xFF6366F1),
+              textPrimary: textPrimary,
+              textSec: textSec,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: BackupStatusUi.joinedBackupVolunteers(inc).map((vol) {
+                  final name = (vol['name'] as String?)?.trim().isNotEmpty == true
+                      ? vol['name'].toString()
+                      : 'Volunteer';
+                  final status = (vol['responder_status'] as String?) ?? 'Assigned';
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.person_outline, size: 18, color: Color(0xFF6366F1)),
+                        const SizedBox(width: 8),
+                        Expanded(child: Text(name, style: TextStyle(color: textPrimary, fontWeight: FontWeight.w600))),
+                        Text(status, style: TextStyle(color: textSec, fontSize: 12)),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
 
           // Actions
           if (!widget.readOnly) ...[
@@ -527,7 +594,7 @@ class _ResponderIncidentDetailScreenState
                 ),
               ),
             const SizedBox(height: 10),
-            if (currentStatus != 'Resolved' && !BackupStatusUi.hasPendingBackup(inc))
+            if (!_isBackupHelper && currentStatus != 'Resolved' && !BackupStatusUi.hasPendingBackup(inc))
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(

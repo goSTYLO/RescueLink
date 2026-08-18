@@ -12,7 +12,7 @@ import { getDepartmentById, getDepartmentUnits, assignDepartmentUnit } from '@/d
 import { getResponderTeams } from '@/data/api/responders.api';
 import { createDispatch } from '@/data/api/dispatches.api';
 import { inferDepartmentSectorCode, normalizeSectorCode } from '@/core/utils/departmentSector';
-import { mapApiIncidentToDisplay, isIncidentActiveForDashboard } from '@/core/utils/incidentDisplay';
+import { mapApiIncidentToDisplay, isIncidentActiveForDashboard, hasOpenBackupUi, getBackupDialogCapabilities } from '@/core/utils/incidentDisplay';
 import { formatDepartmentToIncidentDistance } from '@/core/utils/geoDistance';
 import { VolunteerStatusBadge } from '@/presentation/components/common/VolunteerStatusBadge';
 import { BackupRequestedBadge } from '@/presentation/components/common/BackupRequestedBadge';
@@ -287,10 +287,19 @@ export function DepartmentDashboardPage() {
 
   const handleAcknowledgeBackup = async () => {
     const incident = backupDialogIncident;
-    if (!incident?.pendingBackupRequestId) return;
+    const backupId = incident?.activeBackupRequestId;
+    if (!backupId) return;
+    if (String(incident?.openBackupStatus || '').toLowerCase() === 'acknowledged') {
+      Swal.fire({
+        icon: 'info',
+        title: 'Already acknowledged',
+        text: 'This backup request was already acknowledged. Assign an official backup team.',
+      });
+      return;
+    }
     setAcknowledgingBackup(true);
     try {
-      await acknowledgeBackupRequest(incident.id, incident.pendingBackupRequestId);
+      await acknowledgeBackupRequest(incident.id, backupId);
       setBackupDialogOpen(false);
       setBackupDialogIncident(null);
       fetchIncidents();
@@ -301,12 +310,22 @@ export function DepartmentDashboardPage() {
     }
   };
 
+  const handleAssignTeamBackup = () => {
+    const incident = backupDialogIncident;
+    if (!incident?.id) return;
+    setBackupDialogOpen(false);
+    setBackupDialogIncident(null);
+    openAssignModal(incident.id);
+  };
+
+  const backupDialogCapabilities = getBackupDialogCapabilities(backupDialogIncident, user.role);
+
   const handleDispatchBackup = () => {
     const incident = backupDialogIncident;
     if (!incident?.id) return;
     setBackupDialogOpen(false);
     setBackupDialogIncident(null);
-    navigate(`/incidents/${incident.id}?tab=details&focus=dispatch`);
+    navigate(`/incidents/${incident.id}?tab=details&focus=assign`);
   };
 
   useEffect(() => {
@@ -689,8 +708,16 @@ export function DepartmentDashboardPage() {
                         <div className="flex flex-col gap-1">
                           {getStatusBadge(incident.status)}
                           <VolunteerStatusBadge responderStatus={incident.responderStatus} />
-                          {incident.hasPendingBackup && (
-                            <BackupRequestedBadge onClick={() => openBackupDialog(incident)} />
+                          {hasOpenBackupUi(incident) && (
+                            <BackupRequestedBadge
+                              status={incident.openBackupStatus || 'pending'}
+                              onClick={() => openBackupDialog(incident)}
+                            />
+                          )}
+                          {Number(incident.backupVolunteerCount) > 0 && (
+                            <Badge className="bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 rounded-lg px-2 py-0.5 text-[11px] font-semibold w-fit">
+                              {incident.backupVolunteerCount} BACKUP VOL.
+                            </Badge>
                           )}
                           {(incident.status === 'Resolved' || incident.status === 'resolved') && !incident.reporterConfirmedAt && (
                             <span className="text-xs text-amber-500 font-medium">Awaiting confirmation</span>
@@ -757,7 +784,15 @@ export function DepartmentDashboardPage() {
           incidentId={backupDialogIncident?.id}
           onAcknowledge={handleAcknowledgeBackup}
           onDispatch={handleDispatchBackup}
+          onAssignTeam={handleAssignTeamBackup}
           acknowledging={acknowledgingBackup}
+          target={backupDialogIncident?.pendingBackupTarget}
+          broadcastCount={backupDialogIncident?.pendingBackupBroadcastCount}
+          backupVolunteers={backupDialogIncident?.backupVolunteers || []}
+          openBackupStatus={backupDialogIncident?.openBackupStatus || 'pending'}
+          canAcknowledge={backupDialogCapabilities.canAcknowledge}
+          canNotifyDepartment={backupDialogCapabilities.canNotifyDepartment}
+          canAssignTeam={backupDialogCapabilities.canAssignTeam}
         />
 
         <Dialog open={assignModalOpen} onOpenChange={(open) => !open && closeAssignModal()} className="max-w-md">

@@ -181,13 +181,65 @@ class ResponderService {
   }
 
   /// POST /api/incidents/:id/backup
-  Future<void> requestBackup(int reportId, String target, {String? notes}) async {
+  Future<Map<String, dynamic>> requestBackup(int reportId, String target, {String? notes}) async {
     final uri = Uri.parse('${AppConfig.apiBaseUrl}/api/incidents/$reportId/backup');
     try {
       final body = <String, dynamic>{'target': target};
       if (notes != null && notes.isNotEmpty) body['notes'] = notes;
       final res = await _client
           .post(uri, headers: _headers(), body: jsonEncode(body))
+          .timeout(AppConfig.apiTimeout);
+      return await _handleResponse(res);
+    } on SocketException {
+      throw ResponderServiceException('No connection.');
+    }
+  }
+
+  /// POST /api/incidents/:id/backup/:backupId/join
+  Future<Map<String, dynamic>> joinBackup(int reportId, int backupId) async {
+    final uri = Uri.parse('${AppConfig.apiBaseUrl}/api/incidents/$reportId/backup/$backupId/join');
+    try {
+      final res = await _client
+          .post(uri, headers: _headers())
+          .timeout(AppConfig.apiTimeout);
+      return await _handleResponse(res);
+    } on SocketException {
+      throw ResponderServiceException('No connection.');
+    }
+  }
+
+  /// POST /api/incidents/:id/backup/:backupId/decline
+  Future<void> declineBackup(int reportId, int backupId) async {
+    final uri = Uri.parse('${AppConfig.apiBaseUrl}/api/incidents/$reportId/backup/$backupId/decline');
+    try {
+      final res = await _client
+          .post(uri, headers: _headers())
+          .timeout(AppConfig.apiTimeout);
+      await _handleResponse(res);
+    } on SocketException {
+      throw ResponderServiceException('No connection.');
+    }
+  }
+
+  /// POST /api/incidents/:id/backup/:backupId/withdraw
+  Future<void> withdrawBackup(int reportId, int backupId) async {
+    final uri = Uri.parse('${AppConfig.apiBaseUrl}/api/incidents/$reportId/backup/$backupId/withdraw');
+    try {
+      final res = await _client
+          .post(uri, headers: _headers())
+          .timeout(AppConfig.apiTimeout);
+      await _handleResponse(res);
+    } on SocketException {
+      throw ResponderServiceException('No connection.');
+    }
+  }
+
+  /// PATCH /api/incidents/:id/backup/:backupId/responder-status
+  Future<void> updateBackupResponderStatus(int reportId, int backupId, String status) async {
+    final uri = Uri.parse('${AppConfig.apiBaseUrl}/api/incidents/$reportId/backup/$backupId/responder-status');
+    try {
+      final res = await _client
+          .patch(uri, headers: _headers(), body: jsonEncode({'status': status}))
           .timeout(AppConfig.apiTimeout);
       await _handleResponse(res);
     } on SocketException {

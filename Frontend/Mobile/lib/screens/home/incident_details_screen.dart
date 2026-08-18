@@ -106,6 +106,8 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
           'responder:status_changed',
           'responder:backup_requested',
           'responder:backup_acknowledged',
+          'responder:backup_joined',
+          'responder:backup_status_changed',
           'incident:status_updated',
           'incident:dispatched',
         };
@@ -1187,6 +1189,28 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
                 Expanded(
                   child: Text(
                     'Additional backup has been requested for your incident. Official units may be dispatched.',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: ReportStatusUi.badgeText(status),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ] else if (BackupStatusUi.hasJoinedBackupVolunteers(_incident)) ...[
+            const SizedBox(height: 12),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.groups_outlined,
+                  size: 18,
+                  color: ReportStatusUi.badgeText(status),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Nearby volunteer backup is on the way.',
                     style: TextStyle(
                       fontSize: 13,
                       color: ReportStatusUi.badgeText(status),
