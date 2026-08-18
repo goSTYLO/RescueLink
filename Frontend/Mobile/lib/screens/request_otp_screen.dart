@@ -20,9 +20,6 @@ class RequestOTPScreen extends StatefulWidget {
 
 class _RequestOTPScreenState extends State<RequestOTPScreen> {
   final AuthService _authService = AuthService();
-  final String _selectedBarangay = 'Select your barangay';
-  final bool _obscurePassword = true;
-  final bool _obscureConfirmPassword = true;
   bool _isLoading = false;
 
   @override

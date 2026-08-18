@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../services/responder_application_service.dart';
 import '../../../widgets/glass_card.dart';
@@ -33,8 +32,6 @@ class _ResponderOnboardingScreenState extends State<ResponderOnboardingScreen>
   final Set<String> _selectedSpecializations = {'medical'};
   final Map<String, File> _fieldProofFiles = {};
 
-  final List<File> _certificateFiles = [];
-  final List<File> _otherDocFiles = [];
 
   static const Map<String, Map<String, dynamic>> _fieldMeta = {
     'medical': {
@@ -127,34 +124,6 @@ class _ResponderOnboardingScreenState extends State<ResponderOnboardingScreen>
     }
   }
 
-  Future<void> _pickCertificate() async {
-    final picker = ImagePicker();
-    final images = await picker.pickMultiImage(imageQuality: 85);
-    if (images.isNotEmpty) {
-      setState(() {
-        for (final img in images) {
-          if (_certificateFiles.length < 5) {
-            _certificateFiles.add(File(img.path));
-          }
-        }
-      });
-    }
-  }
-
-  Future<void> _pickOtherDoc() async {
-    final picker = ImagePicker();
-    final images = await picker.pickMultiImage(imageQuality: 85);
-    if (images.isNotEmpty) {
-      setState(() {
-        for (final img in images) {
-          if (_otherDocFiles.length < 3) {
-            _otherDocFiles.add(File(img.path));
-          }
-        }
-      });
-    }
-  }
-
   Future<void> _submitApplication() async {
     if (!_agreedToTerms) {
       _tabController.animateTo(0);
@@ -217,8 +186,6 @@ class _ResponderOnboardingScreenState extends State<ResponderOnboardingScreen>
         govIdFile: _govIdFile!,
         specializationFields: _selectedSpecializations.toList(),
         fieldProofFiles: _fieldProofFiles,
-        certificateFiles: _certificateFiles,
-        otherDocFiles: _otherDocFiles,
       );
 
       if (mounted) {

@@ -150,6 +150,7 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
               _recordedDurationSeconds = elapsedSeconds;
               _audioTooShort = true;
             });
+            if (!mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(

@@ -100,6 +100,14 @@ export function isVolunteerResolved(responderStatus) {
   return String(responderStatus || '').trim().toLowerCase() === 'resolved';
 }
 
+/** Lifecycle resolved or volunteer marked Resolved (and not yet closed). */
+export function isIncidentEffectivelyResolved(incident) {
+  const status = String(incident?.status || '').trim().toLowerCase();
+  if (status === 'closed') return false;
+  if (status === 'resolved') return true;
+  return isVolunteerResolved(incident?.responderStatus);
+}
+
 export function isIncidentActiveForDashboard(incident) {
   const status = String(incident?.status || '').toLowerCase();
   if (status === 'resolved' || status === 'closed') return false;
@@ -134,6 +142,12 @@ export function mapApiIncidentToDisplay(api) {
     });
   }
 
+  const acceptedFirst = String(api?.accepted_by_first_name || '').trim();
+  const acceptedLast = String(api?.accepted_by_last_name || '').trim();
+  const acceptedByName = String(api?.accepted_by_name || '').trim()
+    || [acceptedFirst, acceptedLast].filter(Boolean).join(' ').trim()
+    || null;
+
   return {
     id: api?.report_id,
     reporterName,
@@ -146,7 +160,13 @@ export function mapApiIncidentToDisplay(api) {
     status: normalizeIncidentStatusLabel(api?.status),
     responderStatus: api?.responder_status || null,
     acceptedByUserId: api?.accepted_by_user_id ?? null,
+    acceptedByName,
+    acceptedByPhone: api?.accepted_by_phone || null,
     acceptedAt: api?.accepted_at || null,
+    latitude: api?.latitude ?? null,
+    longitude: api?.longitude ?? null,
+    hasPendingBackup: Boolean(api?.has_pending_backup),
+    pendingBackupRequestId: api?.pending_backup_request_id ?? null,
     timeReported,
     timeReportedTs,
     verified: api?.verified ?? false,

@@ -237,7 +237,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     final width = MediaQuery.sizeOf(context).width;
     final horizontalPadding = Responsive.horizontalPadding(width);
-    final compact = Responsive.isCompact(width);
 
     return SingleChildScrollView(
       child: Column(
@@ -492,7 +491,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 onTap: () async {
                   try {
                     final res = await ResponderApplicationService().getMyApplication();
-                    if (!mounted) return;
+                    if (!context.mounted) return;
                     if (res['hasApplication'] == true && res['application'] != null) {
                       Navigator.push(
                         context,
@@ -520,7 +519,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       );
                     }
                   } catch (e) {
-                    if (!mounted) return;
+                    if (!context.mounted) return;
                     Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -632,38 +631,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     ),
     ],
   ),
-    );
-  }
-
-  Widget _buildSettingsHeaderLogo(double width) {
-    final logoSize = Responsive.logoSize(width);
-    final titleSize = Responsive.brandTitleSize(width);
-    final compact = Responsive.isCompact(width);
-    return Row(
-      mainAxisSize: MainAxisSize.max,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Image.asset(
-          'assets/logo/icon.png',
-          width: logoSize,
-          height: logoSize,
-          fit: BoxFit.contain,
-        ),
-        SizedBox(width: compact ? 6 : 10),
-        Expanded(
-          child: Text.rich(
-            TextSpan(
-              style: TextStyle(fontSize: titleSize, fontWeight: FontWeight.bold),
-              children: const [
-                TextSpan(text: 'Rescue', style: TextStyle(color: Color(0xFFBFDBFE))),
-                TextSpan(text: 'Link', style: TextStyle(color: Colors.white)),
-              ],
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-      ],
     );
   }
 

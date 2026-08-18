@@ -164,23 +164,25 @@ class _ResponderIncidentDetailScreenState
           builder: (ctx, setDlg) => Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              RadioListTile<String>(
-                title: const Text('CDRRMO'),
-                value: 'cdrrmo',
+              RadioGroup<String>(
                 groupValue: selected,
                 onChanged: (v) => setDlg(() => selected = v!),
-              ),
-              RadioListTile<String>(
-                title: const Text('Nearby Responders'),
-                value: 'nearby_responders',
-                groupValue: selected,
-                onChanged: (v) => setDlg(() => selected = v!),
-              ),
-              RadioListTile<String>(
-                title: const Text('Both'),
-                value: 'both',
-                groupValue: selected,
-                onChanged: (v) => setDlg(() => selected = v!),
+                child: const Column(
+                  children: [
+                    RadioListTile<String>(
+                      title: Text('CDRRMO'),
+                      value: 'cdrrmo',
+                    ),
+                    RadioListTile<String>(
+                      title: Text('Nearby Responders'),
+                      value: 'nearby_responders',
+                    ),
+                    RadioListTile<String>(
+                      title: Text('Both'),
+                      value: 'both',
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 8),
               TextField(

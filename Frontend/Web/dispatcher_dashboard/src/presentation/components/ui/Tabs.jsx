@@ -2,8 +2,15 @@ import { useState, createContext, useContext, useRef, useLayoutEffect } from 're
 
 const TabsContext = createContext();
 
-export function Tabs({ defaultValue, children, className = '' }) {
-  const [activeTab, setActiveTab] = useState(defaultValue);
+export function Tabs({ defaultValue, value: controlledValue, onValueChange, children, className = '' }) {
+  const [internalTab, setInternalTab] = useState(controlledValue ?? defaultValue);
+  const activeTab = controlledValue !== undefined && controlledValue !== null ? controlledValue : internalTab;
+  const setActiveTab = (next) => {
+    if (controlledValue === undefined || controlledValue === null) {
+      setInternalTab(next);
+    }
+    onValueChange?.(next);
+  };
   const [indicatorStyle, setIndicatorStyle] = useState({ left: 0, width: 0 });
   const [listEl, setListEl] = useState(null);
 

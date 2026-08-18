@@ -409,6 +409,9 @@ CREATE TABLE IF NOT EXISTS backup_requests (
   requested_by_user_id INTEGER NOT NULL REFERENCES users(user_id),
   target VARCHAR(50) NOT NULL CHECK (target IN ('nearby_responders', 'cdrrmo', 'both')),
   notes TEXT,
+  status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'acknowledged')),
+  acknowledged_by_user_id INTEGER REFERENCES users(user_id),
+  acknowledged_at TIMESTAMP WITH TIME ZONE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_backup_requests_report ON backup_requests(report_id);

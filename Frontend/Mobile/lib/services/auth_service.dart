@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -465,7 +466,7 @@ class AuthService {
     try {
       // Format phone to E.164 to match database format
       final formattedPhone = _formatPhoneNumberE164(phone);
-      print('🔐 Logging in with phone: $formattedPhone');
+      debugPrint('🔐 Logging in with phone: $formattedPhone');
 
       final response = await _apiService.post(
         '/api/auth/login',
@@ -480,7 +481,7 @@ class AuthService {
         await _storeToken(response['token']);
         await saveTokenForBiometric(response['token'] as String);
         await saveCredentialsForBiometric(phone: formattedPhone, password: password);
-        print('✅ Login successful, token stored');
+        debugPrint('✅ Login successful, token stored');
       }
 
       return {
@@ -489,7 +490,7 @@ class AuthService {
         'token': response['token'],
       };
     } catch (e) {
-      print('❌ Login error: $e');
+      debugPrint('❌ Login error: $e');
       String errorMessage = 'Incorrect password or number.';
       if (e is ApiException) {
         final code = e.statusCode;
@@ -528,7 +529,7 @@ class AuthService {
     
     // Add + prefix for E.164 format
     final e164Format = '+$digitsOnly';
-    print('📱 Phone formatting: $phoneNumber → $e164Format');
+    debugPrint('📱 Phone formatting: $phoneNumber → $e164Format');
     return e164Format;
   }
 
@@ -539,7 +540,7 @@ class AuthService {
     try {
       // Format phone number to E.164
       final formattedPhone = _formatPhoneNumberE164(phoneNumber);
-      print('🔐 Initializing phone verification for: $formattedPhone');
+      debugPrint('🔐 Initializing phone verification for: $formattedPhone');
       
       final Completer<Map<String, dynamic>> completer = Completer();
 
@@ -548,10 +549,10 @@ class AuthService {
         timeout: const Duration(seconds: 60),
         verificationCompleted: (PhoneAuthCredential credential) {
           // Auto-verification on Android
-          print('Phone verification auto-completed');
+          debugPrint('Phone verification auto-completed');
         },
         verificationFailed: (FirebaseAuthException e) {
-          print('Phone verification failed: ${e.message}');
+          debugPrint('Phone verification failed: ${e.message}');
           if (!completer.isCompleted) {
             completer.complete({
               'success': false,
@@ -562,7 +563,7 @@ class AuthService {
         codeSent: (String verificationId, int? forceResendingToken) {
           _verificationId = verificationId;
           _forceResendingToken = forceResendingToken;
-          print('✅ OTP code sent! Verification ID: ${verificationId.substring(0, 20)}...');
+          debugPrint('✅ OTP code sent! Verification ID: ${verificationId.substring(0, 20)}...');
           if (!completer.isCompleted) {
             completer.complete({'success': true});
           }
@@ -574,7 +575,7 @@ class AuthService {
 
       return await completer.future;
     } catch (e) {
-      print('❌ Phone verification initialization error: $e');
+      debugPrint('❌ Phone verification initialization error: $e');
       return {
         'success': false,
         'error': e.toString(),
@@ -591,14 +592,14 @@ class AuthService {
   }) async {
     try {
       if (_verificationId == null) {
-        print('❌ Verification ID is null');
+        debugPrint('❌ Verification ID is null');
         return {
           'success': false,
           'error': 'Verification ID not found. Please request OTP again.',
         };
       }
 
-      print('🔐 Attempting to verify OTP: $otp with verificationId: $_verificationId');
+      debugPrint('🔐 Attempting to verify OTP: $otp with verificationId: $_verificationId');
 
       // Sign in with OTP to get Firebase ID token
       final credential = PhoneAuthProvider.credential(
@@ -606,46 +607,46 @@ class AuthService {
         smsCode: otp,
       );
 
-      print('📱 Firebase credential created, signing in with credential...');
+      debugPrint('📱 Firebase credential created, signing in with credential...');
       final userCredential =
           await _firebaseAuth.signInWithCredential(credential);
       final user = userCredential.user;
       
       if (user == null) {
-        print('❌ Firebase sign in returned null user');
+        debugPrint('❌ Firebase sign in returned null user');
         return {
           'success': false,
           'error': 'Firebase sign in failed.',
         };
       }
       
-      print('✅ Firebase sign in successful. User UID: ${user.uid}');
-      print('🔑 Getting Firebase ID token...');
+      debugPrint('✅ Firebase sign in successful. User UID: ${user.uid}');
+      debugPrint('🔑 Getting Firebase ID token...');
       
       final idToken = await user.getIdToken();
 
       if (idToken == null || idToken.isEmpty) {
-        print('❌ Failed to get Firebase ID token - token is null or empty');
+        debugPrint('❌ Failed to get Firebase ID token - token is null or empty');
         return {
           'success': false,
           'error': 'Failed to get Firebase ID token.',
         };
       }
 
-      print('✅ Firebase ID token obtained: ${idToken.substring(0, 50)}...');
+      debugPrint('✅ Firebase ID token obtained: ${idToken.substring(0, 50)}...');
 
       // Get current token to send to backend
       String? currentToken = getToken();
       if (currentToken == null) {
-        print('⚠️ Registration token not found in SharedPreferences - trying without auth header');
+        debugPrint('⚠️ Registration token not found in SharedPreferences - trying without auth header');
         // Continue without auth header for now
       } else {
-        print('✅ Registration token found');
+        debugPrint('✅ Registration token found');
       }
 
-      print('🌐 Making API call to /api/auth/onboard-phone');
-      print('📤 Request body: { idToken: "${idToken.substring(0, 50)}..." }');
-      print('📤 Authorization header: ${currentToken != null ? "Bearer $currentToken" : "NONE"}');
+      debugPrint('🌐 Making API call to /api/auth/onboard-phone');
+      debugPrint('📤 Request body: { idToken: "${idToken.substring(0, 50)}..." }');
+      debugPrint('📤 Authorization header: ${currentToken != null ? "Bearer $currentToken" : "NONE"}');
 
       // Call backend onboard-phone endpoint with only idToken (password is optional)
       Map<String, String> headers = {};
@@ -659,11 +660,11 @@ class AuthService {
         headers: headers,
       );
 
-      print('✅ Backend responded successfully');
-      print('📊 Backend response: $onboardResponse');
+      debugPrint('✅ Backend responded successfully');
+      debugPrint('📊 Backend response: $onboardResponse');
 
       if (onboardResponse['token'] == null) {
-        print('❌ Backend did not return token. Response: $onboardResponse');
+        debugPrint('❌ Backend did not return token. Response: $onboardResponse');
         final message = onboardResponse['message'] ?? onboardResponse['error'] ?? 'Failed to complete phone verification.';
         return {
           'success': false,
@@ -674,24 +675,24 @@ class AuthService {
       // Only store token if requested (signup flow uses storeToken: false, then navigate to Login)
       if (storeToken) {
         await _storeToken(onboardResponse['token']);
-        print('✅ JWT token stored successfully');
+        debugPrint('✅ JWT token stored successfully');
       }
-      print('✅ Phone verification complete!');
+      debugPrint('✅ Phone verification complete!');
 
       return {
         'success': true,
         'data': onboardResponse,
       };
     } on FirebaseAuthException catch (e) {
-      print('❌ Firebase Auth Exception: ${e.code}');
-      print('❌ Firebase error message: ${e.message}');
+      debugPrint('❌ Firebase Auth Exception: ${e.code}');
+      debugPrint('❌ Firebase error message: ${e.message}');
       return {
         'success': false,
         'error': e.message ?? 'Firebase authentication error (${e.code})',
       };
     } catch (e) {
-      print('❌ Unexpected error during OTP verification: $e');
-      print('❌ Error type: ${e.runtimeType}');
+      debugPrint('❌ Unexpected error during OTP verification: $e');
+      debugPrint('❌ Error type: ${e.runtimeType}');
       return {
         'success': false,
         'error': 'Verification error: ${e.toString()}',
@@ -797,7 +798,7 @@ class AuthService {
               e.toString().contains('Timeout')) {
             attempt++;
             if (attempt <= maxRetries) {
-              print('Location timeout, retrying... (attempt $attempt)');
+              debugPrint('Location timeout, retrying... (attempt $attempt)');
               continue;
             } else {
               return {
@@ -835,10 +836,10 @@ class AuthService {
         timeout: const Duration(seconds: 60),
         forceResendingToken: _forceResendingToken,
         verificationCompleted: (PhoneAuthCredential credential) {
-          print('Phone verification auto-completed');
+          debugPrint('Phone verification auto-completed');
         },
         verificationFailed: (FirebaseAuthException e) {
-          print('Phone verification failed: ${e.message}');
+          debugPrint('Phone verification failed: ${e.message}');
           if (!completer.isCompleted) {
             completer.complete({
               'success': false,

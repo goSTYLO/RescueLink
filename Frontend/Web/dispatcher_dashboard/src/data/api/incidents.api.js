@@ -35,6 +35,7 @@ export function normalizeIncidentStatus(value) {
  * @param {string} [params.search] - Search by report ID (exact) or description/barangay (ILIKE)
  * @param {number} [params.exclude_report_id] - Exclude a specific report ID (e.g. when selecting parent for duplicate)
  * @param {boolean} [params.withMeta=false] - Include backend pagination metadata
+ * @param {boolean} [params.volunteer_accepted=false] - Only incidents accepted by a volunteer
  * @returns {Promise<Array>} Array of incident objects (or { items, totalCount, limit, offset } if withMeta)
  */
 export async function getIncidents({
@@ -47,6 +48,7 @@ export async function getIncidents({
   exclude_duplicates = false,
   search,
   exclude_report_id,
+  volunteer_accepted = false,
   withMeta = false,
 } = {}) {
   const requestId = createRequestId('web-incidents');
@@ -61,6 +63,7 @@ export async function getIncidents({
   if (exclude_duplicates) params.set('exclude_duplicates', 'true');
   if (search && String(search).trim()) params.set('search', String(search).trim());
   if (exclude_report_id != null) params.set('exclude_report_id', String(exclude_report_id));
+  if (volunteer_accepted) params.set('volunteer_accepted', 'true');
   params.set('meta', withMeta ? '1' : '0');
   const queryKey = params.toString();
   const cached = incidentsCache.get(queryKey);
@@ -200,16 +203,23 @@ export async function verifyIncident(id) {
 /**
  * Update incident lifecycle status
  * @param {number|string} id - Incident report ID
- * @param {string} status - verified|in_progress|resolved
+ * @param {string} status - verified|in_progress|resolved|closed
+ * @param {Object} [metadata] - Optional closure fields when status is closed
+ * @param {string} [metadata.closure_notes]
+ * @param {string} [metadata.closure_method]
  * @returns {Promise<Object>} { success, incident }
  */
-export async function updateIncidentStatus(id, status) {
+export async function updateIncidentStatus(id, status, metadata = {}) {
   const requestId = createRequestId('web-incident-status');
   const start = performance.now();
+  const body = { status: normalizeIncidentStatus(status) };
+  if (metadata.closure_notes) body.closure_notes = metadata.closure_notes;
+  if (metadata.closure_method) body.closure_method = metadata.closure_method;
+
   const response = await fetch(`${API_URL}/api/incidents/${id}/status`, {
     method: 'PATCH',
     headers: getAuthHeaders({ requestId }),
-    body: JSON.stringify({ status: normalizeIncidentStatus(status) }),
+    body: JSON.stringify(body),
   });
 
   const data = await parseJsonOrEmpty(response);
@@ -456,4 +466,40 @@ export async function getIncidentMediaUrl(id, index) {
     filename,
     contentType,
   };
+}
+
+/**
+ * List backup requests for an incident (dispatcher/admin).
+ * @param {number|string} id - Incident report ID
+ */
+export async function getBackupRequests(id) {
+  const requestId = createRequestId('web-backup-list');
+  const response = await fetch(`${API_URL}/api/incidents/${id}/backup`, {
+    method: 'GET',
+    headers: getAuthHeaders({ requestId }),
+  });
+  const data = await parseJsonOrEmpty(response);
+  if (!response.ok) {
+    throw new Error(parseErrorMessage(data, 'Failed to fetch backup requests'));
+  }
+  return Array.isArray(data) ? data : [];
+}
+
+/**
+ * Acknowledge a pending backup request.
+ * @param {number|string} incidentId
+ * @param {number|string} backupId
+ */
+export async function acknowledgeBackupRequest(incidentId, backupId) {
+  const requestId = createRequestId('web-backup-ack');
+  const response = await fetch(`${API_URL}/api/incidents/${incidentId}/backup/${backupId}/acknowledge`, {
+    method: 'PATCH',
+    headers: getAuthHeaders({ requestId }),
+    body: JSON.stringify({}),
+  });
+  const data = await parseJsonOrEmpty(response);
+  if (!response.ok) {
+    throw new Error(parseErrorMessage(data, 'Failed to acknowledge backup request'));
+  }
+  return data;
 }

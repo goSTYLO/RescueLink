@@ -41,7 +41,7 @@ describe('incident lifecycle model transitions', () => {
   it('allows resolved -> closed when reporter confirmation exists', async () => {
     pool.query
       .mockResolvedValueOnce({
-        rows: [{ report_id: 102, status: 'resolved', reporter_confirmed_at: '2026-03-11T10:00:00.000Z' }],
+        rows: [{ report_id: 102, status: 'resolved', reporter_confirmed_at: '2026-03-11T10:00:00.000Z', responder_status: null }],
       })
       .mockResolvedValueOnce({
         rows: [{ report_id: 102, status: 'closed', closed_at: '2026-03-11T10:01:00.000Z' }],
@@ -51,6 +51,48 @@ describe('incident lifecycle model transitions', () => {
       next_status: 'closed',
       actor_user_id: 7,
       actor_role: 'dispatcher',
+    });
+
+    expect(updated.status).toBe('closed');
+    expect(pool.query).toHaveBeenCalledTimes(2);
+  });
+
+  it('allows force-close from resolved without reporter confirmation', async () => {
+    pool.query
+      .mockResolvedValueOnce({
+        rows: [{ report_id: 105, status: 'resolved', reporter_confirmed_at: null, responder_status: null }],
+      })
+      .mockResolvedValueOnce({
+        rows: [{ report_id: 105, status: 'closed', closure_method: 'Successful Response' }],
+      });
+
+    const updated = await Incident.transitionStatus(105, {
+      next_status: 'closed',
+      actor_user_id: 1,
+      actor_role: 'dispatcher',
+      allow_force_close: true,
+      closure_method: 'Successful Response',
+      closure_notes: 'Handled on scene.',
+    });
+
+    expect(updated.status).toBe('closed');
+    expect(pool.query).toHaveBeenCalledTimes(2);
+  });
+
+  it('allows force-close when volunteer is Resolved but lifecycle status is desynced', async () => {
+    pool.query
+      .mockResolvedValueOnce({
+        rows: [{ report_id: 106, status: 'in_progress', reporter_confirmed_at: null, responder_status: 'Resolved' }],
+      })
+      .mockResolvedValueOnce({
+        rows: [{ report_id: 106, status: 'closed', responder_status: 'Resolved' }],
+      });
+
+    const updated = await Incident.transitionStatus(106, {
+      next_status: 'closed',
+      actor_user_id: 1,
+      actor_role: 'dispatcher',
+      allow_force_close: true,
     });
 
     expect(updated.status).toBe('closed');

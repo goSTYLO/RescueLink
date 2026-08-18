@@ -62,7 +62,7 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  Future<void> _handleBiometricLogin(BuildContext context) async {
+  Future<void> _handleBiometricLogin() async {
     try {
       final localAuth = LocalAuthentication();
       final authenticated = await localAuth.authenticate(
@@ -427,7 +427,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               child: InkWell(
                                 onTap: isLoading
                                     ? null
-                                    : () => _handleBiometricLogin(context),
+                                    : () => _handleBiometricLogin(),
                                 borderRadius: BorderRadius.circular(999),
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(

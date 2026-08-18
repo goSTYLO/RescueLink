@@ -16,7 +16,7 @@ import {
   MessageSquare, Wrench, Award, Star, AlertCircle, Copy, Merge,
   X, ThumbsUp, Link2, ChevronDown, ChevronUp, LayoutList
 } from 'lucide-react';
-import { useNavigate, useParams, Link } from 'react-router-dom';
+import { useNavigate, useParams, Link, useSearchParams } from 'react-router-dom';
 import { 
   incidents as mockIncidents, 
   incidentTimelines, 
@@ -34,7 +34,7 @@ import { getDepartments } from '@/data/api/departments.api';
 import { DEV_MODE } from '@/core/config/app.config';
 import { ROLES, normalizeRole, getRoleDisplayLabel } from '@/core/constants';
 import { normalizeIncidentTaskType, doesTeamSupportIncidentType } from '@/core/utils/incidentClassification';
-import { formatIncidentTypeLabel, incidentTypesFromApi, formatIncidentTypesLabel } from '@/core/utils/incidentDisplay';
+import { formatIncidentTypeLabel, incidentTypesFromApi, formatIncidentTypesLabel, isIncidentEffectivelyResolved } from '@/core/utils/incidentDisplay';
 import { IncidentTypeChips } from '@/presentation/components/common/IncidentTypeChips';
 import { Loader2 } from 'lucide-react';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
@@ -117,6 +117,8 @@ function mapApiToIncidentDetails(api, aiClassification = null) {
     status,
     responderStatus: api.responder_status || null,
     acceptedByUserId: api.accepted_by_user_id ?? null,
+    acceptedByName: api.accepted_by_name || null,
+    acceptedByPhone: api.accepted_by_phone || null,
     acceptedAt: api.accepted_at || null,
     description: api.description || 'No description provided.',
     location: { lat: api.latitude, lng: api.longitude },
@@ -193,6 +195,10 @@ const ACTIVE_SECTOR_IDS = new Set(['pnp', 'drrmo']);
 export function IncidentDetailsPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const detailsTab = searchParams.get('tab') || 'details';
+  const focusDispatch = searchParams.get('focus') === 'dispatch';
+  const dispatchSectionRef = useRef(null);
   const { theme } = useTheme();
   const isLight = theme === 'light';
   const [incident, setIncident] = useState(null);
@@ -380,6 +386,8 @@ export function IncidentDetailsPage() {
     normalizedRole === ROLES.SUPER_ADMIN
     || normalizedRole === ROLES.DISPATCHER
   );
+  const canCloseIncident = canVerifyIncident;
+  const effectivelyResolved = isIncidentEffectivelyResolved(incident);
   const canNotifyDepartment = (
     normalizedRole === ROLES.SUPER_ADMIN
     || normalizedRole === ROLES.DISPATCHER
@@ -471,6 +479,7 @@ export function IncidentDetailsPage() {
   const [notifyDialogOpen, setNotifyDialogOpen] = useState(false);
   const [verifyLoading, setVerifyLoading] = useState(false);
   const [resolveLoading, setResolveLoading] = useState(false);
+  const [closeLoading, setCloseLoading] = useState(false);
   const [reclassDialogOpen, setReclassDialogOpen] = useState(false);
   const [reclassLoading, setReclassLoading] = useState(false);
   const [manualReclassInfoExpanded, setManualReclassInfoExpanded] = useState(false);
@@ -577,6 +586,26 @@ export function IncidentDetailsPage() {
   const assignedDepartmentCodeForTeamActions = incident?.assignedDepartmentId || notifiedDepartments[0]?.code || incident?.assignedTeamDepartmentCode || '';
   const showNotifyDepartmentButton = canNotifyDepartment && !isIncidentClosed && notifiedDepartments.length === 0 && availableNotifyDepartments.length > 0;
   const showUndoNotifyButton = canNotifyDepartment && !isIncidentClosed && notifiedDepartments.length > 0;
+
+  const openNotifyDepartmentDialog = useCallback(() => {
+    const defaultCode = getDefaultSectorByIncidentType(incident?.emergencyType);
+    const inList = availableNotifyDepartments.some(
+      (d) => String(d.code || '').toLowerCase() === String(defaultCode || '').toLowerCase()
+    );
+    setNotifyDepartment(inList ? defaultCode : (availableNotifyDepartments[0]?.code ?? ''));
+    setNotifyDialogOpen(true);
+  }, [availableNotifyDepartments, incident?.emergencyType]);
+
+  useEffect(() => {
+    if (!focusDispatch || !incident || detailsTab !== 'details') return;
+    const timer = setTimeout(() => {
+      dispatchSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (showNotifyDepartmentButton) {
+        openNotifyDepartmentDialog();
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [focusDispatch, incident, detailsTab, showNotifyDepartmentButton, openNotifyDepartmentDialog]);
 
   useEffect(() => {
     const token = sessionStorage.getItem('token');
@@ -845,13 +874,6 @@ export function IncidentDetailsPage() {
     });
   };
 
-  const openNotifyDepartmentDialog = () => {
-    const defaultCode = getDefaultSectorByIncidentType(incident?.emergencyType);
-    const inList = availableNotifyDepartments.some((d) => String(d.code || '').toLowerCase() === String(defaultCode || '').toLowerCase());
-    setNotifyDepartment(inList ? defaultCode : (availableNotifyDepartments[0]?.code ?? ''));
-    setNotifyDialogOpen(true);
-  };
-
   const openUndoNotifyDialog = () => {
     setUndoDepartmentCode(notifiedDepartments[0]?.code || '');
     setUndoNotifyDialogOpen(true);
@@ -1102,10 +1124,48 @@ export function IncidentDetailsPage() {
     });
   };
 
-  const handleCloseIncident = () => {
-    // Mock closure
-    alert(`Incident closed. Outcome: ${closureOutcome}`);
-    setClosureDialogOpen(false);
+  const handleCloseIncident = async () => {
+    const numericId = /^\d+$/.test(String(id));
+    if (!numericId || !incident || closeLoading) return;
+
+    const confirm = await Swal.fire({
+      icon: 'warning',
+      title: 'Close this incident?',
+      text: 'This marks the incident closed for all parties. This action is permanent.',
+      showCancelButton: true,
+      confirmButtonText: 'Close incident',
+      cancelButtonText: 'Cancel',
+      confirmButtonColor: '#134178',
+    });
+    if (!confirm.isConfirmed) return;
+
+    setCloseLoading(true);
+    try {
+      await updateIncidentStatus(id, 'closed', {
+        closure_notes: closureOutcome.trim(),
+        closure_method: closureClassification.trim(),
+      });
+      setClosureDialogOpen(false);
+      setClosureOutcome('');
+      setClosureClassification('');
+      await fetchIncident({ silent: true });
+      window.dispatchEvent(new CustomEvent('incident:updated', { detail: { incidentId: id } }));
+      await Swal.fire({
+        icon: 'success',
+        title: 'Incident closed',
+        timer: 1500,
+        showConfirmButton: false,
+      });
+    } catch (err) {
+      await Swal.fire({
+        icon: 'error',
+        title: 'Failed to close incident',
+        text: err.message || 'Could not close incident.',
+        confirmButtonColor: '#134178',
+      });
+    } finally {
+      setCloseLoading(false);
+    }
   };
 
   const handleMarkDuplicate = async (parentReportId) => {
@@ -1369,6 +1429,17 @@ export function IncidentDetailsPage() {
           Mark Resolved
         </Button>
       )}
+      {canCloseIncident && effectivelyResolved && (
+        <Button
+          variant="outline"
+          className={`gap-2 rounded-xl border-emerald-500/40 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-500/10 ${compact ? 'h-8 px-3 text-xs rounded-lg' : ''}`}
+          onClick={() => setClosureDialogOpen(true)}
+          disabled={closeLoading}
+        >
+          {closeLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
+          Close Incident
+        </Button>
+      )}
       {canManageDuplicates && (
         <Button
           variant="outline"
@@ -1379,9 +1450,9 @@ export function IncidentDetailsPage() {
           {incident?.isDuplicate ? 'View Duplicate Cluster' : 'Mark as Possible Duplicate'}
         </Button>
       )}
-      {isSupervisor && incident.status === 'Resolved' && (
+      {effectivelyResolved && !incident.reporterConfirmedAt && (
         <Badge variant="outline" className="rounded-lg border-border">
-          Awaiting reporter confirmation before auto-close
+          Awaiting reporter confirmation or dispatcher close
         </Badge>
       )}
     </>
@@ -1396,7 +1467,7 @@ export function IncidentDetailsPage() {
             <span className="text-xs text-muted animate-pulse">Updated just now</span>
           )}
         </div>
-        <div className={`sticky top-2 z-30 mb-3 rounded-2xl border px-3 py-2 ${isLight ? 'bg-white/95 border-gray-200/80 backdrop-blur' : 'bg-card/90 border-white/10 backdrop-blur'}`}>
+        <div ref={dispatchSectionRef} className={`sticky top-2 z-30 mb-3 rounded-2xl border px-3 py-2 ${isLight ? 'bg-white/95 border-gray-200/80 backdrop-blur' : 'bg-card/90 border-white/10 backdrop-blur'}`}>
           <div className="flex flex-wrap items-center gap-2">
             {renderPrimaryActions({ compact: true })}
           </div>
@@ -1470,6 +1541,15 @@ export function IncidentDetailsPage() {
                 {incident.timeReported && (
                   <p className="text-sm text-muted mt-0.5">Reported: {incident.timeReported}</p>
                 )}
+                {incident.acceptedByUserId && (
+                  <div className="mt-2 text-sm text-foreground">
+                    <span className="text-muted">Volunteer responder: </span>
+                    <span className="font-medium">{incident.acceptedByName || 'Volunteer'}</span>
+                    {incident.acceptedByPhone && (
+                      <span className="text-muted"> · {incident.acceptedByPhone}</span>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="flex items-center gap-2 flex-wrap">
                 <Badge className={`${getStatusColor(incident.status)} rounded-lg px-3 py-1`}>
@@ -1502,14 +1582,14 @@ export function IncidentDetailsPage() {
                     Keyword fallback
                   </Badge>
                 )}
-                {incident.status === 'Resolved' && (
+                {effectivelyResolved && (
                   <Badge variant="outline" className="rounded-lg border-border">
-                    {incident.reporterConfirmedAt ? 'Reporter confirmed' : 'Awaiting reporter confirmation'}
+                    {incident.reporterConfirmedAt ? 'Reporter confirmed' : 'Awaiting reporter confirmation or dispatcher close'}
                   </Badge>
                 )}
                 {incident.status === 'Closed' && (
                   <Badge variant="outline" className="rounded-lg border-border">
-                    Closed after reporter confirmation
+                    {incident.reporterConfirmedAt ? 'Closed after reporter confirmation' : 'Closed by dispatcher'}
                   </Badge>
                 )}
               </div>
@@ -1664,7 +1744,7 @@ export function IncidentDetailsPage() {
           </div>
         </div>
 
-        <Tabs defaultValue="details" className="space-y-6">
+        <Tabs defaultValue={detailsTab} className="space-y-6">
           <TabsList className={`grid w-full grid-cols-5 lg:w-auto lg:inline-grid rounded-xl p-1 gap-1 ${isLight ? 'bg-gray-100 border border-gray-200' : 'bg-white/10 border border-white/10'}`}>
             <TabsTrigger value="details">Details</TabsTrigger>
             <TabsTrigger value="timeline">Timeline</TabsTrigger>
@@ -2253,9 +2333,9 @@ export function IncidentDetailsPage() {
                 <Button
                   className="bg-green-600 hover:bg-green-700"
                   onClick={handleCloseIncident}
-                  disabled={!closureOutcome || !closureClassification}
+                  disabled={!closureOutcome || !closureClassification || closeLoading}
                 >
-                  Close Incident
+                  {closeLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Close Incident'}
                 </Button>
                 <Button variant="outline" onClick={() => setClosureDialogOpen(false)}>
                   Cancel

@@ -33,6 +33,7 @@ dependencies:
   file_picker: ^8.0.0
   video_player: ^2.8.1
   path_provider: ^2.1.2
+  path: ^1.9.0
   
   # Local Storage
   shared_preferences: ^2.2.2

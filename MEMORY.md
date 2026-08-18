@@ -41,3 +41,25 @@ Added: 2026-08-17 — clearer confidence UI and bahay/baha fix.
 - Shared WS payload helper: `Backend/src/utils/incidentEvents.js`.
 
 Added: 2026-08-17 — volunteer resolve sync to dispatcher dashboard.
+
+## Backup requests + volunteer response (dispatcher dashboard)
+
+- Mobile `POST /api/incidents/:id/backup` creates a `backup_requests` row (`status`: `pending` | `acknowledged`) and emits **`responder:backup_requested`** with enriched payload (`backup_request_id`, `target`, `notes`, `requested_by_name`, incident metadata).
+- Staff notifications fan out to dispatcher/admin/supervisor and users in **assigned departments** — not stored on the requesting volunteer.
+- **`PATCH /api/incidents/:id/backup/:backupId/acknowledge`** (dispatcher/admin/supervisor; department roles only when dispatched) sets `acknowledged_*` and emits **`responder:backup_acknowledged`** so list badges refresh.
+- List API: `?volunteer_accepted=true` filters `accepted_by_user_id IS NOT NULL` (includes Resolved); returns `accepted_by_name`, `accepted_by_phone`, `has_pending_backup`, `pending_backup_request_id`, and incident lat/lng.
+- Web: bell titled backup items; **`BACKUP REQUESTED`** badge on dashboard rows (All Incidents + Volunteer Response) with Acknowledge + Dispatch (`?tab=details&focus=dispatch` → Notify/Add Department). Department-role Swal toast only when incident is dispatched to their department; no dispatcher toast.
+- **Volunteer Response** tab mirrors main filters/pagination; columns include volunteer name/phone/status and **distance from viewer department HQ to incident** (CDRRMO HQ fallback for dispatchers without a department).
+- Nearby-volunteer backup accept/decline fan-out remains out of scope.
+
+Added: 2026-08-18 — backup acknowledge lifecycle + volunteer response web tab.
+
+## Incident close (dispatcher/admin force-close)
+
+- Lifecycle: `pending → verified → in_progress → resolved → closed`.
+- **Resolve** via department dispatch (`PATCH /status resolved`) or volunteer mobile (`PATCH /responder-status Resolved`, which also sets `status = resolved`).
+- **Standard close:** reporter confirms on mobile (`POST /confirm-resolution`) → auto `closed` with `closure_method: auto_from_reporter_confirmation`.
+- **Force close:** dispatcher or admin/super-admin on web when incident is **effectively resolved** — lifecycle `resolved` **or** volunteer `responder_status = Resolved` ([`isIncidentEffectivelyResolved`](Frontend/Web/dispatcher_dashboard/src/core/utils/incidentDisplay.js)). Uses `PATCH /status closed` with `allow_force_close`; backend normalizes desynced volunteer rows before closing.
+- Optional closure dialog fields persist as `closure_notes` + `closure_method`.
+
+Added: 2026-08-18 — dispatcher close for resolved / volunteer-resolved incidents.

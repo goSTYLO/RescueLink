@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:async';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../utils/app_config.dart';
 
@@ -47,9 +48,9 @@ class ApiService {
   }) async {
     try {
       final uri = Uri.parse('$baseUrl$endpoint');
-      print('🌐 [API POST] URL: $uri');
-      print('🌐 [API POST] Headers: ${_buildHeaders(headers)}');
-      print('🌐 [API POST] Body: ${body != null ? jsonEncode(body) : "null"}');
+      debugPrint('🌐 [API POST] URL: $uri');
+      debugPrint('🌐 [API POST] Headers: ${_buildHeaders(headers)}');
+      debugPrint('🌐 [API POST] Body: ${body != null ? jsonEncode(body) : "null"}');
       
       final response = await client.post(
         uri,
@@ -57,20 +58,20 @@ class ApiService {
         body: body != null ? jsonEncode(body) : null,
       ).timeout(AppConfig.apiTimeout);
 
-      print('🌐 [API POST] Response status: ${response.statusCode}');
-      print('🌐 [API POST] Response body: ${response.body}');
+      debugPrint('🌐 [API POST] Response status: ${response.statusCode}');
+      debugPrint('🌐 [API POST] Response body: ${response.body}');
 
       return _handleResponse(response);
     } on TimeoutException {
-      print('❌ [API POST] Request timed out after ${AppConfig.apiTimeout.inSeconds}s to $baseUrl');
+      debugPrint('❌ [API POST] Request timed out after ${AppConfig.apiTimeout.inSeconds}s to $baseUrl');
       throw ApiException('POST request timed out after ${AppConfig.apiTimeout.inSeconds}s. Check connection to $baseUrl');
     } on SocketException {
-      print('❌ [API POST] Socket connection failed to $baseUrl');
+      debugPrint('❌ [API POST] Socket connection failed to $baseUrl');
       throw ApiException('Unable to connect to $baseUrl. Check network and API_BASE_URL.');
     } on ApiException {
       rethrow;
     } catch (e) {
-      print('❌ [API POST] Request failed: $e');
+      debugPrint('❌ [API POST] Request failed: $e');
       throw ApiException('POST request failed: $e');
     }
   }

@@ -70,6 +70,15 @@ function decodeReporterFields(row, options = {}) {
     reporter_first_name: tryDecryptValue(row.reporter_first_name),
     reporter_last_name: tryDecryptValue(row.reporter_last_name),
     reporter_phone: includeReporterPhone ? tryDecryptValue(row.reporter_phone) : row.reporter_phone,
+    accepted_by_first_name: tryDecryptValue(row.accepted_by_first_name),
+    accepted_by_last_name: tryDecryptValue(row.accepted_by_last_name),
+    accepted_by_phone: tryDecryptValue(row.accepted_by_phone),
+    accepted_by_name: row.accepted_by_name
+      ? tryDecryptValue(row.accepted_by_name)
+      : [tryDecryptValue(row.accepted_by_first_name), tryDecryptValue(row.accepted_by_last_name)]
+          .filter(Boolean)
+          .join(' ')
+          .trim() || null,
     description: includeDescription ? tryDecryptValue(row.description) : row.description,
     transcription: includeTranscription ? tryDecryptValue(row.transcription) : row.transcription,
     barangay: tryDecryptValue(row.barangay),
@@ -105,6 +114,10 @@ function normalizeActorRole(role) {
   if (!normalized) return '';
   if (['super-admin', 'superadmin', 'super admin'].includes(normalized)) return ROLES.ADMIN;
   return normalized;
+}
+
+function isVolunteerResponderResolved(responderStatus) {
+  return String(responderStatus || '').trim().toLowerCase() === 'resolved';
 }
 
 const Incident = {
@@ -192,6 +205,7 @@ const Incident = {
     exclude_duplicates = false,
     search = null,
     exclude_report_id = null,
+    volunteer_accepted = false,
   } = {}) {
     // Keep incident list payloads bounded to protect API latency under encrypted datasets.
     const cappedLimit = Math.min(limit, 60);
@@ -201,9 +215,26 @@ const Incident = {
                         ir.ai_pending, ir.ai_attempted, ir.is_duplicate, ir.parent_report_id, ir.flagged_for_review,
                         ir.secondary_classification, ir.secondary_confidence,
                         ir.responder_status, ir.accepted_by_user_id, ir.accepted_at,
-                        u.first_name AS reporter_first_name, u.last_name AS reporter_last_name, u.phone_number AS reporter_phone
+                        u.first_name AS reporter_first_name, u.last_name AS reporter_last_name, u.phone_number AS reporter_phone,
+                        acceptor.first_name AS accepted_by_first_name,
+                        acceptor.last_name AS accepted_by_last_name,
+                        acceptor.phone_number AS accepted_by_phone,
+                        TRIM(COALESCE(acceptor.first_name, '') || ' ' || COALESCE(acceptor.last_name, '')) AS accepted_by_name,
+                        EXISTS (
+                          SELECT 1 FROM backup_requests br
+                           WHERE br.report_id = ir.report_id
+                             AND COALESCE(br.status, 'pending') = 'pending'
+                        ) AS has_pending_backup,
+                        (
+                          SELECT br.id FROM backup_requests br
+                           WHERE br.report_id = ir.report_id
+                             AND COALESCE(br.status, 'pending') = 'pending'
+                           ORDER BY br.created_at DESC
+                           LIMIT 1
+                        ) AS pending_backup_request_id
       FROM incident_reports ir
       LEFT JOIN users u ON ir.user_id = u.user_id
+      LEFT JOIN users acceptor ON acceptor.user_id = ir.accepted_by_user_id
       WHERE 1=1`;
     const params = [];
     let paramCount = 0;
@@ -268,15 +299,28 @@ const Incident = {
       params.push(Number(exclude_report_id));
     }
 
+    if (volunteer_accepted) {
+      query += ` AND ir.accepted_by_user_id IS NOT NULL`;
+    }
+
     query += ` ORDER BY ir.created_at DESC LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}`;
     params.push(cappedLimit, offset);
 
     const res = await pool.query(query, params);
-    return res.rows.map((row) => decodeReporterFields(row, {
-      includeDescription: false,
-      includeTranscription: false,
-      includeReporterPhone: false,
-    }));
+    return res.rows.map((row) => {
+      const decoded = decodeReporterFields(row, {
+        includeDescription: false,
+        includeTranscription: false,
+        includeReporterPhone: false,
+      });
+      return {
+        ...decoded,
+        has_pending_backup: Boolean(row.has_pending_backup),
+        pending_backup_request_id: row.pending_backup_request_id != null
+          ? Number(row.pending_backup_request_id)
+          : null,
+      };
+    });
   },
 
   async findByUserId(
@@ -359,7 +403,7 @@ const Incident = {
     return res.rows.map(decodeReporterFields);
   },
 
-  async countAll({ user_id = null, severity_level = null, status = null, incident_type = null, barangay = null, department_code = null, exclude_duplicates = false, search = null, exclude_report_id = null } = {}) {
+  async countAll({ user_id = null, severity_level = null, status = null, incident_type = null, barangay = null, department_code = null, exclude_duplicates = false, search = null, exclude_report_id = null, volunteer_accepted = false } = {}) {
     let query = 'SELECT COUNT(*)::int AS total FROM incident_reports WHERE 1=1';
     const params = [];
     let paramCount = 0;
@@ -422,6 +466,10 @@ const Incident = {
       paramCount++;
       query += ` AND report_id != $${paramCount}`;
       params.push(Number(exclude_report_id));
+    }
+
+    if (volunteer_accepted) {
+      query += ` AND accepted_by_user_id IS NOT NULL`;
     }
 
     const res = await pool.query(query, params);
@@ -805,24 +853,44 @@ const Incident = {
     return res.rows[0];
   },
 
-  async transitionStatus(report_id, { next_status, actor_user_id = null, actor_role = null, allow_force_close = false } = {}) {
+  async transitionStatus(report_id, {
+    next_status,
+    actor_user_id = null,
+    actor_role = null,
+    allow_force_close = false,
+    closure_notes = null,
+    closure_method = null,
+  } = {}) {
     const normalizedNext = normalizeIncidentStatus(next_status);
     let currentResult;
     try {
       currentResult = await pool.query(
-        `SELECT report_id, status, reporter_confirmed_at
+        `SELECT report_id, status, reporter_confirmed_at, responder_status
          FROM incident_reports
          WHERE report_id = $1`,
         [report_id]
       );
     } catch (error) {
-      if (error.code === '42703' || /reporter_confirmed_at/i.test(error.message)) {
-        currentResult = await pool.query(
-          `SELECT report_id, status
-           FROM incident_reports
-           WHERE report_id = $1`,
-          [report_id]
-        );
+      if (error.code === '42703' || /reporter_confirmed_at|responder_status/i.test(error.message)) {
+        try {
+          currentResult = await pool.query(
+            `SELECT report_id, status, reporter_confirmed_at
+             FROM incident_reports
+             WHERE report_id = $1`,
+            [report_id]
+          );
+        } catch (innerError) {
+          if (innerError.code === '42703' || /reporter_confirmed_at/i.test(innerError.message)) {
+            currentResult = await pool.query(
+              `SELECT report_id, status
+               FROM incident_reports
+               WHERE report_id = $1`,
+              [report_id]
+            );
+          } else {
+            throw innerError;
+          }
+        }
       } else {
         throw error;
       }
@@ -841,13 +909,20 @@ const Incident = {
       );
     }
 
-    const allowedTargets = INCIDENT_STATUS_FLOW[currentStatus] || new Set();
-    if (!allowedTargets.has(normalizedNext)) {
-      throw createIncidentStateError(
-        'INCIDENT_INVALID_TRANSITION',
-        `Invalid status transition: ${currentStatus} -> ${normalizedNext}.`,
-        400
-      );
+    const volunteerResolved = isVolunteerResponderResolved(incident.responder_status);
+    const canForceCloseToClosed = allow_force_close
+      && normalizedNext === 'closed'
+      && (currentStatus === 'resolved' || volunteerResolved);
+
+    if (!canForceCloseToClosed) {
+      const allowedTargets = INCIDENT_STATUS_FLOW[currentStatus] || new Set();
+      if (!allowedTargets.has(normalizedNext)) {
+        throw createIncidentStateError(
+          'INCIDENT_INVALID_TRANSITION',
+          `Invalid status transition: ${currentStatus} -> ${normalizedNext}.`,
+          400
+        );
+      }
     }
 
     const resolvedByUserId = normalizedNext === 'resolved' ? actor_user_id : null;
@@ -869,23 +944,33 @@ const Incident = {
       );
     }
 
+    const normalizedClosureMethod = closure_method
+      ? String(closure_method).trim().slice(0, 80)
+      : null;
+    const normalizedClosureNotes = closure_notes
+      ? String(closure_notes).trim().slice(0, 2000)
+      : null;
+
+    const actorUserIdForClose = normalizedNext === 'closed' ? actor_user_id : resolvedByUserId;
+
     try {
       const updated = await pool.query(
         `UPDATE incident_reports
          SET status = $2,
              verified = CASE WHEN $3 IN ('verified', 'in_progress', 'resolved', 'closed') THEN TRUE ELSE verified END,
              resolved_by_user_id = CASE WHEN $3 = 'resolved' THEN $4 ELSE resolved_by_user_id END,
-             resolved_at = CASE WHEN $3 = 'resolved' THEN COALESCE(resolved_at, CURRENT_TIMESTAMP) ELSE resolved_at END,
+             resolved_at = CASE WHEN $3 IN ('resolved', 'closed') THEN COALESCE(resolved_at, CURRENT_TIMESTAMP) ELSE resolved_at END,
              closed_at = CASE WHEN $3 = 'closed' THEN COALESCE(closed_at, CURRENT_TIMESTAMP) ELSE closed_at END,
-             closed_by_user_id = CASE WHEN $3 = 'closed' THEN COALESCE($4, closed_by_user_id) ELSE closed_by_user_id END,
-             closure_method = CASE WHEN $3 = 'closed' THEN COALESCE(closure_method, 'manual') ELSE closure_method END
+             closed_by_user_id = CASE WHEN $3 = 'closed' THEN COALESCE($7, closed_by_user_id) ELSE closed_by_user_id END,
+             closure_method = CASE WHEN $3 = 'closed' THEN COALESCE($5::varchar, closure_method, 'manual') ELSE closure_method END,
+             closure_notes = CASE WHEN $3 = 'closed' AND $6::text IS NOT NULL THEN $6::text ELSE closure_notes END
          WHERE report_id = $1
          RETURNING *`,
-        [report_id, normalizedNext, normalizedNext, resolvedByUserId]
+        [report_id, normalizedNext, normalizedNext, resolvedByUserId, normalizedClosureMethod, normalizedClosureNotes, actorUserIdForClose]
       );
       return updated.rows[0] || null;
     } catch (error) {
-      if (error.code === '42703' || /resolved_by_user_id|resolved_at|closed_at|closed_by_user_id|closure_method/i.test(error.message)) {
+      if (error.code === '42703' || /resolved_by_user_id|resolved_at|closed_at|closed_by_user_id|closure_method|closure_notes/i.test(error.message)) {
         try {
           const fallbackWithResolvedBy = await pool.query(
             `UPDATE incident_reports

@@ -10,7 +10,8 @@ import { incidents as mockIncidents, barangays } from '@/data/mock/mockData';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
-import { getIncidents, verifyIncident, linkDuplicate } from '@/data/api/incidents.api';
+import { getIncidents, verifyIncident, linkDuplicate, acknowledgeBackupRequest } from '@/data/api/incidents.api';
+import { getDepartmentById, getDepartments } from '@/data/api/departments.api';
 import { DEV_MODE } from '@/core/config/app.config';
 import { normalizeRole, ROLES } from '@/core/constants';
 
@@ -18,8 +19,12 @@ import { normalizeRole, ROLES } from '@/core/constants';
 const USE_BLOCKCHAIN = import.meta.env.VITE_USE_BLOCKCHAIN === 'true';
 import { mapIncidentTypeFilterToApi } from '@/core/utils/incidentClassification';
 import { mapApiIncidentToDisplay } from '@/core/utils/incidentDisplay';
+import { formatDepartmentToIncidentDistance } from '@/core/utils/geoDistance';
 import { SelectParentIncidentDialog } from '@/presentation/components/common/SelectParentIncidentDialog';
 import { VolunteerStatusBadge } from '@/presentation/components/common/VolunteerStatusBadge';
+import { BackupRequestedBadge } from '@/presentation/components/common/BackupRequestedBadge';
+import { BackupRequestDialog } from '@/presentation/components/common/BackupRequestDialog';
+import { Tabs, TabsList, TabsTrigger } from '@/presentation/components/ui/Tabs';
 import { Breadcrumb } from '@/presentation/components/common/Breadcrumb';
 import { useIncidentWebSocketStatus } from '@/presentation/context/IncidentWebSocketContext';
 import Swal from 'sweetalert2';
@@ -48,6 +53,7 @@ function mapApiIncidentToDashboard(api) {
 }
 
 const DASHBOARD_FILTER_STATE_KEY = 'dashboard:filters:v1';
+const DASHBOARD_VOLUNTEER_FILTER_STATE_KEY = 'dashboard:filters:volunteer:v1';
 
 function dedupeIncidentsById(items) {
   const seen = new Set();
@@ -100,6 +106,40 @@ export function DashboardPage() {
   const [verifyModalOpen, setVerifyModalOpen] = useState(false);
   const [verifyIncidentTarget, setVerifyIncidentTarget] = useState(null);
   const [verifyInProgress, setVerifyInProgress] = useState(false);
+  const [dashboardView, setDashboardView] = useState(() => {
+    try {
+      return sessionStorage.getItem('dashboard:view') === 'volunteer' ? 'volunteer' : 'all';
+    } catch {
+      return 'all';
+    }
+  });
+  const volunteerFilterState = (() => {
+    try {
+      return JSON.parse(sessionStorage.getItem(DASHBOARD_VOLUNTEER_FILTER_STATE_KEY) || '{}');
+    } catch {
+      return {};
+    }
+  })();
+  const [volunteerFilterType, setVolunteerFilterType] = useState(volunteerFilterState.filterType || 'All');
+  const [volunteerFilterStatus, setVolunteerFilterStatus] = useState(volunteerFilterState.filterStatus || 'All');
+  const [volunteerFilterSeverity, setVolunteerFilterSeverity] = useState(volunteerFilterState.filterSeverity || 'All');
+  const [volunteerFilterBarangay, setVolunteerFilterBarangay] = useState(volunteerFilterState.filterBarangay || 'All');
+  const [volunteerHideDuplicates, setVolunteerHideDuplicates] = useState(volunteerFilterState.hideDuplicates === true);
+  const [volunteerCurrentPage, setVolunteerCurrentPage] = useState(Number(volunteerFilterState.currentPage) || 1);
+  const [volunteerItemsPerPage, setVolunteerItemsPerPage] = useState(Number(volunteerFilterState.itemsPerPage) || 5);
+  const [viewerHq, setViewerHq] = useState({ latitude: null, longitude: null, name: null });
+  const [backupDialogOpen, setBackupDialogOpen] = useState(false);
+  const [backupDialogIncident, setBackupDialogIncident] = useState(null);
+  const [acknowledgingBackup, setAcknowledgingBackup] = useState(false);
+
+  const isVolunteerView = dashboardView === 'volunteer';
+  const activeFilterType = isVolunteerView ? volunteerFilterType : filterType;
+  const activeFilterStatus = isVolunteerView ? volunteerFilterStatus : filterStatus;
+  const activeFilterSeverity = isVolunteerView ? volunteerFilterSeverity : filterSeverity;
+  const activeFilterBarangay = isVolunteerView ? volunteerFilterBarangay : filterBarangay;
+  const activeHideDuplicates = isVolunteerView ? volunteerHideDuplicates : hideDuplicates;
+  const activeCurrentPage = isVolunteerView ? volunteerCurrentPage : currentPage;
+  const activeItemsPerPage = isVolunteerView ? volunteerItemsPerPage : itemsPerPage;
 
   const fetchIncidents = useCallback(async () => {
     if (Date.now() < rateLimitUntilRef.current) {
@@ -108,14 +148,15 @@ export function DashboardPage() {
     const token = sessionStorage.getItem('token');
     if (DEV_MODE && !token) {
       const filteredMock = mockIncidents.filter((inc) => {
-        if (filterType !== 'All' && inc.emergencyType !== filterType) return false;
-        if (filterStatus !== 'All' && inc.status !== filterStatus) return false;
-        if (filterSeverity !== 'All' && inc.severity !== filterSeverity) return false;
-        if (filterBarangay !== 'All' && inc.barangay !== filterBarangay) return false;
+        if (activeFilterType !== 'All' && inc.emergencyType !== activeFilterType) return false;
+        if (activeFilterStatus !== 'All' && inc.status !== activeFilterStatus) return false;
+        if (activeFilterSeverity !== 'All' && inc.severity !== activeFilterSeverity) return false;
+        if (activeFilterBarangay !== 'All' && inc.barangay !== activeFilterBarangay) return false;
+        if (isVolunteerView && !inc.acceptedByUserId) return false;
         return true;
       });
-      const startIndex = (currentPage - 1) * itemsPerPage;
-      const pageItems = filteredMock.slice(startIndex, startIndex + itemsPerPage);
+      const startIndex = (activeCurrentPage - 1) * activeItemsPerPage;
+      const pageItems = filteredMock.slice(startIndex, startIndex + activeItemsPerPage);
       setIncidents(dedupeIncidentsById(pageItems));
       setTotalIncidentsCount(filteredMock.length);
       setLoading(false);
@@ -125,19 +166,20 @@ export function DashboardPage() {
     setLoading(true);
     setError(null);
     try {
-      const apiStatus = mapStatusFilterToApi(filterStatus);
-      const apiSeverity = mapSeverityFilterToApi(filterSeverity);
-      const apiType = mapIncidentTypeFilterToApi(filterType);
-      const apiBarangay = filterBarangay !== 'All' ? filterBarangay : undefined;
-      const offset = (currentPage - 1) * itemsPerPage;
+      const apiStatus = mapStatusFilterToApi(activeFilterStatus);
+      const apiSeverity = mapSeverityFilterToApi(activeFilterSeverity);
+      const apiType = mapIncidentTypeFilterToApi(activeFilterType);
+      const apiBarangay = activeFilterBarangay !== 'All' ? activeFilterBarangay : undefined;
+      const offset = (activeCurrentPage - 1) * activeItemsPerPage;
       const result = await getIncidents({
-        limit: itemsPerPage,
+        limit: activeItemsPerPage,
         offset,
         status: apiStatus,
         severity_level: apiSeverity,
         incident_type: apiType,
         barangay: apiBarangay,
-        exclude_duplicates: hideDuplicates,
+        exclude_duplicates: activeHideDuplicates,
+        volunteer_accepted: isVolunteerView,
         withMeta: true,
       });
       const mapped = Array.isArray(result?.items) ? result.items.map(mapApiIncidentToDashboard) : [];
@@ -154,7 +196,46 @@ export function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, filterBarangay, filterSeverity, filterStatus, filterType, itemsPerPage, hideDuplicates]);
+  }, [activeCurrentPage, activeFilterBarangay, activeFilterSeverity, activeFilterStatus, activeFilterType, activeItemsPerPage, activeHideDuplicates, isVolunteerView]);
+
+  useEffect(() => {
+    sessionStorage.setItem('dashboard:view', dashboardView);
+  }, [dashboardView]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const user = JSON.parse(sessionStorage.getItem('user') || '{}');
+        const deptId = user.departmentId || user.department_id;
+        if (deptId) {
+          const dept = await getDepartmentById(deptId);
+          if (!cancelled) {
+            setViewerHq({
+              latitude: dept?.latitude ?? null,
+              longitude: dept?.longitude ?? null,
+              name: dept?.name || null,
+            });
+          }
+          return;
+        }
+        const depts = await getDepartments();
+        const cdrrmo = (Array.isArray(depts) ? depts : []).find(
+          (d) => String(d.code || '').toLowerCase() === 'drrmo'
+        );
+        if (!cancelled) {
+          setViewerHq({
+            latitude: cdrrmo?.latitude ?? null,
+            longitude: cdrrmo?.longitude ?? null,
+            name: cdrrmo?.name || 'CDRRMO',
+          });
+        }
+      } catch {
+        if (!cancelled) setViewerHq({ latitude: null, longitude: null, name: null });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     fetchIncidents();
@@ -179,6 +260,18 @@ export function DashboardPage() {
       hideDuplicates,
     }));
   }, [filterType, filterStatus, filterSeverity, filterBarangay, currentPage, itemsPerPage, hideDuplicates]);
+
+  useEffect(() => {
+    sessionStorage.setItem(DASHBOARD_VOLUNTEER_FILTER_STATE_KEY, JSON.stringify({
+      filterType: volunteerFilterType,
+      filterStatus: volunteerFilterStatus,
+      filterSeverity: volunteerFilterSeverity,
+      filterBarangay: volunteerFilterBarangay,
+      currentPage: volunteerCurrentPage,
+      itemsPerPage: volunteerItemsPerPage,
+      hideDuplicates: volunteerHideDuplicates,
+    }));
+  }, [volunteerFilterType, volunteerFilterStatus, volunteerFilterSeverity, volunteerFilterBarangay, volunteerCurrentPage, volunteerItemsPerPage, volunteerHideDuplicates]);
 
   const filteredIncidents = incidents;
 
@@ -219,6 +312,17 @@ export function DashboardPage() {
         aValue = a.timeReportedTs || 0;
         bValue = b.timeReportedTs || 0;
         break;
+      case 'volunteer':
+        aValue = a.acceptedByName || '';
+        bValue = b.acceptedByName || '';
+        break;
+      case 'distance': {
+        const aDist = formatDepartmentToIncidentDistance(viewerHq.latitude, viewerHq.longitude, a.latitude, a.longitude).label;
+        const bDist = formatDepartmentToIncidentDistance(viewerHq.latitude, viewerHq.longitude, b.latitude, b.longitude).label;
+        aValue = aDist === '—' ? Infinity : parseFloat(aDist);
+        bValue = bDist === '—' ? Infinity : parseFloat(bDist);
+        break;
+      }
       default:
         return 0;
     }
@@ -229,10 +333,18 @@ export function DashboardPage() {
   });
 
   // Pagination logic
-  const totalPages = Math.max(1, Math.ceil(totalIncidentsCount / itemsPerPage));
+  const totalPages = Math.max(1, Math.ceil(totalIncidentsCount / activeItemsPerPage));
   const paginatedIncidents = sortedIncidents;
-  const pageStart = totalIncidentsCount === 0 ? 0 : ((currentPage - 1) * itemsPerPage) + 1;
-  const pageEnd = Math.min(currentPage * itemsPerPage, totalIncidentsCount);
+  const pageStart = totalIncidentsCount === 0 ? 0 : ((activeCurrentPage - 1) * activeItemsPerPage) + 1;
+  const pageEnd = Math.min(activeCurrentPage * activeItemsPerPage, totalIncidentsCount);
+
+  const setActiveCurrentPage = (value) => {
+    if (isVolunteerView) {
+      setVolunteerCurrentPage(typeof value === 'function' ? value(volunteerCurrentPage) : value);
+    } else {
+      setCurrentPage(typeof value === 'function' ? value(currentPage) : value);
+    }
+  };
 
   const handleSort = (column) => {
     if (sortColumn === column) {
@@ -241,7 +353,7 @@ export function DashboardPage() {
       setSortColumn(column);
       setSortDirection('asc');
     }
-    setCurrentPage(1); // Reset to first page when sorting
+    setActiveCurrentPage(1);
   };
 
   const getSortIcon = (column) => {
@@ -257,6 +369,42 @@ export function DashboardPage() {
   useEffect(() => {
     setCurrentPage(1);
   }, [filterType, filterStatus, filterSeverity, filterBarangay]);
+
+  useEffect(() => {
+    setVolunteerCurrentPage(1);
+  }, [volunteerFilterType, volunteerFilterStatus, volunteerFilterSeverity, volunteerFilterBarangay, dashboardView]);
+
+  const openBackupDialog = (incident) => {
+    setBackupDialogIncident(incident);
+    setBackupDialogOpen(true);
+  };
+
+  const handleAcknowledgeBackup = async () => {
+    const incident = backupDialogIncident;
+    if (!incident?.pendingBackupRequestId) return;
+    setAcknowledgingBackup(true);
+    try {
+      await acknowledgeBackupRequest(incident.id, incident.pendingBackupRequestId);
+      setBackupDialogOpen(false);
+      setBackupDialogIncident(null);
+      fetchIncidents();
+    } catch (err) {
+      Swal.fire({ icon: 'error', title: 'Acknowledge failed', text: err.message || 'Could not acknowledge backup request.' });
+    } finally {
+      setAcknowledgingBackup(false);
+    }
+  };
+
+  const handleDispatchBackup = () => {
+    const incident = backupDialogIncident;
+    if (!incident?.id) return;
+    setBackupDialogOpen(false);
+    setBackupDialogIncident(null);
+    navigate(`/incidents/${incident.id}?tab=details&focus=dispatch`);
+  };
+
+  const getIncidentDistance = (incident) =>
+    formatDepartmentToIncidentDistance(viewerHq.latitude, viewerHq.longitude, incident.latitude, incident.longitude);
 
   // Severity: Critical #FF4F52, Warning amber, Resolved/Low muted green (dark theme)
   const getSeverityColor = (severity) => {
@@ -431,23 +579,32 @@ export function DashboardPage() {
         )}
 
         {/* Incidents Table – glassmorphism + neumorphism (z-0 so Filters dropdown can sit above) */}
-        <div className={`relative z-0 rounded-2xl overflow-hidden border transition-all duration-300 flex-1 min-h-0 ${
+        <Tabs value={dashboardView} onValueChange={setDashboardView} className="flex-1 min-h-0 flex flex-col">
+        <div className={`relative z-0 rounded-2xl overflow-hidden border transition-all duration-300 flex-1 min-h-0 flex flex-col ${
           isLight ? 'glass neumorphic-light bg-white/80' : 'glass neumorphic-dark bg-card/60'
         }`}>
-          <div className={`flex items-center gap-3 px-4 py-2.5 border-b ${
+          <div className={`flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 border-b ${
             isLight ? 'border-gray-200/80 bg-gray-50/50' : 'border-white/10 bg-white/5'
           }`}>
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-              isLight ? 'neumorphic-light-inset bg-gray-100 text-primary' : 'neumorphic-dark-inset bg-white/10 text-primary'
-            }`}>
-              <LayoutList className="w-5 h-5" strokeWidth={2} />
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                isLight ? 'neumorphic-light-inset bg-gray-100 text-primary' : 'neumorphic-dark-inset bg-white/10 text-primary'
+              }`}>
+                <LayoutList className="w-5 h-5" strokeWidth={2} />
+              </div>
+              <h3 className="text-base font-semibold text-foreground">
+                {isVolunteerView ? 'Volunteer Response' : 'Incident List'}
+              </h3>
+              <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                isLight ? 'bg-primary/15 text-primary' : 'bg-primary/20 text-primary'
+              }`}>
+                {totalIncidentsCount}
+              </span>
             </div>
-            <h3 className="text-base font-semibold text-foreground">Incident List</h3>
-            <span className={`ml-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${
-              isLight ? 'bg-primary/15 text-primary' : 'bg-primary/20 text-primary'
-            }`}>
-              {totalIncidentsCount}
-            </span>
+            <TabsList className={`rounded-xl p-1 ${isLight ? 'bg-gray-100 border border-gray-200' : 'bg-white/10 border border-white/10'}`}>
+              <TabsTrigger value="all" className="rounded-lg px-3 py-1.5 text-xs sm:text-sm">All Incidents</TabsTrigger>
+              <TabsTrigger value="volunteer" className="rounded-lg px-3 py-1.5 text-xs sm:text-sm">Volunteer Response</TabsTrigger>
+            </TabsList>
           </div>
           <div className={`px-2 sm:px-3 py-2 border-b ${
             isLight ? 'border-gray-200/80 bg-gray-50/20' : 'border-white/10 bg-white/[0.02]'
@@ -455,7 +612,11 @@ export function DashboardPage() {
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-xs text-muted">Rows</span>
-                <Select value={String(itemsPerPage)} onValueChange={(value) => { setItemsPerPage(Number(value)); setCurrentPage(1); }} open={pageSizeSelectOpen} onOpenChange={setPageSizeSelectOpen}>
+                <Select value={String(activeItemsPerPage)} onValueChange={(value) => {
+                  const n = Number(value);
+                  if (isVolunteerView) { setVolunteerItemsPerPage(n); setVolunteerCurrentPage(1); }
+                  else { setItemsPerPage(n); setCurrentPage(1); }
+                }} open={pageSizeSelectOpen} onOpenChange={setPageSizeSelectOpen}>
                   {({ value }) => (
                     <>
                       <SelectTrigger
@@ -473,7 +634,12 @@ export function DashboardPage() {
                       </SelectTrigger>
                       <SelectContent isOpen={pageSizeSelectOpen}>
                         {['5', '8', '10', '15', '20'].map((size) => (
-                          <SelectItem key={size} value={size} onSelect={(v) => { setItemsPerPage(Number(v)); setCurrentPage(1); setPageSizeSelectOpen(false); }}>
+                          <SelectItem key={size} value={size} onSelect={(v) => {
+                            const n = Number(v);
+                            if (isVolunteerView) { setVolunteerItemsPerPage(n); setVolunteerCurrentPage(1); }
+                            else { setItemsPerPage(n); setCurrentPage(1); }
+                            setPageSizeSelectOpen(false);
+                          }}>
                             {size}
                           </SelectItem>
                         ))}
@@ -487,8 +653,8 @@ export function DashboardPage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                  disabled={currentPage === 1}
+                  onClick={() => setActiveCurrentPage((prev) => Math.max(1, prev - 1))}
+                  disabled={activeCurrentPage === 1}
                   className="h-9 w-9 p-0 rounded-lg"
                 >
                   <ChevronLeft className="w-4 h-4" />
@@ -497,16 +663,16 @@ export function DashboardPage() {
                   {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                     let pageNum;
                     if (totalPages <= 5) pageNum = i + 1;
-                    else if (currentPage <= 3) pageNum = i + 1;
-                    else if (currentPage >= totalPages - 2) pageNum = totalPages - 4 + i;
-                    else pageNum = currentPage - 2 + i;
+                    else if (activeCurrentPage <= 3) pageNum = i + 1;
+                    else if (activeCurrentPage >= totalPages - 2) pageNum = totalPages - 4 + i;
+                    else pageNum = activeCurrentPage - 2 + i;
                     return (
                       <Button
                         key={pageNum}
-                        variant={currentPage === pageNum ? 'default' : 'ghost'}
+                        variant={activeCurrentPage === pageNum ? 'default' : 'ghost'}
                         size="sm"
-                        onClick={() => setCurrentPage(pageNum)}
-                        className={`h-9 w-9 p-0 rounded-lg min-w-[36px] ${currentPage === pageNum ? 'bg-primary text-white hover:bg-primary-hover' : ''}`}
+                        onClick={() => setActiveCurrentPage(pageNum)}
+                        className={`h-9 w-9 p-0 rounded-lg min-w-[36px] ${activeCurrentPage === pageNum ? 'bg-primary text-white hover:bg-primary-hover' : ''}`}
                       >
                         {pageNum}
                       </Button>
@@ -516,13 +682,13 @@ export function DashboardPage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                  disabled={currentPage === totalPages}
+                  onClick={() => setActiveCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                  disabled={activeCurrentPage === totalPages}
                   className="h-9 w-9 p-0 rounded-lg"
                 >
                   <ChevronRight className="w-4 h-4" />
                 </Button>
-                <span className="text-sm text-muted ml-2">Page {currentPage} of {totalPages}</span>
+                <span className="text-sm text-muted ml-2">Page {activeCurrentPage} of {totalPages}</span>
               </div>
             </div>
           </div>
@@ -536,7 +702,7 @@ export function DashboardPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2">
               <div className="min-w-0">
                 <label className="text-xs font-medium text-muted mb-1 block">Emergency Type</label>
-                <Select value={filterType} onValueChange={setFilterType}>
+                <Select value={activeFilterType} onValueChange={(v) => (isVolunteerView ? setVolunteerFilterType(v) : setFilterType(v))}>
                   {({ value }) => (
                     <>
                       <SelectTrigger isOpen={selectStates.type} onClick={() => setSelectStates({ ...selectStates, type: !selectStates.type })} className={`h-8 ${isLight ? 'bg-gray-50/80 border-gray-200' : 'bg-white/5 border-white/10'}`}>
@@ -544,7 +710,11 @@ export function DashboardPage() {
                       </SelectTrigger>
                       <SelectContent isOpen={selectStates.type}>
                         {typeOptions.map(option => (
-                          <SelectItem key={option.value} value={option.value} onSelect={(val) => { setFilterType(val); setSelectStates({ ...selectStates, type: false }); }}>
+                          <SelectItem key={option.value} value={option.value} onSelect={(val) => {
+                            if (isVolunteerView) setVolunteerFilterType(val);
+                            else setFilterType(val);
+                            setSelectStates({ ...selectStates, type: false });
+                          }}>
                             {option.label}
                           </SelectItem>
                         ))}
@@ -555,7 +725,7 @@ export function DashboardPage() {
               </div>
               <div className="min-w-0">
                 <label className="text-xs font-medium text-muted mb-1 block">Status</label>
-                <Select value={filterStatus} onValueChange={setFilterStatus}>
+                <Select value={activeFilterStatus} onValueChange={(v) => (isVolunteerView ? setVolunteerFilterStatus(v) : setFilterStatus(v))}>
                   {({ value }) => (
                     <>
                       <SelectTrigger isOpen={selectStates.status} onClick={() => setSelectStates({ ...selectStates, status: !selectStates.status })} className={`h-8 ${isLight ? 'bg-gray-50/80 border-gray-200' : 'bg-white/5 border-white/10'}`}>
@@ -563,7 +733,11 @@ export function DashboardPage() {
                       </SelectTrigger>
                       <SelectContent isOpen={selectStates.status}>
                         {statusOptions.map(option => (
-                          <SelectItem key={option.value} value={option.value} onSelect={(val) => { setFilterStatus(val); setSelectStates({ ...selectStates, status: false }); }}>
+                          <SelectItem key={option.value} value={option.value} onSelect={(val) => {
+                            if (isVolunteerView) setVolunteerFilterStatus(val);
+                            else setFilterStatus(val);
+                            setSelectStates({ ...selectStates, status: false });
+                          }}>
                             {option.label}
                           </SelectItem>
                         ))}
@@ -574,7 +748,7 @@ export function DashboardPage() {
               </div>
               <div className="min-w-0">
                 <label className="text-xs font-medium text-muted mb-1 block">Barangay</label>
-                <Select value={filterBarangay} onValueChange={setFilterBarangay}>
+                <Select value={activeFilterBarangay} onValueChange={(v) => (isVolunteerView ? setVolunteerFilterBarangay(v) : setFilterBarangay(v))}>
                   {({ value }) => (
                     <>
                       <SelectTrigger isOpen={selectStates.barangay} onClick={() => setSelectStates({ ...selectStates, barangay: !selectStates.barangay })} className={`h-8 ${isLight ? 'bg-gray-50/80 border-gray-200' : 'bg-white/5 border-white/10'}`}>
@@ -582,7 +756,11 @@ export function DashboardPage() {
                       </SelectTrigger>
                       <SelectContent isOpen={selectStates.barangay} className="max-h-[300px]">
                         {barangayOptions.map(option => (
-                          <SelectItem key={option.value} value={option.value} onSelect={(val) => { setFilterBarangay(val); setSelectStates({ ...selectStates, barangay: false }); }}>
+                          <SelectItem key={option.value} value={option.value} onSelect={(val) => {
+                            if (isVolunteerView) setVolunteerFilterBarangay(val);
+                            else setFilterBarangay(val);
+                            setSelectStates({ ...selectStates, barangay: false });
+                          }}>
                             {option.label}
                           </SelectItem>
                         ))}
@@ -593,7 +771,7 @@ export function DashboardPage() {
               </div>
               <div className="min-w-0">
                 <label className="text-xs font-medium text-muted mb-1 block">Severity</label>
-                <Select value={filterSeverity} onValueChange={setFilterSeverity}>
+                <Select value={activeFilterSeverity} onValueChange={(v) => (isVolunteerView ? setVolunteerFilterSeverity(v) : setFilterSeverity(v))}>
                   {({ value }) => (
                     <>
                       <SelectTrigger isOpen={selectStates.severity} onClick={() => setSelectStates({ ...selectStates, severity: !selectStates.severity })} className={`h-8 ${isLight ? 'bg-gray-50/80 border-gray-200' : 'bg-white/5 border-white/10'}`}>
@@ -601,7 +779,11 @@ export function DashboardPage() {
                       </SelectTrigger>
                       <SelectContent isOpen={selectStates.severity}>
                         {severityOptions.map(option => (
-                          <SelectItem key={option.value} value={option.value} onSelect={(val) => { setFilterSeverity(val); setSelectStates({ ...selectStates, severity: false }); }}>
+                          <SelectItem key={option.value} value={option.value} onSelect={(val) => {
+                            if (isVolunteerView) setVolunteerFilterSeverity(val);
+                            else setFilterSeverity(val);
+                            setSelectStates({ ...selectStates, severity: false });
+                          }}>
                             {option.label}
                           </SelectItem>
                         ))}
@@ -612,7 +794,11 @@ export function DashboardPage() {
               </div>
               <div className="min-w-0 flex items-end pb-1">
                 <div className="flex items-center gap-2">
-                  <Switch id="hide-duplicates" checked={hideDuplicates} onCheckedChange={setHideDuplicates} />
+                  <Switch
+                    id="hide-duplicates"
+                    checked={activeHideDuplicates}
+                    onCheckedChange={(v) => (isVolunteerView ? setVolunteerHideDuplicates(v) : setHideDuplicates(v))}
+                  />
                   <Label htmlFor="hide-duplicates" className="text-xs font-medium text-muted cursor-pointer">Hide duplicates</Label>
                 </div>
               </div>
@@ -665,6 +851,23 @@ export function DashboardPage() {
                         >
                           <div className="flex items-center gap-1">Status{getSortIcon('status')}</div>
                         </th>
+                        {isVolunteerView && (
+                          <>
+                            <th
+                              className="text-left py-2.5 px-3 text-[11px] font-semibold uppercase tracking-wider text-muted cursor-pointer hover:opacity-80 transition-opacity"
+                              onClick={() => handleSort('volunteer')}
+                            >
+                              <div className="flex items-center gap-1">Volunteer{getSortIcon('volunteer')}</div>
+                            </th>
+                            <th
+                              className="text-left py-2.5 px-3 text-[11px] font-semibold uppercase tracking-wider text-muted cursor-pointer hover:opacity-80 transition-opacity"
+                              onClick={() => handleSort('distance')}
+                              title={viewerHq.name ? `From ${viewerHq.name} HQ` : 'From department HQ'}
+                            >
+                              <div className="flex items-center gap-1">Distance{getSortIcon('distance')}</div>
+                            </th>
+                          </>
+                        )}
                         <th
                           className="text-left py-2.5 px-3 text-[11px] font-semibold uppercase tracking-wider text-muted cursor-pointer hover:opacity-80 transition-opacity"
                           onClick={() => handleSort('time')}
@@ -677,8 +880,10 @@ export function DashboardPage() {
                     <tbody>
                       {paginatedIncidents.length === 0 && (
                         <tr>
-                          <td colSpan={8} className="py-10 px-4 text-center text-sm text-muted">
-                            No incidents match the current filters.
+                          <td colSpan={isVolunteerView ? 10 : 8} className="py-10 px-4 text-center text-sm text-muted">
+                            {isVolunteerView
+                              ? 'No volunteers have accepted an incident yet.'
+                              : 'No incidents match the current filters.'}
                           </td>
                         </tr>
                       )}
@@ -707,6 +912,9 @@ export function DashboardPage() {
                                 {(incident.status || '—').toString().toUpperCase()}
                               </Badge>
                               <VolunteerStatusBadge responderStatus={incident.responderStatus} />
+                              {incident.hasPendingBackup && (
+                                <BackupRequestedBadge onClick={() => openBackupDialog(incident)} />
+                              )}
                               {incident.status === 'Resolved' && (
                                 <span className="text-[10px] text-muted">
                                   {incident.reporterConfirmedAt ? 'Reporter confirmed' : 'Awaiting confirmation'}
@@ -724,6 +932,22 @@ export function DashboardPage() {
                               )}
                             </div>
                           </td>
+                          {isVolunteerView && (
+                            <>
+                              <td className="py-2.5 px-3 text-sm">
+                                <div className="flex flex-col gap-1">
+                                  <span className="font-medium text-foreground">{incident.acceptedByName || 'Volunteer'}</span>
+                                  {incident.acceptedByPhone && (
+                                    <span className="text-xs text-muted">{incident.acceptedByPhone}</span>
+                                  )}
+                                  <VolunteerStatusBadge responderStatus={incident.responderStatus} />
+                                </div>
+                              </td>
+                              <td className="py-2.5 px-3 text-sm text-muted" title={getIncidentDistance(incident).hint}>
+                                {getIncidentDistance(incident).label}
+                              </td>
+                            </>
+                          )}
                           <td className="py-2.5 px-3 text-sm text-muted">{incident.timeReported}</td>
                           <td className="py-2.5 px-3">
                             <div className="flex items-center gap-2">
@@ -777,6 +1001,16 @@ export function DashboardPage() {
             )}
           </div>
         </div>
+        </Tabs>
+
+        <BackupRequestDialog
+          open={backupDialogOpen}
+          onOpenChange={setBackupDialogOpen}
+          incidentId={backupDialogIncident?.id}
+          onAcknowledge={handleAcknowledgeBackup}
+          onDispatch={handleDispatchBackup}
+          acknowledging={acknowledgingBackup}
+        />
 
         {/* Finalization Modal — blockchain or audit trail depending on USE_BLOCKCHAIN flag */}
         <Dialog open={verifyModalOpen} onOpenChange={(open) => !open && closeVerifyModal()} className="max-w-md">

@@ -76,7 +76,6 @@ class _IncidentAlertModalState extends State<IncidentAlertModal> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bg = isDark ? const Color(0xFF1E293B) : Colors.white;
-    final textPrimary = isDark ? Colors.white : const Color(0xFF0F172A);
     final textSec = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
     final data = widget.event.data;
     final barangay = (data['barangay'] as String?) ?? 'Unknown location';

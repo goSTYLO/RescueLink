@@ -25,6 +25,7 @@ export function useIncidentWebSocket() {
   const [notifications, setNotifications] = useState([]);
   const [lastHighSeverity, setLastHighSeverity] = useState(null);
   const [lastDispatched, setLastDispatched] = useState(null);
+  const [lastBackupRequested, setLastBackupRequested] = useState(null);
   const wsRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
   const reconnectAttemptRef = useRef(0);
@@ -80,6 +81,10 @@ export function useIncidentWebSocket() {
 
           if (eventName === 'incident:dispatched') {
             setLastDispatched({ eventName, data });
+          }
+
+          if (eventName === 'responder:backup_requested') {
+            setLastBackupRequested({ eventName, data });
           }
 
           const title = formatNotificationTitle(eventName, data);
@@ -163,6 +168,8 @@ export function useIncidentWebSocket() {
     clearLastHighSeverity: () => setLastHighSeverity(null),
     lastDispatched,
     clearLastDispatched: () => setLastDispatched(null),
+    lastBackupRequested,
+    clearLastBackupRequested: () => setLastBackupRequested(null),
   };
 }
 
@@ -186,6 +193,16 @@ function formatNotificationTitle(eventName, data) {
       return `Incident #${data.report_id} resolved`;
     case 'incident:note_added':
       return `New note on incident #${data.report_id}`;
+    case 'responder:backup_requested': {
+      const requester = data.requested_by_name ? ` from ${data.requested_by_name}` : '';
+      return `Backup requested on Incident #${data.report_id}${requester}`;
+    }
+    case 'responder:backup_acknowledged':
+      return `Backup acknowledged for Incident #${data.report_id}`;
+    case 'incident:accepted': {
+      const accepter = data.accepted_by_name ? ` by ${data.accepted_by_name}` : '';
+      return `Volunteer accepted Incident #${data.report_id}${accepter}`;
+    }
     default:
       return `Incident #${data.report_id} updated`;
   }
@@ -200,6 +217,10 @@ function formatNotificationBody(eventName, data) {
       return `Status changed to ${data.status || 'updated'}`;
     case 'responder:status_changed':
       return `Volunteer responder status: ${data.new_status || data.responder_status || 'updated'}`;
+    case 'responder:backup_requested':
+      return `Target: ${data.target || 'cdrrmo'}${data.notes ? ` — ${data.notes}` : ''}`;
+    case 'incident:accepted':
+      return `Volunteer status: ${data.responder_status || 'Assigned'}`;
     case 'incident:dispatched':
       return 'Responders have been assigned';
     default:

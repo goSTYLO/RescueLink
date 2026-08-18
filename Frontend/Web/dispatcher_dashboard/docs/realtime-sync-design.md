@@ -20,10 +20,16 @@ This design documents a migration path from polling-first sync to realtime updat
 5. **Volunteer responder events**
    - `responder:status_changed` — volunteer field progress (`new_status`, `responder_status`); dashboard refetches and shows a volunteer badge.
    - When volunteer marks **Resolved**, backend also emits `incident:status_updated` with `status: resolved` so active lists update.
-6. **De-dup policy**
+   - `incident:accepted` — volunteer accepted an incident; bell shows acceptor context; lists refetch for Volunteer Response tab.
+6. **Backup request events**
+   - `responder:backup_requested` — primary responder requested backup; enriched payload includes `backup_request_id`, `target`, `notes`, `requested_by_name`, and incident summary fields.
+   - Web bell shows a titled backup item; dashboard rows show **BACKUP REQUESTED** when `has_pending_backup` is true.
+   - Department roles receive a Swal toast only when the incident is dispatched to their department; dispatcher/admin/supervisor get bell + badge only (no toast).
+   - `responder:backup_acknowledged` — staff acknowledged a pending backup; lists refetch so the badge clears/updates.
+7. **De-dup policy**
    - Use `report_id` as the canonical key.
    - Ignore duplicate events with same `report_id` + `updated_at`.
-7. **Fallback policy**
+8. **Fallback policy**
    - If realtime channel drops, show non-blocking fallback notice and continue 30s polling.
 
 ## Rollout phases

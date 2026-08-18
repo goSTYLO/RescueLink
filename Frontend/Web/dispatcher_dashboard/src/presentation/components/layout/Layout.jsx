@@ -115,7 +115,7 @@ export function Layout({ children }) {
   const profileRef = useRef(null);
   const notificationsRef = useRef(null);
 
-  const { status: wsStatus, notifications: wsNotifications, clearNotifications, lastHighSeverity, clearLastHighSeverity, lastDispatched, clearLastDispatched } = useIncidentWebSocket();
+  const { status: wsStatus, notifications: wsNotifications, clearNotifications, lastHighSeverity, clearLastHighSeverity, lastDispatched, clearLastDispatched, lastBackupRequested, clearLastBackupRequested } = useIncidentWebSocket();
   const [apiNotifications, setApiNotifications] = useState([]);
   const [apiUnreadCount, setApiUnreadCount] = useState(0);
 
@@ -192,6 +192,29 @@ export function Layout({ children }) {
     });
     clearLastDispatched();
   }, [lastDispatched]);
+
+  useEffect(() => {
+    if (!lastBackupRequested?.data) return;
+    const roleNow = normalizeRole((JSON.parse(sessionStorage.getItem('user') || '{}') || {}).role);
+    const isDept = [ROLES.DEPARTMENT_ADMIN, ROLES.DEPARTMENT_HEAD, ROLES.PERSONNEL].includes(roleNow);
+    if (!isDept) return;
+    const d = lastBackupRequested.data;
+    const reportId = d.report_id ?? d.reportId;
+    const requester = d.requested_by_name ? ` from ${d.requested_by_name}` : '';
+    const title = reportId ? `Backup requested — Incident #${reportId}` : 'Backup requested';
+    const body = `${formatIncidentTypesLabel(d)}${requester}${d.barangay ? ` in ${d.barangay}` : ''}`;
+    Swal.fire({
+      icon: 'warning',
+      title,
+      text: body,
+      timer: 6000,
+      showConfirmButton: true,
+      timerProgressBar: true,
+      toast: true,
+      position: 'top-end',
+    });
+    clearLastBackupRequested();
+  }, [lastBackupRequested, clearLastBackupRequested]);
 
   useEffect(() => {
     localStorage.setItem(SIDEBAR_STORAGE_KEY, JSON.stringify(isCollapsed));

@@ -12,6 +12,9 @@ const { logDispatcherAction } = require('../utils/auditLog');
 const Notification = require('../models/notification');
 const { buildIncidentEventPayload, emitIncidentEvent } = require('../utils/incidentEvents');
 const { tryDecryptValue } = require('../utils/encryption');
+const User = require('../models/user');
+const Department = require('../models/department');
+const { ROLES } = require('../config/roles');
 
 const RESPONDER_STATUSES = ['Assigned', 'En Route', 'On Scene', 'Resolved'];
 const STATUS_TRANSITIONS = {
@@ -121,8 +124,15 @@ async function ensurePhase3Schema() {
         requested_by_user_id INTEGER NOT NULL REFERENCES users(user_id),
         target VARCHAR(50) NOT NULL CHECK (target IN ('nearby_responders', 'cdrrmo', 'both')),
         notes TEXT,
+        status VARCHAR(20) DEFAULT 'pending',
+        acknowledged_by_user_id INTEGER REFERENCES users(user_id),
+        acknowledged_at TIMESTAMP WITH TIME ZONE,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
+      ALTER TABLE backup_requests ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'pending';
+      ALTER TABLE backup_requests ADD COLUMN IF NOT EXISTS acknowledged_by_user_id INTEGER REFERENCES users(user_id);
+      ALTER TABLE backup_requests ADD COLUMN IF NOT EXISTS acknowledged_at TIMESTAMP WITH TIME ZONE;
+      UPDATE backup_requests SET status = 'pending' WHERE status IS NULL;
     `);
   } catch (err) {
     console.warn('ensurePhase3Schema warning:', err.message);
@@ -172,6 +182,88 @@ function emitWsToUser(req, userId, event, data) {
   if (typeof broadcastToUser === 'function') {
     broadcastToUser(userId, event, data);
   }
+}
+
+const GLOBAL_STAFF_ROLES = new Set([
+  ROLES.DISPATCHER,
+  ROLES.ADMIN,
+  ROLES.SUPERVISOR,
+  'supervisor',
+  'Supervisor',
+  'super-admin',
+  'superadmin',
+  'Super Admin',
+]);
+
+const DEPARTMENT_STAFF_ROLES = new Set([
+  ROLES.DEPARTMENT_ADMIN,
+  ROLES.DEPARTMENT_HEAD,
+  ROLES.PERSONNEL,
+  'department-admin',
+  'department-head',
+  'personnel',
+]);
+
+async function getAssignedDepartmentUserIds(reportId) {
+  try {
+    const result = await pool.query(
+      `SELECT DISTINCT u.user_id
+         FROM dispatches d
+         JOIN departments dept ON LOWER(dept.code) = LOWER(d.department_code)
+         JOIN users u ON u.department_id = dept.department_id
+        WHERE d.report_id = $1
+          AND u.role IN ('department-admin', 'department-head', 'personnel')`,
+      [reportId]
+    );
+    return result.rows.map((row) => row.user_id).filter((id) => id != null);
+  } catch (err) {
+    console.warn('getAssignedDepartmentUserIds warning:', err.message);
+    return [];
+  }
+}
+
+async function notifyStaffBackupRequest(reportId, message) {
+  try {
+    const staffResult = await pool.query(
+      `SELECT user_id FROM users
+        WHERE role IN ('dispatcher', 'admin', 'supervisor', 'Supervisor', 'super-admin', 'superadmin', 'Super Admin')`
+    );
+    const deptUserIds = await getAssignedDepartmentUserIds(reportId);
+    const targetIds = new Set([
+      ...staffResult.rows.map((row) => row.user_id),
+      ...deptUserIds,
+    ]);
+    await Promise.all(
+      [...targetIds].map((user_id) =>
+        Notification.create({
+          user_id,
+          report_id: reportId,
+          message,
+          sent_via: 'websocket',
+          event_type: 'backup_requested',
+        }).catch(() => {})
+      )
+    );
+  } catch (err) {
+    console.warn('notifyStaffBackupRequest warning:', err.message);
+  }
+}
+
+async function assertCanManageBackup(req, reportId) {
+  const role = req.user?.role;
+  if (GLOBAL_STAFF_ROLES.has(role)) return true;
+  if (!DEPARTMENT_STAFF_ROLES.has(role)) return false;
+
+  const fullUser = await User.findById(req.user.user_id);
+  if (!fullUser?.department_id) return false;
+  const dept = await Department.findById(fullUser.department_id);
+  if (!dept?.code) return false;
+
+  const dispatchCheck = await pool.query(
+    'SELECT 1 FROM dispatches WHERE report_id = $1 AND LOWER(department_code) = LOWER($2) LIMIT 1',
+    [reportId, dept.code]
+  );
+  return dispatchCheck.rows.length > 0;
 }
 
 // ─── Helper: radius check when responder location columns exist ────────────────
@@ -420,6 +512,7 @@ async function updateResponderStatus(req, res) {
 // ─── POST /api/incidents/:id/backup ──────────────────────────────────────────
 async function requestBackup(req, res) {
   try {
+    await ensurePhase3Schema();
     const reportId = validateInteger(req.params.id, 'report ID');
     const userId = req.user.user_id;
     const { target, notes } = req.body;
@@ -427,42 +520,55 @@ async function requestBackup(req, res) {
     const validTarget = validateAllowedValue(target, ['nearby_responders', 'cdrrmo', 'both'], 'target');
     const validNotes = notes ? validateString(notes, 'notes', 1, 500) : null;
 
-    // Verify caller is the primary responder
     const incRow = await pool.query(
-      'SELECT accepted_by_user_id, latitude, longitude FROM incident_reports WHERE report_id = $1',
+      `SELECT accepted_by_user_id, latitude, longitude, incident_type, barangay, severity_level
+         FROM incident_reports WHERE report_id = $1`,
       [reportId]
     );
     if (!incRow.rows[0]) return res.status(404).json({ error: 'Incident not found.' });
-    if (incRow.rows[0].accepted_by_user_id !== userId) {
+    const incident = incRow.rows[0];
+    if (incident.accepted_by_user_id !== userId) {
       return res.status(403).json({ error: 'Only the primary responder can request backup.' });
     }
 
-    await pool.query(
-      `INSERT INTO backup_requests(report_id, requested_by_user_id, target, notes) VALUES($1, $2, $3, $4)`,
+    const insertResult = await pool.query(
+      `INSERT INTO backup_requests(report_id, requested_by_user_id, target, notes, status)
+       VALUES($1, $2, $3, $4, 'pending')
+       RETURNING id, created_at`,
       [reportId, userId, validTarget, validNotes]
     );
-
-    // Notify dispatcher
-    await Notification.create({
-      user_id: userId, // dispatcher-visible; actual routing is via WS
-      report_id: reportId,
-      message: `Backup requested for Incident #${reportId}. Target: ${validTarget}.`,
-      sent_via: 'websocket',
-      event_type: 'backup_requested',
-      category: 'backup_request',
-    }).catch(() => {});
+    const backupRequestId = insertResult.rows[0]?.id;
 
     const nameRow = await pool.query(
       "SELECT first_name || ' ' || last_name AS full_name FROM users WHERE user_id = $1",
       [userId]
     );
+    const requestedByName = nameRow.rows[0]?.full_name || 'Responder';
+    const notifyMessage = `Backup requested for Incident #${reportId}. Target: ${validTarget}.`;
+    await notifyStaffBackupRequest(reportId, notifyMessage);
+
     emitWs(req, 'responder:backup_requested', {
       report_id: reportId,
+      backup_request_id: backupRequestId,
       target: validTarget,
-      requested_by_name: nameRow.rows[0]?.full_name || 'Responder',
+      notes: validNotes,
+      requested_by_name: requestedByName,
+      incident_type: incident.incident_type,
+      barangay: tryDecryptValue(incident.barangay),
+      severity_level: incident.severity_level,
     });
 
-    res.status(201).json({ message: 'Backup request submitted.', report_id: reportId, target: validTarget });
+    await logDispatcherAction(req, 'backup_requested', 'incident', reportId, {
+      target: validTarget,
+      backup_request_id: backupRequestId,
+    });
+
+    res.status(201).json({
+      message: 'Backup request submitted.',
+      report_id: reportId,
+      target: validTarget,
+      backup_request_id: backupRequestId,
+    });
   } catch (err) {
     if (err.message?.includes('must be') || err.message?.includes('must not')) return res.status(400).json({ error: err.message });
     console.error('requestBackup error:', err);
@@ -473,11 +579,14 @@ async function requestBackup(req, res) {
 // ─── GET /api/incidents/:id/backup ───────────────────────────────────────────
 async function getBackupRequests(req, res) {
   try {
+    await ensurePhase3Schema();
     const reportId = validateInteger(req.params.id, 'report ID');
     const result = await pool.query(
-      `SELECT br.*, u.first_name || ' ' || u.last_name AS requester_name
+      `SELECT br.*, u.first_name || ' ' || u.last_name AS requester_name,
+              ack.first_name || ' ' || ack.last_name AS acknowledged_by_name
          FROM backup_requests br
          JOIN users u ON u.user_id = br.requested_by_user_id
+         LEFT JOIN users ack ON ack.user_id = br.acknowledged_by_user_id
         WHERE br.report_id = $1
         ORDER BY br.created_at DESC`,
       [reportId]
@@ -486,6 +595,68 @@ async function getBackupRequests(req, res) {
   } catch (err) {
     if (err.message?.includes('must be')) return res.status(400).json({ error: err.message });
     console.error('getBackupRequests error:', err);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
+}
+
+// ─── PATCH /api/incidents/:id/backup/:backupId/acknowledge ───────────────────
+async function acknowledgeBackupRequest(req, res) {
+  try {
+    await ensurePhase3Schema();
+    const reportId = validateInteger(req.params.id, 'report ID');
+    const backupId = validateInteger(req.params.backupId, 'backup request ID');
+    const userId = req.user.user_id;
+
+    const allowed = await assertCanManageBackup(req, reportId);
+    if (!allowed) {
+      return res.status(403).json({ error: 'You are not authorized to acknowledge backup for this incident.' });
+    }
+
+    const existing = await pool.query(
+      `SELECT id, report_id, status FROM backup_requests WHERE id = $1 AND report_id = $2`,
+      [backupId, reportId]
+    );
+    if (!existing.rows[0]) return res.status(404).json({ error: 'Backup request not found.' });
+    if (existing.rows[0].status === 'acknowledged') {
+      return res.json({
+        message: 'Backup request already acknowledged.',
+        report_id: reportId,
+        backup_request_id: backupId,
+        status: 'acknowledged',
+      });
+    }
+
+    const now = new Date().toISOString();
+    await pool.query(
+      `UPDATE backup_requests
+          SET status = 'acknowledged',
+              acknowledged_by_user_id = $1,
+              acknowledged_at = $2
+        WHERE id = $3 AND report_id = $4`,
+      [userId, now, backupId, reportId]
+    );
+
+    emitWs(req, 'responder:backup_acknowledged', {
+      report_id: reportId,
+      backup_request_id: backupId,
+      acknowledged_by_user_id: userId,
+      acknowledged_at: now,
+    });
+
+    await logDispatcherAction(req, 'backup_acknowledged', 'incident', reportId, {
+      backup_request_id: backupId,
+    });
+
+    res.json({
+      message: 'Backup request acknowledged.',
+      report_id: reportId,
+      backup_request_id: backupId,
+      status: 'acknowledged',
+      acknowledged_at: now,
+    });
+  } catch (err) {
+    if (err.message?.includes('must be')) return res.status(400).json({ error: err.message });
+    console.error('acknowledgeBackupRequest error:', err);
     res.status(500).json({ error: 'Internal server error.' });
   }
 }
@@ -737,6 +908,7 @@ module.exports = {
   updateResponderStatus,
   requestBackup,
   getBackupRequests,
+  acknowledgeBackupRequest,
   getActiveAssigned,
   getResponderHistory,
   getIncidentPreview,

@@ -7,13 +7,17 @@ import { Badge } from '@/presentation/components/ui/Badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/presentation/components/ui/Select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/presentation/components/ui/Dialog';
 import { Eye, Truck, MapPin, CheckCircle, AlertCircle, Activity, LayoutList, SlidersHorizontal, UserPlus, X, Clock, Shield, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight } from 'lucide-react';
-import { getIncidents } from '@/data/api/incidents.api';
+import { getIncidents, acknowledgeBackupRequest } from '@/data/api/incidents.api';
 import { getDepartmentById, getDepartmentUnits, assignDepartmentUnit } from '@/data/api/departments.api';
 import { getResponderTeams } from '@/data/api/responders.api';
 import { createDispatch } from '@/data/api/dispatches.api';
 import { inferDepartmentSectorCode, normalizeSectorCode } from '@/core/utils/departmentSector';
 import { mapApiIncidentToDisplay, isIncidentActiveForDashboard } from '@/core/utils/incidentDisplay';
+import { formatDepartmentToIncidentDistance } from '@/core/utils/geoDistance';
 import { VolunteerStatusBadge } from '@/presentation/components/common/VolunteerStatusBadge';
+import { BackupRequestedBadge } from '@/presentation/components/common/BackupRequestedBadge';
+import { BackupRequestDialog } from '@/presentation/components/common/BackupRequestDialog';
+import { Tabs, TabsList, TabsTrigger } from '@/presentation/components/ui/Tabs';
 import { ROLES } from '@/core/constants';
 import { useTheme } from '@/presentation/context/ThemeContext';
 import { useIncidentWebSocketStatus } from '@/presentation/context/IncidentWebSocketContext';
@@ -66,6 +70,11 @@ export function DepartmentDashboardPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(5);
   const [pageSizeSelectOpen, setPageSizeSelectOpen] = useState(false);
+  const [dashboardView, setDashboardView] = useState('all');
+  const [backupDialogOpen, setBackupDialogOpen] = useState(false);
+  const [backupDialogIncident, setBackupDialogIncident] = useState(null);
+  const [acknowledgingBackup, setAcknowledgingBackup] = useState(false);
+  const isVolunteerView = dashboardView === 'volunteer';
 
   const fetchIncidents = useCallback(async () => {
     setLoading(true);
@@ -190,7 +199,10 @@ export function DepartmentDashboardPage() {
   }, [assignments]);
 
   const departmentIncidents = incidents;
-  const filteredIncidents = departmentIncidents.filter((incident) => {
+  const scopeIncidents = isVolunteerView
+    ? departmentIncidents.filter((inc) => inc.acceptedByUserId != null)
+    : departmentIncidents;
+  const filteredIncidents = scopeIncidents.filter((incident) => {
     if (filterType !== 'All' && incident.emergencyType !== filterType) return false;
     if (filterStatus !== 'All' && incident.status !== filterStatus) return false;
     if (filterSeverity !== 'All' && incident.severity !== filterSeverity) return false;
@@ -263,7 +275,39 @@ export function DepartmentDashboardPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [filterType, filterStatus, filterSeverity]);
+  }, [filterType, filterStatus, filterSeverity, dashboardView]);
+
+  const getIncidentDistance = (incident) =>
+    formatDepartmentToIncidentDistance(department?.latitude, department?.longitude, incident.latitude, incident.longitude);
+
+  const openBackupDialog = (incident) => {
+    setBackupDialogIncident(incident);
+    setBackupDialogOpen(true);
+  };
+
+  const handleAcknowledgeBackup = async () => {
+    const incident = backupDialogIncident;
+    if (!incident?.pendingBackupRequestId) return;
+    setAcknowledgingBackup(true);
+    try {
+      await acknowledgeBackupRequest(incident.id, incident.pendingBackupRequestId);
+      setBackupDialogOpen(false);
+      setBackupDialogIncident(null);
+      fetchIncidents();
+    } catch (err) {
+      Swal.fire({ icon: 'error', title: 'Acknowledge failed', text: err.message || 'Could not acknowledge backup request.' });
+    } finally {
+      setAcknowledgingBackup(false);
+    }
+  };
+
+  const handleDispatchBackup = () => {
+    const incident = backupDialogIncident;
+    if (!incident?.id) return;
+    setBackupDialogOpen(false);
+    setBackupDialogIncident(null);
+    navigate(`/incidents/${incident.id}?tab=details&focus=dispatch`);
+  };
 
   useEffect(() => {
     if (currentPage > totalPages) setCurrentPage(totalPages);
@@ -457,20 +501,30 @@ export function DepartmentDashboardPage() {
         <div className={`relative z-0 rounded-2xl overflow-hidden border transition-all duration-300 ${
           isLight ? 'glass neumorphic-light bg-white/80' : 'glass neumorphic-dark bg-card/60'
         }`}>
-          <div className={`flex items-center gap-3 px-4 py-2.5 border-b ${
+          <div className={`flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 border-b ${
             isLight ? 'border-gray-200/80 bg-gray-50/50' : 'border-white/10 bg-white/5'
           }`}>
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-              isLight ? 'neumorphic-light-inset bg-gray-100 text-primary' : 'neumorphic-dark-inset bg-white/10 text-primary'
-            }`}>
-              <LayoutList className="w-5 h-5" strokeWidth={2} />
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                isLight ? 'neumorphic-light-inset bg-gray-100 text-primary' : 'neumorphic-dark-inset bg-white/10 text-primary'
+              }`}>
+                <LayoutList className="w-5 h-5" strokeWidth={2} />
+              </div>
+              <h3 className="text-base font-semibold text-foreground">
+                {isVolunteerView ? 'Volunteer Response' : 'Assigned Incidents'}
+              </h3>
+              <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                isLight ? 'bg-primary/15 text-primary' : 'bg-primary/20 text-primary'
+              }`}>
+                {filteredIncidents.length}
+              </span>
             </div>
-            <h3 className="text-base font-semibold text-foreground">Assigned Incidents</h3>
-            <span className={`ml-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${
-              isLight ? 'bg-primary/15 text-primary' : 'bg-primary/20 text-primary'
-            }`}>
-              {filteredIncidents.length}
-            </span>
+            <Tabs value={dashboardView} onValueChange={setDashboardView}>
+              <TabsList className={`rounded-xl p-1 ${isLight ? 'bg-gray-100 border border-gray-200' : 'bg-white/10 border border-white/10'}`}>
+                <TabsTrigger value="all" className="rounded-lg px-3 py-1.5 text-xs">All Incidents</TabsTrigger>
+                <TabsTrigger value="volunteer" className="rounded-lg px-3 py-1.5 text-xs">Volunteer Response</TabsTrigger>
+              </TabsList>
+            </Tabs>
           </div>
 
           <div className={`px-2 sm:px-3 py-2 border-b ${
@@ -592,6 +646,12 @@ export function DepartmentDashboardPage() {
                   <th className="px-2.5 py-2 text-left text-xs font-semibold text-foreground cursor-pointer" onClick={() => handleSort('location')}><div className="flex items-center gap-1">Location{getSortIcon('location')}</div></th>
                   <th className="px-2.5 py-2 text-left text-xs font-semibold text-foreground cursor-pointer" onClick={() => handleSort('severity')}><div className="flex items-center gap-1">Severity{getSortIcon('severity')}</div></th>
                   <th className="px-2.5 py-2 text-left text-xs font-semibold text-foreground cursor-pointer" onClick={() => handleSort('status')}><div className="flex items-center gap-1">Status{getSortIcon('status')}</div></th>
+                  {isVolunteerView && (
+                    <>
+                      <th className="px-2.5 py-2 text-left text-xs font-semibold text-foreground">Volunteer</th>
+                      <th className="px-2.5 py-2 text-left text-xs font-semibold text-foreground">Distance</th>
+                    </>
+                  )}
                   <th className="px-2.5 py-2 text-left text-xs font-semibold text-foreground">Assigned To</th>
                   <th className="px-2.5 py-2 text-left text-xs font-semibold text-foreground cursor-pointer" onClick={() => handleSort('reported')}><div className="flex items-center gap-1">Reported{getSortIcon('reported')}</div></th>
                   <th className="px-2.5 py-2 text-left text-xs font-semibold text-foreground">Actions</th>
@@ -600,7 +660,7 @@ export function DepartmentDashboardPage() {
               <tbody className="divide-y divide-border">
                 {loading ? (
                   <tr>
-                    <td colSpan={8} className="px-4 py-8 text-center text-muted">Loading incidents…</td>
+                    <td colSpan={isVolunteerView ? 10 : 8} className="px-4 py-8 text-center text-muted">Loading incidents…</td>
                   </tr>
                 ) : (
                   paginatedIncidents.map((incident) => (
@@ -629,11 +689,28 @@ export function DepartmentDashboardPage() {
                         <div className="flex flex-col gap-1">
                           {getStatusBadge(incident.status)}
                           <VolunteerStatusBadge responderStatus={incident.responderStatus} />
+                          {incident.hasPendingBackup && (
+                            <BackupRequestedBadge onClick={() => openBackupDialog(incident)} />
+                          )}
                           {(incident.status === 'Resolved' || incident.status === 'resolved') && !incident.reporterConfirmedAt && (
                             <span className="text-xs text-amber-500 font-medium">Awaiting confirmation</span>
                           )}
                         </div>
                       </td>
+                      {isVolunteerView && (
+                        <>
+                          <td className="px-2.5 py-2 text-xs">
+                            <div className="flex flex-col gap-1">
+                              <span className="font-medium text-foreground">{incident.acceptedByName || 'Volunteer'}</span>
+                              {incident.acceptedByPhone && <span className="text-muted">{incident.acceptedByPhone}</span>}
+                              <VolunteerStatusBadge responderStatus={incident.responderStatus} />
+                            </div>
+                          </td>
+                          <td className="px-2.5 py-2 text-xs text-muted" title={getIncidentDistance(incident).hint}>
+                            {getIncidentDistance(incident).label}
+                          </td>
+                        </>
+                      )}
                       <td className="px-2.5 py-2 text-xs text-muted">
                         {getAssignment(incident.id) ? (getAssignment(incident.id).teamName || getAssignment(incident.id).name) : '—'}
                       </td>
@@ -655,7 +732,11 @@ export function DepartmentDashboardPage() {
                 )}
                 {!loading && paginatedIncidents.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="px-4 py-8 text-center text-muted">No incidents match the current filters.</td>
+                    <td colSpan={isVolunteerView ? 10 : 8} className="px-4 py-8 text-center text-muted">
+                      {isVolunteerView
+                        ? 'No volunteers have accepted an incident yet.'
+                        : 'No incidents match the current filters.'}
+                    </td>
                   </tr>
                 )}
               </tbody>
@@ -670,6 +751,15 @@ export function DepartmentDashboardPage() {
         )}
 
         {/* Assign Personnel Modal — Dept Admin only: assign a response team (uses API teams) */}
+        <BackupRequestDialog
+          open={backupDialogOpen}
+          onOpenChange={setBackupDialogOpen}
+          incidentId={backupDialogIncident?.id}
+          onAcknowledge={handleAcknowledgeBackup}
+          onDispatch={handleDispatchBackup}
+          acknowledging={acknowledgingBackup}
+        />
+
         <Dialog open={assignModalOpen} onOpenChange={(open) => !open && closeAssignModal()} className="max-w-md">
           <DialogContent className={`max-w-md rounded-2xl overflow-hidden ${isLight ? 'glass neumorphic-light bg-white/95 border-gray-200/80' : 'glass neumorphic-dark bg-card/95 border-white/10'}`}>
             <div className={`flex items-center justify-between border-b ${isLight ? 'border-gray-200/80 pb-4' : 'border-white/10 pb-4'}`}>

@@ -52,6 +52,19 @@ describe('incidents.api contract', () => {
     expect(options.headers['x-request-id']).toContain('web-incidents-');
   });
 
+  test('getIncidents sends volunteer_accepted filter when requested', async () => {
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify([]),
+    });
+
+    await getIncidents({ volunteer_accepted: true });
+
+    const [url] = fetch.mock.calls[0];
+    expect(url).toContain('volunteer_accepted=true');
+  });
+
   test('getIncidents returns pagination metadata when requested', async () => {
     fetch.mockResolvedValueOnce({
       ok: true,
@@ -148,6 +161,26 @@ describe('incidents.api contract', () => {
     expect(url).toContain('/api/incidents/1/status');
     expect(options.method).toBe('PATCH');
     expect(JSON.parse(options.body)).toEqual({ status: 'resolved' });
+  });
+
+  test('updateIncidentStatus sends closed status with closure metadata', async () => {
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ success: true, incident: { report_id: 2, status: 'closed' } }),
+    });
+
+    await updateIncidentStatus(2, 'closed', {
+      closure_notes: 'Units cleared scene.',
+      closure_method: 'Successful Response',
+    });
+
+    const [, options] = fetch.mock.calls[0];
+    expect(JSON.parse(options.body)).toEqual({
+      status: 'closed',
+      closure_notes: 'Units cleared scene.',
+      closure_method: 'Successful Response',
+    });
   });
 
   test('getIncidentDuplicates calls correct endpoint', async () => {

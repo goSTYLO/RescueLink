@@ -555,8 +555,9 @@ const incidentController = {
         return res.status(401).json({ error: 'Authentication required' });
       }
 
-      const { limit, offset, severity_level, status, incident_type, barangay, exclude_duplicates, search, exclude_report_id } = req.query;
+      const { limit, offset, severity_level, status, incident_type, barangay, exclude_duplicates, search, exclude_report_id, volunteer_accepted } = req.query;
       const excludeDuplicates = exclude_duplicates === 'true' || exclude_duplicates === '1';
+      const volunteerAccepted = volunteer_accepted === 'true' || volunteer_accepted === '1';
       const { limit: validatedLimit, offset: validatedOffset } = validatePagination(limit, offset);
       const validatedSeverityLevel = validateAllowedValue(severity_level, ['low', 'medium', 'high'], 'severity_level');
       const validatedStatus = validateAllowedValue(status, ['pending', 'verified', 'in_progress', 'resolved', 'closed'], 'status');
@@ -616,6 +617,7 @@ const incidentController = {
           exclude_duplicates: excludeDuplicates,
           search: validatedSearch,
           exclude_report_id: validatedExcludeReportId,
+          volunteer_accepted: volunteerAccepted,
         });
         totalCount = await Incident.countAll({
           severity_level: validatedSeverityLevel,
@@ -626,6 +628,7 @@ const incidentController = {
           exclude_duplicates: excludeDuplicates,
           search: validatedSearch,
           exclude_report_id: validatedExcludeReportId,
+          volunteer_accepted: volunteerAccepted,
         });
       }
       const dataFetchLatencyMs = Date.now() - dataFetchStart;
@@ -1226,6 +1229,12 @@ const incidentController = {
         actor_user_id: req.user?.user_id || null,
         actor_role: req.user?.role || null,
         allow_force_close: allowForceClose,
+        closure_notes: nextStatus === 'closed'
+          ? validateOptionalString(req.body?.closure_notes, 'closure_notes', 2000)
+          : null,
+        closure_method: nextStatus === 'closed'
+          ? validateOptionalString(req.body?.closure_method, 'closure_method', 80)
+          : null,
       });
 
       if (!updatedIncident) {
