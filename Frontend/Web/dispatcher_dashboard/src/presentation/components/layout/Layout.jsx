@@ -1,13 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useIncidentWebSocket } from '@/data/api/useIncidentWebSocket';
-import { getNotifications, getUnreadCount, markAllAsRead } from '@/data/api/notifications.api';
+import { getNotifications, getUnreadCount, markAllAsRead, markNotificationAsRead } from '@/data/api/notifications.api';
 import { IncidentWebSocketContext } from '@/presentation/context/IncidentWebSocketContext';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Home, Map, User, FileText, Settings, Shield, ShieldCheck, Building2, LogOut, PanelLeftClose, PanelLeft, Search, Bell, HelpCircle, ChevronDown, AlertCircle, CheckCircle, Info, X, Users, Truck, ClipboardList, UserCheck } from 'lucide-react';
+import { Home, Map, User, FileText, Settings, Shield, ShieldCheck, Building2, LogOut, PanelLeftClose, PanelLeft, Bell, HelpCircle, ChevronDown, AlertCircle, CheckCircle, Info, X, Users, Truck, ClipboardList, UserCheck } from 'lucide-react';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/infrastructure/firebase';
 import { logout as logoutApi } from '@/data/api/auth.api';
 import { BrandLogo } from '@/presentation/components/common/BrandLogo';
+import { GlobalSearch } from '@/presentation/components/common/GlobalSearch';
 import Swal from 'sweetalert2';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
 import { ThemeToggle } from '@/presentation/components/common/ThemeToggle';
@@ -111,21 +112,31 @@ export function Layout({ children }) {
   const navigate = useNavigate();
   const [profileOpen, setProfileOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [notificationsAuthError, setNotificationsAuthError] = useState(null);
   const profileRef = useRef(null);
   const notificationsRef = useRef(null);
+  const notificationRefreshRef = useRef(null);
 
-  const { status: wsStatus, notifications: wsNotifications, clearNotifications, lastHighSeverity, clearLastHighSeverity, lastDispatched, clearLastDispatched, lastBackupRequested, clearLastBackupRequested, lastBackupJoined, clearLastBackupJoined } = useIncidentWebSocket();
+  const { status: wsStatus, clearNotifications, lastHighSeverity, clearLastHighSeverity, lastDispatched, clearLastDispatched, lastBackupRequested, clearLastBackupRequested, lastBackupJoined, clearLastBackupJoined } = useIncidentWebSocket();
   const [apiNotifications, setApiNotifications] = useState([]);
   const [apiUnreadCount, setApiUnreadCount] = useState(0);
 
   const fetchApiNotifications = useCallback(async () => {
+    const token = sessionStorage.getItem('token');
+    if (DEV_MODE && !token) {
+      setApiNotifications([]);
+      setApiUnreadCount(0);
+      setNotificationsAuthError('Sign in to see notifications');
+      return;
+    }
+
     try {
+      setNotificationsAuthError(null);
       const [list, count] = await Promise.all([getNotifications({ limit: 50 }), getUnreadCount()]);
-      setApiNotifications(list);
+      setApiNotifications(Array.isArray(list) ? list : []);
       setApiUnreadCount(count);
-    } catch {
-      // Ignore fetch errors (e.g. no token, network)
+    } catch (err) {
+      setNotificationsAuthError(err?.message || 'Failed to load notifications');
     }
   }, []);
 
@@ -139,10 +150,26 @@ export function Layout({ children }) {
     }
   }, [notificationsOpen, fetchApiNotifications]);
 
+  useEffect(() => {
+    const onIncidentUpdated = () => {
+      if (notificationRefreshRef.current) clearTimeout(notificationRefreshRef.current);
+      notificationRefreshRef.current = setTimeout(() => {
+        fetchApiNotifications();
+      }, 500);
+    };
+
+    window.addEventListener('incident:updated', onIncidentUpdated);
+    return () => {
+      window.removeEventListener('incident:updated', onIncidentUpdated);
+      if (notificationRefreshRef.current) clearTimeout(notificationRefreshRef.current);
+    };
+  }, [fetchApiNotifications]);
+
   const mapApiToUi = (n) => {
     const eventType = n.event_type || ((n.message || '').toLowerCase().includes('assigned') ? 'dispatched' : null);
     return {
       id: `api-${n.notification_id}`,
+      notificationId: n.notification_id,
       eventType: eventType ? `incident:${eventType}` : null,
       type: (n.message || '').toLowerCase().includes('resolved') ? 'success' : (n.message || '').toLowerCase().includes('reported') ? 'alert' : 'info',
       title: (n.message || 'Notification').slice(0, 80),
@@ -260,25 +287,43 @@ export function Layout({ children }) {
   const isAdmin = isSuperAdmin; // legacy: Admin Actions / full access
   const isDeptRole = [ROLES.DEPARTMENT_ADMIN, ROLES.DEPARTMENT_HEAD, ROLES.PERSONNEL].includes(role);
 
-  const filteredWs = isDeptRole
-    ? wsNotifications.filter((n) => n.eventType === 'incident:dispatched')
-    : wsNotifications;
-
   const filteredApi = isDeptRole
     ? apiNotifications.filter((n) => n.event_type === 'dispatched' || (n.message || '').toLowerCase().includes('assigned'))
     : apiNotifications;
 
-  const merged = [...filteredWs, ...filteredApi.map(mapApiToUi)];
-  const seen = new Set();
-  const notifications = merged.filter((n) => {
-    const rid = n.reportId ?? n.report_id ?? 'unknown';
-    const etype = n.eventType ?? n.event_type ?? 'unknown';
-    const key = `${rid}-${etype}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+  const notifications = filteredApi.map(mapApiToUi);
 
+  const handleNotificationClick = async (notification) => {
+    if (notification.notificationId && notification.unread) {
+      setApiNotifications((prev) => prev.map((item) => (
+        item.notification_id === notification.notificationId
+          ? { ...item, is_read: true }
+          : item
+      )));
+      setApiUnreadCount((prev) => Math.max(0, prev - 1));
+      try {
+        await markNotificationAsRead(notification.notificationId);
+      } catch (_) {
+        fetchApiNotifications();
+      }
+    }
+
+    if (notification.reportId) {
+      navigate(`/incidents/${notification.reportId}`);
+    }
+    setNotificationsOpen(false);
+  };
+
+  const handleMarkAllAsRead = async () => {
+    try {
+      await markAllAsRead();
+      setApiNotifications((prev) => prev.map((item) => ({ ...item, is_read: true })));
+      setApiUnreadCount(0);
+      clearNotifications();
+    } catch (_) {
+      fetchApiNotifications();
+    }
+  };
   const userName = currentUser.name ||
     ([currentUser.firstName, currentUser.lastName].filter(Boolean).join(' ') || null) ||
     currentUser.username ||
@@ -483,24 +528,7 @@ export function Layout({ children }) {
         <header className={`flex-shrink-0 flex items-center gap-4 px-6 py-3.5 border-b border-border/80 shadow-sm ${
           isLight ? 'bg-white' : 'bg-card'
         }`}>
-          <div className="flex-1 max-w-md">
-            <div className={`relative rounded-xl border transition-colors ${
-              isLight ? 'bg-gray-50/80 border-gray-200' : 'bg-background/50 border-border'
-            }`}>
-              <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${
-                isLight ? 'text-gray-400' : 'text-muted'
-              }`} />
-              <input
-                type="search"
-                placeholder="Search incidents, services, or agents..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className={`w-full pl-9 pr-3 py-2.5 rounded-xl bg-transparent text-sm outline-none ${
-                  isLight ? 'text-gray-900 placeholder:text-gray-400' : 'text-foreground placeholder:text-muted'
-                }`}
-              />
-            </div>
-          </div>
+          <GlobalSearch />
 
           <div className="flex items-center gap-3 ml-auto">
             <ThemeToggle />
@@ -516,9 +544,9 @@ export function Layout({ children }) {
                 aria-expanded={notificationsOpen}
               >
                 <Bell className="w-5 h-5" strokeWidth={2} />
-                {(apiUnreadCount > 0 || (notifications || []).some((n) => n.unread)) && (
+                {apiUnreadCount > 0 && (
                   <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-primary text-[10px] font-semibold text-primary-foreground flex items-center justify-center" aria-hidden>
-                    {apiUnreadCount > 0 ? Math.min(apiUnreadCount, 99) : '1'}
+                    {Math.min(apiUnreadCount, 99)}
                   </span>
                 )}
                 {wsStatus === 'connected' && (
@@ -569,7 +597,9 @@ export function Layout({ children }) {
                         >
                           <Bell className="w-6 h-6" strokeWidth={2} />
                         </span>
-                        <p className="text-sm text-muted">No new notifications</p>
+                        <p className="text-sm text-muted">
+                          {notificationsAuthError || 'No new notifications'}
+                        </p>
                       </div>
                     ) : (
                       <ul>
@@ -583,11 +613,8 @@ export function Layout({ children }) {
                               <div
                                 role="button"
                                 tabIndex={0}
-                                onClick={() => {
-                                  if (n.reportId) navigate(`/incidents/${n.reportId}`);
-                                  setNotificationsOpen(false);
-                                }}
-                                onKeyDown={(e) => e.key === 'Enter' && n.reportId && navigate(`/incidents/${n.reportId}`)}
+                                onClick={() => handleNotificationClick(n)}
+                                onKeyDown={(e) => e.key === 'Enter' && handleNotificationClick(n)}
                                 className={`flex gap-3 px-4 py-3 transition-colors cursor-pointer ${
                                   n.unread ? (isLight ? 'bg-primary/5' : 'bg-primary/10') : isLight ? 'hover:bg-gray-50/80' : 'hover:bg-white/5'
                                 }`}
@@ -615,12 +642,7 @@ export function Layout({ children }) {
                     >
                       <button
                         type="button"
-                        onClick={async () => {
-                          try {
-                            await markAllAsRead();
-                            fetchApiNotifications();
-                          } catch (_) {}
-                        }}
+                        onClick={handleMarkAllAsRead}
                         className="text-xs font-medium text-primary hover:underline"
                       >
                         Mark all as read

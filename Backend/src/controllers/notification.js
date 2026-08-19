@@ -77,6 +77,30 @@ const notificationController = {
     }
   },
 
+  // Mark a single notification as read for current user
+  async markAsRead(req, res) {
+    try {
+      const userId = req.user?.user_id;
+      if (!userId) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+
+      const validatedId = validateInteger(req.params.id, 'notification ID');
+      const updated = await Notification.markAsRead(validatedId, userId);
+      if (!updated) {
+        return res.status(404).json({ error: 'Notification not found' });
+      }
+
+      res.json(updated);
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+      if (error.message.includes('must be')) {
+        return res.status(400).json({ error: error.message });
+      }
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+
   // Mark all notifications as read for current user
   async markAllAsRead(req, res) {
     try {
@@ -132,6 +156,8 @@ const notificationController = {
 
       const isUserRole = String(req.user?.role || '').toLowerCase() === ROLES.USER;
       if (isUserRole) {
+        validatedUserId = req.user.user_id;
+      } else if (validatedUserId == null && req.user?.user_id) {
         validatedUserId = req.user.user_id;
       }
 

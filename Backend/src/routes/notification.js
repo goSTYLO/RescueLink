@@ -14,8 +14,11 @@ router.get('/unread-count', authMiddleware, notificationController.getUnreadCoun
 // Mark all as read
 router.post('/mark-all-read', authMiddleware, notificationController.markAllAsRead);
 
-// Get all notifications - users see own, dispatcher/admin see all
+// Get all notifications - defaults to current user unless user_id query is provided
 router.get('/', authMiddleware, notificationController.getAll);
+
+// Mark single notification as read (must be before /:id)
+router.post('/:id/read', authMiddleware, notificationController.markAsRead);
 
 // Get notification by ID - users can only view their own
 router.get('/:id', authMiddleware, checkOwnership('user_id'), notificationController.getById);

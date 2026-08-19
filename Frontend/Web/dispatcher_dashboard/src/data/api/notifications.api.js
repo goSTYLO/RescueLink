@@ -20,6 +20,21 @@ export async function getNotifications({ limit = 50, offset = 0 } = {}) {
 }
 
 /**
+ * Mark a single notification as read for the current user
+ * @param {number|string} notificationId
+ * @returns {Promise<Object>} Updated notification
+ */
+export async function markNotificationAsRead(notificationId) {
+  const url = `${API_URL}/api/notifications/${notificationId}/read`;
+  const res = await fetch(url, { method: 'POST', headers: getAuthHeaders() });
+  if (!res.ok) {
+    const data = await parseJsonOrEmpty(res);
+    throw new Error(data?.error || res.statusText || 'Failed to mark notification as read');
+  }
+  return res.json();
+}
+
+/**
  * Mark all notifications as read for the current user
  * @returns {Promise<number>} Number of notifications marked
  */
