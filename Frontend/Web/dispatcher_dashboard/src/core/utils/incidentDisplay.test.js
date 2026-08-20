@@ -1,6 +1,7 @@
 import {
   isIncidentEffectivelyResolved,
   isVolunteerResolved,
+  isIncidentClosed,
   hasOpenBackupUi,
   getBackupDialogCapabilities,
 } from '@/core/utils/incidentDisplay';
@@ -40,6 +41,25 @@ describe('isVolunteerResolved', () => {
   });
 });
 
+describe('isIncidentClosed', () => {
+  it('returns true for Closed status label', () => {
+    expect(isIncidentClosed({ status: 'Closed' })).toBe(true);
+  });
+
+  it('returns true for lowercase closed status', () => {
+    expect(isIncidentClosed({ status: 'closed' })).toBe(true);
+  });
+
+  it('returns true when closedAt is set even if status is missing', () => {
+    expect(isIncidentClosed({ closedAt: '2026-01-20T00:20:00Z' })).toBe(true);
+  });
+
+  it('returns false for open incidents', () => {
+    expect(isIncidentClosed({ status: 'In Progress' })).toBe(false);
+    expect(isIncidentClosed(null)).toBe(false);
+  });
+});
+
 describe('hasOpenBackupUi', () => {
   it('stays visible for acknowledged backup', () => {
     expect(hasOpenBackupUi({
@@ -60,6 +80,14 @@ describe('hasOpenBackupUi', () => {
       openBackupStatus: 'acknowledged',
       assignedTeamName: 'Alpha Team',
     })).toBe(true);
+  });
+
+  it('returns false for closed incidents even with open backup request', () => {
+    expect(hasOpenBackupUi({
+      status: 'Closed',
+      hasOpenBackupRequest: true,
+      openBackupStatus: 'pending',
+    })).toBe(false);
   });
 });
 
@@ -84,5 +112,15 @@ describe('getBackupDialogCapabilities', () => {
     }, ROLES.DEPARTMENT_ADMIN);
     expect(caps.canAcknowledge).toBe(false);
     expect(caps.canAssignTeam).toBe(true);
+  });
+
+  it('returns no capabilities for closed incidents', () => {
+    const caps = getBackupDialogCapabilities({
+      ...openIncident,
+      status: 'Closed',
+    }, ROLES.DISPATCHER);
+    expect(caps.canAcknowledge).toBe(false);
+    expect(caps.canNotifyDepartment).toBe(false);
+    expect(caps.canAssignTeam).toBe(false);
   });
 });

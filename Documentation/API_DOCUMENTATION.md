@@ -382,7 +382,7 @@ Access and review security audit trails:
   - Includes action, resource, actor, timestamp
 - `GET /api/audit-logs/admin` (admin): List all audit logs without restriction
 
-- [../Backend/API_DOCUMENTATION.md](../Backend/API_DOCUMENTATION.md)
+- [../backend/API_DOCUMENTATION.md](../backend/API_DOCUMENTATION.md)
 
 ### Dispatches
 
@@ -391,7 +391,7 @@ Access and review security audit trails:
 
 Reference:
 
-- [../Backend/API_DOCUMENTATION.md](../Backend/API_DOCUMENTATION.md)
+- [../backend/API_DOCUMENTATION.md](../backend/API_DOCUMENTATION.md)
 
 ### Responders And Departments
 
@@ -399,7 +399,7 @@ Reference:
 
 Reference:
 
-- [../Backend/API_DOCUMENTATION.md](../Backend/API_DOCUMENTATION.md)
+- [../backend/API_DOCUMENTATION.md](../backend/API_DOCUMENTATION.md)
 
 ### Notifications
 
@@ -411,7 +411,7 @@ Reference:
 
 Reference:
 
-- [../Backend/API_DOCUMENTATION.md](../Backend/API_DOCUMENTATION.md)
+- [../backend/API_DOCUMENTATION.md](../backend/API_DOCUMENTATION.md)
 
 ### Location And Admin
 
@@ -420,7 +420,7 @@ Reference:
 
 Reference:
 
-- [../Backend/API_DOCUMENTATION.md](../Backend/API_DOCUMENTATION.md)
+- [../backend/API_DOCUMENTATION.md](../backend/API_DOCUMENTATION.md)
 
 ## AI And Blockchain Integration Touchpoints
 
@@ -429,11 +429,11 @@ Reference:
 
 References:
 
-- [../Backend/AI_INTEGRATION_PLAN.md](../Backend/AI_INTEGRATION_PLAN.md)
+- [../backend/AI_INTEGRATION_PLAN.md](../backend/AI_INTEGRATION_PLAN.md)
 - [../Blockchain/README.md](../Blockchain/README.md)
 
 ## OpenAPI And Deeper Contract
 
 - Canonical OpenAPI file: [../Backend/api-spec/swagger.json](../Backend/api-spec/swagger.json)
-- Extended backend endpoint detail: [../Backend/API_DOCUMENTATION.md](../Backend/API_DOCUMENTATION.md)
+- Extended backend endpoint detail: [../backend/API_DOCUMENTATION.md](../backend/API_DOCUMENTATION.md)
 ```

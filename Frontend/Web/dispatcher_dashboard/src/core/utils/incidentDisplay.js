@@ -102,6 +102,14 @@ export function isVolunteerResolved(responderStatus) {
   return String(responderStatus || '').trim().toLowerCase() === 'resolved';
 }
 
+/** Whether an incident is closed (lifecycle complete). */
+export function isIncidentClosed(incident) {
+  if (!incident) return false;
+  const status = String(incident?.status || '').trim().toLowerCase();
+  if (status === 'closed') return true;
+  return Boolean(incident?.closedAt);
+}
+
 /** Lifecycle resolved or volunteer marked Resolved (and not yet closed). */
 export function isIncidentEffectivelyResolved(incident) {
   const status = String(incident?.status || '').trim().toLowerCase();
@@ -121,12 +129,20 @@ export function hasOpenBackupRequestActive(incident) {
   return status === 'pending' || status === 'acknowledged';
 }
 
-/** Staff backup badge / Send Backup remain while a backup request is open. */
+/** Staff backup badge / Send Backup remain while a backup request is open (not when closed). */
 export function hasOpenBackupUi(incident) {
+  if (isIncidentClosed(incident)) return false;
   return hasOpenBackupRequestActive(incident);
 }
 
 export function getBackupDialogCapabilities(incident, role) {
+  if (isIncidentClosed(incident)) {
+    return {
+      canAcknowledge: false,
+      canNotifyDepartment: false,
+      canAssignTeam: false,
+    };
+  }
   const normalized = normalizeRole(role);
   const isGlobalStaff = (
     normalized === ROLES.SUPER_ADMIN

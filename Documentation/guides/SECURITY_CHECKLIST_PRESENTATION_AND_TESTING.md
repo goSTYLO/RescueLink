@@ -202,7 +202,7 @@ Use this document to **present** and **test** each security item for your profes
 **What:** Request bodies and query parameters are validated per route; rules are documented in the API docs.
 
 **Where to show:**
-- **File:** `Backend/API_DOCUMENTATION.md` – “Validation Rules” and “Input Validation” sections list constraints (lengths, formats, etc.).
+- **File:** `Documentation/backend/API_DOCUMENTATION.md` – “Validation Rules” and “Input Validation” sections list constraints (lengths, formats, etc.).
 - **Code:** Same as 2.1 – each controller applies the appropriate `validate*` for that route’s schema (e.g. incident description max 2000, pagination limit capped at 100).
 
 **How to test:**
@@ -219,7 +219,7 @@ Use this document to **present** and **test** each security item for your profes
 **What:** Data-at-rest encryption is a deployment/infrastructure concern (e.g. cloud provider or volume encryption), not something the app implements in code.
 
 **Where to show:**
-- **File:** `Backend/DEPLOYMENT.md` – section “Encryption at rest”: “Use your provider’s or host’s option for encrypted storage (e.g. managed PostgreSQL disk encryption). This is not configured in application code.”
+- **File:** `Documentation/backend/DEPLOYMENT.md` – section “Encryption at rest”: “Use your provider’s or host’s option for encrypted storage (e.g. managed PostgreSQL disk encryption). This is not configured in application code.”
 
 **How to test:**
 - **Presentation:** Explain that you use (or would use) a managed PostgreSQL with encryption at rest enabled, or an encrypted volume. No code demo required; the checklist is satisfied by documentation and deployment choices.
@@ -235,7 +235,7 @@ Use this document to **present** and **test** each security item for your profes
 **Where to show:**
 - **File:** `Backend/src/config/db.js`  
   Show: `useSsl = process.env.NODE_ENV === 'production' || process.env.DATABASE_SSL === 'true'` and `...(useSsl && { ssl: { rejectUnauthorized: true } })`.
-- **File:** `Backend/DEPLOYMENT.md` – Database section: enable TLS via `DATABASE_SSL=true` or `sslmode=require` in `DATABASE_URL`.
+- **File:** `Documentation/backend/DEPLOYMENT.md` – Database section: enable TLS via `DATABASE_SSL=true` or `sslmode=require` in `DATABASE_URL`.
 
 **How to test:**
 - **Code review:** Show the `db.js` logic.  
@@ -250,7 +250,7 @@ Use this document to **present** and **test** each security item for your profes
 **What:** Backups are documented; an optional script runs `pg_dump` and writes timestamped dumps to `backups/`.
 
 **Where to show:**
-- **File:** `Backend/DEPLOYMENT.md` – “Backups” section (schedule, retention, restore, optional script).
+- **File:** `Documentation/backend/DEPLOYMENT.md` – “Backups” section (schedule, retention, restore, optional script).
 - **File:** `Backend/scripts/backup-db.js` – reads `DATABASE_URL`, runs `pg_dump`, writes to `backups/backup-<timestamp>.sql`.
 - **Script:** `npm run backup-db` in `Backend/package.json`.
 

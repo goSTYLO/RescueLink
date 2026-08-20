@@ -112,8 +112,8 @@ Config source is centralized in:
 ## Backend contract and sync docs
 
 - Pre-release contract checklist:
-  - `docs/backend-contract-checklist.md`
+  - [Documentation/web/backend-contract-checklist.md](../../../Documentation/web/backend-contract-checklist.md)
 - Realtime migration design (SSE/WebSocket):
-  - `docs/realtime-sync-design.md`
+  - [Documentation/web/realtime-sync-design.md](../../../Documentation/web/realtime-sync-design.md)
 - E2E smoke checklist placeholder:
   - `e2e/smoke.placeholder.md`

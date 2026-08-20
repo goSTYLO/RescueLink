@@ -18,7 +18,7 @@ const GANACHE_URL = process.env.GANACHE_URL || 'http://127.0.0.1:7545';
 const BLOCKCHAIN_SERVICE_URL = process.env.BLOCKCHAIN_SERVICE_URL || 'http://localhost:8001';
 const BACKEND_URL = process.env.BACKEND_URL || process.env.API_URL || 'http://localhost:3000';
 
-// Test accounts from Backend/ACCOUNTS.md
+// Test accounts from Documentation/backend/ACCOUNTS.md
 const ADMIN_EMAIL = process.env.TEST_ADMIN_EMAIL || 'admin@rescuelink.test';
 const ADMIN_PASSWORD = process.env.TEST_ADMIN_PASSWORD || 'admin123';
 const USER_PHONE = process.env.TEST_USER_PHONE || '+639005000001';

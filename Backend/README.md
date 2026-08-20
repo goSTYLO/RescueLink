@@ -270,7 +270,7 @@ For production, use a secrets manager or vault for sensitive values. Never commi
 - **JWT:** All protected routes require `Authorization: Bearer <token>`.
 - **Logout:** `POST /api/auth/logout` invalidates the token (blacklist) so it cannot be reused.
 
-See [API_DOCUMENTATION.md](API_DOCUMENTATION.md) for full endpoint details.
+See [API Documentation](../Documentation/backend/API_DOCUMENTATION.md) for full endpoint details.
 
 ## Seeded Test Accounts
 
@@ -326,11 +326,11 @@ Run migrations in order for existing databases. New setups via `setup-db` use `s
 
 ## Deployment
 
-See [DEPLOYMENT.md](DEPLOYMENT.md) for production deployment steps and checklist.
+See [Deployment](../Documentation/backend/DEPLOYMENT.md) for production deployment steps and checklist.
 
 ## Security Runbook
 
-Operational scanner outage and quarantine procedures are documented in [SECURITY_RUNBOOK.md](SECURITY_RUNBOOK.md).
+Operational scanner outage and quarantine procedures are documented in [Security Runbook](../Documentation/backend/SECURITY_RUNBOOK.md).
 
 ## Security Test Runner
 

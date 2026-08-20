@@ -137,7 +137,7 @@ Component path: `Frontend/Web/dispatcher_dashboard/`
     - WE-T705 Build/release pipeline quality gates — `Done`
       - Evidence: `package.json` (`test:ci`, `test:e2e:smoke`)
     - WE-T706 Production runbook/smoke checklist closure — `Done`
-      - Evidence: `MANUAL_RUN_TEST_GUIDE.md`
+      - Evidence: `Documentation/guides/MANUAL_RUN_TEST_GUIDE.md`
 
 ## WE-E8 Backend Contract, Queue Sync, and Operational Consistency
 - Progress: 30% | Status: `In Progress`
@@ -173,11 +173,11 @@ Component path: `Frontend/Web/dispatcher_dashboard/`
 - Sub-epic WE-SE8.4 Hybrid sync roadmap and readiness gates (25%, `In Progress`)
   - Story WE-US8.4.1 Polling now, realtime migration next (25%, `In Progress`)
     - WE-T812 Pre-release backend contract checklist and dependency gates — `Done`
-      - Evidence: `docs/backend-contract-checklist.md`
+      - Evidence: `Documentation/web/backend-contract-checklist.md`
     - WE-T813 Fallback UX when event/notification channel is unavailable — `Done`
       - Evidence: `src/presentation/pages/DashboardPage.jsx`, `src/presentation/pages/MapViewPage.jsx`
     - WE-T814 Realtime migration design (SSE/WebSocket) with merge/de-dup policy — `Done`
-      - Evidence: `docs/realtime-sync-design.md`
+      - Evidence: `Documentation/web/realtime-sync-design.md`
 
 ## Audit Notes
 - Strongest area: rich dispatcher page and action surface.

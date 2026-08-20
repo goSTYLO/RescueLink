@@ -14,22 +14,22 @@ Emergency response and incident management system for Dagupan City. Enables citi
 
 ## Documentation hub
 
-Use this as the primary entry point for setup, run, and testing docs across the stack:
+Use [Documentation/README.md](Documentation/README.md) as the primary entry point for setup, run, and testing docs across the stack:
 
 | Document | Scope |
 |----------|-------|
-| [MANUAL_RUN_TEST_GUIDE.md](MANUAL_RUN_TEST_GUIDE.md) | **Primary runbook** for manual startup order, environment setup, health checks, and test commands across all services |
+| [Documentation/guides/MANUAL_RUN_TEST_GUIDE.md](Documentation/guides/MANUAL_RUN_TEST_GUIDE.md) | **Primary runbook** for manual startup order, environment setup, health checks, and test commands across all services |
 | [Backend/README.md](Backend/README.md) | Backend setup, environment variables, upload/scan flow, auth, and deployment notes |
 | [RescueLink AI/README.md](RescueLink%20AI/README.md) | AI architecture, audio pipeline, fallback behavior, warmup/performance updates, and API usage |
 | [Blockchain/README.md](Blockchain/README.md) | Blockchain service setup, Ganache integration, verify endpoint behavior, and gas/duplicate-write handling |
 | [Frontend/Mobile/README.md](Frontend/Mobile/README.md) | Flutter app setup and run instructions |
 | [Frontend/Web/dispatcher_dashboard](Frontend/Web/dispatcher_dashboard/) | Dispatcher dashboard app source and local run context |
-| [PERFORMANCE_SESSION_RESULTS.md](PERFORMANCE_SESSION_RESULTS.md) | Session performance outcomes, bottlenecks, and validation evidence |
-| [PERFORMANCE_IMPLEMENTATION_BACKLOG.md](PERFORMANCE_IMPLEMENTATION_BACKLOG.md) | Implementation tracker and completion log for performance changes |
+| [Documentation/performance/PERFORMANCE_SESSION_RESULTS.md](Documentation/performance/PERFORMANCE_SESSION_RESULTS.md) | Session performance outcomes, bottlenecks, and validation evidence |
+| [Documentation/backlogs/PERFORMANCE_IMPLEMENTATION_BACKLOG.md](Documentation/backlogs/PERFORMANCE_IMPLEMENTATION_BACKLOG.md) | Implementation tracker and completion log for performance changes |
 
 ## Getting started
 
-1. Start with [MANUAL_RUN_TEST_GUIDE.md](MANUAL_RUN_TEST_GUIDE.md) for full-stack local setup and test execution.
+1. Start with [Documentation/guides/MANUAL_RUN_TEST_GUIDE.md](Documentation/guides/MANUAL_RUN_TEST_GUIDE.md) for full-stack local setup and test execution.
 2. Configure and run backend using [Backend/README.md](Backend/README.md).
 3. Configure and run AI service using [RescueLink AI/README.md](RescueLink%20AI/README.md).
 4. Configure and run blockchain service using [Blockchain/README.md](Blockchain/README.md).

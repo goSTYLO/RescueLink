@@ -4,7 +4,7 @@
  * Comprehensive automated tests for the real-time incident notification WebSocket.
  * Requires a running database with seeded data. Run with: npm run test:ws
  *
- * Test accounts (from Backend/ACCOUNTS.md):
+ * Test accounts (from Documentation/backend/ACCOUNTS.md):
  * - admin@rescuelink.test / admin123
  * - dispatcher@rescuelink.test / dispatcher123
  * - depthead_drrmo@rescuelink.test / depthead123

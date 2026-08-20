@@ -103,7 +103,7 @@ Document security behavior and required environment variables.
 ### Tasks
 - [x] Update `Backend/README.md` with upload scanner env vars and behavior matrix.
 - [x] Update `RescueLink AI/README.md` with token auth + fallback metadata contract.
-- [x] Update `Backend/API_DOCUMENTATION.md` for `POST /api/incidents/with-audio` scan metadata.
+- [x] Update `Documentation/backend/API_DOCUMENTATION.md` for `POST /api/incidents/with-audio` scan metadata.
 - [x] Add runbook section for scanner outage handling and follow-up triage.
 
 ## Environment Variables (Planned/Used)

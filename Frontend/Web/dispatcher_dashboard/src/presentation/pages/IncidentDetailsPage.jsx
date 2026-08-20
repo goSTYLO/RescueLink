@@ -36,7 +36,7 @@ import { getDepartments } from '@/data/api/departments.api';
 import { DEV_MODE } from '@/core/config/app.config';
 import { ROLES, normalizeRole, getRoleDisplayLabel } from '@/core/constants';
 import { normalizeIncidentTaskType, doesTeamSupportIncidentType } from '@/core/utils/incidentClassification';
-import { formatIncidentTypeLabel, incidentTypesFromApi, formatIncidentTypesLabel, isIncidentEffectivelyResolved, hasOpenBackupUi, getBackupDialogCapabilities } from '@/core/utils/incidentDisplay';
+import { formatIncidentTypeLabel, incidentTypesFromApi, formatIncidentTypesLabel, isIncidentEffectivelyResolved, isIncidentClosed, hasOpenBackupUi, getBackupDialogCapabilities } from '@/core/utils/incidentDisplay';
 import { IncidentTypeChips } from '@/presentation/components/common/IncidentTypeChips';
 import { Loader2 } from 'lucide-react';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
@@ -405,7 +405,7 @@ export function IncidentDetailsPage() {
     normalizedRole === ROLES.SUPER_ADMIN
     || normalizedRole === ROLES.DISPATCHER
   );
-  const isIncidentClosed = incident?.status === 'Closed';
+  const incidentIsClosed = isIncidentClosed(incident);
   const canUpdateResponderStatuses = (
     normalizedRole === ROLES.DEPARTMENT_ADMIN
     || normalizedRole === ROLES.DEPARTMENT_HEAD
@@ -428,7 +428,7 @@ export function IncidentDetailsPage() {
     || normalizedRole === ROLES.DISPATCHER
   );
   const canSaveToBlockchain = canVerifyIncident
-    && incident?.status === 'Closed'
+    && incidentIsClosed
     && Boolean(incident?.reporterConfirmedAt);
 
   const getConfidencePercent = (score) => {
@@ -599,8 +599,8 @@ export function IncidentDetailsPage() {
   const notifiedDepartmentCodes = new Set(notifiedDepartments.map((dept) => String(dept.code || '').toLowerCase()));
   const availableNotifyDepartments = departmentList.filter((dept) => !notifiedDepartmentCodes.has(String(dept.code || '').toLowerCase()));
   const assignedDepartmentCodeForTeamActions = incident?.assignedDepartmentId || notifiedDepartments[0]?.code || incident?.assignedTeamDepartmentCode || '';
-  const showNotifyDepartmentButton = canNotifyDepartment && !isIncidentClosed && notifiedDepartments.length === 0 && availableNotifyDepartments.length > 0;
-  const showUndoNotifyButton = canNotifyDepartment && !isIncidentClosed && notifiedDepartments.length > 0;
+  const showNotifyDepartmentButton = canNotifyDepartment && !incidentIsClosed && notifiedDepartments.length === 0 && availableNotifyDepartments.length > 0;
+  const showUndoNotifyButton = canNotifyDepartment && !incidentIsClosed && notifiedDepartments.length > 0;
 
   const openNotifyDepartmentDialog = useCallback(() => {
     const defaultCode = getDefaultSectorByIncidentType(incident?.emergencyType);
@@ -1499,7 +1499,7 @@ export function IncidentDetailsPage() {
           Undo Notified Department
         </Button>
       )}
-      {canSelectTeamForDepartment && !incident?.assignedTeamName && assignedDepartmentCodeForTeamActions && !isIncidentClosed && (
+      {canSelectTeamForDepartment && !incident?.assignedTeamName && assignedDepartmentCodeForTeamActions && !incidentIsClosed && (
         <Button
           variant="outline"
           className={`gap-2 rounded-xl ${compact ? 'h-8 px-3 text-xs rounded-lg' : ''}`}
@@ -1509,7 +1509,7 @@ export function IncidentDetailsPage() {
           Select Team
         </Button>
       )}
-      {canUpdateResponderStatuses && incident?.assignedTeamName && !isIncidentClosed && (
+      {canUpdateResponderStatuses && incident?.assignedTeamName && !incidentIsClosed && (
         <Button
           variant="outline"
           className={`gap-2 rounded-xl ${compact ? 'h-8 px-3 text-xs rounded-lg' : ''}`}
@@ -1540,7 +1540,7 @@ export function IncidentDetailsPage() {
           Close Incident
         </Button>
       )}
-      {canManageDuplicates && (
+      {canManageDuplicates && !incidentIsClosed && (
         <Button
           variant="outline"
           className={`gap-2 rounded-xl ${isLight ? 'text-amber-600 border-amber-200 hover:bg-amber-50' : 'text-amber-400 border-amber-500/40 hover:bg-amber-500/20'} ${compact ? 'h-8 px-3 text-xs rounded-lg' : ''}`}
@@ -1571,6 +1571,9 @@ export function IncidentDetailsPage() {
           <div className="flex flex-wrap items-center gap-2">
             {renderPrimaryActions({ compact: true })}
           </div>
+          {incidentIsClosed && (
+            <p className="text-xs text-muted italic">Operational actions are disabled for closed incidents.</p>
+          )}
           <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
             {duplicateCluster.length > 1 && (
               <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 border ${isLight ? 'border-amber-300 bg-amber-50 text-amber-700' : 'border-amber-500/40 bg-amber-500/10 text-amber-300'}`}>
@@ -1584,7 +1587,7 @@ export function IncidentDetailsPage() {
                 {incident?.isDuplicate ? 'Duplicate' : 'Possible Duplicate'}
               </span>
             )}
-            {canManualReclassify && (
+            {canManualReclassify && !incidentIsClosed && (
               <span className="inline-flex items-center gap-1 text-muted">
                 AI confidence: {getConfidencePercent(incident.aiConfidenceScore) ?? 'N/A'}%
                 <button
@@ -1597,7 +1600,7 @@ export function IncidentDetailsPage() {
               </span>
             )}
           </div>
-          {canManualReclassify && manualReclassInfoExpanded && (
+          {canManualReclassify && !incidentIsClosed && manualReclassInfoExpanded && (
             <div className={`mt-2 rounded-lg border px-2.5 py-2 text-xs ${isLight ? 'border-amber-300/70 bg-amber-50/80 text-amber-800' : 'border-amber-500/40 bg-amber-500/10 text-amber-300'}`}>
               {incident.aiLowConfidenceFlag
                 ? 'Low AI confidence detected. Manual review and override are recommended.'
@@ -1801,11 +1804,13 @@ export function IncidentDetailsPage() {
                       </div>
                     ))}
                     <div className="flex flex-wrap gap-2 pt-2">
-                      <Button variant="outline" size="sm" className="gap-2" onClick={() => setDuplicateDialogOpen(true)}>
-                        <Merge className="w-3 h-3" />
-                        Manage duplicates
-                      </Button>
-                      {closedRelatedReport && incident.status !== 'Closed' && (
+                      {!incidentIsClosed && (
+                        <Button variant="outline" size="sm" className="gap-2" onClick={() => setDuplicateDialogOpen(true)}>
+                          <Merge className="w-3 h-3" />
+                          Manage duplicates
+                        </Button>
+                      )}
+                      {closedRelatedReport && !incidentIsClosed && (
                         <Button
                           variant="outline"
                           size="sm"
@@ -2070,10 +2075,10 @@ export function IncidentDetailsPage() {
                             </p>
                           </div>
                         )}
-                        {!incident?.assignedTeamName && assignedDepartmentCodeForTeamActions && !isIncidentClosed && (
+                        {!incident?.assignedTeamName && assignedDepartmentCodeForTeamActions && !incidentIsClosed && (
                           <p className="text-xs text-muted">No team assigned yet. Use the top action bar to select a team.</p>
                         )}
-                        {canUpdateResponderStatuses && incident?.assignedTeamName && !isIncidentClosed && (
+                        {canUpdateResponderStatuses && incident?.assignedTeamName && !incidentIsClosed && (
                           <div>
                             <div className="flex items-center justify-between gap-2 mb-2">
                               <p className="text-xs text-muted">Team Members</p>
@@ -2121,14 +2126,14 @@ export function IncidentDetailsPage() {
                             )}
                           </div>
                         )}
-                        {isIncidentClosed && (
+                        {incidentIsClosed && (
                           <p className="text-xs text-muted italic">Team assignment and status updates are disabled for closed incidents.</p>
                         )}
                       </div>
                     </div>
                   )}
 
-                  {isSupervisor && incident.status !== 'Resolved' && incident.status !== 'Duplicate' && (
+                  {isSupervisor && !incidentIsClosed && incident.status !== 'Resolved' && incident.status !== 'Duplicate' && (
                     <div className="space-y-2">
                       <p className="text-xs uppercase tracking-wide text-muted font-semibold">Escalation Controls</p>
                       <Dialog open={escalateDialogOpen} onOpenChange={setEscalateDialogOpen}>

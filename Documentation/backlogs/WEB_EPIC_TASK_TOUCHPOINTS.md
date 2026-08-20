@@ -16,7 +16,7 @@ Source backlog: `BACKLOG_WEB.md` (tasks marked `In Progress` or `Not Started`).
 - `WE-T703`: `Frontend/Web/dispatcher_dashboard/e2e/smoke.placeholder.md`
 - `WE-T704`: `Frontend/Web/dispatcher_dashboard/src/core/config/app.config.js`
 - `WE-T705`: `Frontend/Web/dispatcher_dashboard/package.json` (`test:ci`, `test:e2e:smoke`)
-- `WE-T706`: `MANUAL_RUN_TEST_GUIDE.md`
+- `WE-T706`: `Documentation/guides/MANUAL_RUN_TEST_GUIDE.md`
 
 ## WE-E6 Audit, Security, and Compliance UX
 - `WE-T603`: `Frontend/Web/dispatcher_dashboard/src/presentation/pages/AuditLogPage.jsx`

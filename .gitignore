@@ -4,3 +4,4 @@ Blockchain/.env
 graphify-out/
 pnpm-lock.yaml
 node_modules/
+.env

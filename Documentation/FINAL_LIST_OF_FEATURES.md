@@ -345,7 +345,7 @@ Disabled by default. Enable via `USE_BLOCKCHAIN=true` (Backend) and `VITE_USE_BL
 - Web: API contract tests, route tests, login interaction tests
 - AI: endpoint contract tests, fallback rule unit tests
 - Blockchain: Ganache connection and verify-incident Mocha harness
-- Performance-validated paths documented in `PERFORMANCE_SESSION_RESULTS.md` (AI audio, blockchain verify, backend with-audio)
+- Performance-validated paths documented in [performance/PERFORMANCE_SESSION_RESULTS.md](performance/PERFORMANCE_SESSION_RESULTS.md) (AI audio, blockchain verify, backend with-audio)
 
 ---
 
@@ -369,14 +369,14 @@ Disabled by default. Enable via `USE_BLOCKCHAIN=true` (Backend) and `VITE_USE_BL
 | [Security Documentation](SECURITY_DOCUMENTATION.md) | Multi-layer security architecture |
 | [How To Run](HOW_TO_RUN.md) | Setup and startup procedures |
 | [../README.md](../README.md) | Project overview and feature flags |
-| [../BACKLOG_MASTER.md](../BACKLOG_MASTER.md) | Program backlog and component progress |
+| [backlogs/BACKLOG_MASTER.md](backlogs/BACKLOG_MASTER.md) | Program backlog and component progress |
 | [../Frontend/Mobile/README.md](../Frontend/Mobile/README.md) | Mobile app features and architecture |
 | [../RescueLink AI/README.md](../RescueLink%20AI/README.md) | AI pipeline and endpoints |
 | [../Blockchain/README.md](../Blockchain/README.md) | Blockchain setup and gas optimization |
-| [../PERFORMANCE_SESSION_RESULTS.md](../PERFORMANCE_SESSION_RESULTS.md) | Performance validation results |
-| [../Frontend/Web/dispatcher_dashboard/docs/duplicate-management.md](../Frontend/Web/dispatcher_dashboard/docs/duplicate-management.md) | Duplicate incident flow |
-| [../Frontend/Web/dispatcher_dashboard/docs/realtime-sync-design.md](../Frontend/Web/dispatcher_dashboard/docs/realtime-sync-design.md) | Realtime sync design |
-| [../ITE 401_ Platform Technologies _ Final Manuscript.md](../ITE%20401_%20Platform%20Technologies%20_%20Final%20Manuscript.md) | Academic FR-01–FR-09 source |
+| [performance/PERFORMANCE_SESSION_RESULTS.md](performance/PERFORMANCE_SESSION_RESULTS.md) | Performance validation results |
+| [web/duplicate-management.md](web/duplicate-management.md) | Duplicate incident flow |
+| [web/realtime-sync-design.md](web/realtime-sync-design.md) | Realtime sync design |
+| [academic/ITE 401_ Platform Technologies _ Final Manuscript.md](academic/ITE%20401_%20Platform%20Technologies%20_%20Final%20Manuscript.md) | Academic FR-01–FR-09 source |
 
 ---
 
