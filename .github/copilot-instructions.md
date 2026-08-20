@@ -14,4 +14,11 @@ only for broad architecture review or when query/path/explain do not surface eno
 source files when (a) modifying/debugging specific code, (b) the graph lacks the needed detail, or
 (c) the graph is missing or stale.
 
-Type `/graphify` in Copilot Chat to build or update the graph.
+Type `/graphify` in Copilot Chat to build the graph initially.
+
+**Keeping the graph current — use separate update commands:**
+
+- After modifying code files: `graphify update . --code-only` (AST-only, no API cost)
+- After modifying documentation: `graphify ./Documentation --update --allow-partial` (semantic extraction; `--allow-partial` avoids rate-limit failures on large doc batches)
+
+Do not run a full `graphify update .` without flags — split code and docs updates as above.
