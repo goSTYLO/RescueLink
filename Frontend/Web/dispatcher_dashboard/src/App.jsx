@@ -29,6 +29,7 @@ import ResetPasswordPage from '@/presentation/pages/ResetPasswordPage';
 import { AccessDeniedNotice } from '@/presentation/components/common/AccessDeniedNotice';
 import { clearAuthSession, hasRoleAccess } from '@/core/auth/session';
 import { logout as logoutDispatcher } from '@/data/api/auth.api';
+import { initOneSignal, setOneSignalUser, logoutOneSignal } from '@/core/services/oneSignalWebService';
 
 const SUPER_ADMIN_ONLY = [ROLES.SUPER_ADMIN];
 const DASHBOARD_OPERATIONS_ROLES = [ROLES.SUPER_ADMIN, ROLES.DISPATCHER];
@@ -114,6 +115,21 @@ export default function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    initOneSignal();
+
+    if (DEV_MODE) {
+      setLoading(false);
+    }
+
+    // If user already logged in from previous session, link OneSignal external user ID
+    try {
+      const stored = JSON.parse(sessionStorage.getItem('user') || '{}');
+      const uid = stored.userId || stored.user_id || stored.id;
+      if (uid) {
+        setOneSignalUser(uid);
+      }
+    } catch (_) {}
+
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       setLoading(false);
@@ -129,7 +145,11 @@ export default function App() {
     const role = normalizeRole(apiRole);
     const department = data.user?.department ?? (role === ROLES.SUPER_ADMIN ? 'All' : '');
     const departmentId = data.user?.departmentId ?? data.user?.department_id ?? null;
+    const userId = data.user?.userId || data.user?.user_id || data.user?.id;
+
     sessionStorage.setItem('user', JSON.stringify({
+      userId,
+      user_id: userId,
       username: displayName,
       name: displayName,
       email: data.user?.email || '',
@@ -139,11 +159,17 @@ export default function App() {
       department,
       departmentId,
     }));
+
+    if (userId) {
+      setOneSignalUser(userId);
+    }
+
     setPage('dashboard');
   };
 
   const handleLogout = async () => {
     try {
+      await logoutOneSignal();
       await logoutDispatcher();
       await signOut(auth);
       setUserData(null);

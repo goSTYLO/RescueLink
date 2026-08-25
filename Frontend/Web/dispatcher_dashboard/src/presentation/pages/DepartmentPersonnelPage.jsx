@@ -431,8 +431,6 @@ export function DepartmentPersonnelPage() {
   const iconBoxClass = (accent = 'primary') =>
     `w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isLight ? 'neumorphic-light-inset bg-gray-100' : 'neumorphic-dark-inset bg-white/10'} ${accent === 'primary' ? 'text-primary' : accent === 'secondary' ? 'text-secondary' : 'text-foreground'}`;
 
-  if (user.role !== ROLES.DEPARTMENT_ADMIN && user.role !== ROLES.PERSONNEL) return null;
-
   const deptName = department?.name || user.department || 'Department';
 
   return (

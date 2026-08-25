@@ -5,12 +5,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/presentation/components/ui/Dialog';
 import { Label } from '@/presentation/components/ui/Label';
 import { Switch } from '@/presentation/components/ui/Switch';
-import { Activity, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, Loader2, SlidersHorizontal, LayoutList, CircleCheck, ExternalLink, Merge } from 'lucide-react';
+import { Activity, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, Loader2, SlidersHorizontal, LayoutList, CircleCheck, ExternalLink, Merge, Archive, ArchiveRestore, Search } from 'lucide-react';
 import { incidents as mockIncidents, barangays } from '@/data/mock/mockData';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
-import { getIncidents, verifyIncident, linkDuplicate, acknowledgeBackupRequest } from '@/data/api/incidents.api';
+import { getIncidents, verifyIncident, linkDuplicate, acknowledgeBackupRequest, archiveIncident, unarchiveIncident } from '@/data/api/incidents.api';
 import { getDepartmentById, getDepartments } from '@/data/api/departments.api';
 import { DEV_MODE } from '@/core/config/app.config';
 import { normalizeRole, ROLES } from '@/core/constants';
@@ -108,11 +108,13 @@ export function DashboardPage() {
   const [verifyInProgress, setVerifyInProgress] = useState(false);
   const [dashboardView, setDashboardView] = useState(() => {
     try {
-      return sessionStorage.getItem('dashboard:view') === 'volunteer' ? 'volunteer' : 'all';
+      const saved = sessionStorage.getItem('dashboard:view');
+      return ['volunteer', 'archived'].includes(saved) ? saved : 'all';
     } catch {
       return 'all';
     }
   });
+  const [searchQuery, setSearchQuery] = useState('');
   const volunteerFilterState = (() => {
     try {
       return JSON.parse(sessionStorage.getItem(DASHBOARD_VOLUNTEER_FILTER_STATE_KEY) || '{}');
@@ -131,8 +133,10 @@ export function DashboardPage() {
   const [backupDialogOpen, setBackupDialogOpen] = useState(false);
   const [backupDialogIncident, setBackupDialogIncident] = useState(null);
   const [acknowledgingBackup, setAcknowledgingBackup] = useState(false);
+  const [archivingInProgress, setArchivingInProgress] = useState(false);
 
   const isVolunteerView = dashboardView === 'volunteer';
+  const isArchivedView = dashboardView === 'archived';
   const activeFilterType = isVolunteerView ? volunteerFilterType : filterType;
   const activeFilterStatus = isVolunteerView ? volunteerFilterStatus : filterStatus;
   const activeFilterSeverity = isVolunteerView ? volunteerFilterSeverity : filterSeverity;
@@ -180,6 +184,8 @@ export function DashboardPage() {
         barangay: apiBarangay,
         exclude_duplicates: activeHideDuplicates,
         volunteer_accepted: isVolunteerView,
+        archived: isArchivedView,
+        search: searchQuery.trim() || undefined,
         withMeta: true,
       });
       const mapped = Array.isArray(result?.items) ? result.items.map(mapApiIncidentToDashboard) : [];
@@ -196,7 +202,7 @@ export function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [activeCurrentPage, activeFilterBarangay, activeFilterSeverity, activeFilterStatus, activeFilterType, activeItemsPerPage, activeHideDuplicates, isVolunteerView]);
+  }, [activeCurrentPage, activeFilterBarangay, activeFilterSeverity, activeFilterStatus, activeFilterType, activeItemsPerPage, activeHideDuplicates, isVolunteerView, isArchivedView, searchQuery]);
 
   useEffect(() => {
     sessionStorage.setItem('dashboard:view', dashboardView);
@@ -468,9 +474,88 @@ export function DashboardPage() {
     || normalizedRole === ROLES.DISPATCHER
   );
   const canManageDuplicates = normalizedRole === ROLES.SUPER_ADMIN || normalizedRole === ROLES.DISPATCHER;
+  const canArchive = normalizedRole === ROLES.SUPER_ADMIN || normalizedRole === ROLES.DISPATCHER;
   const [browseDuplicateDialogOpen, setBrowseDuplicateDialogOpen] = useState(false);
   const [incidentToLinkAsDuplicate, setIncidentToLinkAsDuplicate] = useState(null);
   const [linkDuplicateInProgress, setLinkDuplicateInProgress] = useState(false);
+
+  const handleArchiveIncident = async (incident) => {
+    if (!incident) return;
+    const confirm = await Swal.fire({
+      title: 'Archive Incident',
+      html: `Move incident <strong>#${incident.id}</strong> to the archives?`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#134178',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: 'Archive',
+      cancelButtonText: 'Cancel',
+      customClass: { popup: 'rounded-2xl shadow-xl', title: 'text-foreground text-xl', htmlContainer: 'text-muted' },
+    });
+    if (!confirm.isConfirmed) return;
+
+    setArchivingInProgress(true);
+    try {
+      await archiveIncident(incident.id);
+      await fetchIncidents();
+      window.dispatchEvent(new CustomEvent('incident:updated', { detail: { incidentId: incident.id } }));
+      Swal.fire({
+        icon: 'success',
+        title: 'Archived',
+        text: `Incident #${incident.id} has been moved to archives.`,
+        timer: 2000,
+        showConfirmButton: false,
+        timerProgressBar: true,
+      });
+    } catch (err) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Archive Failed',
+        text: err.message || 'Failed to archive incident.',
+      });
+    } finally {
+      setArchivingInProgress(false);
+    }
+  };
+
+  const handleUnarchiveIncident = async (incident) => {
+    if (!incident) return;
+    const confirm = await Swal.fire({
+      title: 'Restore Incident',
+      html: `Restore incident <strong>#${incident.id}</strong> back to the active dashboard?`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#134178',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: 'Restore',
+      cancelButtonText: 'Cancel',
+      customClass: { popup: 'rounded-2xl shadow-xl', title: 'text-foreground text-xl', htmlContainer: 'text-muted' },
+    });
+    if (!confirm.isConfirmed) return;
+
+    setArchivingInProgress(true);
+    try {
+      await unarchiveIncident(incident.id);
+      await fetchIncidents();
+      window.dispatchEvent(new CustomEvent('incident:updated', { detail: { incidentId: incident.id } }));
+      Swal.fire({
+        icon: 'success',
+        title: 'Restored',
+        text: `Incident #${incident.id} restored to active dashboard.`,
+        timer: 2000,
+        showConfirmButton: false,
+        timerProgressBar: true,
+      });
+    } catch (err) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Restore Failed',
+        text: err.message || 'Failed to restore incident.',
+      });
+    } finally {
+      setArchivingInProgress(false);
+    }
+  };
 
   const openVerifyModal = (incident) => {
     setVerifyIncidentTarget(incident);
@@ -611,7 +696,7 @@ export function DashboardPage() {
                 <LayoutList className="w-5 h-5" strokeWidth={2} />
               </div>
               <h3 className="text-base font-semibold text-foreground">
-                {isVolunteerView ? 'Volunteer Response' : 'Incident List'}
+                {isVolunteerView ? 'Volunteer Response' : isArchivedView ? 'Archived Incidents' : 'Incident List'}
               </h3>
               <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
                 isLight ? 'bg-primary/15 text-primary' : 'bg-primary/20 text-primary'
@@ -622,6 +707,10 @@ export function DashboardPage() {
             <TabsList className={`rounded-xl p-1 ${isLight ? 'bg-gray-100 border border-gray-200' : 'bg-white/10 border border-white/10'}`}>
               <TabsTrigger value="all" className="rounded-lg px-3 py-1.5 text-xs sm:text-sm">All Incidents</TabsTrigger>
               <TabsTrigger value="volunteer" className="rounded-lg px-3 py-1.5 text-xs sm:text-sm">Volunteer Response</TabsTrigger>
+              <TabsTrigger value="archived" className="rounded-lg px-3 py-1.5 text-xs sm:text-sm flex items-center gap-1.5">
+                <Archive className="w-3.5 h-3.5" />
+                Archived
+              </TabsTrigger>
             </TabsList>
           </div>
           <div className={`px-2 sm:px-3 py-2 border-b ${
@@ -713,9 +802,29 @@ export function DashboardPage() {
           <div className={`px-2 sm:px-3 py-2 border-b ${
             isLight ? 'border-gray-200/80 bg-gray-50/30' : 'border-white/10 bg-white/[0.03]'
           }`}>
-            <div className="flex items-center gap-2 mb-2">
-              <SlidersHorizontal className="w-4 h-4 text-primary" />
-              <h4 className="text-xs font-semibold text-foreground">Filters</h4>
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+              <div className="flex items-center gap-2">
+                <SlidersHorizontal className="w-4 h-4 text-primary" />
+                <h4 className="text-xs font-semibold text-foreground">Filters</h4>
+              </div>
+              <div className="relative w-full sm:w-64">
+                <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="Search ID, barangay, description..."
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    if (isVolunteerView) setVolunteerCurrentPage(1);
+                    else setCurrentPage(1);
+                  }}
+                  className={`w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border transition-colors ${
+                    isLight
+                      ? 'bg-white border-gray-200 text-foreground placeholder-muted focus:border-primary focus:outline-none'
+                      : 'bg-white/5 border-white/10 text-foreground placeholder-muted focus:border-primary focus:outline-none'
+                  }`}
+                />
+              </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2">
               <div className="min-w-0">
@@ -999,7 +1108,7 @@ export function DashboardPage() {
                                   Save
                                 </Button>
                               )}
-                              {canManageDuplicates && !incident.isDuplicate && /^\d+$/.test(String(incident.id)) && (
+                              {canManageDuplicates && !incident.isDuplicate && /^\d+$/.test(String(incident.id)) && !isArchivedView && (
                                 <Button
                                   size="sm"
                                   variant="outline"
@@ -1013,6 +1122,38 @@ export function DashboardPage() {
                                 >
                                   <Merge className="w-4 h-4" strokeWidth={2} />
                                   Duplicate
+                                </Button>
+                              )}
+                              {canArchive && isArchivedView && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={archivingInProgress}
+                                  className="h-9 px-3 rounded-lg text-emerald-600 border-emerald-500/40 hover:bg-emerald-500/20 transition-all gap-1.5"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleUnarchiveIncident(incident);
+                                  }}
+                                  title="Restore to Active Dashboard"
+                                >
+                                  <ArchiveRestore className="w-4 h-4" strokeWidth={2} />
+                                  Restore
+                                </Button>
+                              )}
+                              {canArchive && !isArchivedView && incident.status === 'Closed' && !incident.isArchived && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={archivingInProgress}
+                                  className="h-9 px-3 rounded-lg text-slate-500 border-slate-500/40 hover:bg-slate-500/20 transition-all gap-1.5"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleArchiveIncident(incident);
+                                  }}
+                                  title="Archive Incident"
+                                >
+                                  <Archive className="w-4 h-4" strokeWidth={2} />
+                                  Archive
                                 </Button>
                               )}
                             </div>

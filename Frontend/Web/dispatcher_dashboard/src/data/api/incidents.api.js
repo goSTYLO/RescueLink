@@ -49,6 +49,7 @@ export async function getIncidents({
   search,
   exclude_report_id,
   volunteer_accepted = false,
+  archived = false,
   withMeta = false,
 } = {}) {
   const requestId = createRequestId('web-incidents');
@@ -64,6 +65,7 @@ export async function getIncidents({
   if (search && String(search).trim()) params.set('search', String(search).trim());
   if (exclude_report_id != null) params.set('exclude_report_id', String(exclude_report_id));
   if (volunteer_accepted) params.set('volunteer_accepted', 'true');
+  if (archived) params.set('archived', 'true');
   params.set('meta', withMeta ? '1' : '0');
   const queryKey = params.toString();
   const cached = incidentsCache.get(queryKey);
@@ -501,5 +503,52 @@ export async function acknowledgeBackupRequest(incidentId, backupId) {
   if (!response.ok) {
     throw new Error(parseErrorMessage(data, 'Failed to acknowledge backup request'));
   }
+  return data;
+}
+
+/**
+ * Archive a closed incident
+ * @param {number|string} id - Incident report ID
+ * @param {Object} [options]
+ * @param {string} [options.archive_notes]
+ * @returns {Promise<Object>}
+ */
+export async function archiveIncident(id, { archive_notes } = {}) {
+  const requestId = createRequestId('web-archive-incident');
+  const start = performance.now();
+  const response = await fetch(`${API_URL}/api/incidents/${id}/archive`, {
+    method: 'POST',
+    headers: getAuthHeaders({ requestId }),
+    body: JSON.stringify({ archive_notes }),
+  });
+  const data = await parseJsonOrEmpty(response);
+  if (!response.ok) {
+    logError(`[web][incidents][archiveIncident] request_id=${requestId} report_id=${id} status=${response.status}`);
+    throw new Error(parseErrorMessage(data, 'Failed to archive incident'));
+  }
+  incidentsCache.clear();
+  logInfo(`[web][incidents][archiveIncident] request_id=${requestId} report_id=${id} status=${response.status} latency_ms=${Math.round(performance.now() - start)}`);
+  return data;
+}
+
+/**
+ * Restore an archived incident to the active dashboard
+ * @param {number|string} id - Incident report ID
+ * @returns {Promise<Object>}
+ */
+export async function unarchiveIncident(id) {
+  const requestId = createRequestId('web-unarchive-incident');
+  const start = performance.now();
+  const response = await fetch(`${API_URL}/api/incidents/${id}/unarchive`, {
+    method: 'POST',
+    headers: getAuthHeaders({ requestId }),
+  });
+  const data = await parseJsonOrEmpty(response);
+  if (!response.ok) {
+    logError(`[web][incidents][unarchiveIncident] request_id=${requestId} report_id=${id} status=${response.status}`);
+    throw new Error(parseErrorMessage(data, 'Failed to unarchive incident'));
+  }
+  incidentsCache.clear();
+  logInfo(`[web][incidents][unarchiveIncident] request_id=${requestId} report_id=${id} status=${response.status} latency_ms=${Math.round(performance.now() - start)}`);
   return data;
 }

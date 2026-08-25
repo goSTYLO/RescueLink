@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'report_history_screen.dart';
 import '../../services/websocket_service.dart';
 import '../../services/notification_service.dart';
+import '../../services/onesignal_service.dart';
 import 'notifications_screen.dart';
 import 'settings_screen.dart';
 import '../../services/auth_service.dart';
@@ -92,8 +93,11 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
     }
     _wsSubscription = WebSocketService().eventStream.listen((event) {
       if (!mounted) return;
+      final currentUserId = AuthService().getUserId();
+
       if (event.event == 'application:status_changed') {
         unawaited(_handleApplicationStatusChanged(event.data));
+        return;
       }
       if (event.event == 'responder:incident_alert') {
         if (_isResponder) {
@@ -107,29 +111,28 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
         }
         return;
       }
+
+      // Do NOT show "incident:created" on mobile — that is only for the web dispatcher dashboard
+      if (event.event == 'incident:created') {
+        return;
+      }
+
+      // Only show update notifications if the user is involved in the incident (reporter or assigned responder)
+      final reporterId = event.data['reporter_id'] ?? event.data['user_id'] ?? event.data['reporterId'] ?? event.data['userId'];
+      final acceptedUserId = event.data['accepted_by_user_id'] ?? event.data['acceptedByUserId'];
+      final isReporter = currentUserId != null && reporterId != null && (reporterId == currentUserId || reporterId.toString() == currentUserId.toString());
+      final isAssignedResponder = currentUserId != null && acceptedUserId != null && (acceptedUserId == currentUserId || acceptedUserId.toString() == currentUserId.toString());
+
+      // If this is an incident update and the user is not the reporter or assigned responder, ignore
+      if (event.reportId != null && !isReporter && !isAssignedResponder && !_isResponder) {
+        return;
+      }
+
       final title = _formatNotificationTitle(event);
+      if (title == null || title.isEmpty) return;
+
       if (_currentIndex != 1) {
         setState(() => _unreadReportsCount++);
-      }
-      if (title != null && title.isNotEmpty) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted) return;
-          ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-            SnackBar(
-              content: Text(title),
-              behavior: SnackBarBehavior.floating,
-              action: event.reportId != null
-                  ? SnackBarAction(
-                      label: 'View',
-                      onPressed: () => _openIncidentByInvolvement(
-                        event.reportId!,
-                        incidentHint: event.data,
-                      ),
-                    )
-                  : null,
-            ),
-          );
-        });
       }
     });
     if (widget.initialTabIndex != null) {
@@ -138,6 +141,95 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
         widget.onInitialTabApplied?.call();
       });
     }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkAndPromptNotifications();
+    });
+  }
+
+  Future<void> _checkAndPromptNotifications() async {
+    final onesignal = OneSignalService();
+    final alreadyPrompted = await onesignal.hasPromptedPermission();
+    if (alreadyPrompted) return;
+
+    final isEnabled = await onesignal.isPushEnabled();
+    if (isEnabled) return;
+
+    // Mark as prompted so it only asks 1 time
+    await onesignal.markPermissionPrompted();
+
+    if (!mounted) return;
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1F2937) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFDBEAFE),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.notifications_active_outlined,
+                color: Color(0xFF134178),
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text(
+                'Turn on Notifications?',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        content: const Text(
+          'Get real-time emergency updates, incident status alerts, and vital dispatch notices from RescueLink.',
+          style: TextStyle(fontSize: 14, height: 1.4),
+        ),
+        actionsPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(
+              'Not Now',
+              style: TextStyle(
+                color: isDark ? Colors.grey[400] : const Color(0xFF6B7280),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          FilledButton(
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              final granted = await onesignal.requestPermission();
+              if (mounted && granted) {
+                ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+                  const SnackBar(
+                    content: Text('Notifications enabled.'),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              }
+            },
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF134178),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            ),
+            child: const Text('Turn On', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
   }
 
   @override

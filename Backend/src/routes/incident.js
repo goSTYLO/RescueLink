@@ -107,6 +107,11 @@ router.patch('/:id/backup/:backupId/acknowledge', authMiddleware, authorize([
   'Super Admin',
 ]), incidentAcceptance.acknowledgeBackupRequest);
 
+// Archive a closed incident (manual; auto-archive also fires via updateStatus)
+router.post('/:id/archive',   authMiddleware, authorize([ROLES.DISPATCHER, ROLES.ADMIN, ROLES.DEPARTMENT_ADMIN, ROLES.DEPARTMENT_HEAD]), incidentController.archiveIncident);
+// Restore an archived incident to the active dashboard
+router.post('/:id/unarchive', authMiddleware, authorize([ROLES.DISPATCHER, ROLES.ADMIN, ROLES.DEPARTMENT_ADMIN, ROLES.DEPARTMENT_HEAD]), incidentController.unarchiveIncident);
+
 // Get all incidents with pagination and filters
 // Users see only own; dispatchers/admins see all
 router.get('/', authMiddleware, incidentController.getAll);

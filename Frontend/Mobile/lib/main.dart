@@ -38,12 +38,14 @@ import 'screens/home/logout_confirmation_screen.dart';
 import 'screens/home/about_screen.dart';
 import 'services/incident_service.dart';
 import 'services/websocket_service.dart';
+import 'services/onesignal_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: '.env');
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await AuthService().init();
+  await OneSignalService().init();
   runApp(const RescueLinkApp());
 }
 
@@ -181,9 +183,14 @@ class _AuthNavigatorState extends State<AuthNavigator> with WidgetsBindingObserv
     });
     if (hasValidToken) {
       WebSocketService().connect();
+      final userId = authService.getUserId();
+      if (userId != null) {
+        OneSignalService().loginUser(userId);
+      }
     } else {
       await authService.clearToken();
       WebSocketService().disconnect();
+      OneSignalService().logoutUser();
     }
   }
 
@@ -244,6 +251,7 @@ class _AuthNavigatorState extends State<AuthNavigator> with WidgetsBindingObserv
 
   Future<void> _performLogout() async {
     WebSocketService().disconnect();
+    OneSignalService().logoutUser();
     await AuthService().logout();
     if (!mounted) return;
     _backToLogin();
@@ -847,7 +855,13 @@ class _AuthNavigatorState extends State<AuthNavigator> with WidgetsBindingObserv
       onForgotPasswordTap: _showForgotPassword,
       onLoginSuccess: () {
         Future.delayed(const Duration(milliseconds: 200), () {
-          if (mounted) WebSocketService().connect();
+          if (mounted) {
+            WebSocketService().connect();
+            final userId = AuthService().getUserId();
+            if (userId != null) {
+              OneSignalService().loginUser(userId);
+            }
+          }
         });
         setState(() => _showDashboard = true);
       },

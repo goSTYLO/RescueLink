@@ -7,20 +7,19 @@ const { validateInteger, validateOptionalString, validatePagination } = require(
 const { logDispatcherAction } = require('../utils/auditLog');
 const { ROLES } = require('../config/roles');
 const { persistIncidentNotifications } = require('../services/notificationPersistence');
-const { buildIncidentEventPayload } = require('../utils/incidentEvents');
+const { buildIncidentEventPayload, emitIncidentEvent } = require('../utils/incidentEvents');
 
 function emitDispatchEvent(req, event, reportId, incident = null) {
-  const wss = req.app?.locals?.wss;
   if (!reportId) return;
-  const data = incident
-    ? buildIncidentEventPayload(incident)
-    : { report_id: reportId, updated_at: new Date().toISOString() };
-  if (wss?.broadcast) {
-    wss.broadcast(event, data).catch(() => {});
+  if (incident) {
+    emitIncidentEvent(req, event, incident);
+  } else {
+    Incident.findById(reportId).then((found) => {
+      emitIncidentEvent(req, event, found || { report_id: reportId });
+    }).catch(() => {
+      emitIncidentEvent(req, event, { report_id: reportId });
+    });
   }
-  persistIncidentNotifications(event, data).catch((err) =>
-    console.error('[emitDispatchEvent] Notification persistence failed:', err.message)
-  );
 }
 
 const dispatchController = {

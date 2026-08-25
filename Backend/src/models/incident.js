@@ -288,6 +288,7 @@ const Incident = {
     search = null,
     exclude_report_id = null,
     volunteer_accepted = false,
+    is_archived = false,
   } = {}) {
     // Keep incident list payloads bounded to protect API latency under encrypted datasets.
     const cappedLimit = Math.min(limit, 60);
@@ -428,6 +429,9 @@ const Incident = {
       query += ` AND ir.accepted_by_user_id IS NOT NULL`;
     }
 
+    // Archive filter — default hides archived from active dashboard
+    query += ` AND ir.is_archived = ${is_archived ? 'TRUE' : 'FALSE'}`;
+
     query += ` ORDER BY ir.created_at DESC LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}`;
     params.push(cappedLimit, offset);
 
@@ -459,6 +463,42 @@ const Incident = {
         open_backup_status: row.open_backup_status || null,
       };
     });
+  },
+
+  /**
+   * Archive an incident. Only permitted when status = 'closed'.
+   * Auto-called by updateStatus when transitioning to 'closed'.
+   * Can also be called manually by a dispatcher.
+   */
+  async archive(report_id, { archived_by_user_id, archive_notes = null }) {
+    const res = await pool.query(
+      `UPDATE incident_reports
+         SET is_archived = TRUE,
+             archived_at = NOW(),
+             archived_by_user_id = $2,
+             archive_notes = $3
+       WHERE report_id = $1
+         AND status = 'closed'
+       RETURNING *`,
+      [report_id, archived_by_user_id, archive_notes]
+    );
+    return res.rows[0] ? decodeReporterFields(res.rows[0]) : null;
+  },
+
+  /** Restore an archived incident back to the active dashboard. */
+  async unarchive(report_id) {
+    const res = await pool.query(
+      `UPDATE incident_reports
+         SET is_archived = FALSE,
+             archived_at = NULL,
+             archived_by_user_id = NULL,
+             archive_notes = NULL
+       WHERE report_id = $1
+         AND is_archived = TRUE
+       RETURNING *`,
+      [report_id]
+    );
+    return res.rows[0] ? decodeReporterFields(res.rows[0]) : null;
   },
 
   async findByUserId(
@@ -541,7 +581,7 @@ const Incident = {
     return res.rows.map(decodeReporterFields);
   },
 
-  async countAll({ user_id = null, severity_level = null, status = null, incident_type = null, barangay = null, department_code = null, exclude_duplicates = false, search = null, exclude_report_id = null, volunteer_accepted = false } = {}) {
+  async countAll({ user_id = null, severity_level = null, status = null, incident_type = null, barangay = null, department_code = null, exclude_duplicates = false, search = null, exclude_report_id = null, volunteer_accepted = false, is_archived = false } = {}) {
     let query = 'SELECT COUNT(*)::int AS total FROM incident_reports WHERE 1=1';
     const params = [];
     let paramCount = 0;
@@ -609,6 +649,9 @@ const Incident = {
     if (volunteer_accepted) {
       query += ` AND accepted_by_user_id IS NOT NULL`;
     }
+
+    // Archive filter
+    query += ` AND is_archived = ${is_archived ? 'TRUE' : 'FALSE'}`;
 
     const res = await pool.query(query, params);
     return Number(res.rows?.[0]?.total || 0);
@@ -1101,7 +1144,10 @@ const Incident = {
              closed_at = CASE WHEN $3 = 'closed' THEN COALESCE(closed_at, CURRENT_TIMESTAMP) ELSE closed_at END,
              closed_by_user_id = CASE WHEN $3 = 'closed' THEN COALESCE($7, closed_by_user_id) ELSE closed_by_user_id END,
              closure_method = CASE WHEN $3 = 'closed' THEN COALESCE($5::varchar, closure_method, 'manual') ELSE closure_method END,
-             closure_notes = CASE WHEN $3 = 'closed' AND $6::text IS NOT NULL THEN $6::text ELSE closure_notes END
+             closure_notes = CASE WHEN $3 = 'closed' AND $6::text IS NOT NULL THEN $6::text ELSE closure_notes END,
+             is_archived = CASE WHEN $3 = 'closed' THEN TRUE ELSE is_archived END,
+             archived_at = CASE WHEN $3 = 'closed' THEN COALESCE(archived_at, CURRENT_TIMESTAMP) ELSE archived_at END,
+             archived_by_user_id = CASE WHEN $3 = 'closed' THEN COALESCE(archived_by_user_id, $7) ELSE archived_by_user_id END
          WHERE report_id = $1
          RETURNING *`,
         [report_id, normalizedNext, normalizedNext, resolvedByUserId, normalizedClosureMethod, normalizedClosureNotes, actorUserIdForClose]
@@ -1200,7 +1246,10 @@ const Incident = {
              verified = TRUE,
              closed_at = COALESCE(closed_at, CURRENT_TIMESTAMP),
              closed_by_user_id = COALESCE(closed_by_user_id, $2),
-             closure_method = COALESCE(closure_method, 'auto_from_reporter_confirmation')
+             closure_method = COALESCE(closure_method, 'auto_from_reporter_confirmation'),
+             is_archived = TRUE,
+             archived_at = COALESCE(archived_at, CURRENT_TIMESTAMP),
+             archived_by_user_id = COALESCE(archived_by_user_id, $2)
          WHERE report_id = $1
          RETURNING *`,
         [report_id, reporter_user_id]

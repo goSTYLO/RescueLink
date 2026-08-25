@@ -45,6 +45,9 @@ dependencies:
   # Environment (.env)
   flutter_dotenv: ^5.1.0
 
+  # Push Notifications
+  onesignal_flutter: ^5.2.7
+
   # UI
   cupertino_icons: ^1.0.6
   intl: ^0.19.0

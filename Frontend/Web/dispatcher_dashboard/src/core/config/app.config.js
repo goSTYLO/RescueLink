@@ -6,3 +6,6 @@ export const API_URL = String(rawApiUrl).replace(/\/+$/, '') || defaultApiUrl;
 
 // Development mode - set to true to bypass authentication for design/testing
 export const DEV_MODE = String(runtimeConfig.DEV_MODE || env.VITE_DEV_MODE || 'false') === 'true';
+
+export const ONESIGNAL_APP_ID = runtimeConfig.ONESIGNAL_APP_ID || env.VITE_ONESIGNAL_APP_ID || '';
+

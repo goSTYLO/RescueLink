@@ -1,5 +1,20 @@
 const { persistIncidentNotifications } = require('../services/notificationPersistence');
+const { getRecipientUserIds } = require('../services/notificationPersistence');
+const { sendPushToUsers, formatPushTitle, formatPushBody } = require('../services/oneSignalService');
 const { incidentTypesFromRow } = require('./incidentTypeNormalize');
+const pool = require('../config/db');
+
+// Events that should trigger a push notification
+const PUSH_EVENTS = new Set([
+  'incident:created',
+  'incident:verified',
+  'incident:dispatched',
+  'incident:status_updated',
+  'incident:resolution_confirmed',
+  'incident:reclassified',
+  'incident:archived',
+  'backup_request',
+]);
 
 function buildIncidentEventPayload(incident) {
   const incidentTypes = incidentTypesFromRow(incident);
@@ -31,9 +46,26 @@ function emitIncidentEvent(req, event, incident) {
   persistIncidentNotifications(event, data).catch((err) =>
     console.error('[emitIncidentEvent] Notification persistence failed:', err.message)
   );
+
+  // Push notification — fire-and-forget, never blocks the API response
+  if (PUSH_EVENTS.has(event) && process.env.NODE_ENV !== 'test' && Boolean((process.env.ONESIGNAL_APP_ID || '').trim())) {
+    getRecipientUserIds(event, data).then((userIds) => {
+      const webUrl = `${process.env.WEB_DASHBOARD_URL || process.env.FRONTEND_URL || 'http://localhost:5173'}/incidents/${data.report_id}`;
+      return sendPushToUsers(userIds, {
+        title: formatPushTitle(event),
+        body: formatPushBody(event, data),
+        url: webUrl,
+        data: { screen: 'incident_detail', report_id: data.report_id },
+        eventType: event.replace('incident:', ''),
+      }, pool);
+    }).catch((err) =>
+      console.error('[emitIncidentEvent] Push notification failed:', err.message)
+    );
+  }
 }
 
 module.exports = {
   buildIncidentEventPayload,
   emitIncidentEvent,
 };
+

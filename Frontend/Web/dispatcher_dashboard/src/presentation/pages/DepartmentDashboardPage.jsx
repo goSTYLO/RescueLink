@@ -6,8 +6,8 @@ import { Button } from '@/presentation/components/ui/Button';
 import { Badge } from '@/presentation/components/ui/Badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/presentation/components/ui/Select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/presentation/components/ui/Dialog';
-import { Eye, Truck, MapPin, CheckCircle, AlertCircle, Activity, LayoutList, SlidersHorizontal, UserPlus, X, Clock, Shield, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight } from 'lucide-react';
-import { getIncidents, acknowledgeBackupRequest } from '@/data/api/incidents.api';
+import { Eye, Truck, MapPin, CheckCircle, AlertCircle, Activity, LayoutList, SlidersHorizontal, UserPlus, X, Clock, Shield, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, Archive, ArchiveRestore, Search } from 'lucide-react';
+import { getIncidents, acknowledgeBackupRequest, archiveIncident, unarchiveIncident } from '@/data/api/incidents.api';
 import { getDepartmentById, getDepartmentUnits, assignDepartmentUnit } from '@/data/api/departments.api';
 import { getResponderTeams } from '@/data/api/responders.api';
 import { createDispatch } from '@/data/api/dispatches.api';
@@ -18,7 +18,7 @@ import { VolunteerStatusBadge } from '@/presentation/components/common/Volunteer
 import { BackupRequestedBadge } from '@/presentation/components/common/BackupRequestedBadge';
 import { BackupRequestDialog } from '@/presentation/components/common/BackupRequestDialog';
 import { Tabs, TabsList, TabsTrigger } from '@/presentation/components/ui/Tabs';
-import { ROLES } from '@/core/constants';
+import { ROLES, normalizeRole } from '@/core/constants';
 import { useTheme } from '@/presentation/context/ThemeContext';
 import { useIncidentWebSocketStatus } from '@/presentation/context/IncidentWebSocketContext';
 import { Breadcrumb } from '@/presentation/components/common/Breadcrumb';
@@ -71,16 +71,28 @@ export function DepartmentDashboardPage() {
   const [itemsPerPage, setItemsPerPage] = useState(5);
   const [pageSizeSelectOpen, setPageSizeSelectOpen] = useState(false);
   const [dashboardView, setDashboardView] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
   const [backupDialogOpen, setBackupDialogOpen] = useState(false);
   const [backupDialogIncident, setBackupDialogIncident] = useState(null);
   const [acknowledgingBackup, setAcknowledgingBackup] = useState(false);
+  const [archivingInProgress, setArchivingInProgress] = useState(false);
   const isVolunteerView = dashboardView === 'volunteer';
+  const isArchivedView = dashboardView === 'archived';
+  const normalizedRole = normalizeRole(user.role);
+  const isAuthorizedRole = normalizedRole === ROLES.DEPARTMENT_ADMIN || normalizedRole === ROLES.DEPARTMENT_HEAD || normalizedRole === ROLES.PERSONNEL || normalizedRole === ROLES.SUPER_ADMIN;
 
   const fetchIncidents = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const result = await getIncidents({ limit: 40, offset: 0, withMeta: false });
+      const result = await getIncidents({
+        limit: 100,
+        offset: 0,
+        archived: isArchivedView,
+        volunteer_accepted: isVolunteerView,
+        search: searchQuery.trim() || undefined,
+        withMeta: false,
+      });
       const list = Array.isArray(result) ? result : (result?.items || []);
       setIncidents(list.map(mapApiIncidentToRow));
     } catch (err) {
@@ -89,16 +101,16 @@ export function DepartmentDashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isArchivedView, isVolunteerView, searchQuery]);
 
   useEffect(() => {
-    if (user.role !== ROLES.DEPARTMENT_ADMIN && user.role !== ROLES.PERSONNEL) {
+    if (!isAuthorizedRole) {
       navigate('/dashboard', { replace: true });
     }
-  }, [user.role, navigate]);
+  }, [isAuthorizedRole, navigate]);
 
   const refetchTeamsAndUnits = useCallback(() => {
-    if (user.role !== ROLES.DEPARTMENT_ADMIN && user.role !== ROLES.PERSONNEL) return;
+    if (!isAuthorizedRole) return;
     setTeamsLoading(true);
     getResponderTeams({ limit: 200 })
       .then((list) => {
@@ -123,10 +135,10 @@ export function DepartmentDashboardPage() {
         })
         .catch(() => {});
     }
-  }, [user.role, departmentId, departmentSectorCode]);
+  }, [isAuthorizedRole, departmentId, departmentSectorCode]);
 
   useEffect(() => {
-    if (user.role !== ROLES.DEPARTMENT_ADMIN && user.role !== ROLES.PERSONNEL) return;
+    if (!isAuthorizedRole) return;
     fetchIncidents();
     const intervalMs = wsConnected ? POLLING_WHEN_WS_CONNECTED_MS : POLLING_INTERVAL_MS;
     const intervalId = setInterval(fetchIncidents, intervalMs);
@@ -139,10 +151,10 @@ export function DepartmentDashboardPage() {
       clearInterval(intervalId);
       window.removeEventListener('incident:updated', handleUpdated);
     };
-  }, [user.role, fetchIncidents, wsConnected, refetchTeamsAndUnits]);
+  }, [isAuthorizedRole, fetchIncidents, wsConnected, refetchTeamsAndUnits]);
 
   useEffect(() => {
-    if (!departmentId || (user.role !== ROLES.DEPARTMENT_ADMIN && user.role !== ROLES.PERSONNEL)) return;
+    if (!departmentId || !isAuthorizedRole) return;
     let cancelled = false;
     getDepartmentById(departmentId)
       .then((dept) => {
@@ -155,10 +167,10 @@ export function DepartmentDashboardPage() {
         if (!cancelled) setDepartment(null);
       });
     return () => { cancelled = true; };
-  }, [departmentId, user.role]);
+  }, [departmentId, isAuthorizedRole]);
 
   useEffect(() => {
-    if (user.role !== ROLES.DEPARTMENT_ADMIN && user.role !== ROLES.PERSONNEL) return;
+    if (!isAuthorizedRole) return;
     setTeamsLoading(true);
     getResponderTeams({ limit: 200 })
       .then((list) => {
@@ -172,10 +184,10 @@ export function DepartmentDashboardPage() {
       })
       .catch(() => setTeams([]))
       .finally(() => setTeamsLoading(false));
-  }, [user.role, departmentSectorCode]);
+  }, [isAuthorizedRole, departmentSectorCode]);
 
   useEffect(() => {
-    if (!departmentId || (user.role !== ROLES.DEPARTMENT_ADMIN && user.role !== ROLES.PERSONNEL)) return;
+    if (!departmentId || !isAuthorizedRole) return;
     let cancelled = false;
     getDepartmentUnits(departmentId)
       .then((rows) => {
@@ -190,7 +202,7 @@ export function DepartmentDashboardPage() {
       })
       .catch(() => { if (!cancelled) setUnitsList([]); });
     return () => { cancelled = true; };
-  }, [departmentId, user.role]);
+  }, [departmentId, isAuthorizedRole]);
 
   useEffect(() => {
     try {
@@ -344,9 +356,87 @@ export function DepartmentDashboardPage() {
     setAssigningIncidentId(incidentId);
     setAssignModalOpen(true);
   };
+
   const closeAssignModal = () => {
     setAssignModalOpen(false);
     setAssigningIncidentId(null);
+  };
+  const handleArchiveIncident = async (incident) => {
+    if (!incident) return;
+    const confirm = await Swal.fire({
+      title: 'Archive Incident',
+      html: `Move incident <strong>#${incident.id}</strong> to the archives?`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#134178',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: 'Archive',
+      cancelButtonText: 'Cancel',
+      customClass: { popup: 'rounded-2xl shadow-xl', title: 'text-foreground text-xl', htmlContainer: 'text-muted' },
+    });
+    if (!confirm.isConfirmed) return;
+
+    setArchivingInProgress(true);
+    try {
+      await archiveIncident(incident.id);
+      await fetchIncidents();
+      window.dispatchEvent(new CustomEvent('incident:updated', { detail: { incidentId: incident.id } }));
+      Swal.fire({
+        icon: 'success',
+        title: 'Archived',
+        text: `Incident #${incident.id} has been moved to archives.`,
+        timer: 2000,
+        showConfirmButton: false,
+        timerProgressBar: true,
+      });
+    } catch (err) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Archive Failed',
+        text: err.message || 'Failed to archive incident.',
+      });
+    } finally {
+      setArchivingInProgress(false);
+    }
+  };
+
+  const handleUnarchiveIncident = async (incident) => {
+    if (!incident) return;
+    const confirm = await Swal.fire({
+      title: 'Restore Incident',
+      html: `Restore incident <strong>#${incident.id}</strong> back to the active department dashboard?`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#134178',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: 'Restore',
+      cancelButtonText: 'Cancel',
+      customClass: { popup: 'rounded-2xl shadow-xl', title: 'text-foreground text-xl', htmlContainer: 'text-muted' },
+    });
+    if (!confirm.isConfirmed) return;
+
+    setArchivingInProgress(true);
+    try {
+      await unarchiveIncident(incident.id);
+      await fetchIncidents();
+      window.dispatchEvent(new CustomEvent('incident:updated', { detail: { incidentId: incident.id } }));
+      Swal.fire({
+        icon: 'success',
+        title: 'Restored',
+        text: `Incident #${incident.id} restored to active dashboard.`,
+        timer: 2000,
+        showConfirmButton: false,
+        timerProgressBar: true,
+      });
+    } catch (err) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Restore Failed',
+        text: err.message || 'Failed to restore incident.',
+      });
+    } finally {
+      setArchivingInProgress(false);
+    }
   };
   const assignTeamToIncident = useCallback(async (incidentId, team) => {
     if (!department?.code || !department?.name || !team?.team_name) return;
@@ -452,8 +542,6 @@ export function DepartmentDashboardPage() {
   const heroCardClass = `rounded-3xl border overflow-hidden transition-all duration-300 ${isLight ? 'glass neumorphic-light bg-white/80 border-gray-200/80 shadow-[8px_8px_24px_rgba(209,213,219,0.5),-8px_-8px_24px_rgba(255,255,255,0.9)]' : 'glass neumorphic-dark bg-card/60 border-white/10 shadow-[8px_8px_24px_rgba(0,0,0,0.35),-6px_-6px_20px_rgba(19,65,120,0.2)]'}`;
   const heroIconClass = `w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isLight ? 'neumorphic-light-inset bg-gray-100 text-primary' : 'neumorphic-dark-inset bg-white/10 text-primary'}`;
 
-  if (user.role !== ROLES.DEPARTMENT_ADMIN && user.role !== ROLES.PERSONNEL) return null;
-
   return (
     <Layout>
       <div className="p-6 space-y-6 max-w-7xl mx-auto">
@@ -530,7 +618,7 @@ export function DepartmentDashboardPage() {
                 <LayoutList className="w-5 h-5" strokeWidth={2} />
               </div>
               <h3 className="text-base font-semibold text-foreground">
-                {isVolunteerView ? 'Volunteer Response' : 'Assigned Incidents'}
+                {isVolunteerView ? 'Volunteer Response' : isArchivedView ? 'Archived Incidents' : 'Assigned Incidents'}
               </h3>
               <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
                 isLight ? 'bg-primary/15 text-primary' : 'bg-primary/20 text-primary'
@@ -542,6 +630,10 @@ export function DepartmentDashboardPage() {
               <TabsList className={`rounded-xl p-1 ${isLight ? 'bg-gray-100 border border-gray-200' : 'bg-white/10 border border-white/10'}`}>
                 <TabsTrigger value="all" className="rounded-lg px-3 py-1.5 text-xs">All Incidents</TabsTrigger>
                 <TabsTrigger value="volunteer" className="rounded-lg px-3 py-1.5 text-xs">Volunteer Response</TabsTrigger>
+                <TabsTrigger value="archived" className="rounded-lg px-3 py-1.5 text-xs flex items-center gap-1">
+                  <Archive className="w-3 h-3" />
+                  Archived
+                </TabsTrigger>
               </TabsList>
             </Tabs>
           </div>
@@ -591,9 +683,28 @@ export function DepartmentDashboardPage() {
           <div className={`px-2 sm:px-3 py-2 border-b ${
             isLight ? 'border-gray-200/80 bg-gray-50/30' : 'border-white/10 bg-white/[0.03]'
           }`}>
-            <div className="flex items-center gap-2 mb-2">
-              <SlidersHorizontal className="w-4 h-4 text-primary" />
-              <h4 className="text-xs font-semibold text-foreground">Filters</h4>
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+              <div className="flex items-center gap-2">
+                <SlidersHorizontal className="w-4 h-4 text-primary" />
+                <h4 className="text-xs font-semibold text-foreground">Filters</h4>
+              </div>
+              <div className="relative w-full sm:w-64">
+                <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="Search ID, barangay..."
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className={`w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border transition-colors ${
+                    isLight
+                      ? 'bg-white border-gray-200 text-foreground placeholder-muted focus:border-primary focus:outline-none'
+                      : 'bg-white/5 border-white/10 text-foreground placeholder-muted focus:border-primary focus:outline-none'
+                  }`}
+                />
+              </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               <div className="min-w-0">
@@ -744,7 +855,7 @@ export function DepartmentDashboardPage() {
                       <td className="px-2.5 py-2 text-xs text-muted">{incident.timeReported || '—'}</td>
                       <td className="px-2.5 py-2">
                         <div className="flex items-center gap-1">
-                          {user.role === ROLES.DEPARTMENT_ADMIN && (
+                          {normalizedRole === ROLES.DEPARTMENT_ADMIN && !isArchivedView && (
                             <Button size="sm" variant="ghost" onClick={() => openAssignModal(incident.id)} className="text-primary" title="Assign personnel">
                               <UserPlus className="w-4 h-4" />
                             </Button>
@@ -752,6 +863,30 @@ export function DepartmentDashboardPage() {
                           <Button size="sm" variant="ghost" onClick={() => navigate(`/incidents/${incident.id}`)} className="text-primary" title="View details">
                             <Eye className="w-4 h-4" />
                           </Button>
+                          {isArchivedView && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              disabled={archivingInProgress}
+                              onClick={() => handleUnarchiveIncident(incident)}
+                              className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                              title="Restore incident"
+                            >
+                              <ArchiveRestore className="w-4 h-4" />
+                            </Button>
+                          )}
+                          {!isArchivedView && (incident.status === 'Closed' || incident.status === 'closed') && !incident.isArchived && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              disabled={archivingInProgress}
+                              onClick={() => handleArchiveIncident(incident)}
+                              className="text-slate-500 hover:text-slate-700 hover:bg-slate-100"
+                              title="Archive incident"
+                            >
+                              <Archive className="w-4 h-4" />
+                            </Button>
+                          )}
                         </div>
                       </td>
                     </tr>

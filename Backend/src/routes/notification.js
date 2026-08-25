@@ -29,4 +29,8 @@ router.put('/:id', authMiddleware, authorize([ROLES.DISPATCHER, ROLES.ADMIN]), n
 // Delete notification (dispatcher/admin only)
 router.delete('/:id', authMiddleware, authorize([ROLES.DISPATCHER, ROLES.ADMIN]), notificationController.delete);
 
+// Notification preferences — allow any authenticated user to manage their push opt-in/out
+router.get('/preferences', authMiddleware, notificationController.getPreferences);
+router.patch('/preferences/:eventType', authMiddleware, notificationController.updatePreference);
+
 module.exports = router;

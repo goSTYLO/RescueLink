@@ -47,6 +47,10 @@ function formatNotificationMessage(event, data) {
       return `Incident #${reportId} reclassified${barangay ? ` (${data.barangay})` : ''}`;
     case 'incident:duplicate_changed':
       return `Incident #${reportId} duplicate status updated${barangay ? ` (${data.barangay})` : ''}`;
+    case 'incident:archived':
+      return `Incident #${reportId} archived${barangay ? ` (${data.barangay})` : ''}`;
+    case 'incident:unarchived':
+      return `Incident #${reportId} restored from archive${barangay ? ` (${data.barangay})` : ''}`;
     default:
       return reportId != null ? `Incident #${reportId} updated${barangay ? ` (${data.barangay})` : ''}` : 'Incident update';
   }
@@ -61,6 +65,8 @@ const EVENT_TYPE_MAP = {
   'incident:note_added': 'note_added',
   'incident:reclassified': 'reclassified',
   'incident:duplicate_changed': 'duplicate_changed',
+  'incident:archived': 'archived',
+  'incident:unarchived': 'unarchived',
 };
 
 /**
@@ -83,26 +89,76 @@ async function getRecipientUserIds(event, data) {
 
   const recipientIds = new Set();
 
-  // Global roles: admin, dispatcher, supervisor - get all notifications
-  const globalRes = await pool.query(
-    `SELECT user_id FROM users WHERE LOWER(role) IN ('admin','dispatcher','supervisor','super_admin')`
-  );
-  globalRes.rows.forEach((r) => recipientIds.add(r.user_id));
-
-  // Department-scoped: only for incident:dispatched when their dept is assigned
-  const isDispatched = event === 'incident:dispatched';
-  if (isDispatched && assignedDeptIds.length > 0) {
-    const deptRes = await pool.query(
-      `SELECT user_id FROM users WHERE department_id = ANY($1::int[])
-        AND LOWER(role) IN ('department-admin','department-head','responder')`,
-      [assignedDeptIds]
+  if (event === 'incident:created') {
+    // New incident reported -> Notify Dispatchers, Admins, and Supervisors on the Web Dashboard
+    const globalRes = await pool.query(
+      `SELECT user_id FROM users WHERE LOWER(role) IN ('admin','dispatcher','supervisor','super_admin')`
     );
-    deptRes.rows.forEach((r) => recipientIds.add(r.user_id));
-  }
+    globalRes.rows.forEach((r) => recipientIds.add(r.user_id));
 
-  // Reporter: owner of the incident
-  if (reporterId != null) {
-    recipientIds.add(reporterId);
+    // Also notify department admins if pre-assigned
+    if (assignedDeptIds.length > 0) {
+      const deptRes = await pool.query(
+        `SELECT user_id FROM users WHERE department_id = ANY($1::int[])
+          AND LOWER(role) IN ('department-admin','department-head')`,
+        [assignedDeptIds]
+      );
+      deptRes.rows.forEach((r) => recipientIds.add(r.user_id));
+    }
+  } else if (event === 'backup_request') {
+    // Backup request -> Notify all active mobile responders, volunteers, and dispatchers
+    const responderRes = await pool.query(
+      `SELECT user_id FROM users WHERE LOWER(role) IN ('responder', 'volunteer', 'dispatcher', 'admin')`
+    );
+    responderRes.rows.forEach((r) => recipientIds.add(r.user_id));
+  } else {
+    // Incident Updates (verified, dispatched, status_updated, resolution_confirmed, reclassified, note_added)
+    // -> Send to the Mobile Citizen (Reporter) and Assigned Responders!
+
+    // 1. Reporter (Mobile citizen who reported the emergency)
+    let actualReporterId = reporterId;
+    if (!actualReporterId && reportId) {
+      try {
+        const incRes = await pool.query('SELECT user_id FROM incidents WHERE report_id = $1', [reportId]);
+        if (incRes.rows.length > 0) {
+          actualReporterId = incRes.rows[0].user_id;
+        }
+      } catch (_) {}
+    }
+    if (actualReporterId != null) {
+      recipientIds.add(actualReporterId);
+    }
+
+    // 2. Assigned responder on the incident
+    const acceptedUserId = data?.accepted_by_user_id ?? data?.acceptedByUserId;
+    if (acceptedUserId != null) {
+      recipientIds.add(acceptedUserId);
+    }
+
+    // 3. Responders assigned via dispatches table
+    if (reportId) {
+      try {
+        const dispRes = await pool.query(
+          `SELECT r.user_id FROM dispatches d
+           JOIN responders r ON r.responder_id = d.responder_id
+           WHERE d.report_id = $1`,
+          [reportId]
+        );
+        dispRes.rows.forEach((r) => {
+          if (r.user_id) recipientIds.add(r.user_id);
+        });
+      } catch (_) {}
+    }
+
+    // 4. For dispatch events, also notify department-level responders
+    if (event === 'incident:dispatched' && assignedDeptIds.length > 0) {
+      const deptRes = await pool.query(
+        `SELECT user_id FROM users WHERE department_id = ANY($1::int[])
+          AND LOWER(role) IN ('responder')`,
+        [assignedDeptIds]
+      );
+      deptRes.rows.forEach((r) => recipientIds.add(r.user_id));
+    }
   }
 
   return Array.from(recipientIds);
@@ -139,4 +195,4 @@ async function persistIncidentNotifications(event, data) {
   }
 }
 
-module.exports = { persistIncidentNotifications };
+module.exports = { persistIncidentNotifications, getRecipientUserIds };

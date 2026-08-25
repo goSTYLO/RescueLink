@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../services/auth_service.dart';
 import '../../services/theme_service.dart';
 import '../../services/responder_application_service.dart';
+import '../../services/onesignal_service.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/animated_collapse.dart';
 import '../../widgets/glass_card.dart';
@@ -58,6 +59,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     super.initState();
     _loadProfile();
     _loadBiometricPreference();
+    _loadNotificationPreference();
     ThemeService.getThemeMode().then((mode) {
       if (mounted) {
         setState(() {
@@ -66,6 +68,44 @@ class _SettingsScreenState extends State<SettingsScreen> {
         });
       }
     });
+  }
+
+  Future<void> _loadNotificationPreference() async {
+    final enabled = await OneSignalService().isPushEnabled();
+    if (mounted) setState(() => _pushNotification = enabled);
+  }
+
+  Future<void> _onPushNotificationToggle(bool value) async {
+    setState(() => _pushNotification = value);
+    if (value) {
+      final granted = await OneSignalService().requestPermission();
+      if (!granted && mounted) {
+        setState(() => _pushNotification = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not enable push notifications. Please check app permissions.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Push notifications enabled.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } else {
+      await OneSignalService().setPushEnabled(false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Push notifications disabled.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _loadBiometricPreference() async {
@@ -547,7 +587,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
             title: 'Notification',
             icon: Icons.notifications_outlined,
             children: [
-              _settingsRowWithSwitch(icon: Icons.notifications_outlined, iconBg: const Color(0xFFDBEAFE), iconColor: const Color(0xFF2563EB), title: 'Push Notification', subtitle: 'Emergency Updates & Alerts', value: _pushNotification, onChanged: (v) => setState(() => _pushNotification = v)),
+              _settingsRowWithSwitch(
+                icon: Icons.notifications_outlined,
+                iconBg: const Color(0xFFDBEAFE),
+                iconColor: const Color(0xFF2563EB),
+                title: 'Push Notification',
+                subtitle: _pushNotification ? 'Emergency Updates & Alerts (Active)' : 'Notifications Disabled',
+                value: _pushNotification,
+                onChanged: (v) => _onPushNotificationToggle(v),
+              ),
               _settingsRowWithSwitch(icon: Icons.sms_outlined, iconBg: const Color(0xFFFEF3C7), iconColor: const Color(0xFFD97706), title: 'SMS Alert', subtitle: 'Text Message Updates', value: _smsAlert, onChanged: (v) => setState(() => _smsAlert = v)),
             ],
           ),

@@ -263,6 +263,79 @@ const notificationController = {
       }
       res.status(500).json({ error: 'Internal server error' });
     }
+  },
+
+  /** Get all notification preferences for the current user. */
+  async getPreferences(req, res) {
+    try {
+      const userId = req.user?.user_id;
+      if (!userId) return res.status(401).json({ error: 'Authentication required' });
+
+      const pool = require('../config/db');
+      const result = await pool.query(
+        'SELECT event_type, push_enabled FROM notification_preferences WHERE user_id = $1 ORDER BY event_type',
+        [userId]
+      );
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Error fetching preferences:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+
+  /** Toggle push_enabled for a specific event type for the current user. */
+  async updatePreference(req, res) {
+    try {
+      const userId = req.user?.user_id;
+      if (!userId) return res.status(401).json({ error: 'Authentication required' });
+
+      const { eventType } = req.params;
+      if (!eventType || typeof eventType !== 'string' || eventType.length > 80) {
+        return res.status(400).json({ error: 'Invalid eventType' });
+      }
+
+      const { push_enabled } = req.body;
+      if (typeof push_enabled !== 'boolean') {
+        return res.status(400).json({ error: 'push_enabled must be a boolean' });
+      }
+
+      const pool = require('../config/db');
+      await pool.query(
+        `INSERT INTO notification_preferences (user_id, event_type, push_enabled)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (user_id, event_type) DO UPDATE SET push_enabled = EXCLUDED.push_enabled`,
+        [userId, eventType, push_enabled]
+      );
+
+      res.json({ event_type: eventType, push_enabled });
+    } catch (error) {
+      console.error('Error updating preference:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+
+  /** Register or update a OneSignal player/subscription ID for the current user. */
+  async registerOneSignalSubscription(req, res) {
+    try {
+      const userId = req.user?.user_id;
+      if (!userId) return res.status(401).json({ error: 'Authentication required' });
+
+      const { onesignal_player_id } = req.body;
+      if (!onesignal_player_id || typeof onesignal_player_id !== 'string') {
+        return res.status(400).json({ error: 'onesignal_player_id is required' });
+      }
+
+      const pool = require('../config/db');
+      await pool.query(
+        'UPDATE users SET onesignal_player_id = $1 WHERE user_id = $2',
+        [onesignal_player_id.trim(), userId]
+      );
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error registering OneSignal subscription:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
   }
 };
 

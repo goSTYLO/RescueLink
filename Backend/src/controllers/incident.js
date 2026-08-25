@@ -587,9 +587,10 @@ const incidentController = {
         return res.status(401).json({ error: 'Authentication required' });
       }
 
-      const { limit, offset, severity_level, status, incident_type, barangay, exclude_duplicates, search, exclude_report_id, volunteer_accepted } = req.query;
+      const { limit, offset, severity_level, status, incident_type, barangay, exclude_duplicates, search, exclude_report_id, volunteer_accepted, archived } = req.query;
       const excludeDuplicates = exclude_duplicates === 'true' || exclude_duplicates === '1';
       const volunteerAccepted = volunteer_accepted === 'true' || volunteer_accepted === '1';
+      const isArchived = archived === 'true' || archived === '1';
       const { limit: validatedLimit, offset: validatedOffset } = validatePagination(limit, offset);
       const validatedSeverityLevel = validateAllowedValue(severity_level, ['low', 'medium', 'high'], 'severity_level');
       const validatedStatus = validateAllowedValue(status, ['pending', 'verified', 'in_progress', 'resolved', 'closed'], 'status');
@@ -650,6 +651,7 @@ const incidentController = {
           search: validatedSearch,
           exclude_report_id: validatedExcludeReportId,
           volunteer_accepted: volunteerAccepted,
+          is_archived: isArchived,
         });
         totalCount = await Incident.countAll({
           severity_level: validatedSeverityLevel,
@@ -661,6 +663,7 @@ const incidentController = {
           search: validatedSearch,
           exclude_report_id: validatedExcludeReportId,
           volunteer_accepted: volunteerAccepted,
+          is_archived: isArchived,
         });
       }
       const dataFetchLatencyMs = Date.now() - dataFetchStart;
@@ -1281,6 +1284,17 @@ const incidentController = {
         next_status: nextStatus,
       });
       emitIncidentEvent(req, 'incident:status_updated', updatedIncident);
+
+      // Auto-archive when an incident transitions to 'closed'
+      if (nextStatus === 'closed') {
+        const archived = await Incident.archive(validatedId, {
+          archived_by_user_id: req.user?.user_id || null,
+        });
+        if (archived) {
+          emitIncidentEvent(req, 'incident:archived', archived);
+        }
+      }
+
       res.json({
         success: true,
         incident: updatedIncident,
@@ -1318,6 +1332,9 @@ const incidentController = {
       await logIncidentAction(req, 'incident_reporter_confirm_resolution', validatedId, {});
 
       emitIncidentEvent(req, 'incident:resolution_confirmed', updatedIncident);
+      if (updatedIncident.is_archived) {
+        emitIncidentEvent(req, 'incident:archived', updatedIncident);
+      }
 
       res.json({
         success: true,
@@ -1810,6 +1827,52 @@ const incidentController = {
       res.json({ success: true, flagged_for_review: false });
     } catch (error) {
       console.error('Error clearing duplicate flag:', error);
+      if (error.message?.includes('must be')) return res.status(400).json({ error: error.message });
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+
+  /** Manual archive — dispatcher override for closed incidents not yet archived (e.g. after unarchive). */
+  async archiveIncident(req, res) {
+    try {
+      const validatedId = validateInteger(req.params.id, 'report_id');
+      const archive_notes = validateOptionalString(req.body?.archive_notes, 'archive_notes', 500);
+
+      const result = await Incident.archive(validatedId, {
+        archived_by_user_id: req.user.user_id,
+        archive_notes,
+      });
+
+      if (!result) {
+        return res.status(409).json({ error: "Incident cannot be archived. It must be in 'closed' status and not already archived." });
+      }
+
+      await logIncidentAction(req, 'incident_archived', validatedId, { archive_notes });
+      emitIncidentEvent(req, 'incident:archived', result);
+      res.json({ success: true, incident: result });
+    } catch (error) {
+      console.error('Error archiving incident:', error);
+      if (error.message?.includes('must be')) return res.status(400).json({ error: error.message });
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+
+  /** Restore an archived incident back to the active dashboard view. */
+  async unarchiveIncident(req, res) {
+    try {
+      const validatedId = validateInteger(req.params.id, 'report_id');
+
+      const result = await Incident.unarchive(validatedId);
+
+      if (!result) {
+        return res.status(409).json({ error: 'Incident is not archived.' });
+      }
+
+      await logIncidentAction(req, 'incident_unarchived', validatedId, {});
+      emitIncidentEvent(req, 'incident:unarchived', result);
+      res.json({ success: true, incident: result });
+    } catch (error) {
+      console.error('Error unarchiving incident:', error);
       if (error.message?.includes('must be')) return res.status(400).json({ error: error.message });
       res.status(500).json({ error: 'Internal server error' });
     }

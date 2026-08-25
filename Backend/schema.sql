@@ -420,3 +420,33 @@ CREATE INDEX IF NOT EXISTS idx_backup_requests_requester ON backup_requests(requ
 -- Notification category (incident | application | responder_alert | backup_request | system)
 ALTER TABLE notifications ADD COLUMN IF NOT EXISTS category VARCHAR(50) DEFAULT 'incident';
 CREATE INDEX IF NOT EXISTS idx_notifications_category ON notifications(category, user_id);
+
+-- ─── Incident Archival ────────────────────────────────────────────────────────
+ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS is_archived BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS archived_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS archived_by_user_id INTEGER REFERENCES users(user_id) ON DELETE SET NULL;
+ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS archive_notes TEXT;
+
+CREATE INDEX IF NOT EXISTS idx_incident_reports_active
+  ON incident_reports (status, created_at DESC)
+  WHERE is_archived = FALSE;
+
+CREATE INDEX IF NOT EXISTS idx_incident_reports_archived
+  ON incident_reports (archived_at DESC)
+  WHERE is_archived = TRUE;
+
+CREATE INDEX IF NOT EXISTS idx_incident_reports_archived_status
+  ON incident_reports (status, archived_at DESC)
+  WHERE is_archived = TRUE;
+
+-- ─── Notification Preferences & OneSignal ─────────────────────────────────────
+CREATE TABLE IF NOT EXISTS notification_preferences (
+  user_id     INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+  event_type  VARCHAR(80) NOT NULL,
+  push_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  PRIMARY KEY (user_id, event_type)
+);
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS onesignal_player_id VARCHAR(64);
+CREATE INDEX IF NOT EXISTS idx_users_onesignal_player_id ON users(onesignal_player_id) WHERE onesignal_player_id IS NOT NULL;
+

@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/auth');
+const notificationController = require('../controllers/notification');
 const authMiddleware = require('../middleware/auth');
 
 router.post('/register', authController.register);
@@ -18,5 +19,7 @@ router.get('/me', authMiddleware, authController.getMe);
 router.patch('/me', authMiddleware, authController.updateMe);
 router.post('/change-password', authMiddleware, authController.changePassword);
 router.post('/logout', authMiddleware, authController.logout);
+// Register OneSignal subscription ID for the current authenticated user
+router.post('/onesignal-subscription', authMiddleware, notificationController.registerOneSignalSubscription);
 
 module.exports = router;
