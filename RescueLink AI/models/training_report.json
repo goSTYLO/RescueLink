@@ -1,14 +1,14 @@
 {
   "config": {
-    "dataset_path": "data/cleaned_emergency_dataset.csv",
+    "dataset_path": "data/emergency_dataset.csv",
     "output_dir": "models",
     "backbone": "xlm-roberta-base",
     "max_length": 128,
     "train_split": 0.8,
-    "max_samples": 256,
+    "max_samples": 0,
     "batch_size_gpu": 32,
     "batch_size_cpu": 8,
-    "epochs": 1,
+    "epochs": 10,
     "patience": 3,
     "learning_rate": 5e-05,
     "weight_decay": 0.01,
@@ -16,32 +16,48 @@
     "label_smoothing": 0.1,
     "type_loss_weight": 1.0,
     "severity_loss_weight": 1.0,
-    "scheduler": "none",
+    "scheduler": "step",
     "step_size": 2,
     "gamma": 0.5,
     "threshold_min": 0.2,
     "threshold_max": 0.7,
     "threshold_step": 0.05,
-    "seed_list": "42"
+    "seed_list": "42,52,62"
   },
   "runs": [
     {
       "seed": 42,
-      "type_f1_micro": 0.40236686390532544,
-      "type_hamming_loss": 0.6474358974358975,
-      "severity_accuracy": 0.25,
-      "threshold": 0.4,
-      "score": 0.32618343195266275
+      "type_f1_micro": 0.9259371221281741,
+      "type_hamming_loss": 0.04083333333333333,
+      "severity_accuracy": 0.913,
+      "threshold": 0.65,
+      "score": 0.9194685610640871
+    },
+    {
+      "seed": 52,
+      "type_f1_micro": 0.9272589217919514,
+      "type_hamming_loss": 0.03991666666666667,
+      "severity_accuracy": 0.919,
+      "threshold": 0.5,
+      "score": 0.9231294608959757
+    },
+    {
+      "seed": 62,
+      "type_f1_micro": 0.9269172932330827,
+      "type_hamming_loss": 0.0405,
+      "severity_accuracy": 0.917,
+      "threshold": 0.5,
+      "score": 0.9219586466165414
     }
   ],
   "summary": {
-    "type_f1_micro_mean": 0.40236686390532544,
-    "type_f1_micro_std": 0.0,
-    "severity_accuracy_mean": 0.25,
-    "severity_accuracy_std": 0.0,
-    "type_hamming_loss_mean": 0.6474358974358975,
-    "type_hamming_loss_std": 0.0
+    "type_f1_micro_mean": 0.926704445717736,
+    "type_f1_micro_std": 0.0005602181934343763,
+    "severity_accuracy_mean": 0.9163333333333333,
+    "severity_accuracy_std": 0.0024944382578492965,
+    "type_hamming_loss_mean": 0.04041666666666666,
+    "type_hamming_loss_std": 0.0003788383804718278
   },
-  "selected_seed": 42,
-  "selected_threshold": 0.4
+  "selected_seed": 52,
+  "selected_threshold": 0.5
 }

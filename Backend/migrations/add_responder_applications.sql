@@ -22,7 +22,15 @@ ALTER TABLE responder_applications ADD COLUMN IF NOT EXISTS other_doc_paths JSON
 ALTER TABLE responder_applications ADD COLUMN IF NOT EXISTS personal_details JSONB DEFAULT '{}'::jsonb;
 ALTER TABLE responder_applications ADD COLUMN IF NOT EXISTS submitted_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
 ALTER TABLE responder_applications ADD COLUMN IF NOT EXISTS reviewed_by INTEGER;
-ALTER TABLE responder_applications ALTER COLUMN full_name DROP NOT NULL;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'responder_applications' AND column_name = 'full_name'
+  ) THEN
+    ALTER TABLE responder_applications ALTER COLUMN full_name DROP NOT NULL;
+  END IF;
+END $$;
 
 CREATE INDEX IF NOT EXISTS idx_responder_apps_user_id ON responder_applications(user_id);
 CREATE INDEX IF NOT EXISTS idx_responder_apps_status ON responder_applications(status);

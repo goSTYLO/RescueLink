@@ -24,18 +24,25 @@ if errorlevel 1 (
 	exit /b 1
 )
 
-echo Launching RescueLink services...
+echo Launching RescueLink services (excluding Blockchain)...
 echo Using %PKG_MGR% for Backend and Web...
 
+REM 1. Start Backend API (port 3000)
 start "RescueLink Backend" powershell -NoProfile -NoExit -ExecutionPolicy Bypass -Command "& {Set-Location '%ROOT%Backend'; %PKG_MGR% run dev}"
-REM Both RescueLink AI and Blockchain use the shared root .venv
-start "RescueLink AI" powershell -NoProfile -NoExit -ExecutionPolicy Bypass -Command "& { $r = '%ROOT%'; if (Test-Path ($r + '.venv\Scripts\Activate.ps1')) { & ($r + '.venv\Scripts\Activate.ps1') }; Set-Location ($r + 'RescueLink AI'); python -m uvicorn api.main:app --reload --port 8000 }"
-start "RescueLink Blockchain" powershell -NoProfile -NoExit -ExecutionPolicy Bypass -Command "& { $r = '%ROOT%'; if (Test-Path ($r + '.venv\Scripts\Activate.ps1')) { & ($r + '.venv\Scripts\Activate.ps1') }; Set-Location ($r + 'Blockchain'); python -m uvicorn main:app --host 0.0.0.0 --port 8001 }"
+
+REM 2. Start RescueLink AI Service (port 8000 with virtual environment active)
+start "RescueLink AI" powershell -NoProfile -NoExit -ExecutionPolicy Bypass -Command "& { $r = '%ROOT%'; Set-Location ($r + 'RescueLink AI'); if (Test-Path '.\.venv\Scripts\Activate.ps1') { & '.\.venv\Scripts\Activate.ps1'; Write-Host 'Virtual environment activated (.venv)' -ForegroundColor Green; .\.venv\Scripts\python.exe -m uvicorn api.main:app --reload --host 0.0.0.0 --port 8000 } elseif (Test-Path ($r + '.venv\Scripts\Activate.ps1')) { & ($r + '.venv\Scripts\Activate.ps1'); Write-Host 'Root virtual environment activated' -ForegroundColor Green; python -m uvicorn api.main:app --reload --host 0.0.0.0 --port 8000 } else { Write-Warning 'Virtual environment (.venv) not found! Running with system python...'; python -m uvicorn api.main:app --reload --host 0.0.0.0 --port 8000 } }"
+
+REM 3. Start Web Dashboard (port 5173)
 start "RescueLink Web" powershell -NoProfile -NoExit -ExecutionPolicy Bypass -Command "& {Set-Location '%ROOT%Frontend\Web\dispatcher_dashboard'; %PKG_MGR% run dev}"
+
+REM 4. Start Mobile Terminal
 start "RescueLink Mobile" powershell -NoProfile -NoExit -Command "& {Set-Location '%ROOT%Frontend\Mobile'}"
 
+REM 5. Open Web Dashboard in browser
 start /B powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Sleep -Seconds 4; Start-Process 'http://localhost:5173'"
 
 echo.
 echo Services launched. Browser will open shortly.
 exit /b 0
+

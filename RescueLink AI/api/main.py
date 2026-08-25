@@ -45,8 +45,9 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Paths
-MODEL_PATH = "models/emergency_model.pt"
-META_PATH = "models/label_meta.json"
+_BASE_DIR = Path(__file__).parent.parent  # RescueLink AI/
+MODEL_PATH = str(_BASE_DIR / "models" / "emergency_model.pt")
+META_PATH  = str(_BASE_DIR / "models" / "label_meta.json")
 MAX_TEXT_LENGTH = int(os.getenv("AI_MAX_TEXT_LENGTH", "4000"))
 LOW_CONFIDENCE_THRESHOLD = float(os.getenv("AI_LOW_CONFIDENCE_THRESHOLD", "0.7"))
 AI_INTERNAL_TOKEN = os.getenv("AI_INTERNAL_TOKEN")
