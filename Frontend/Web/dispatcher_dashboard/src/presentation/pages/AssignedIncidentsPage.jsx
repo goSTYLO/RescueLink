@@ -35,8 +35,8 @@ export function AssignedIncidentsPage() {
     }
   }, [user.role, navigate]);
 
-  const fetchIncidents = useCallback(async () => {
-    setLoading(true);
+  const fetchIncidents = useCallback(async (isSilent = false) => {
+    if (!isSilent) setLoading(true);
     setError(null);
     try {
       const result = await getIncidents({ limit: 40, offset: 0, withMeta: false });
@@ -46,16 +46,16 @@ export function AssignedIncidentsPage() {
       setError(err.message || 'Failed to load incidents');
       setIncidents([]);
     } finally {
-      setLoading(false);
+      if (!isSilent) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     if (user.role !== ROLES.DEPARTMENT_HEAD) return;
-    fetchIncidents();
+    fetchIncidents(false);
     const intervalMs = wsConnected ? POLLING_WHEN_WS_CONNECTED_MS : POLLING_INTERVAL_MS;
-    const intervalId = setInterval(fetchIncidents, intervalMs);
-    const handleUpdated = () => fetchIncidents();
+    const intervalId = setInterval(() => fetchIncidents(true), intervalMs);
+    const handleUpdated = () => fetchIncidents(true);
     window.addEventListener('incident:updated', handleUpdated);
     return () => {
       clearInterval(intervalId);

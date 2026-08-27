@@ -38,33 +38,34 @@ const GLOBAL_EVENT_ROLES = new Set([
 const DEPARTMENT_SCOPED_ROLES = new Set([
   ROLES.DEPARTMENT_ADMIN,
   ROLES.DEPARTMENT_HEAD,
+  'personnel',
   ROLES.RESPONDER,
 ]);
 
 // Normalize role from various API formats
 function normalizeRole(role) {
   if (!role || typeof role !== 'string') return null;
-  const r = role.trim().toLowerCase();
+  const r = role.trim().toLowerCase().replace(/_/g, '-');
   const map = {
-    'super_admin': ROLES.ADMIN,
     'super-admin': ROLES.ADMIN,
+    'superadmin': ROLES.ADMIN,
     'admin': ROLES.ADMIN,
     'dispatcher': ROLES.DISPATCHER,
     'supervisor': ROLES.SUPERVISOR,
-    'department_admin': ROLES.DEPARTMENT_ADMIN,
     'department-admin': ROLES.DEPARTMENT_ADMIN,
-    'department_head': ROLES.DEPARTMENT_HEAD,
     'department-head': ROLES.DEPARTMENT_HEAD,
+    'personnel': 'personnel',
     'responder': ROLES.RESPONDER,
+    'volunteer': ROLES.RESPONDER,
     'user': ROLES.USER,
   };
   return map[r] || r;
 }
 
 /**
- * Get department_ids for departments assigned to this incident (via dispatches).
+ * Get department_ids for departments assigned to this incident (via dispatches or escalations).
  * @param {number} reportId - Incident report ID
- * @returns {Promise<number[]>} - Array of department_ids
+ * @returns {Promise<number[]>} - Array of numeric department_ids
  */
 async function getIncidentAssignedDepartmentIds(reportId) {
   if (!reportId) return [];
@@ -73,10 +74,18 @@ async function getIncidentAssignedDepartmentIds(reportId) {
       `SELECT DISTINCT d.department_id 
        FROM dispatches dp 
        JOIN departments d ON d.code = dp.department_code 
-       WHERE dp.report_id = $1`,
+       WHERE dp.report_id = $1
+       UNION
+       SELECT ie.to_department_id AS department_id
+       FROM incident_escalations ie
+       WHERE ie.report_id = $1 AND ie.status IN ('pending', 'accepted')
+       UNION
+       SELECT ie.from_department_id AS department_id
+       FROM incident_escalations ie
+       WHERE ie.report_id = $1 AND ie.status IN ('pending', 'accepted')`,
       [reportId]
     );
-    return res.rows.map((r) => r.department_id).filter(Boolean);
+    return res.rows.map((r) => Number(r.department_id)).filter((id) => Number.isFinite(id) && id > 0);
   } catch {
     return [];
   }
@@ -220,7 +229,17 @@ function init(server) {
       assignedDeptIds = assignedDeptIds != null ? [assignedDeptIds] : [];
     }
 
-    const assignedSet = new Set(assignedDeptIds);
+    const assignedSet = new Set(assignedDeptIds.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0));
+    if (data.to_department_id != null && Number.isFinite(Number(data.to_department_id))) {
+      assignedSet.add(Number(data.to_department_id));
+    }
+    if (data.from_department_id != null && Number.isFinite(Number(data.from_department_id))) {
+      assignedSet.add(Number(data.from_department_id));
+    }
+    if (data.department_id != null && Number.isFinite(Number(data.department_id))) {
+      assignedSet.add(Number(data.department_id));
+    }
+
     const message = JSON.stringify({ event, data });
     const toSend = [];
     const applicationUserId = data.user_id ?? data.userId;
@@ -303,6 +322,7 @@ function init(server) {
       if (ws.readyState !== WebSocket.OPEN) continue;
 
       const { userId, role, departmentId, supportedIncidentTypes } = meta;
+      const clientDeptId = departmentId != null && Number.isFinite(Number(departmentId)) ? Number(departmentId) : null;
 
       // Application lifecycle events (approve / reject / revoke): deliver to applicant
       // and global staff roles. These payloads use user_id, not report_id.
@@ -325,7 +345,7 @@ function init(server) {
 
       // Reporter (user): own incidents only — never volunteer alert modals
       if (role === ROLES.USER) {
-        if (!isResponderAlert && !isBackupAlert && reporterId != null && reporterId === userId) {
+        if (!isResponderAlert && !isBackupAlert && reporterId != null && Number(reporterId) === Number(userId)) {
           toSend.push(ws);
         }
         continue;
@@ -398,15 +418,15 @@ function init(server) {
           toSend.push(ws);
           continue;
         }
-        if (departmentId != null && assignedSet.has(departmentId)) {
+        if (clientDeptId != null && assignedSet.has(clientDeptId)) {
           toSend.push(ws);
           continue;
         }
       }
 
       // Department-scoped: only if incident assigned to their department
-      if (DEPARTMENT_SCOPED_ROLES.has(role) && departmentId != null) {
-        if (assignedSet.has(departmentId)) {
+      if (DEPARTMENT_SCOPED_ROLES.has(role) && clientDeptId != null) {
+        if (assignedSet.has(clientDeptId)) {
           toSend.push(ws);
         }
         continue;

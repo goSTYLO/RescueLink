@@ -81,8 +81,8 @@ export function DepartmentDashboardPage() {
   const normalizedRole = normalizeRole(user.role);
   const isAuthorizedRole = normalizedRole === ROLES.DEPARTMENT_ADMIN || normalizedRole === ROLES.DEPARTMENT_HEAD || normalizedRole === ROLES.PERSONNEL || normalizedRole === ROLES.SUPER_ADMIN;
 
-  const fetchIncidents = useCallback(async () => {
-    setLoading(true);
+  const fetchIncidents = useCallback(async (isSilent = false) => {
+    if (!isSilent) setLoading(true);
     setError(null);
     try {
       const result = await getIncidents({
@@ -99,7 +99,7 @@ export function DepartmentDashboardPage() {
       setError(err.message || 'Failed to load incidents');
       setIncidents([]);
     } finally {
-      setLoading(false);
+      if (!isSilent) setLoading(false);
     }
   }, [isArchivedView, isVolunteerView, searchQuery]);
 
@@ -109,9 +109,9 @@ export function DepartmentDashboardPage() {
     }
   }, [isAuthorizedRole, navigate]);
 
-  const refetchTeamsAndUnits = useCallback(() => {
+  const refetchTeamsAndUnits = useCallback((isSilent = false) => {
     if (!isAuthorizedRole) return;
-    setTeamsLoading(true);
+    if (!isSilent) setTeamsLoading(true);
     getResponderTeams({ limit: 200 })
       .then((list) => {
         const arr = Array.isArray(list) ? list : [];
@@ -121,7 +121,9 @@ export function DepartmentDashboardPage() {
         }
       })
       .catch(() => {})
-      .finally(() => setTeamsLoading(false));
+      .finally(() => {
+        if (!isSilent) setTeamsLoading(false);
+      });
     if (departmentId) {
       getDepartmentUnits(departmentId)
         .then((rows) => {
@@ -139,12 +141,12 @@ export function DepartmentDashboardPage() {
 
   useEffect(() => {
     if (!isAuthorizedRole) return;
-    fetchIncidents();
+    fetchIncidents(false);
     const intervalMs = wsConnected ? POLLING_WHEN_WS_CONNECTED_MS : POLLING_INTERVAL_MS;
-    const intervalId = setInterval(fetchIncidents, intervalMs);
+    const intervalId = setInterval(() => fetchIncidents(true), intervalMs);
     const handleUpdated = () => {
-      fetchIncidents();
-      refetchTeamsAndUnits();
+      fetchIncidents(true);
+      refetchTeamsAndUnits(true);
     };
     window.addEventListener('incident:updated', handleUpdated);
     return () => {

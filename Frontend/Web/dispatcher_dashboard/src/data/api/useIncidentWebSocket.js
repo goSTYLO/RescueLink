@@ -27,6 +27,7 @@ export function useIncidentWebSocket() {
   const [lastDispatched, setLastDispatched] = useState(null);
   const [lastBackupRequested, setLastBackupRequested] = useState(null);
   const [lastBackupJoined, setLastBackupJoined] = useState(null);
+  const [lastEscalated, setLastEscalated] = useState(null);
   const wsRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
   const reconnectAttemptRef = useRef(0);
@@ -92,6 +93,10 @@ export function useIncidentWebSocket() {
             setLastBackupJoined({ eventName, data });
           }
 
+          if (eventName.startsWith('incident:escalat')) {
+            setLastEscalated({ eventName, data });
+          }
+
           const title = formatNotificationTitle(eventName, data);
           const body = formatNotificationBody(eventName, data);
           if (title) {
@@ -99,7 +104,7 @@ export function useIncidentWebSocket() {
               {
                 id: `ws-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
                 eventType: eventName,
-                type: eventName.includes('created') ? 'alert' : eventName.includes('resolved') || eventName.includes('confirmed') ? 'success' : 'info',
+                type: eventName.includes('created') || eventName.includes('escalated') ? 'alert' : eventName.includes('resolved') || eventName.includes('confirmed') || eventName.includes('accepted') ? 'success' : 'info',
                 title,
                 body,
                 time: 'Just now',
@@ -155,12 +160,9 @@ export function useIncidentWebSocket() {
       const ws = wsRef.current;
       wsRef.current = null;
       if (ws) {
-        // Avoid "closed before connection established" when React Strict Mode
-        // unmounts during CONNECTING state - only close if already open/closing
         if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CLOSING) {
           ws.close();
         }
-        // If CONNECTING: let it finish; onopen will close it when mounted is false
       }
     };
   }, []);
@@ -177,6 +179,8 @@ export function useIncidentWebSocket() {
     clearLastBackupRequested: () => setLastBackupRequested(null),
     lastBackupJoined,
     clearLastBackupJoined: () => setLastBackupJoined(null),
+    lastEscalated,
+    clearLastEscalated: () => setLastEscalated(null),
   };
 }
 

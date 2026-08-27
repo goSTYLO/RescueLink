@@ -118,7 +118,7 @@ export function Layout({ children }) {
   const notificationsRef = useRef(null);
   const notificationRefreshRef = useRef(null);
 
-  const { status: wsStatus, clearNotifications, lastHighSeverity, clearLastHighSeverity, lastDispatched, clearLastDispatched, lastBackupRequested, clearLastBackupRequested, lastBackupJoined, clearLastBackupJoined } = useIncidentWebSocket();
+  const { status: wsStatus, clearNotifications, lastHighSeverity, clearLastHighSeverity, lastDispatched, clearLastDispatched, lastBackupRequested, clearLastBackupRequested, lastBackupJoined, clearLastBackupJoined, lastEscalated, clearLastEscalated } = useIncidentWebSocket();
   const [apiNotifications, setApiNotifications] = useState([]);
   const [apiUnreadCount, setApiUnreadCount] = useState(0);
 
@@ -172,7 +172,7 @@ export function Layout({ children }) {
       id: `api-${n.notification_id}`,
       notificationId: n.notification_id,
       eventType: eventType ? `incident:${eventType}` : null,
-      type: (n.message || '').toLowerCase().includes('resolved') ? 'success' : (n.message || '').toLowerCase().includes('reported') ? 'alert' : 'info',
+      type: (n.message || '').toLowerCase().includes('resolved') ? 'success' : (n.message || '').toLowerCase().includes('reported') || (n.message || '').toLowerCase().includes('escalat') || (n.message || '').toLowerCase().includes('assistance') ? 'alert' : 'info',
       title: (n.message || 'Notification').slice(0, 80),
       body: n.message || '',
       time: formatNotificationTime(n.sent_at),
@@ -265,6 +265,32 @@ export function Layout({ children }) {
   }, [lastBackupJoined, clearLastBackupJoined]);
 
   useEffect(() => {
+    if (!lastEscalated?.data) return;
+    const { eventName, data } = lastEscalated;
+    const reportId = data.report_id ?? data.reportId;
+    const isEscalationRequest = eventName === 'incident:escalated';
+    const title = isEscalationRequest
+      ? (reportId ? `Assistance Requested — Incident #${reportId}` : 'Assistance Requested')
+      : (reportId ? `Assistance Update — Incident #${reportId}` : 'Assistance Update');
+    const toDept = data.to_department_name || (data.to_department_id ? `Department #${data.to_department_id}` : '');
+    const body = toDept
+      ? `${isEscalationRequest ? 'Target:' : 'Status with'} ${toDept}${data.urgency ? ` (${data.urgency})` : ''}`
+      : (data.barangay ? `In ${data.barangay}` : 'Assistance update received');
+
+    Swal.fire({
+      icon: isEscalationRequest ? 'warning' : 'info',
+      title,
+      text: body,
+      timer: 6000,
+      showConfirmButton: true,
+      timerProgressBar: true,
+      toast: true,
+      position: 'top-end',
+    });
+    clearLastEscalated();
+  }, [lastEscalated, clearLastEscalated]);
+
+  useEffect(() => {
     localStorage.setItem(SIDEBAR_STORAGE_KEY, JSON.stringify(isCollapsed));
   }, [isCollapsed]);
 
@@ -288,11 +314,7 @@ export function Layout({ children }) {
   const isAdmin = isSuperAdmin; // legacy: Admin Actions / full access
   const isDeptRole = [ROLES.DEPARTMENT_ADMIN, ROLES.DEPARTMENT_HEAD, ROLES.PERSONNEL].includes(role);
 
-  const filteredApi = isDeptRole
-    ? apiNotifications.filter((n) => n.event_type === 'dispatched' || (n.message || '').toLowerCase().includes('assigned'))
-    : apiNotifications;
-
-  const notifications = filteredApi.map(mapApiToUi);
+  const notifications = apiNotifications.map(mapApiToUi);
 
   const handleNotificationClick = async (notification) => {
     if (notification.notificationId && notification.unread) {
