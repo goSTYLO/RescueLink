@@ -782,6 +782,7 @@ export function IncidentDetailsPage() {
   async function handleCreateEscalation(payload) {
     const row = await createIncidentEscalation(id, payload);
     setEscalations((prev) => [row, ...prev]);
+    window.dispatchEvent(new CustomEvent('incident:updated', { detail: { incidentId: id } }));
     Swal.fire({
       icon: 'success',
       title: 'Assistance Requested',
@@ -795,6 +796,7 @@ export function IncidentDetailsPage() {
   async function handleEscalationStatusUpdate(escalationId, status, responseNotes) {
     const updated = await updateIncidentEscalationStatus(id, escalationId, { status, response_notes: responseNotes });
     setEscalations((prev) => prev.map((e) => (e.id === escalationId ? updated : e)));
+    window.dispatchEvent(new CustomEvent('incident:updated', { detail: { incidentId: id, status } }));
   }
 
   // Persist coordination notes to sessionStorage only for mock IDs
@@ -2299,23 +2301,6 @@ export function IncidentDetailsPage() {
                         </DialogContent>
                       </Dialog>
 
-                      {/* Inter-department assistance request */}
-                      {canRequestEscalation && (
-                        <Button
-                          className="w-full gap-2 relative"
-                          variant="outline"
-                          onClick={() => setEscalationModalOpen(true)}
-                        >
-                          <HandHelping className="w-4 h-4" />
-                          Request Assistance
-                          {activeEscalationsCount > 0 && (
-                            <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-orange-500 text-[9px] font-bold text-white">
-                              {activeEscalationsCount}
-                            </span>
-                          )}
-                        </Button>
-                      )}
-
                       <Dialog open={addDepartmentDialogOpen} onOpenChange={setAddDepartmentDialogOpen}>
                         <DialogTrigger asChild>
                           <Button variant="outline" className="w-full gap-2">
@@ -2373,26 +2358,6 @@ export function IncidentDetailsPage() {
                       >
                         <Star className="w-4 h-4" />
                         {incident.highPriority ? 'Remove Priority' : 'Mark High Priority'}
-                      </Button>
-                    </div>
-                  )}
-
-                  {/* Show Request Assistance to dept admins not covered by isSupervisor */}
-                  {!isSupervisor && canRequestEscalation && !incidentIsClosed && (
-                    <div className="space-y-2">
-                      <p className="text-xs uppercase tracking-wide text-muted font-semibold">Assistance</p>
-                      <Button
-                        className="w-full gap-2 relative"
-                        variant="outline"
-                        onClick={() => setEscalationModalOpen(true)}
-                      >
-                        <HandHelping className="w-4 h-4" />
-                        Request Inter-Dept Assistance
-                        {activeEscalationsCount > 0 && (
-                          <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-orange-500 text-[9px] font-bold text-white">
-                            {activeEscalationsCount}
-                          </span>
-                        )}
                       </Button>
                     </div>
                   )}

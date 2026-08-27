@@ -378,6 +378,7 @@ const Incident = {
           SELECT ie.report_id FROM incident_escalations ie
           JOIN departments d ON (ie.to_department_id = d.department_id OR ie.from_department_id = d.department_id)
           WHERE LOWER(d.code) = LOWER($${paramCount})
+            AND ie.status IN ('pending', 'accepted')
         )
       )`;
       params.push(department_code);
@@ -607,6 +608,7 @@ const Incident = {
           SELECT ie.report_id FROM incident_escalations ie
           JOIN departments d ON (ie.to_department_id = d.department_id OR ie.from_department_id = d.department_id)
           WHERE LOWER(d.code) = LOWER($${paramCount})
+            AND ie.status IN ('pending', 'accepted')
         )
       )`;
       params.push(department_code);

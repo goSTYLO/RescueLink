@@ -2,7 +2,17 @@ import { API_URL, ONESIGNAL_APP_ID } from '@/core/config/app.config';
 import { getAuthHeaders } from '@/data/api/http';
 
 let isInitialized = false;
-const DEVICE_PROMPT_KEY = 'rescuelink_push_prompted';
+
+/**
+ * Get current push notification state for the browser/user.
+ * @returns {Promise<'granted'|'denied'|'default'|'unsupported'>}
+ */
+export async function getPushNotificationState() {
+  if (typeof window === 'undefined' || !('Notification' in window)) {
+    return 'unsupported';
+  }
+  return Notification.permission;
+}
 
 /**
  * Initialize OneSignal Web SDK.
@@ -29,12 +39,13 @@ export async function initOneSignal(onNotificationClick) {
       // Handle notification clicks — deep-link to incident detail
       OneSignal.Notifications.addEventListener('click', (event) => {
         const data = event?.notification?.additionalData;
-        if (data?.report_id) {
+        const reportId = data?.report_id || data?.reportId;
+        if (reportId) {
           if (typeof onNotificationClick === 'function') {
-            onNotificationClick(data.report_id);
+            onNotificationClick(reportId);
           } else {
             const tab = data?.tab ? `?tab=${data.tab}` : '';
-            window.location.href = `/incidents/${data.report_id}${tab}`;
+            window.location.href = `/incidents/${reportId}${tab}`;
           }
         }
       });
@@ -46,6 +57,12 @@ export async function initOneSignal(onNotificationClick) {
           await syncOneSignalSubscriptionToBackend(subscriptionId);
         }
       });
+
+      // If subscription ID already exists, sync it
+      const currentSubId = OneSignal.User.PushSubscription?.id;
+      if (currentSubId) {
+        await syncOneSignalSubscriptionToBackend(currentSubId);
+      }
     } catch (err) {
       console.warn('[OneSignal Web] Initialization error:', err?.message);
     }
@@ -54,7 +71,7 @@ export async function initOneSignal(onNotificationClick) {
 
 /**
  * Set OneSignal external user ID, synchronize user tags, and subscribe to push
- * notifications on login (prompting once per device if permission not yet granted).
+ * notifications on login or session restore.
  *
  * @param {string|number} userId - Internal app user_id
  * @param {{ role?: string, departmentId?: number|string, departmentCode?: string }} [metadata]
@@ -83,19 +100,14 @@ export async function setOneSignalUser(userId, metadata = {}) {
         await OneSignal.User.addTags(tags);
       }
 
-      // 3. Auto-subscribe on login
-      try {
-        if (typeof Notification !== 'undefined' && Notification.permission !== 'denied') {
-          await OneSignal.User.PushSubscription.optIn();
-        }
-      } catch (optInErr) {
-        console.warn('[OneSignal Web] optIn attempt note:', optInErr?.message);
+      // 3. Auto opt-in if permission is already granted
+      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
         try {
-          await OneSignal.Notifications.requestPermission();
+          await OneSignal.User.PushSubscription.optIn();
         } catch (_) {}
       }
 
-      // 4. Sync current subscription ID to backend
+      // 4. Sync current subscription ID if available
       const subscriptionId = OneSignal.User.PushSubscription?.id;
       if (subscriptionId) {
         await syncOneSignalSubscriptionToBackend(subscriptionId);
@@ -124,31 +136,52 @@ export async function logoutOneSignal() {
 }
 
 /**
- * Manually request push notification permission.
+ * Manually request push notification permission via user gesture (button click).
+ * Prompts the browser, opts in to OneSignal push subscription, and syncs subscription ID to backend.
  * Resolves to true when granted, false otherwise.
  */
 export async function requestPushPermission() {
-  if (typeof window === 'undefined' || !ONESIGNAL_APP_ID) return false;
+  if (typeof window === 'undefined') return false;
 
-  return new Promise((resolve) => {
-    window.OneSignalDeferred = window.OneSignalDeferred || [];
+  let isGranted = false;
+
+  // 1. Request permission directly in current user-activation stack
+  try {
+    if ('Notification' in window && typeof Notification.requestPermission === 'function') {
+      const res = await Notification.requestPermission();
+      isGranted = res === 'granted';
+    }
+  } catch (err) {
+    console.warn('[Push] Native requestPermission error:', err);
+  }
+
+  // 2. If granted or OneSignal available, handle opt-in & sync
+  if (ONESIGNAL_APP_ID && window.OneSignalDeferred) {
     window.OneSignalDeferred.push(async function (OneSignal) {
       try {
-        await OneSignal.User.PushSubscription.optIn();
-        const permission = typeof Notification !== 'undefined' ? Notification.permission === 'granted' : true;
-        resolve(permission);
-      } catch {
-        resolve(false);
+        if (isGranted) {
+          if (OneSignal.User?.PushSubscription?.optIn) {
+            await OneSignal.User.PushSubscription.optIn();
+          }
+          const subId = OneSignal.User?.PushSubscription?.id;
+          if (subId) {
+            await syncOneSignalSubscriptionToBackend(subId);
+          }
+        }
+      } catch (err) {
+        console.warn('[OneSignal Web] optIn error:', err?.message);
       }
     });
-  });
+  }
+
+  return isGranted;
 }
 
 /**
  * Sync the OneSignal push subscription ID to the RescueLink backend.
  * Associates the browser's push subscription with the authenticated user.
  */
-async function syncOneSignalSubscriptionToBackend(subscriptionId) {
+export async function syncOneSignalSubscriptionToBackend(subscriptionId) {
   try {
     const token = sessionStorage.getItem('token');
     if (!token || !subscriptionId) return;

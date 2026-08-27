@@ -100,7 +100,7 @@ const Dispatch = {
 
     if (department_code) {
       paramCount++;
-      query += ` AND department_code = $${paramCount}`;
+      query += ` AND LOWER(department_code) = LOWER($${paramCount})`;
       params.push(department_code);
     }
 

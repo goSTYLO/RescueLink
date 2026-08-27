@@ -109,13 +109,13 @@ const IncidentEscalation = {
     await this.ensureSchema();
     const res = await pool.query(
       `UPDATE incident_escalations
-       SET status               = $1,
-           response_notes       = COALESCE($2, response_notes),
-           responded_by_user_id = COALESCE($3, responded_by_user_id),
-           responded_at         = CASE WHEN $1 IN ('accepted','declined') THEN CURRENT_TIMESTAMP ELSE responded_at END,
-           resolved_at          = CASE WHEN $1 = 'resolved' THEN CURRENT_TIMESTAMP ELSE resolved_at END,
+       SET status               = $1::varchar,
+           response_notes       = COALESCE($2::text, response_notes),
+           responded_by_user_id = COALESCE($3::integer, responded_by_user_id),
+           responded_at         = CASE WHEN $1::varchar IN ('accepted','declined') THEN CURRENT_TIMESTAMP ELSE responded_at END,
+           resolved_at          = CASE WHEN $1::varchar = 'resolved' THEN CURRENT_TIMESTAMP ELSE resolved_at END,
            updated_at           = CURRENT_TIMESTAMP
-       WHERE id = $4
+       WHERE id = $4::integer
        RETURNING *`,
       [status, response_notes || null, responded_by_user_id || null, id]
     );

@@ -22,6 +22,11 @@ jest.mock('../src/models/incidentCoordinationNote', () => ({
   create: jest.fn().mockResolvedValue({ id: 99 }),
 }));
 
+jest.mock('../src/models/dispatch', () => ({
+  findAll: jest.fn().mockResolvedValue([{ dispatch_id: 1 }]),
+  create: jest.fn().mockResolvedValue({ dispatch_id: 1 }),
+}));
+
 jest.mock('../src/models/user', () => ({
   findById: jest.fn().mockResolvedValue({
     user_id: 1,
@@ -51,6 +56,7 @@ jest.mock('../src/utils/auditLog', () => ({
 const IncidentEscalation = require('../src/models/incidentEscalation');
 const User = require('../src/models/user');
 const Department = require('../src/models/department');
+const Dispatch = require('../src/models/dispatch');
 const pool = require('../src/config/db');
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -207,6 +213,22 @@ describe('listEscalations', () => {
     expect(res.json).toHaveBeenCalledWith({ escalations: expect.arrayContaining([{ id: 1 }]) });
   });
 
+  test('denies department-admin if department is not assigned and has no active escalation', async () => {
+    User.findById.mockResolvedValueOnce({ user_id: 1, department_id: 2 });
+    Department.findById.mockResolvedValueOnce({ department_id: 2, code: 'cdrmo' });
+    Dispatch.findAll.mockResolvedValueOnce([]); // No dispatch
+    IncidentEscalation.findByReportId.mockResolvedValueOnce([
+      { id: 1, to_department_id: 3, from_department_id: 4, status: 'cancelled' },
+    ]); // No active escalation involving dept 2
+
+    const req = makeReq({ user: { user_id: 1, role: 'department-admin' } });
+    const res = makeRes();
+
+    await listEscalations(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+  });
+
   test('denies citizen from listing escalations', async () => {
     const req = makeReq({ user: { user_id: 5, role: 'user' } });
     const res = makeRes();
@@ -305,6 +327,70 @@ describe('updateEscalationStatus', () => {
     await updateEscalationStatus(req, res);
 
     expect(res.status).toHaveBeenCalledWith(400);
+  });
+
+  test('allows requesting dept admin to cancel escalation and cleans up dispatch', async () => {
+    User.findById.mockResolvedValueOnce({ user_id: 1, department_id: 2 });
+    Department.findById.mockResolvedValueOnce({ department_id: 3, code: 'bfp' });
+    IncidentEscalation.updateStatus.mockResolvedValueOnce({ ...existingEscalation, status: 'cancelled' });
+
+    const req = makeReq({
+      user: { user_id: 1, role: 'department-admin' },
+      params: { id: '1', escalationId: '10' },
+      body: { status: 'cancelled', response_notes: 'No longer needed' },
+    });
+    const res = makeRes();
+
+    await updateEscalationStatus(req, res);
+
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ escalation: expect.any(Object) }));
+    expect(pool.query).toHaveBeenCalledWith(
+      expect.stringContaining('DELETE FROM dispatches'),
+      expect.arrayContaining([1, 'bfp'])
+    );
+  });
+
+  test('allows target dept admin to decline escalation and cleans up dispatch', async () => {
+    User.findById.mockResolvedValueOnce({ user_id: 2, department_id: 3 });
+    Department.findById.mockResolvedValueOnce({ department_id: 3, code: 'bfp' });
+    IncidentEscalation.updateStatus.mockResolvedValueOnce({ ...existingEscalation, status: 'declined' });
+
+    const req = makeReq({
+      user: { user_id: 2, role: 'department-admin' },
+      params: { id: '1', escalationId: '10' },
+      body: { status: 'declined', response_notes: 'No units available' },
+    });
+    const res = makeRes();
+
+    await updateEscalationStatus(req, res);
+
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ escalation: expect.any(Object) }));
+    expect(pool.query).toHaveBeenCalledWith(
+      expect.stringContaining('DELETE FROM dispatches'),
+      expect.arrayContaining([1, 'bfp'])
+    );
+  });
+
+  test('accepts "rejected" as an alias for "declined"', async () => {
+    User.findById.mockResolvedValueOnce({ user_id: 2, department_id: 3 });
+    Department.findById.mockResolvedValueOnce({ department_id: 3, code: 'bfp' });
+    IncidentEscalation.updateStatus.mockResolvedValueOnce({ ...existingEscalation, status: 'declined' });
+
+    const req = makeReq({
+      user: { user_id: 2, role: 'department-admin' },
+      params: { id: '1', escalationId: '10' },
+      body: { status: 'rejected', response_notes: 'Rejected by department' },
+    });
+    const res = makeRes();
+
+    await updateEscalationStatus(req, res);
+
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ escalation: expect.any(Object) }));
+    expect(IncidentEscalation.updateStatus).toHaveBeenCalledWith(
+      10,
+      'declined',
+      expect.objectContaining({ response_notes: 'Rejected by department' })
+    );
   });
 
   test('denies citizen from updating escalation status', async () => {

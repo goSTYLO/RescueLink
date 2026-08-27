@@ -147,7 +147,7 @@ async function sendPushToUsers(userIds, payload, pool = null) {
         channel_for_external_user_ids: 'push',
         headings: { en: payload.title },
         contents: { en: payload.body },
-        ...(payload.url ? { url: payload.url } : {}),
+        ...(payload.url ? { url: payload.url, web_url: payload.url } : {}),
         ...(payload.data ? { data: payload.data } : {}),
       };
 
@@ -163,6 +163,22 @@ async function sendPushToUsers(userIds, payload, pool = null) {
 }
 
 /**
+ * Format incident type label supporting single or multiple types.
+ */
+function getIncidentTypeLabel(data) {
+  if (!data) return 'Incident';
+  if (Array.isArray(data.incident_types) && data.incident_types.length > 0) {
+    return data.incident_types
+      .map((t) => (typeof t === 'string' ? t.charAt(0).toUpperCase() + t.slice(1).toLowerCase() : String(t)))
+      .join(', ');
+  }
+  if (typeof data.incident_type === 'string' && data.incident_type.trim()) {
+    return data.incident_type.charAt(0).toUpperCase() + data.incident_type.slice(1).toLowerCase();
+  }
+  return 'Incident';
+}
+
+/**
  * Build a push title for a given incident event.
  */
 function formatPushTitle(event) {
@@ -172,8 +188,15 @@ function formatPushTitle(event) {
     'incident:dispatched': '📋 Incident Assigned',
     'incident:status_updated': '🔄 Incident Status Updated',
     'incident:resolution_confirmed': '✅ Incident Resolved',
+    'incident:reclassified': '🔄 Incident Reclassified',
+    'incident:note_added': '📝 New Note Added',
     'incident:archived': '📦 Incident Archived',
+    'incident:unarchived': '📦 Incident Restored',
     'backup_request': '🆘 Backup Requested',
+    'responder:backup_requested': '🆘 Backup Requested',
+    'responder:backup_joined': '🤝 Backup Volunteer Joined',
+    'responder:status_changed': '👷 Volunteer Status Updated',
+    'incident:accepted': '✅ Volunteer Accepted Incident',
     'incident:escalated': '🤝 Assistance Requested',
     'incident:escalation_accepted': '✅ Assistance Accepted',
     'incident:escalation_declined': '❌ Assistance Declined',
@@ -188,7 +211,7 @@ function formatPushTitle(event) {
  */
 function formatPushBody(event, data) {
   const reportId = data?.report_id ?? data?.reportId;
-  const incidentType = data?.incident_type || 'Incident';
+  const incidentType = getIncidentTypeLabel(data);
   const barangay = data?.barangay ? ` in ${data.barangay}` : '';
   const severity = data?.severity_level ? ` (${data.severity_level})` : '';
   const toDeptName = data?.to_department_name || 'another department';
@@ -200,19 +223,28 @@ function formatPushBody(event, data) {
     case 'incident:verified':
       return `Incident #${reportId} (${incidentType}) has been verified${barangay}`;
     case 'incident:dispatched':
-      return `Incident #${reportId} (${incidentType}) assigned${barangay}`;
+      return `Incident #${reportId} (${incidentType}${severity}) assigned to department${barangay}`;
     case 'incident:status_updated':
       return `Incident #${reportId} is now ${data?.status || 'updated'}${barangay ? ` (${data.barangay})` : ''}`;
     case 'incident:resolution_confirmed':
       return `Incident #${reportId} has been resolved${barangay ? ` (${data.barangay})` : ''}`;
+    case 'incident:reclassified':
+      return `Incident #${reportId} reclassified as ${incidentType}${barangay}`;
+    case 'incident:note_added':
+      return `Incident #${reportId}: New coordination note added${barangay ? ` (${data.barangay})` : ''}`;
     case 'incident:archived':
       return `Incident #${reportId} has been archived`;
+    case 'incident:unarchived':
+      return `Incident #${reportId} restored from archive`;
     case 'backup_request':
-      return `Backup needed for Incident #${reportId}${barangay}`;
+    case 'responder:backup_requested':
+      return `Backup requested for Incident #${reportId}${barangay}`;
+    case 'responder:backup_joined':
+      return `${data?.volunteer_name || 'Volunteer'} joined as backup for Incident #${reportId}`;
     case 'incident:escalated':
       return `Incident #${reportId}${urgency}: Assistance requested from ${toDeptName}${barangay}`;
     case 'incident:escalation_accepted':
-      return `Incident #${reportId}: ${toDeptName} has accepted your assistance request`;
+      return `Incident #${reportId}: ${toDeptName} has accepted the assistance request`;
     case 'incident:escalation_declined':
       return `Incident #${reportId}: ${toDeptName} declined the assistance request`;
     case 'incident:escalation_resolved':
@@ -220,8 +252,8 @@ function formatPushBody(event, data) {
     case 'incident:escalation_cancelled':
       return `Incident #${reportId}: Assistance request was cancelled`;
     default:
-      return `Incident #${reportId} updated`;
+      return reportId != null ? `Incident #${reportId} updated` : 'Incident updated';
   }
 }
 
-module.exports = { sendPushToUsers, formatPushTitle, formatPushBody };
+module.exports = { sendPushToUsers, formatPushTitle, formatPushBody, getIncidentTypeLabel };

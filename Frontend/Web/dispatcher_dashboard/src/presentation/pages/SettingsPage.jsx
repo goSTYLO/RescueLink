@@ -8,6 +8,7 @@ import { useTheme } from '@/presentation/context/ThemeContext.jsx';
 import { Breadcrumb } from '@/presentation/components/common/Breadcrumb';
 import { ROLES, normalizeRole } from '@/core/constants';
 import { AccessDeniedNotice } from '@/presentation/components/common/AccessDeniedNotice';
+import { requestPushPermission, getPushNotificationState } from '@/core/services/oneSignalWebService';
 
 const SETTINGS_KEY = 'rescuelink_settings';
 
@@ -54,6 +55,19 @@ export function SettingsPage() {
     fireThreshold: false,
     medicalThreshold: false,
   });
+
+  const [browserPermission, setBrowserPermission] = useState('default');
+
+  useEffect(() => {
+    getPushNotificationState().then(setBrowserPermission);
+  }, []);
+
+  const handleRequestBrowserPush = async () => {
+    const granted = await requestPushPermission();
+    const state = await getPushNotificationState();
+    setBrowserPermission(state);
+    updateSetting('pushNotifications', granted);
+  };
 
   const { theme } = useTheme();
   const isLight = theme === 'light';
@@ -229,10 +243,28 @@ export function SettingsPage() {
               </div>
               <div className={rowClass()}>
                 <div>
-                  <Label className="text-foreground">Push Notifications</Label>
-                  <p className="text-sm text-muted mt-0.5">Mobile app push notifications</p>
+                  <Label className="text-foreground">Browser Push Notifications</Label>
+                  <p className="text-sm text-muted mt-0.5">
+                    {browserPermission === 'granted'
+                      ? 'Active — real-time desktop alerts enabled'
+                      : browserPermission === 'denied'
+                        ? 'Blocked — please enable notifications in browser permissions'
+                        : 'Not enabled — click to allow notifications'}
+                  </p>
                 </div>
-                <Switch checked={settings.pushNotifications} onCheckedChange={(v) => updateSetting('pushNotifications', v)} />
+                {browserPermission === 'granted' ? (
+                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                    Active
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleRequestBrowserPush}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                  >
+                    Enable
+                  </button>
+                )}
               </div>
             </div>
           </div>

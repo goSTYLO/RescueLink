@@ -36,6 +36,23 @@ function canReadOwnOrAcceptedIncident(user, incident) {
   return false;
 }
 
+/** Check if a department-scoped user (head/admin) has access via direct dispatch or active escalation */
+async function checkDepartmentIncidentAccess(user, reportId) {
+  if (!user?.user_id) return false;
+  const fullUser = await User.findById(user.user_id);
+  if (!fullUser?.department_id) return false;
+  const dept = await Department.findById(fullUser.department_id);
+  if (dept?.code) {
+    const dispatches = await Dispatch.findAll({ report_id: reportId, department_code: dept.code, limit: 1 });
+    if (dispatches && dispatches.length > 0) return true;
+  }
+  const escalations = await IncidentEscalation.findByReportId(reportId);
+  return escalations.some(
+    (e) => (e.to_department_id === fullUser.department_id || e.from_department_id === fullUser.department_id)
+      && (e.status === 'pending' || e.status === 'accepted')
+  );
+}
+
 function estimateEtaMinutes(distanceMeters, speedKmh = 35) {
   const speedMetersPerMinute = (speedKmh * 1000) / 60;
   return Math.max(1, Math.round(distanceMeters / speedMetersPerMinute));
@@ -175,6 +192,18 @@ async function attachAssignedDepartment(incident, reportId, dispatches = null) {
           ? String(withTeam.department_code || withTeam.department_Code).trim()
           : incident.assigned_department_code;
       }
+
+      incident.dispatches = sourceDispatches.map((d) => {
+        const dCode = (d.department_code ?? d.department_Code ?? '').toString().trim();
+        return {
+          dispatch_id: d.dispatch_id,
+          department_code: dCode || null,
+          department_name: d.department_name ?? d.department_Name ?? (dCode ? departmentNameByCode.get(dCode) : null) ?? dCode ?? null,
+          team_name: d.team_name ? String(d.team_name).trim() : null,
+          response_status: d.response_status || 'Assigned',
+          dispatched_at: d.dispatched_at || null,
+        };
+      });
     }
   } catch (err) {
     console.error('Error attaching assigned department:', err.message);
@@ -520,34 +549,18 @@ const incidentController = {
       // Check ownership: dispatchers/admins see all; department-head/department-admin see if assigned to their department or escalated to/from their department; users see own only
       const deptRole = req.user.role === ROLES.DEPARTMENT_HEAD || req.user.role === ROLES.DEPARTMENT_ADMIN;
       if (deptRole && req.user.user_id) {
-        const fullUser = await User.findById(req.user.user_id);
-        if (fullUser && fullUser.department_id) {
-          const dept = await Department.findById(fullUser.department_id);
-          let hasDeptAccess = false;
-          if (dept && dept.code) {
-            const dispatches = await Dispatch.findAll({ report_id: validatedId, department_code: dept.code, limit: 1 });
-            if (dispatches && dispatches.length > 0) hasDeptAccess = true;
-          }
-          if (!hasDeptAccess) {
-            const escalations = await IncidentEscalation.findByReportId(validatedId);
-            const hasEscAccess = escalations.some(
-              (e) => e.to_department_id === fullUser.department_id || e.from_department_id === fullUser.department_id
-            );
-            if (hasEscAccess) hasDeptAccess = true;
-          }
-
-          if (hasDeptAccess) {
-            const incidentDispatches = await getDispatchesForReport(validatedId, 50);
-            await attachAssignedDepartment(incident, validatedId, incidentDispatches);
-            await attachAcceptedResponder(incident);
-            await attachBackupVolunteers(incident, validatedId);
-            await ensureIncidentBarangay(incident);
-            await attachDispatchEta(incident, validatedId, incidentDispatches);
-            await buildIncidentTimeline(incident, validatedId, incidentDispatches);
-            const duplicateInfo = await getDuplicateInfo(validatedId);
-            if (duplicateInfo) Object.assign(incident, { duplicate_cluster: duplicateInfo.cluster });
-            return res.json(incident);
-          }
+        const hasDeptAccess = await checkDepartmentIncidentAccess(req.user, validatedId);
+        if (hasDeptAccess) {
+          const incidentDispatches = await getDispatchesForReport(validatedId, 50);
+          await attachAssignedDepartment(incident, validatedId, incidentDispatches);
+          await attachAcceptedResponder(incident);
+          await attachBackupVolunteers(incident, validatedId);
+          await ensureIncidentBarangay(incident);
+          await attachDispatchEta(incident, validatedId, incidentDispatches);
+          await buildIncidentTimeline(incident, validatedId, incidentDispatches);
+          const duplicateInfo = await getDuplicateInfo(validatedId);
+          if (duplicateInfo) Object.assign(incident, { duplicate_cluster: duplicateInfo.cluster });
+          return res.json(incident);
         }
       }
       if (!canReadOwnOrAcceptedIncident(req.user, incident)) {
@@ -1447,21 +1460,9 @@ const incidentController = {
       // Same access check as getById: dispatchers/admins see all; department-head/department-admin see if assigned to their department; users see own only
       const deptRole = req.user.role === ROLES.DEPARTMENT_HEAD || req.user.role === ROLES.DEPARTMENT_ADMIN;
       if (deptRole && req.user.user_id) {
-        const fullUser = await User.findById(req.user.user_id);
-        if (fullUser && fullUser.department_id) {
-          const dept = await Department.findById(fullUser.department_id);
-          if (dept && dept.code) {
-            const dispatches = await Dispatch.findAll({ report_id: validatedId, department_code: dept.code, limit: 1 });
-            if (dispatches && dispatches.length > 0) {
-              // Allowed - fall through to fetch notes
-            } else {
-              return res.status(403).json({ error: 'Forbidden. You can only access incidents assigned to your department.' });
-            }
-          } else {
-            return res.status(403).json({ error: 'Forbidden. Department not found.' });
-          }
-        } else {
-          return res.status(403).json({ error: 'Forbidden. User department not set.' });
+        const hasDeptAccess = await checkDepartmentIncidentAccess(req.user, validatedId);
+        if (!hasDeptAccess) {
+          return res.status(403).json({ error: 'Forbidden. You can only access incidents assigned to your department.' });
         }
       } else if (!isResourceOwner(req.user, incident.user_id)) {
         return res.status(403).json({ error: 'Forbidden. You can only access your own incidents.' });
@@ -1517,19 +1518,9 @@ const incidentController = {
       // Same access check as getById
       const deptRole = req.user.role === ROLES.DEPARTMENT_HEAD || req.user.role === ROLES.DEPARTMENT_ADMIN;
       if (deptRole && req.user.user_id) {
-        const fullUser = await User.findById(req.user.user_id);
-        if (fullUser && fullUser.department_id) {
-          const dept = await Department.findById(fullUser.department_id);
-          if (dept && dept.code) {
-            const dispatches = await Dispatch.findAll({ report_id: validatedId, department_code: dept.code, limit: 1 });
-            if (dispatches && dispatches.length === 0) {
-              return res.status(403).json({ error: 'Forbidden. You can only add notes to incidents assigned to your department.' });
-            }
-          } else {
-            return res.status(403).json({ error: 'Forbidden. Department not found.' });
-          }
-        } else {
-          return res.status(403).json({ error: 'Forbidden. User department not set.' });
+        const hasDeptAccess = await checkDepartmentIncidentAccess(req.user, validatedId);
+        if (!hasDeptAccess) {
+          return res.status(403).json({ error: 'Forbidden. You can only add notes to incidents assigned to your department.' });
         }
       } else if (!isResourceOwner(req.user, incident.user_id)) {
         return res.status(403).json({ error: 'Forbidden. You can only add notes to your own incidents.' });
@@ -1612,23 +1603,17 @@ const incidentController = {
       // Same access rules as getById: department-head/department-admin can see if assigned to their department
       const deptRoleWithAi = req.user.role === ROLES.DEPARTMENT_HEAD || req.user.role === ROLES.DEPARTMENT_ADMIN;
       if (deptRoleWithAi && req.user.user_id) {
-        const fullUser = await User.findById(req.user.user_id);
-        if (fullUser && fullUser.department_id) {
-          const dept = await Department.findById(fullUser.department_id);
-          if (dept && dept.code) {
-            const dispatches = await Dispatch.findAll({ report_id: validatedId, department_code: dept.code, limit: 1 });
-            if (dispatches && dispatches.length > 0) {
-              const incidentDispatches = await getDispatchesForReport(validatedId, 50);
-              await attachAssignedDepartment(incident, validatedId, incidentDispatches);
-              await ensureIncidentBarangay(incident);
-              await attachDispatchEta(incident, validatedId, incidentDispatches);
-              await buildIncidentTimeline(incident, validatedId, incidentDispatches);
-              const classification = await Incident.getClassificationByReportId(validatedId);
-              const duplicateInfo = await getDuplicateInfo(validatedId);
-              if (duplicateInfo) Object.assign(incident, { duplicate_cluster: duplicateInfo.cluster });
-              return res.json({ incident, ai_classification: classification || null });
-            }
-          }
+        const hasDeptAccess = await checkDepartmentIncidentAccess(req.user, validatedId);
+        if (hasDeptAccess) {
+          const incidentDispatches = await getDispatchesForReport(validatedId, 50);
+          await attachAssignedDepartment(incident, validatedId, incidentDispatches);
+          await ensureIncidentBarangay(incident);
+          await attachDispatchEta(incident, validatedId, incidentDispatches);
+          await buildIncidentTimeline(incident, validatedId, incidentDispatches);
+          const classification = await Incident.getClassificationByReportId(validatedId);
+          const duplicateInfo = await getDuplicateInfo(validatedId);
+          if (duplicateInfo) Object.assign(incident, { duplicate_cluster: duplicateInfo.cluster });
+          return res.json({ incident, ai_classification: classification || null });
         }
       }
       if (!canReadOwnOrAcceptedIncident(req.user, incident)) {
@@ -1693,16 +1678,10 @@ const incidentController = {
         return res.json(info || { is_duplicate: false, parent_report_id: null, duplicate_confidence: null, cluster: [] });
       }
       if (deptRole && req.user.user_id) {
-        const fullUser = await User.findById(req.user.user_id);
-        if (fullUser?.department_id) {
-          const dept = await Department.findById(fullUser.department_id);
-          if (dept?.code) {
-            const dispatches = await Dispatch.findAll({ report_id: validatedId, department_code: dept.code, limit: 1 });
-            if (dispatches?.length > 0) {
-              const info = await getDuplicateInfo(validatedId);
-              return res.json(info || { is_duplicate: false, parent_report_id: null, duplicate_confidence: null, cluster: [] });
-            }
-          }
+        const hasDeptAccess = await checkDepartmentIncidentAccess(req.user, validatedId);
+        if (hasDeptAccess) {
+          const info = await getDuplicateInfo(validatedId);
+          return res.json(info || { is_duplicate: false, parent_report_id: null, duplicate_confidence: null, cluster: [] });
         }
       }
       if (!isResourceOwner(req.user, incident.user_id) && req.user.role !== ROLES.DISPATCHER && req.user.role !== ROLES.ADMIN) {
@@ -1736,16 +1715,10 @@ const incidentController = {
         return res.json({ potential_duplicates: candidates });
       }
       if (deptRole && req.user.user_id) {
-        const fullUser = await User.findById(req.user.user_id);
-        if (fullUser?.department_id) {
-          const dept = await Department.findById(fullUser.department_id);
-          if (dept?.code) {
-            const dispatches = await Dispatch.findAll({ report_id: validatedId, department_code: dept.code, limit: 1 });
-            if (dispatches?.length > 0) {
-              const candidates = await findPotentialDuplicates(incident);
-              return res.json({ potential_duplicates: candidates });
-            }
-          }
+        const hasDeptAccess = await checkDepartmentIncidentAccess(req.user, validatedId);
+        if (hasDeptAccess) {
+          const candidates = await findPotentialDuplicates(incident);
+          return res.json({ potential_duplicates: candidates });
         }
       }
       if (!isResourceOwner(req.user, incident.user_id) && req.user.role !== ROLES.DISPATCHER && req.user.role !== ROLES.ADMIN) {

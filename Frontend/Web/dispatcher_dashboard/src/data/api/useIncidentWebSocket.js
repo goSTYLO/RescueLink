@@ -218,6 +218,16 @@ function formatNotificationTitle(eventName, data) {
       const accepter = data.accepted_by_name ? ` by ${data.accepted_by_name}` : '';
       return `Volunteer accepted Incident #${data.report_id}${accepter}`;
     }
+    case 'incident:escalated':
+      return `Assistance requested on Incident #${data.report_id}`;
+    case 'incident:escalation_accepted':
+      return `Assistance request accepted for Incident #${data.report_id}`;
+    case 'incident:escalation_declined':
+      return `Assistance request declined for Incident #${data.report_id}`;
+    case 'incident:escalation_cancelled':
+      return `Assistance request cancelled for Incident #${data.report_id}`;
+    case 'incident:escalation_resolved':
+      return `Assistance resolved on Incident #${data.report_id}`;
     default:
       return `Incident #${data.report_id} updated`;
   }
@@ -240,6 +250,16 @@ function formatNotificationBody(eventName, data) {
       return `Volunteer status: ${data.responder_status || 'Assigned'}`;
     case 'incident:dispatched':
       return 'Responders have been assigned';
+    case 'incident:escalated':
+      return `Target: ${data.to_department_name || `Dept #${data.to_department_id}`}${data.urgency ? ` (${data.urgency})` : ''}`;
+    case 'incident:escalation_accepted':
+      return `Accepted by ${data.to_department_name || `Dept #${data.to_department_id}`}`;
+    case 'incident:escalation_declined':
+      return `Declined by ${data.to_department_name || `Dept #${data.to_department_id}`}`;
+    case 'incident:escalation_cancelled':
+      return 'Request was cancelled';
+    case 'incident:escalation_resolved':
+      return 'Assistance completed';
     default:
       return data.barangay ? `Barangay ${data.barangay}` : 'Update received';
   }

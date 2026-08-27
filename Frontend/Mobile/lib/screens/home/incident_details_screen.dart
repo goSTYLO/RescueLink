@@ -1014,10 +1014,39 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
                                         ReportStatusUi.label(
                                             _incident?['status'] as String?)),
                                     const SizedBox(height: 10),
-                                    _simpleRow(
-                                        'Department',
-                                        assignedDepartmentDisplayName(
-                                            _incident)),
+                                    (() {
+                                      final deptEntries = assignedDepartmentTeamEntries(_incident);
+                                      if (deptEntries.length > 1) {
+                                        return Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            for (var i = 0; i < deptEntries.length; i++) ...[
+                                              if (i > 0) const SizedBox(height: 8),
+                                              _simpleRow(
+                                                deptEntries[i].isLead ? 'Lead Department' : 'Assisting Dept',
+                                                deptEntries[i].teamName != null
+                                                    ? '${deptEntries[i].departmentName} (${deptEntries[i].teamName})'
+                                                    : deptEntries[i].departmentName,
+                                              ),
+                                            ],
+                                          ],
+                                        );
+                                      }
+                                      final singleTeam = safeString(_incident?['assigned_team_name'] ?? _incident?['assignedTeamName']);
+                                      return Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          _simpleRow(
+                                              'Department',
+                                              assignedDepartmentDisplayName(
+                                                  _incident)),
+                                          if (singleTeam != null) ...[
+                                            const SizedBox(height: 10),
+                                            _simpleRow('Response Team', singleTeam),
+                                          ],
+                                        ],
+                                      );
+                                    })(),
                                     if (BackupStatusUi.assignedBackupTeamLabel(_incident) != null) ...[
                                       const SizedBox(height: 10),
                                       _simpleRow(
@@ -1473,11 +1502,27 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
         ],
       );
     }
-    final department = assignedDepartmentDisplayName(_incident);
+    final deptEntries = assignedDepartmentTeamEntries(_incident);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _simpleRow('Department', department),
+        if (deptEntries.length > 1) ...[
+          for (var i = 0; i < deptEntries.length; i++) ...[
+            if (i > 0) const SizedBox(height: 6),
+            _simpleRow(
+              deptEntries[i].isLead ? 'Lead Department' : 'Assisting Dept',
+              deptEntries[i].teamName != null
+                  ? '${deptEntries[i].departmentName} (${deptEntries[i].teamName})'
+                  : deptEntries[i].departmentName,
+            ),
+          ],
+        ] else ...[
+          _simpleRow('Department', assignedDepartmentDisplayName(_incident)),
+          if (deptEntries.isNotEmpty && deptEntries.first.teamName != null) ...[
+            const SizedBox(height: 6),
+            _simpleRow('Response Team', deptEntries.first.teamName!),
+          ],
+        ],
         const SizedBox(height: 8),
         _simpleRow('Estimated Arrival', _estimatedEtaMinutes != null ? '$_estimatedEtaMinutes min' : 'Pending'),
         const SizedBox(height: 8),

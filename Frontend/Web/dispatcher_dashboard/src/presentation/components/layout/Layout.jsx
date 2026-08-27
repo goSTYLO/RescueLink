@@ -16,6 +16,7 @@ import { getDefaultRouteByRole, ROLES, normalizeRole } from '@/core/constants';
 import { DEV_MODE } from '@/core/config/app.config';
 import { clearAuthSession } from '@/core/auth/session';
 import { formatIncidentTypesLabel } from '@/core/utils/incidentDisplay';
+import { NotificationPromptBanner } from '@/presentation/components/common/NotificationPromptBanner';
 
 const SIDEBAR_STORAGE_KEY = 'rescuelink_sidebar_collapsed';
 
@@ -713,6 +714,8 @@ export function Layout({ children }) {
             </div>
           </div>
         </header>
+
+        <NotificationPromptBanner />
 
         <main className="flex-1 overflow-auto bg-background relative">
           {children}

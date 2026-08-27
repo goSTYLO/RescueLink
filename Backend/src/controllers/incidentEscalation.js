@@ -149,6 +149,33 @@ async function listEscalations(req, res) {
     }
 
     const reportId = validateInteger(req.params.id, 'report_id', 1);
+
+    const normalizedRole = normalizeRole(role);
+    const isSuperOrDispatcher = ['admin', 'super-admin', 'superadmin', 'dispatcher'].includes(normalizedRole);
+    if (!isSuperOrDispatcher && req.user?.user_id) {
+      const fullUser = await User.findById(req.user.user_id);
+      const userDeptId = fullUser?.department_id ?? req.user?.department_id;
+      if (userDeptId) {
+        const dept = await Department.findById(userDeptId);
+        let hasAccess = false;
+        if (dept?.code) {
+          const dispatches = await Dispatch.findAll({ report_id: reportId, department_code: dept.code, limit: 1 });
+          if (dispatches && dispatches.length > 0) hasAccess = true;
+        }
+        if (!hasAccess) {
+          const escalations = await IncidentEscalation.findByReportId(reportId);
+          const hasEsc = escalations.some(
+            (e) => (e.to_department_id === userDeptId || e.from_department_id === userDeptId)
+              && (e.status === 'pending' || e.status === 'accepted')
+          );
+          if (hasEsc) hasAccess = true;
+        }
+        if (!hasAccess) {
+          return res.status(403).json({ error: 'Forbidden. You do not have access to this incident.' });
+        }
+      }
+    }
+
     const escalations = await IncidentEscalation.findByReportId(reportId);
     return res.json({ escalations });
   } catch (err) {
@@ -176,10 +203,13 @@ async function updateEscalationStatus(req, res) {
       return res.status(403).json({ error: 'Forbidden.' });
     }
 
+    const userId = req.user?.user_id ?? req.user?.userId ?? req.user?.id ?? null;
     const reportId     = validateInteger(req.params.id, 'report_id');
     const escalationId = validateInteger(req.params.escalationId, 'escalation_id');
+    const rawStatus = String(req.body?.status || '').trim().toLowerCase();
+    const normalizedStatus = rawStatus === 'rejected' ? 'declined' : rawStatus;
     const status = validateAllowedValue(
-      req.body?.status, ['accepted', 'declined', 'resolved', 'cancelled'], 'status'
+      normalizedStatus, ['accepted', 'declined', 'resolved', 'cancelled'], 'status'
     );
     const responseNotes = req.body?.response_notes
       ? validateString(req.body.response_notes, 'response_notes', 1, 1000)
@@ -201,23 +231,23 @@ async function updateEscalationStatus(req, res) {
     const isSuperOrDispatcher = ['admin', 'super-admin', 'superadmin', 'dispatcher'].includes(normalizedRole);
 
     if (!isSuperOrDispatcher) {
-      const fullUser = await User.findById(req.user.user_id);
-      const userDeptId = fullUser?.department_id;
+      const fullUser = userId != null ? await User.findById(userId) : null;
+      const userDeptId = fullUser?.department_id ?? req.user?.department_id;
 
       if (status === 'cancelled') {
-        if (userDeptId !== existing.from_department_id) {
+        if (userDeptId == null || String(userDeptId) !== String(existing.from_department_id)) {
           return res.status(403).json({ error: 'Only the requesting department can cancel this escalation.' });
         }
       } else {
-        if (userDeptId !== existing.to_department_id) {
+        if (userDeptId == null || String(userDeptId) !== String(existing.to_department_id)) {
           return res.status(403).json({ error: 'Only the target department can accept, decline, or resolve this escalation.' });
         }
       }
     }
 
     const updated = await IncidentEscalation.updateStatus(escalationId, status, {
-      response_notes: responseNotes,
-      responded_by_user_id: req.user.user_id,
+      response_notes: responseNotes || null,
+      responded_by_user_id: userId || null,
     });
 
     // If accepted, ensure target department has an active dispatch record on the incident
@@ -234,7 +264,7 @@ async function updateEscalationStatus(req, res) {
               department_code: toDept.code,
               department_name: toDept.name,
               responder_source: 'escalation',
-              assigned_by_user_id: req.user.user_id,
+              assigned_by_user_id: userId || null,
             });
           }
         }
@@ -243,10 +273,27 @@ async function updateEscalationStatus(req, res) {
       }
     }
 
+    // If cancelled or declined (rejected), clean up all dispatch records created for target department so incident disappears
+    if ((status === 'cancelled' || status === 'declined') && existing.to_department_id) {
+      try {
+        const toDept = await Department.findById(existing.to_department_id);
+        if (toDept && toDept.code) {
+          await pool.query(
+            `DELETE FROM dispatches
+             WHERE report_id = $1
+               AND LOWER(department_code) = LOWER($2)`,
+            [reportId, toDept.code]
+          );
+        }
+      } catch (dispErr) {
+        console.warn('[incidentEscalation] Auto-dispatch cleanup note:', dispErr.message);
+      }
+    }
+
     // Auto-log a coordination note
-    const fullUser = await User.findById(req.user.user_id);
-    const actorName = [fullUser?.first_name, fullUser?.last_name].filter(Boolean).join(' ') || `User #${req.user.user_id}`;
-    const actorDeptId = fullUser?.department_id;
+    const fullUser = userId != null ? await User.findById(userId) : null;
+    const actorName = [fullUser?.first_name, fullUser?.last_name].filter(Boolean).join(' ') || (userId ? `User #${userId}` : 'Operations');
+    const actorDeptId = fullUser?.department_id ?? req.user?.department_id;
     const actorDeptName = actorDeptId ? (await Department.findById(actorDeptId))?.name || `Dept #${actorDeptId}` : 'Operations';
 
     const noteText = {
@@ -256,15 +303,19 @@ async function updateEscalationStatus(req, res) {
       cancelled: `🚫 Assistance request cancelled${responseNotes ? ` — Reason: ${responseNotes}` : ''}`,
     }[status] || `Escalation ${status}`;
 
-    await IncidentCoordinationNote.create({
-      report_id: reportId,
-      user_id: req.user.user_id,
-      author_name: actorName,
-      author_role: role,
-      department: actorDeptName,
-      note: noteText,
-      source: 'Escalation',
-    });
+    try {
+      await IncidentCoordinationNote.create({
+        report_id: reportId,
+        user_id: userId || null,
+        author_name: actorName || 'System',
+        author_role: role || 'Staff',
+        department: actorDeptName || 'Operations',
+        note: noteText,
+        source: 'Escalation',
+      });
+    } catch (noteErr) {
+      console.warn('[incidentEscalation] Coordination note write error:', noteErr.message);
+    }
 
     // Emit event for live updates + push notification
     const incident = await fetchIncidentForEvent(reportId);
@@ -291,8 +342,8 @@ async function updateEscalationStatus(req, res) {
     if (err.message?.includes('required') || err.message?.includes('must be') || err.message?.includes('Invalid')) {
       return res.status(400).json({ error: err.message });
     }
-    console.error('[incidentEscalation] updateEscalationStatus error:', err.message);
-    return res.status(500).json({ error: 'Internal server error.' });
+    console.error('[incidentEscalation] updateEscalationStatus error:', err);
+    return res.status(500).json({ error: err.message || 'Internal server error.' });
   }
 }
 

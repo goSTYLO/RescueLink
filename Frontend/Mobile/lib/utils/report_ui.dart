@@ -557,8 +557,89 @@ String? volunteerResponderStatusLabel(String? status) {
   }
 }
 
+class DepartmentTeamEntry {
+  final String departmentName;
+  final String? teamName;
+  final bool isLead;
+  final String? status;
+
+  const DepartmentTeamEntry({
+    required this.departmentName,
+    this.teamName,
+    this.isLead = false,
+    this.status,
+  });
+}
+
+List<DepartmentTeamEntry> assignedDepartmentTeamEntries(Map<String, dynamic>? incident) {
+  if (incident == null) return const [];
+  final List<DepartmentTeamEntry> entries = [];
+  final seenDepts = <String>{};
+
+  final dispatches = incident['dispatches'];
+  if (dispatches is List && dispatches.isNotEmpty) {
+    for (var i = 0; i < dispatches.length; i++) {
+      final d = dispatches[i];
+      if (d is Map) {
+        final deptName = (d['department_name'] ?? d['department_code'] ?? '').toString().trim();
+        if (deptName.isEmpty) continue;
+        final teamName = d['team_name']?.toString().trim();
+        final status = d['response_status']?.toString().trim();
+        entries.add(DepartmentTeamEntry(
+          departmentName: deptName,
+          teamName: (teamName != null && teamName.isNotEmpty) ? teamName : null,
+          isLead: i == 0,
+          status: status,
+        ));
+        seenDepts.add(deptName.toLowerCase());
+      }
+    }
+  }
+
+  final assignedList = incident['assigned_departments'] ?? incident['assignedDepartments'];
+  if (assignedList is List) {
+    for (var i = 0; i < assignedList.length; i++) {
+      final deptName = assignedList[i]?.toString().trim() ?? '';
+      if (deptName.isNotEmpty && !seenDepts.contains(deptName.toLowerCase())) {
+        entries.add(DepartmentTeamEntry(
+          departmentName: deptName,
+          teamName: (i == 0) ? incident['assigned_team_name']?.toString().trim() : null,
+          isLead: i == 0,
+        ));
+        seenDepts.add(deptName.toLowerCase());
+      }
+    }
+  }
+
+  if (entries.isEmpty) {
+    final singleDept = assignedDepartmentDisplayName(incident);
+    if (singleDept != 'Not assigned') {
+      final team = incident['assigned_team_name']?.toString().trim();
+      entries.add(DepartmentTeamEntry(
+        departmentName: singleDept,
+        teamName: (team != null && team.isNotEmpty) ? team : null,
+        isLead: true,
+      ));
+    }
+  }
+
+  return entries;
+}
+
+/// Display name for assigned department: uses API assigned_department when present,
+/// otherwise handles multiple assigned_departments list, or fallback.
 String assignedDepartmentDisplayName(Map<String, dynamic>? incident) {
   if (incident == null) return 'Not assigned';
+
+  final assignedList = incident['assigned_departments'] ?? incident['assignedDepartments'];
+  if (assignedList is List && assignedList.isNotEmpty) {
+    final names = assignedList
+        .map((e) => e?.toString().trim())
+        .where((e) => e != null && e.isNotEmpty)
+        .toList();
+    if (names.isNotEmpty) return names.join(' · ');
+  }
+
   // Prefer snake_case from API; support camelCase from some clients
   final assigned = incident['assigned_department'] ?? incident['assignedDepartment'];
   if (assigned != null) {
