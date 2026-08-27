@@ -6,7 +6,7 @@ import { Button } from '@/presentation/components/ui/Button';
 import { Badge } from '@/presentation/components/ui/Badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/presentation/components/ui/Select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/presentation/components/ui/Dialog';
-import { Eye, Truck, MapPin, CheckCircle, AlertCircle, Activity, LayoutList, SlidersHorizontal, UserPlus, X, Clock, Shield, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, Archive, ArchiveRestore, Search } from 'lucide-react';
+import { Eye, Truck, MapPin, CheckCircle, AlertCircle, Activity, LayoutList, SlidersHorizontal, UserPlus, X, Clock, Shield, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, Archive, ArchiveRestore, Search, HandHelping } from 'lucide-react';
 import { getIncidents, acknowledgeBackupRequest, archiveIncident, unarchiveIncident } from '@/data/api/incidents.api';
 import { getDepartmentById, getDepartmentUnits, assignDepartmentUnit } from '@/data/api/departments.api';
 import { getResponderTeams } from '@/data/api/responders.api';
@@ -574,6 +574,35 @@ export function DepartmentDashboardPage() {
               </div>
             )}
 
+            {departmentIncidents.some((i) => i.hasPendingEscalation) && !loading && (
+              <div className={`rounded-xl border px-3 py-2.5 ${isLight ? 'border-orange-300/80 bg-orange-50/90 text-orange-900' : 'border-orange-500/40 bg-orange-500/10 text-orange-300'}`}>
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <HandHelping className="w-4 h-4 text-orange-500 shrink-0" />
+                    <p className="text-sm">
+                      <span className="font-semibold">
+                        {departmentIncidents.filter((i) => i.hasPendingEscalation).length} inter-department assistance request{departmentIncidents.filter((i) => i.hasPendingEscalation).length !== 1 ? 's' : ''}
+                      </span>{' '}
+                      awaiting response.
+                    </p>
+                  </div>
+                  {departmentIncidents.find((i) => i.hasPendingEscalation) && (
+                    <Button
+                      size="sm"
+                      className="h-7 text-xs bg-orange-500 hover:bg-orange-600 text-white font-medium gap-1"
+                      onClick={() => {
+                        const first = departmentIncidents.find((i) => i.hasPendingEscalation);
+                        if (first) navigate(`/incidents/${first.id}?tab=escalation`);
+                      }}
+                    >
+                      <Eye className="w-3 h-3" />
+                      Review Assistance
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
               <div className={`rounded-xl border p-3 ${isLight ? 'bg-white/70 border-gray-200/80' : 'bg-white/5 border-white/10'}`}>
                 <p className="text-[11px] text-muted uppercase font-semibold">Total Assigned</p>
@@ -829,6 +858,20 @@ export function DepartmentDashboardPage() {
                             <Badge className="bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 rounded-lg px-2 py-0.5 text-[11px] font-semibold w-fit">
                               {incident.backupVolunteerCount} BACKUP VOL.
                             </Badge>
+                          )}
+                          {(incident.hasPendingEscalation || incident.has_pending_escalation) && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/incidents/${incident.id}?tab=escalation`);
+                              }}
+                              className="inline-flex items-center gap-1 bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 border border-orange-500/40 rounded-lg px-2 py-0.5 text-[11px] font-semibold w-fit transition-colors"
+                              title="Click to review assistance request"
+                            >
+                              <HandHelping className="w-3 h-3" />
+                              Assistance Requested
+                            </button>
                           )}
                           {(incident.status === 'Resolved' || incident.status === 'resolved') && !incident.reporterConfirmedAt && (
                             <span className="text-xs text-amber-500 font-medium">Awaiting confirmation</span>

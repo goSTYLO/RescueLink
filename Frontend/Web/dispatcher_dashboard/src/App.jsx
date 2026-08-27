@@ -126,7 +126,11 @@ export default function App() {
       const stored = JSON.parse(sessionStorage.getItem('user') || '{}');
       const uid = stored.userId || stored.user_id || stored.id;
       if (uid) {
-        setOneSignalUser(uid);
+        setOneSignalUser(uid, {
+          role: stored.role,
+          departmentId: stored.departmentId,
+          departmentCode: stored.departmentCode,
+        });
       }
     } catch (_) {}
 
@@ -161,7 +165,11 @@ export default function App() {
     }));
 
     if (userId) {
-      setOneSignalUser(userId);
+      setOneSignalUser(userId, {
+        role,
+        departmentId: departmentId != null ? String(departmentId) : undefined,
+        departmentCode: data.user?.departmentCode || data.user?.department_code || undefined,
+      });
     }
 
     setPage('dashboard');

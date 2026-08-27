@@ -4,6 +4,7 @@ const Department = require('../models/department');
 const Dispatch = require('../models/dispatch');
 const Responder = require('../models/responder');
 const IncidentCoordinationNote = require('../models/incidentCoordinationNote');
+const IncidentEscalation = require('../models/incidentEscalation');
 const pool = require('../config/db');
 const { validateLatitude, validateLongitude, validateInteger, validatePagination, validateOptionalString, validateAllowedValue } = require('../utils/validation');
 const { getBarangayFromCoordinates, calculateDistance } = require('../utils/geolocation');
@@ -516,27 +517,36 @@ const incidentController = {
         return res.status(404).json({ error: 'Incident not found' });
       }
 
-      // Check ownership: dispatchers/admins see all; department-head/department-admin see if assigned to their department; users see own only
+      // Check ownership: dispatchers/admins see all; department-head/department-admin see if assigned to their department or escalated to/from their department; users see own only
       const deptRole = req.user.role === ROLES.DEPARTMENT_HEAD || req.user.role === ROLES.DEPARTMENT_ADMIN;
       if (deptRole && req.user.user_id) {
         const fullUser = await User.findById(req.user.user_id);
         if (fullUser && fullUser.department_id) {
           const dept = await Department.findById(fullUser.department_id);
+          let hasDeptAccess = false;
           if (dept && dept.code) {
             const dispatches = await Dispatch.findAll({ report_id: validatedId, department_code: dept.code, limit: 1 });
-            if (dispatches && dispatches.length > 0) {
-      const incidentDispatches = await getDispatchesForReport(validatedId, 50);
-      await attachAssignedDepartment(incident, validatedId, incidentDispatches);
-      await attachAcceptedResponder(incident);
-      await attachBackupVolunteers(incident, validatedId);
-      await attachBackupVolunteers(incident, validatedId);
-      await ensureIncidentBarangay(incident);
-      await attachDispatchEta(incident, validatedId, incidentDispatches);
-      await buildIncidentTimeline(incident, validatedId, incidentDispatches);
-      const duplicateInfo = await getDuplicateInfo(validatedId);
-      if (duplicateInfo) Object.assign(incident, { duplicate_cluster: duplicateInfo.cluster });
-      return res.json(incident);
-            }
+            if (dispatches && dispatches.length > 0) hasDeptAccess = true;
+          }
+          if (!hasDeptAccess) {
+            const escalations = await IncidentEscalation.findByReportId(validatedId);
+            const hasEscAccess = escalations.some(
+              (e) => e.to_department_id === fullUser.department_id || e.from_department_id === fullUser.department_id
+            );
+            if (hasEscAccess) hasDeptAccess = true;
+          }
+
+          if (hasDeptAccess) {
+            const incidentDispatches = await getDispatchesForReport(validatedId, 50);
+            await attachAssignedDepartment(incident, validatedId, incidentDispatches);
+            await attachAcceptedResponder(incident);
+            await attachBackupVolunteers(incident, validatedId);
+            await ensureIncidentBarangay(incident);
+            await attachDispatchEta(incident, validatedId, incidentDispatches);
+            await buildIncidentTimeline(incident, validatedId, incidentDispatches);
+            const duplicateInfo = await getDuplicateInfo(validatedId);
+            if (duplicateInfo) Object.assign(incident, { duplicate_cluster: duplicateInfo.cluster });
+            return res.json(incident);
           }
         }
       }

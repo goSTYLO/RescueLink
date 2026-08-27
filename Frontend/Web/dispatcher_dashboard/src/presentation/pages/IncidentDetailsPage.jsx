@@ -16,7 +16,7 @@ import {
   ArrowLeft, MapPin, CheckCircle, XCircle, Bell, 
   Clock, AlertTriangle, TrendingUp, Users, Shield, FileText,
   MessageSquare, Wrench, Award, Star, AlertCircle, Copy, Merge,
-  X, ThumbsUp, Link2, ChevronDown, ChevronUp, LayoutList
+  X, ThumbsUp, Link2, ChevronDown, ChevronUp, LayoutList, HandHelping
 } from 'lucide-react';
 import { useNavigate, useParams, Link, useSearchParams } from 'react-router-dom';
 import { 
@@ -29,7 +29,7 @@ import {
   units
 } from '@/data/mock/mockData';
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { getIncidentById, getIncidentAudioUrl, getIncidentMediaUrl, getIncidentWithAi, reclassifyIncident, updateIncidentStatus, verifyIncident, getCoordinationNotes, addCoordinationNote, getIncidentDuplicates, getPotentialDuplicates, linkDuplicate, unlinkDuplicate, clearDuplicateFlag, acknowledgeBackupRequest } from '@/data/api/incidents.api';
+import { getIncidentById, getIncidentAudioUrl, getIncidentMediaUrl, getIncidentWithAi, reclassifyIncident, updateIncidentStatus, verifyIncident, getCoordinationNotes, addCoordinationNote, getIncidentDuplicates, getPotentialDuplicates, linkDuplicate, unlinkDuplicate, clearDuplicateFlag, acknowledgeBackupRequest, getIncidentEscalations, createIncidentEscalation, updateIncidentEscalationStatus } from '@/data/api/incidents.api';
 import { getResponders, getResponderTeams, updateResponderStatus, updateResponderTeamStatus, getTeamMembers } from '@/data/api/responders.api';
 import { createDispatch, undoDepartmentNotification } from '@/data/api/dispatches.api';
 import { getDepartments } from '@/data/api/departments.api';
@@ -42,6 +42,8 @@ import { Loader2 } from 'lucide-react';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
 import { Breadcrumb } from '@/presentation/components/common/Breadcrumb';
 import Swal from 'sweetalert2';
+import { IncidentEscalationModal } from '@/presentation/components/incidents/IncidentEscalationModal';
+import { IncidentEscalationSection } from '@/presentation/components/incidents/IncidentEscalationSection';
 
 // Feature flag — mirrors USE_BLOCKCHAIN in Backend/.env
 const USE_BLOCKCHAIN = import.meta.env.VITE_USE_BLOCKCHAIN === 'true';
@@ -207,8 +209,22 @@ const ACTIVE_SECTOR_IDS = new Set(['pnp', 'drrmo']);
 export function IncidentDetailsPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const detailsTab = searchParams.get('tab') || 'details';
+  const [activeTab, setActiveTab] = useState(detailsTab);
+
+  useEffect(() => {
+    if (detailsTab) setActiveTab(detailsTab);
+  }, [detailsTab]);
+
+  const handleTabChange = (newTab) => {
+    setActiveTab(newTab);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('tab', newTab);
+      return next;
+    }, { replace: true });
+  };
   const focusDispatch = searchParams.get('focus') === 'dispatch';
   const focusAssign = searchParams.get('focus') === 'assign';
   const dispatchSectionRef = useRef(null);
@@ -383,7 +399,10 @@ export function IncidentDetailsPage() {
   const timeline = isNumericId
     ? (incident?.timeline || [])
     : (incidentTimelines[id || ''] || []);
-  const escalations = escalationHistory[id || ''] || [];
+  // Real escalations loaded from API; mock escalationHistory only for non-numeric (dev) IDs
+  const [escalations, setEscalations] = useState([]);
+  const [escalationsLoading, setEscalationsLoading] = useState(false);
+  const [escalationModalOpen, setEscalationModalOpen] = useState(false);
   const [coordination, setCoordination] = useState([]);
   const review = postIncidentReviews[id || ''];
   const duplicateCluster = incident?.duplicateCluster ?? [];
@@ -430,6 +449,18 @@ export function IncidentDetailsPage() {
   const canSaveToBlockchain = canVerifyIncident
     && incidentIsClosed
     && Boolean(incident?.reporterConfirmedAt);
+
+  // Who can request inter-department assistance
+  const canRequestEscalation = (
+    normalizedRole === ROLES.SUPER_ADMIN
+    || normalizedRole === ROLES.DISPATCHER
+    || normalizedRole === ROLES.DEPARTMENT_ADMIN
+    || normalizedRole === ROLES.DEPARTMENT_HEAD
+  ) && !incidentIsClosed;
+  const currentUserDeptId = currentUser?.departmentId ?? currentUser?.department_id ?? null;
+
+  // Count active escalation requests for the badge
+  const activeEscalationsCount = escalations.filter((e) => e.status === 'pending' || e.status === 'accepted').length;
 
   const getConfidencePercent = (score) => {
     if (score == null || Number.isNaN(Number(score))) return null;
@@ -665,7 +696,10 @@ export function IncidentDetailsPage() {
     let cancelled = false;
     const u = JSON.parse(sessionStorage.getItem('user') || '{}');
     const role = normalizeRole(u.role);
-    const canListDepartments = [ROLES.SUPER_ADMIN, ROLES.DISPATCHER].includes(role);
+    // Dispatchers, super-admins, dept-admins, and dept-heads all need department list for escalations
+    const canListDepartments = [
+      ROLES.SUPER_ADMIN, ROLES.DISPATCHER, ROLES.DEPARTMENT_ADMIN, ROLES.DEPARTMENT_HEAD,
+    ].includes(role);
     if (!canListDepartments) {
       setDepartmentList([]);
       return;
@@ -722,6 +756,46 @@ export function IncidentDetailsPage() {
     }
     setCoordination(fallbackNotes);
   }, [coordinationStorageKey, id]);
+
+  // Load escalations from API for numeric incident IDs
+  useEffect(() => {
+    const isNumericId = /^\d+$/.test(String(id));
+    if (!isNumericId) {
+      setEscalations(escalationHistory[id || ''] || []);
+      return;
+    }
+    const token = sessionStorage.getItem('token');
+    if (!token || !canRequestEscalation) {
+      setEscalations([]);
+      return;
+    }
+    let cancelled = false;
+    setEscalationsLoading(true);
+    getIncidentEscalations(id)
+      .then((rows) => { if (!cancelled) setEscalations(rows); })
+      .catch(() => { if (!cancelled) setEscalations([]); })
+      .finally(() => { if (!cancelled) setEscalationsLoading(false); });
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  async function handleCreateEscalation(payload) {
+    const row = await createIncidentEscalation(id, payload);
+    setEscalations((prev) => [row, ...prev]);
+    Swal.fire({
+      icon: 'success',
+      title: 'Assistance Requested',
+      text: 'Your inter-department assistance request has been sent.',
+      timer: 2500,
+      showConfirmButton: false,
+      timerProgressBar: true,
+    });
+  }
+
+  async function handleEscalationStatusUpdate(escalationId, status, responseNotes) {
+    const updated = await updateIncidentEscalationStatus(id, escalationId, { status, response_notes: responseNotes });
+    setEscalations((prev) => prev.map((e) => (e.id === escalationId ? updated : e)));
+  }
 
   // Persist coordination notes to sessionStorage only for mock IDs
   useEffect(() => {
@@ -1868,17 +1942,45 @@ export function IncidentDetailsPage() {
           </div>
         </div>
 
-        <Tabs defaultValue={detailsTab} className="space-y-6">
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
           <TabsList className={`grid w-full grid-cols-5 lg:w-auto lg:inline-grid rounded-xl p-1 gap-1 ${isLight ? 'bg-gray-100 border border-gray-200' : 'bg-white/10 border border-white/10'}`}>
             <TabsTrigger value="details">Details</TabsTrigger>
             <TabsTrigger value="timeline">Timeline</TabsTrigger>
             <TabsTrigger value="coordination">Coordination</TabsTrigger>
-            <TabsTrigger value="escalation">Escalation</TabsTrigger>
+            <TabsTrigger value="escalation" className="relative flex items-center justify-center gap-1.5">
+              Escalation
+              {activeEscalationsCount > 0 && (
+                <span className="flex h-4 min-w-4 px-1 items-center justify-center rounded-full bg-orange-500 text-[9px] font-bold text-white">
+                  {activeEscalationsCount}
+                </span>
+              )}
+            </TabsTrigger>
             {review && <TabsTrigger value="review">Review</TabsTrigger>}
           </TabsList>
 
           {/* DETAILS TAB */}
           <TabsContent value="details" className="space-y-6">
+            {/* Pending Assistance Alert Banner for Target Department */}
+            {escalations.some((e) => String(e.to_department_id) === String(currentUserDeptId) && e.status === 'pending') && (
+              <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-2xl bg-orange-500/10 border border-orange-500/30 text-orange-400">
+                <div className="flex items-center gap-2.5">
+                  <HandHelping className="w-5 h-5 text-orange-400 shrink-0" />
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Inter-Department Assistance Requested</p>
+                    <p className="text-xs text-muted">Another agency has requested assistance from your department for this incident.</p>
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  className="bg-orange-500 hover:bg-orange-600 text-white font-medium text-xs gap-1.5"
+                  onClick={() => handleTabChange('escalation')}
+                >
+                  <HandHelping size={13} />
+                  Review & Respond
+                </Button>
+              </div>
+            )}
+
             <div className={panelClass}>
                 <div className={headerClass}>
                   <div className={iconBoxClass}><MapPin className="w-4 h-4" /></div>
@@ -2197,6 +2299,23 @@ export function IncidentDetailsPage() {
                         </DialogContent>
                       </Dialog>
 
+                      {/* Inter-department assistance request */}
+                      {canRequestEscalation && (
+                        <Button
+                          className="w-full gap-2 relative"
+                          variant="outline"
+                          onClick={() => setEscalationModalOpen(true)}
+                        >
+                          <HandHelping className="w-4 h-4" />
+                          Request Assistance
+                          {activeEscalationsCount > 0 && (
+                            <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-orange-500 text-[9px] font-bold text-white">
+                              {activeEscalationsCount}
+                            </span>
+                          )}
+                        </Button>
+                      )}
+
                       <Dialog open={addDepartmentDialogOpen} onOpenChange={setAddDepartmentDialogOpen}>
                         <DialogTrigger asChild>
                           <Button variant="outline" className="w-full gap-2">
@@ -2254,6 +2373,26 @@ export function IncidentDetailsPage() {
                       >
                         <Star className="w-4 h-4" />
                         {incident.highPriority ? 'Remove Priority' : 'Mark High Priority'}
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* Show Request Assistance to dept admins not covered by isSupervisor */}
+                  {!isSupervisor && canRequestEscalation && !incidentIsClosed && (
+                    <div className="space-y-2">
+                      <p className="text-xs uppercase tracking-wide text-muted font-semibold">Assistance</p>
+                      <Button
+                        className="w-full gap-2 relative"
+                        variant="outline"
+                        onClick={() => setEscalationModalOpen(true)}
+                      >
+                        <HandHelping className="w-4 h-4" />
+                        Request Inter-Dept Assistance
+                        {activeEscalationsCount > 0 && (
+                          <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-orange-500 text-[9px] font-bold text-white">
+                            {activeEscalationsCount}
+                          </span>
+                        )}
                       </Button>
                     </div>
                   )}
@@ -2897,41 +3036,41 @@ export function IncidentDetailsPage() {
             </div>
           </TabsContent>
 
-          {/* ESCALATION TAB */}
+          {/* ESCALATION TAB — Real inter-department assistance requests */}
           <TabsContent value="escalation">
             <div className={panelClass}>
               <div className={headerClass}>
-                <div className={iconBoxClass}><TrendingUp className="w-4 h-4" /></div>
-                <h2 className="text-base font-semibold text-foreground">Escalation History</h2>
+                <div className={iconBoxClass}><HandHelping className="w-4 h-4" /></div>
+                <h2 className="text-base font-semibold text-foreground">
+                  Inter-Department Assistance
+                  {activeEscalationsCount > 0 && (
+                    <span className="ml-2 inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-full bg-orange-500 text-[10px] font-bold text-white">
+                      {activeEscalationsCount}
+                    </span>
+                  )}
+                </h2>
               </div>
               <div className="p-4">
-                <div className="space-y-4">
-                  {escalations.map((esc, idx) => (
-                    <div key={idx} className="p-4 bg-amber-500/10 rounded-lg border border-amber-500/30">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <Badge className="bg-secondary/30 text-foreground">
-                            {esc.fromSeverity}
-                          </Badge>
-                          <TrendingUp className="w-4 h-4 text-amber-600" />
-                          <Badge className={getSeverityColor(esc.toSeverity)}>
-                            {esc.toSeverity}
-                          </Badge>
-                        </div>
-                        <span className="text-xs text-muted">{esc.timestamp}</span>
-                      </div>
-                      <p className="text-sm text-foreground mb-1">
-                        <strong>Escalated by:</strong> {esc.escalatedBy}
-                      </p>
-                      <p className="text-sm text-foreground">
-                        <strong>Reason:</strong> {esc.reason}
-                      </p>
-                    </div>
-                  ))}
-                  {escalations.length === 0 && (
-                    <p className="text-center text-muted py-8">No escalations recorded</p>
-                  )}
-                </div>
+                {/* Request button in tab header */}
+                {canRequestEscalation && (
+                  <div className="flex justify-end mb-4">
+                    <Button
+                      size="sm"
+                      className="gap-2"
+                      onClick={() => setEscalationModalOpen(true)}
+                    >
+                      <HandHelping size={14} />
+                      Request Assistance
+                    </Button>
+                  </div>
+                )}
+                <IncidentEscalationSection
+                  escalations={escalations}
+                  loading={escalationsLoading}
+                  currentUserRole={currentUser.role}
+                  currentUserDeptId={currentUserDeptId}
+                  onStatusUpdate={handleEscalationStatusUpdate}
+                />
               </div>
             </div>
           </TabsContent>
@@ -3173,6 +3312,15 @@ export function IncidentDetailsPage() {
             await handleMarkDuplicate(parentId);
             setBrowseParentDialogOpen(false);
           }}
+        />
+
+        {/* Inter-department assistance request modal */}
+        <IncidentEscalationModal
+          open={escalationModalOpen}
+          onOpenChange={setEscalationModalOpen}
+          departments={departmentList}
+          ownDepartmentId={currentUserDeptId}
+          onSubmit={handleCreateEscalation}
         />
       </div>
     </Layout>

@@ -8,8 +8,8 @@ const { ROLES } = require('../config/roles');
 
 router.use(authMiddleware);
 
-// List all: admin and dispatcher; create/update/delete: admin only
-router.get('/', authorize([ROLES.ADMIN, ROLES.DISPATCHER]), departmentController.getAll);
+// List all: admin, dispatcher, dept-admin, dept-head (needed for inter-dept assistance / coordination)
+router.get('/', authorize([ROLES.ADMIN, ROLES.DISPATCHER, ROLES.DEPARTMENT_ADMIN, ROLES.DEPARTMENT_HEAD]), departmentController.getAll);
 router.post('/', authorize([ROLES.ADMIN]), departmentController.create);
 router.put('/:id', authorize([ROLES.ADMIN]), departmentController.update);
 router.delete('/:id', authorize([ROLES.ADMIN]), departmentController.remove);

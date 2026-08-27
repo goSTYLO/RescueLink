@@ -174,6 +174,11 @@ function formatPushTitle(event) {
     'incident:resolution_confirmed': '✅ Incident Resolved',
     'incident:archived': '📦 Incident Archived',
     'backup_request': '🆘 Backup Requested',
+    'incident:escalated': '🤝 Assistance Requested',
+    'incident:escalation_accepted': '✅ Assistance Accepted',
+    'incident:escalation_declined': '❌ Assistance Declined',
+    'incident:escalation_resolved': '🏁 Assistance Resolved',
+    'incident:escalation_cancelled': '🚫 Assistance Cancelled',
   };
   return map[event] || '🔔 RescueLink Update';
 }
@@ -186,6 +191,8 @@ function formatPushBody(event, data) {
   const incidentType = data?.incident_type || 'Incident';
   const barangay = data?.barangay ? ` in ${data.barangay}` : '';
   const severity = data?.severity_level ? ` (${data.severity_level})` : '';
+  const toDeptName = data?.to_department_name || 'another department';
+  const urgency = data?.urgency ? ` [${String(data.urgency).toUpperCase()}]` : '';
 
   switch (event) {
     case 'incident:created':
@@ -202,6 +209,16 @@ function formatPushBody(event, data) {
       return `Incident #${reportId} has been archived`;
     case 'backup_request':
       return `Backup needed for Incident #${reportId}${barangay}`;
+    case 'incident:escalated':
+      return `Incident #${reportId}${urgency}: Assistance requested from ${toDeptName}${barangay}`;
+    case 'incident:escalation_accepted':
+      return `Incident #${reportId}: ${toDeptName} has accepted your assistance request`;
+    case 'incident:escalation_declined':
+      return `Incident #${reportId}: ${toDeptName} declined the assistance request`;
+    case 'incident:escalation_resolved':
+      return `Incident #${reportId}: Assistance from ${toDeptName} marked resolved`;
+    case 'incident:escalation_cancelled':
+      return `Incident #${reportId}: Assistance request was cancelled`;
     default:
       return `Incident #${reportId} updated`;
   }

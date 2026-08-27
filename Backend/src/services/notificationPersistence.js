@@ -67,6 +67,11 @@ const EVENT_TYPE_MAP = {
   'incident:duplicate_changed': 'duplicate_changed',
   'incident:archived': 'archived',
   'incident:unarchived': 'unarchived',
+  'incident:escalated': 'escalated',
+  'incident:escalation_accepted': 'escalation_accepted',
+  'incident:escalation_declined': 'escalation_declined',
+  'incident:escalation_resolved': 'escalation_resolved',
+  'incident:escalation_cancelled': 'escalation_cancelled',
 };
 
 /**
@@ -111,6 +116,39 @@ async function getRecipientUserIds(event, data) {
       `SELECT user_id FROM users WHERE LOWER(role) IN ('responder', 'volunteer', 'dispatcher', 'admin')`
     );
     responderRes.rows.forEach((r) => recipientIds.add(r.user_id));
+  } else if (event === 'incident:escalated') {
+    // New escalation -> notify target-department admins/heads + all dispatchers/super-admins
+    const toDeptId = data?.to_department_id;
+    if (toDeptId) {
+      const deptRes = await pool.query(
+        `SELECT user_id FROM users WHERE department_id = $1
+          AND LOWER(role) IN ('department-admin','department-head','personnel')`,
+        [toDeptId]
+      );
+      deptRes.rows.forEach((r) => recipientIds.add(r.user_id));
+    }
+    // Also notify dispatchers & super-admins
+    const globalRes = await pool.query(
+      `SELECT user_id FROM users WHERE LOWER(role) IN ('admin','dispatcher','supervisor')`
+    );
+    globalRes.rows.forEach((r) => recipientIds.add(r.user_id));
+  } else if (event.startsWith('incident:escalation_')) {
+    // Escalation status update -> notify BOTH from-dept and to-dept admins + dispatchers
+    const toDeptId = data?.to_department_id;
+    const fromDeptId = data?.from_department_id;
+    const deptIds = [toDeptId, fromDeptId].filter(Boolean);
+    if (deptIds.length > 0) {
+      const deptRes = await pool.query(
+        `SELECT user_id FROM users WHERE department_id = ANY($1::int[])
+          AND LOWER(role) IN ('department-admin','department-head')`,
+        [deptIds]
+      );
+      deptRes.rows.forEach((r) => recipientIds.add(r.user_id));
+    }
+    const globalRes = await pool.query(
+      `SELECT user_id FROM users WHERE LOWER(role) IN ('admin','dispatcher')`
+    );
+    globalRes.rows.forEach((r) => recipientIds.add(r.user_id));
   } else {
     // Incident Updates (verified, dispatched, status_updated, resolution_confirmed, reclassified, note_added)
     // -> Send to the Mobile Citizen (Reporter) and Assigned Responders!

@@ -236,5 +236,6 @@ export function mapApiIncidentToDisplay(api) {
     reporterConfirmedAt: api?.reporter_confirmed_at || null,
     isDuplicate: Boolean(api?.is_duplicate),
     flaggedForReview: Boolean(api?.flagged_for_review),
+    hasPendingEscalation: Boolean(api?.has_pending_escalation),
   };
 }

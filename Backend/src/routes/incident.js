@@ -3,10 +3,17 @@ const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
 const router = express.Router();
 const incidentController = require('../controllers/incident');
 const incidentAcceptance = require('../controllers/incidentAcceptance');
+const incidentEscalation = require('../controllers/incidentEscalation');
 const authMiddleware = require('../middleware/auth');
 const { uploadMiddleware } = require('../middleware/fileUpload');
 const { authorize, checkOwnership } = require('../middleware/rbac');
 const { ROLES } = require('../config/roles');
+
+// Roles allowed to request / manage escalations
+const ESCALATION_ROLES = [
+  ROLES.ADMIN, ROLES.DISPATCHER, ROLES.DEPARTMENT_ADMIN, ROLES.DEPARTMENT_HEAD,
+  'super-admin', 'superadmin', 'Super Admin',
+];
 
 // Rate limit: incident report creation per user (prevents spam/abuse)
 // 20 reports per 15 minutes per account (emergency + with-audio combined)
@@ -106,6 +113,11 @@ router.patch('/:id/backup/:backupId/acknowledge', authMiddleware, authorize([
   'superadmin',
   'Super Admin',
 ]), incidentAcceptance.acknowledgeBackupRequest);
+
+// Inter-department escalation / assistance endpoints (before generic /:id)
+router.get( '/:id/escalations',                          authMiddleware, authorize(ESCALATION_ROLES), incidentEscalation.listEscalations);
+router.post('/:id/escalations',                          authMiddleware, authorize(ESCALATION_ROLES), incidentEscalation.createEscalation);
+router.patch('/:id/escalations/:escalationId/status',    authMiddleware, authorize(ESCALATION_ROLES), incidentEscalation.updateEscalationStatus);
 
 // Archive a closed incident (manual; auto-archive also fires via updateStatus)
 router.post('/:id/archive',   authMiddleware, authorize([ROLES.DISPATCHER, ROLES.ADMIN, ROLES.DEPARTMENT_ADMIN, ROLES.DEPARTMENT_HEAD]), incidentController.archiveIncident);

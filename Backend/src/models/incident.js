@@ -357,7 +357,11 @@ const Incident = {
                         (
                           SELECT COUNT(*)::int FROM backup_responses brsp
                            WHERE brsp.report_id = ir.report_id AND brsp.status = 'joined'
-                        ) AS backup_volunteer_count
+                        ) AS backup_volunteer_count,
+                        EXISTS (
+                          SELECT 1 FROM incident_escalations ie
+                           WHERE ie.report_id = ir.report_id AND ie.status = 'pending'
+                        ) AS has_pending_escalation
       FROM incident_reports ir
       LEFT JOIN users u ON ir.user_id = u.user_id
       LEFT JOIN users acceptor ON acceptor.user_id = ir.accepted_by_user_id
@@ -367,7 +371,15 @@ const Incident = {
 
     if (department_code) {
       paramCount++;
-      query += ` AND ir.report_id IN (SELECT report_id FROM dispatches WHERE department_code = $${paramCount})`;
+      query += ` AND (
+        ir.report_id IN (SELECT report_id FROM dispatches WHERE LOWER(department_code) = LOWER($${paramCount}))
+        OR
+        ir.report_id IN (
+          SELECT ie.report_id FROM incident_escalations ie
+          JOIN departments d ON (ie.to_department_id = d.department_id OR ie.from_department_id = d.department_id)
+          WHERE LOWER(d.code) = LOWER($${paramCount})
+        )
+      )`;
       params.push(department_code);
     }
 
@@ -588,7 +600,15 @@ const Incident = {
 
     if (department_code) {
       paramCount++;
-      query += ` AND report_id IN (SELECT report_id FROM dispatches WHERE department_code = $${paramCount})`;
+      query += ` AND (
+        report_id IN (SELECT report_id FROM dispatches WHERE LOWER(department_code) = LOWER($${paramCount}))
+        OR
+        report_id IN (
+          SELECT ie.report_id FROM incident_escalations ie
+          JOIN departments d ON (ie.to_department_id = d.department_id OR ie.from_department_id = d.department_id)
+          WHERE LOWER(d.code) = LOWER($${paramCount})
+        )
+      )`;
       params.push(department_code);
     }
 

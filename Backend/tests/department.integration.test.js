@@ -11,6 +11,18 @@ jest.mock('../src/services/retryFileScan', () => ({
 jest.mock('../src/services/duplicateBackgroundAnalyzer', () => ({
   startDuplicateAnalyzer: () => null,
 }));
+jest.mock('../src/models/user', () => {
+  const actual = jest.requireActual('../src/models/user');
+  return {
+    ...actual,
+    getRoleById: jest.fn(async (id) => {
+      if (id === 1) return 'admin';
+      if (id === 2) return 'dispatcher';
+      if (id === 3) return 'user';
+      return actual.getRoleById(id);
+    }),
+  };
+});
 
 const app = require('../src/app');
 const { JWT_SECRET } = require('../src/config/jwt');

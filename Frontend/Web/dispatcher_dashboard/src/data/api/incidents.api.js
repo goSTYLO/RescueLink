@@ -552,3 +552,72 @@ export async function unarchiveIncident(id) {
   logInfo(`[web][incidents][unarchiveIncident] request_id=${requestId} report_id=${id} status=${response.status} latency_ms=${Math.round(performance.now() - start)}`);
   return data;
 }
+
+// ── Incident Escalation / Inter-Department Assistance ─────────────────────────
+
+/**
+ * Fetch all escalation requests for an incident.
+ * @param {number|string} reportId
+ * @returns {Promise<Array>}
+ */
+export async function getIncidentEscalations(reportId) {
+  const requestId = createRequestId('web-escalations-get');
+  const start = performance.now();
+  const response = await fetch(`${API_URL}/api/incidents/${reportId}/escalations`, {
+    headers: getAuthHeaders({ requestId, includeContentType: false }),
+  });
+  const data = await parseJsonOrEmpty(response);
+  if (!response.ok) {
+    logError(`[web][incidents][getIncidentEscalations] request_id=${requestId} report_id=${reportId} status=${response.status}`);
+    throw new Error(parseErrorMessage(data, 'Failed to fetch escalations'));
+  }
+  logInfo(`[web][incidents][getIncidentEscalations] request_id=${requestId} report_id=${reportId} status=${response.status} latency_ms=${Math.round(performance.now() - start)}`);
+  return data.escalations ?? [];
+}
+
+/**
+ * Create an inter-department assistance request.
+ * @param {number|string} reportId
+ * @param {{ to_department_id: number, urgency: string, justification_notes: string }} payload
+ * @returns {Promise<Object>}
+ */
+export async function createIncidentEscalation(reportId, payload) {
+  const requestId = createRequestId('web-escalations-create');
+  const start = performance.now();
+  const response = await fetch(`${API_URL}/api/incidents/${reportId}/escalations`, {
+    method: 'POST',
+    headers: getAuthHeaders({ requestId }),
+    body: JSON.stringify(payload),
+  });
+  const data = await parseJsonOrEmpty(response);
+  if (!response.ok) {
+    logError(`[web][incidents][createIncidentEscalation] request_id=${requestId} report_id=${reportId} status=${response.status}`);
+    throw new Error(parseErrorMessage(data, 'Failed to create escalation request'));
+  }
+  logInfo(`[web][incidents][createIncidentEscalation] request_id=${requestId} report_id=${reportId} status=${response.status} latency_ms=${Math.round(performance.now() - start)}`);
+  return data.escalation;
+}
+
+/**
+ * Update the status of an escalation request (accept, decline, resolve, cancel).
+ * @param {number|string} reportId
+ * @param {number|string} escalationId
+ * @param {{ status: string, response_notes?: string }} payload
+ * @returns {Promise<Object>}
+ */
+export async function updateIncidentEscalationStatus(reportId, escalationId, payload) {
+  const requestId = createRequestId('web-escalations-status');
+  const start = performance.now();
+  const response = await fetch(`${API_URL}/api/incidents/${reportId}/escalations/${escalationId}/status`, {
+    method: 'PATCH',
+    headers: getAuthHeaders({ requestId }),
+    body: JSON.stringify(payload),
+  });
+  const data = await parseJsonOrEmpty(response);
+  if (!response.ok) {
+    logError(`[web][incidents][updateIncidentEscalationStatus] request_id=${requestId} report_id=${reportId} escalation_id=${escalationId} status=${response.status}`);
+    throw new Error(parseErrorMessage(data, 'Failed to update escalation status'));
+  }
+  logInfo(`[web][incidents][updateIncidentEscalationStatus] request_id=${requestId} report_id=${reportId} escalation_id=${escalationId} status=${response.status} latency_ms=${Math.round(performance.now() - start)}`);
+  return data.escalation;
+}

@@ -14,6 +14,11 @@ const PUSH_EVENTS = new Set([
   'incident:reclassified',
   'incident:archived',
   'backup_request',
+  'incident:escalated',
+  'incident:escalation_accepted',
+  'incident:escalation_declined',
+  'incident:escalation_resolved',
+  'incident:escalation_cancelled',
 ]);
 
 function buildIncidentEventPayload(incident) {

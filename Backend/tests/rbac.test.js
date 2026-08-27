@@ -25,7 +25,14 @@ jest.mock('../src/models/user', () => {
   const actual = jest.requireActual('../src/models/user');
   return {
     ...actual,
-    getRoleById: jest.fn((...args) => actual.getRoleById(...args)),
+    getRoleById: jest.fn(async (id) => {
+      if (id === 1) return 'user';
+      if (id === 2) return 'dispatcher';
+      if (id === 3) return 'admin';
+      if (id === 4) return 'responder';
+      if (id === 5) return 'supervisor';
+      return actual.getRoleById(id);
+    }),
   };
 });
 
