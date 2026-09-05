@@ -46,7 +46,9 @@ const MIGRATION_ORDER = [
   'add_incident_closed_status_fields.sql',
   'add_incident_resolution_confirmation_fields.sql',
   'add_user_location_columns.sql',
+  'add_incident_archival.sql',
   'add_incident_escalations.sql',
+  'add_notification_preferences.sql',
 ];
 
 async function runMigrations() {
