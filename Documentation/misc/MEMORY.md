@@ -66,3 +66,13 @@ Added: 2026-08-18 — backup acknowledge lifecycle + volunteer response web tab 
 - Optional closure dialog fields persist as `closure_notes` + `closure_method`.
 
 Added: 2026-08-18 — dispatcher close for resolved / volunteer-resolved incidents.
+
+## Hybrid auto team assignment (2026-09-07)
+
+- After create (SOS / high-confidence AI audio) the backend picks **one** matching available team via `autoDispatchService`. SOS always maps to CDRRMO (`drrmo`). Low-confidence, text-only, and unmapped types persist a **suggestion** (`auto_assignment_status=suggested`) for one-click confirm.
+- If the mapped department is known but no team is free: **department-only notify** (`dept_notified` → `verified`). Auto-applied teams go `in_progress` and leave the pending triage queue.
+- Type → department is `departments.supported_incident_types` (admin-extensible). Human confirm/reassign never silent-reroutes an already-teamed incident.
+- Idempotency: a second primary team create **409** `PRIMARY_TEAM_ALREADY_ASSIGNED` unless `POST /api/dispatches/reassign-team`. Escalation decline/cancel deletes **only** `responder_source=escalation` rows.
+- Team members reuse volunteer stepper UI but write `dispatches.response_status` + a named coordination note. Team-member Resolved does **not** resolve the incident. Volunteer `Request Backup` is disabled once a formal `assigned_team_name` exists.
+- Mobile: `GET /api/responders/me/assigned-incidents`, `GET /api/responders/me/team`, `PATCH /api/dispatches/me/status`. OneSignal copy: “Your team was assigned…”.
+- Audit (2026-09-07): auto-apply now walks `pending → in_progress` (was swallowed by the lifecycle machine). Empty-team race after pick falls through to CDRRMO/dept notify. Event payload no longer treats `suggested_team_name` as assigned. Dispatch `response_status` is title-cased so the mobile stepper can advance. Add-department is department-only (does not replace the primary team). Undo-notify resets `auto_assignment_status` when no dispatches remain. Queue list API now includes auto-assignment fields + primary `assigned_team_name` so dashboard badges and Assign-button gating work.

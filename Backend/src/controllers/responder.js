@@ -1,6 +1,7 @@
 const Responder = require('../models/responder');
 const User = require('../models/user');
 const Department = require('../models/department');
+const Dispatch = require('../models/dispatch');
 const pool = require('../config/db');
 const { validateInteger, validateString, validateOptionalString, validatePagination, validateAllowedValue, validateLatitude, validateLongitude } = require('../utils/validation');
 const { logDispatcherAction } = require('../utils/auditLog');
@@ -451,6 +452,61 @@ const responderController = {
       res.json(row.rows[0]);
     } catch (err) {
       console.error('getSelfProfile error:', err);
+      res.status(500).json({ error: 'Internal server error.' });
+    }
+  },
+
+  async getAssignedIncidents(req, res) {
+    try {
+      const userId = req.user.user_id;
+      const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 100);
+      const offset = Math.max(Number(req.query.offset) || 0, 0);
+      const rows = await Dispatch.findAssignedIncidentsForUser(userId, { limit, offset });
+      res.json({ incidents: rows, count: rows.length });
+    } catch (err) {
+      console.error('getAssignedIncidents error:', err);
+      res.status(500).json({ error: 'Internal server error.' });
+    }
+  },
+
+  async getMyTeam(req, res) {
+    try {
+      const userId = req.user.user_id;
+      const me = await pool.query(
+        `SELECT r.responder_id, r.team_name, r.name
+           FROM responders r
+          WHERE r.user_id = $1
+          LIMIT 1`,
+        [userId]
+      );
+      const responder = me.rows[0];
+      if (!responder) return res.status(404).json({ error: 'Responder profile not found.' });
+
+      const memberships = await pool.query(
+        `SELECT rt.team_id, rt.team_name, rt.department_code, rt.team_status, rt.supported_incident_types
+           FROM responder_team_members rtm
+           INNER JOIN responder_teams rt ON rt.team_id = rtm.team_id
+          WHERE rtm.responder_id = $1 AND rtm.is_active = TRUE
+          ORDER BY rt.team_name ASC`,
+        [responder.responder_id]
+      );
+      const teams = [];
+      for (const team of memberships.rows) {
+        const members = await Responder.listTeamMembers(team.team_id);
+        teams.push({
+          ...team,
+          members: (members || []).map((member) => ({
+            responder_id: member.responder_id,
+            name: member.name,
+            availability_status: member.availability_status,
+            has_app_account: Boolean(member.user_id),
+            user_id: member.user_id || null,
+          })),
+        });
+      }
+      res.json({ responder_id: responder.responder_id, teams });
+    } catch (err) {
+      console.error('getMyTeam error:', err);
       res.status(500).json({ error: 'Internal server error.' });
     }
   },

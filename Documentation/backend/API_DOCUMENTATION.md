@@ -9,7 +9,7 @@ http://localhost:3000/api
 ## Latest Integration Notes (Mobile + Backend)
 
 - **Duplicate management**: Incidents are never auto-linked as duplicates. Geospatial detection only sets `flagged_for_review`. Dispatchers manually link via `POST /api/incidents/:id/link-duplicate`. Incident payloads include `is_duplicate`, `flagged_for_review`, `parent_report_id`, `duplicate_cluster` when applicable. Cluster descriptions and reporter names are decrypted.
-- **Incidents list**: `GET /api/incidents` supports `search` (report ID or description/barangay ILIKE), `exclude_report_id`, `incident_type`, `barangay`, `exclude_duplicates`.
+- **Incidents list**: `GET /api/incidents` supports `search` (report ID or description/barangay ILIKE), `exclude_report_id`, `incident_type`, `barangay`, `exclude_duplicates`. Rows include `auto_assignment_status`, `suggested_department_code`, `suggested_team_name`, `auto_assignment_reason`, `auto_assignment_mismatch`, and primary `assigned_team_name` (non-escalation team).
 - Mobile incident detail flow is now unified on a single screen that uses `GET /api/incidents/:id/with-ai` as its primary data source.
 - AI confidence values may appear under different keys depending on endpoint/path:
   - `ai_classification.confidence` (create response path)
@@ -914,6 +914,53 @@ Delete a dispatch record.
 
 - `404 Not Found` - Dispatch not found
 - `500 Internal Server Error` - Server error
+
+---
+
+### Confirm suggestion
+
+**POST** `/api/dispatches/confirm-suggestion`
+
+Apply a stored hybrid auto-assignment suggestion (`auto_assignment_status=suggested`) as a primary team dispatch.
+
+**Required Role:** `dispatcher`, `admin`, `department-admin`, `department-head`
+
+**Request Body:** `{ "report_id": 1 }`
+
+**Error Responses:** `400` invalid id, `404` no suggestion, `409` primary team already assigned
+
+---
+
+### Reassign team
+
+**POST** `/api/dispatches/reassign-team`
+
+Release the current primary team (sets team/members available) and optionally assign a new team. Department-admin/head may only reassign within their department. `reason` must be at least 10 characters.
+
+**Required Role:** `dispatcher`, `admin`, `department-admin`, `department-head`
+
+**Request Body:**
+
+```json
+{
+  "report_id": 1,
+  "team_name": "Rescue Alpha",
+  "department_code": "drrmo",
+  "reason": "Wrong team for this incident type"
+}
+```
+
+---
+
+### Update my dispatch status
+
+**PATCH** `/api/dispatches/me/status`
+
+Team member updates **their** dispatch row (`response_status`: Assigned, En Route, On Scene, Resolved). Appends a named coordination note. Does **not** mark the incident resolved. Writes `incident_reports.responder_status` only if this user is the volunteer acceptor.
+
+**Required Role:** `responder`
+
+**Request Body:** `{ "report_id": 1, "response_status": "En Route" }`
 
 ---
 

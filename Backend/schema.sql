@@ -450,3 +450,14 @@ CREATE TABLE IF NOT EXISTS notification_preferences (
 ALTER TABLE users ADD COLUMN IF NOT EXISTS onesignal_player_id VARCHAR(64);
 CREATE INDEX IF NOT EXISTS idx_users_onesignal_player_id ON users(onesignal_player_id) WHERE onesignal_player_id IS NOT NULL;
 
+ALTER TABLE incident_reports
+  ADD COLUMN IF NOT EXISTS auto_assignment_status VARCHAR(40) NOT NULL DEFAULT 'none',
+  ADD COLUMN IF NOT EXISTS suggested_department_code VARCHAR(40),
+  ADD COLUMN IF NOT EXISTS suggested_team_name VARCHAR(150),
+  ADD COLUMN IF NOT EXISTS auto_assignment_reason TEXT,
+  ADD COLUMN IF NOT EXISTS auto_assignment_mismatch BOOLEAN NOT NULL DEFAULT FALSE;
+
+ALTER TABLE departments
+  ADD COLUMN IF NOT EXISTS supported_incident_types TEXT[] NOT NULL DEFAULT '{}';
+
+

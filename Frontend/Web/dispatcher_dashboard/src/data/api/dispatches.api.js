@@ -30,3 +30,31 @@ export async function undoDepartmentNotification(payload) {
   }
   return data;
 }
+
+export async function confirmSuggestion(payload) {
+  const requestId = createRequestId('web-dispatch-confirm-suggestion');
+  const response = await fetch(`${API_URL}/api/dispatches/confirm-suggestion`, {
+    method: 'POST',
+    headers: getAuthHeaders({ requestId }),
+    body: JSON.stringify(payload),
+  });
+  const data = await parseJsonOrEmpty(response);
+  if (!response.ok) {
+    throw new Error(parseErrorMessage(data, 'Failed to confirm team suggestion'));
+  }
+  return data;
+}
+
+export async function reassignTeam(payload) {
+  const requestId = createRequestId('web-dispatch-reassign-team');
+  const response = await fetch(`${API_URL}/api/dispatches/reassign-team`, {
+    method: 'POST',
+    headers: getAuthHeaders({ requestId }),
+    body: JSON.stringify(payload),
+  });
+  const data = await parseJsonOrEmpty(response);
+  if (!response.ok) {
+    throw new Error(parseErrorMessage(data, 'Failed to reassign team'));
+  }
+  return data;
+}

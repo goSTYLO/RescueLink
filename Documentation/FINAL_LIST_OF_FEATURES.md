@@ -104,8 +104,12 @@ Available to users with role `responder` (promoted upon application approval).
 - Responder dashboard: active assignments with status indicators
 - Responder incident detail: interactive map (OpenStreetMap), location pin
 - Response progress stepper: Assigned → En Route → On Scene → Resolved
-- Request backup (CDRRMO, nearby responders, or both)
-- Status updates via `/api/incidents/:id/responder-status`
+- **Assigned to my team** list (above nearby volunteer pool); skip Accept; Team roster sheet
+- Team-member stepper writes `PATCH /api/dispatches/me/status` (per-member); official resolve stays web dept admin/head
+- Request backup (CDRRMO, nearby responders, or both) — **disabled** when a formal team is already assigned
+- Volunteer alert modal shows assigned team name when auto-dispatch already teamed the incident
+- Status updates via `/api/incidents/:id/responder-status` (volunteer acceptor) or `/api/dispatches/me/status` (team assignment)
+- OneSignal deep link opens the assigned incident when the user is on that team
 
 ### Response History
 
@@ -159,6 +163,7 @@ Available to users with role `responder` (promoted upon application approval).
 ### Dispatch, Departments, Teams & Admin
 
 - Create dispatch: single responder or grouped team by department
+- Hybrid auto-assign / suggestion badges; confirm suggested team; reassign override
 - Department assignment and availability integration
 - Undo department notification
 - Department CRUD, details, metrics, units, vehicles, personnel, tasks
@@ -214,11 +219,13 @@ Mounted routes: `/api/auth`, `/api/incidents`, `/api/dispatches`, `/api/responde
 ### Dispatch & Responders
 
 - Single-responder and grouped team dispatch creation
-- Dispatch list, update, cancel; undo department notification
+- Hybrid auto team assignment: SOS → one CDRRMO team; high-confidence AI → mapped department team; else suggestion or department-notify
+- Confirm suggestion and reassign-team (releases previous team); second primary team create is 409
+- Dispatch list, update, cancel; undo department notification (only while no team exists)
 - Responder CRUD, availability status, online status, specialization fields
 - Team CRUD and member management
 - Incident acceptance workflow: accept, decline, responder status updates, backup requests
-- Active assignments and response history for responders
+- Active assignments, assigned-to-my-team list, and response history for responders
 
 ### Departments
 

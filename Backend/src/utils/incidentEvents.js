@@ -38,13 +38,14 @@ function buildIncidentEventPayload(incident) {
     longitude: incident.longitude ?? null,
     accepted_by_user_id: incident.accepted_by_user_id ?? null,
     responder_status: incident.responder_status ?? null,
+    assigned_team_name: incident.assigned_team_name || null,
     created_at: incident.created_at ?? null,
     updated_at: incident.updated_at ?? incident.created_at ?? new Date().toISOString(),
   };
 }
 
 function emitIncidentEvent(req, event, incident) {
-  const wss = req.app?.locals?.wss;
+  const wss = req?.app?.locals?.wss;
   if (!incident) return;
   const data = buildIncidentEventPayload(incident);
   if (wss?.broadcast) {

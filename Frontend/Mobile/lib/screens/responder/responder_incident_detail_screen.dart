@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../../services/responder_service.dart';
@@ -17,6 +18,7 @@ class ResponderIncidentDetailScreen extends StatefulWidget {
   final Map<String, dynamic>? initialIncident;
   final bool isBackupHelper;
   final int? backupRequestId;
+  final bool isTeamAssignment;
 
   const ResponderIncidentDetailScreen({
     super.key,
@@ -25,6 +27,7 @@ class ResponderIncidentDetailScreen extends StatefulWidget {
     this.initialIncident,
     this.isBackupHelper = false,
     this.backupRequestId,
+    this.isTeamAssignment = false,
   });
 
   @override
@@ -57,11 +60,31 @@ class _ResponderIncidentDetailScreenState
     'Resolved': 'Mark Resolved',
   };
 
+  String _canonicalStatus(String? raw) {
+    final lower = (raw ?? 'Assigned').trim().toLowerCase();
+    for (final status in _statuses) {
+      if (status.toLowerCase() == lower) return status;
+    }
+    return 'Assigned';
+  }
+
   bool get _isBackupHelper =>
       widget.isBackupHelper || _incident?['is_backup_assignment'] == true;
 
   int? get _backupRequestId =>
       widget.backupRequestId ?? parseInt(_incident?['backup_request_id']);
+
+  bool get _isTeamAssignment {
+    if (widget.isTeamAssignment) return true;
+    final mine = _incident?['my_response_status']?.toString().trim();
+    return mine != null && mine.isNotEmpty;
+  }
+
+  String? get _assignedTeamName {
+    final name = _incident?['assigned_team_name']?.toString().trim();
+    if (name == null || name.isEmpty) return null;
+    return name;
+  }
 
   @override
   void initState() {
@@ -113,15 +136,48 @@ class _ResponderIncidentDetailScreenState
     try {
       try {
         final detail = await _incidentService.getIncidentById(widget.reportId);
+        Map<String, dynamic> merged = Map<String, dynamic>.from(detail);
+        if (_isTeamAssignment || widget.isTeamAssignment) {
+          try {
+            final assigned = await _service.getAssignedIncidents();
+            final mine = assigned
+                .where((row) => parseInt(row['report_id']) == widget.reportId)
+                .toList();
+            if (mine.isNotEmpty) {
+              merged = {
+                ...merged,
+                'my_response_status': mine.first['my_response_status'] ?? merged['my_response_status'],
+                'assigned_team_name': mine.first['assigned_team_name'] ?? merged['assigned_team_name'],
+                'my_dispatch_id': mine.first['my_dispatch_id'] ?? merged['my_dispatch_id'],
+              };
+            }
+          } catch (_) {}
+        }
         if (mounted) {
           setState(() {
-            _incident = detail;
+            _incident = merged;
             _loading = false;
             _error = null;
           });
         }
         return;
       } on IncidentServiceException {
+        if (widget.isTeamAssignment) {
+          try {
+            final assigned = await _service.getAssignedIncidents();
+            final mine = assigned
+                .where((row) => parseInt(row['report_id']) == widget.reportId)
+                .toList();
+            if (mine.isNotEmpty && mounted) {
+              setState(() {
+                _incident = mine.first;
+                _loading = false;
+                _error = null;
+              });
+              return;
+            }
+          } catch (_) {}
+        }
         // Fall back to active/history list when direct GET is unavailable.
       }
 
@@ -174,26 +230,30 @@ class _ResponderIncidentDetailScreenState
           throw ResponderServiceException('Backup assignment id missing.');
         }
         await _service.updateBackupResponderStatus(widget.reportId, backupId, newStatus);
+      } else if (_isTeamAssignment) {
+        await _service.updateMyDispatchStatus(widget.reportId, newStatus);
       } else {
         await _service.updateResponderStatus(widget.reportId, newStatus);
       }
-      if (mounted) {
-        setState(() {
-          _incident = {
-            if (_incident != null) ..._incident!,
-            'responder_status': newStatus,
-          };
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Status updated to $newStatus'), backgroundColor: const Color(0xFF10B981), closeIconColor: Colors.white),
-        );
-        if (newStatus == 'Resolved') {
-          await Future<void>.delayed(const Duration(milliseconds: 600));
-          if (mounted) Navigator.of(context).pop();
-          return;
-        }
-        await _loadIncident();
+      if (!mounted) return;
+      await HapticFeedback.mediumImpact();
+      if (!mounted) return;
+      setState(() {
+        _incident = {
+          if (_incident != null) ..._incident!,
+          if (_isTeamAssignment) 'my_response_status': newStatus,
+          if (!_isTeamAssignment) 'responder_status': newStatus,
+        };
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Status updated to $newStatus'), backgroundColor: const Color(0xFF10B981), closeIconColor: Colors.white),
+      );
+      if (newStatus == 'Resolved' && !_isTeamAssignment) {
+        await Future<void>.delayed(const Duration(milliseconds: 600));
+        if (mounted) Navigator.of(context).pop();
+        return;
       }
+      await _loadIncident();
     } on ResponderServiceException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -334,6 +394,112 @@ class _ResponderIncidentDetailScreenState
     );
   }
 
+  Future<void> _openRoster() async {
+    await HapticFeedback.selectionClick();
+    if (!mounted) return;
+    final teamName = _assignedTeamName;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        final isDark = Theme.of(ctx).brightness == Brightness.dark;
+        final bg = isDark ? const Color(0xFF1E293B) : Colors.white;
+        final textPrimary = isDark ? Colors.white : const Color(0xFF0F172A);
+        final textSec = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+        return Container(
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
+          child: FutureBuilder<Map<String, dynamic>>(
+            future: _service.getMyTeam(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState != ConnectionState.done) {
+                return const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 48),
+                  child: Center(child: CircularProgressIndicator(color: Color(0xFFEF4444))),
+                );
+              }
+              if (snapshot.hasError) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 32),
+                  child: Text('Unable to load team roster.', style: TextStyle(color: textSec)),
+                );
+              }
+              final teams = (snapshot.data?['teams'] as List?)
+                      ?.whereType<Map>()
+                      .map((e) => e.cast<String, dynamic>())
+                      .toList() ??
+                  [];
+              Map<String, dynamic>? team;
+              if (teamName != null) {
+                for (final row in teams) {
+                  if ((row['team_name'] ?? '').toString().toLowerCase() == teamName.toLowerCase()) {
+                    team = row;
+                    break;
+                  }
+                }
+              }
+              team ??= teams.isNotEmpty ? teams.first : null;
+              final members = (team?['members'] as List?)
+                      ?.whereType<Map>()
+                      .map((e) => e.cast<String, dynamic>())
+                      .toList() ??
+                  [];
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        color: textSec.withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  Text(
+                    team?['team_name']?.toString() ?? teamName ?? 'Team roster',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textPrimary),
+                  ),
+                  const SizedBox(height: 4),
+                  Text('${members.length} member${members.length == 1 ? '' : 's'}', style: TextStyle(color: textSec, fontSize: 13)),
+                  const SizedBox(height: 16),
+                  if (members.isEmpty)
+                    Text('No roster members found.', style: TextStyle(color: textSec))
+                  else
+                    ...members.map((member) {
+                      final name = (member['name'] ?? 'Responder').toString();
+                      final status = (member['availability_status'] ?? '').toString();
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.person_outline, size: 20, color: Color(0xFF134178)),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(name, style: TextStyle(color: textPrimary, fontWeight: FontWeight.w600)),
+                            ),
+                            if (status.isNotEmpty)
+                              Text(status, style: TextStyle(color: textSec, fontSize: 12)),
+                          ],
+                        ),
+                      );
+                    }),
+                ],
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -353,6 +519,14 @@ class _ResponderIncidentDetailScreenState
           style: TextStyle(color: textPrimary, fontWeight: FontWeight.bold),
         ),
         iconTheme: IconThemeData(color: textPrimary),
+        actions: [
+          if (_isTeamAssignment || _assignedTeamName != null)
+            IconButton(
+              tooltip: 'Team roster',
+              icon: const Icon(Icons.groups_outlined),
+              onPressed: _openRoster,
+            ),
+        ],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: Color(0xFFEF4444)))
@@ -380,7 +554,11 @@ class _ResponderIncidentDetailScreenState
     final inc = _incident!;
     final lat = parseDouble(inc['latitude']);
     final lon = parseDouble(inc['longitude']);
-    final currentStatus = (inc['responder_status'] as String?) ?? 'Assigned';
+    final currentStatus = _canonicalStatus(
+      _isTeamAssignment
+          ? (_incident?['my_response_status'] as String?)
+          : (inc['responder_status'] as String?),
+    );
     final currentIndex = _statuses.indexOf(currentStatus).clamp(0, _statuses.length - 1);
     final next = _nextStatus[currentStatus];
     final nextLabel = next != null ? (_nextStatusLabels[next] ?? 'Update to $next') : null;
@@ -390,6 +568,30 @@ class _ResponderIncidentDetailScreenState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (_assignedTeamName != null) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF134178).withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFF134178).withValues(alpha: 0.25)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.groups_outlined, color: Color(0xFF134178)),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Formal team assigned: $_assignedTeamName',
+                      style: TextStyle(color: textPrimary, fontWeight: FontWeight.w600, fontSize: 13),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
           if (lat != null && lon != null) ...[
             _collapsibleCard(
               key: 'map',
@@ -577,6 +779,23 @@ class _ResponderIncidentDetailScreenState
 
           // Actions
           if (!widget.readOnly) ...[
+            if (_isTeamAssignment)
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _openRoster,
+                  icon: const Icon(Icons.groups_outlined),
+                  label: const Text('Team roster', style: TextStyle(fontWeight: FontWeight.w600)),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF134178),
+                    side: const BorderSide(color: Color(0xFF134178)),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    minimumSize: const Size(48, 48),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+            if (_isTeamAssignment) const SizedBox(height: 10),
             if (next != null)
               SizedBox(
                 width: double.infinity,
@@ -589,12 +808,17 @@ class _ResponderIncidentDetailScreenState
                   style: FilledButton.styleFrom(
                     backgroundColor: const Color(0xFFEF4444),
                     padding: const EdgeInsets.symmetric(vertical: 14),
+                    minimumSize: const Size(48, 48),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
               ),
             const SizedBox(height: 10),
-            if (!_isBackupHelper && currentStatus != 'Resolved' && !BackupStatusUi.hasPendingBackup(inc))
+            if (!_isBackupHelper &&
+                !_isTeamAssignment &&
+                _assignedTeamName == null &&
+                currentStatus != 'Resolved' &&
+                !BackupStatusUi.hasPendingBackup(inc))
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
@@ -605,6 +829,7 @@ class _ResponderIncidentDetailScreenState
                     foregroundColor: const Color(0xFFF59E0B),
                     side: const BorderSide(color: Color(0xFFF59E0B)),
                     padding: const EdgeInsets.symmetric(vertical: 14),
+                    minimumSize: const Size(48, 48),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                 ),

@@ -265,11 +265,15 @@ Create, retrieve, and manage emergency incidents with full lifecycle support:
 
 Manage emergency response dispatch and resource allocation:
 
-- `POST /api/dispatches` (dispatcher, admin): Create dispatch assignment
+- `POST /api/dispatches` (dispatcher, admin, department-admin, department-head): Create dispatch assignment
   - **Single responder mode**: `{ report_id, responder_id }`
   - **Grouped team mode**: `{ report_id, department_code, team_name }` - backend auto-selects available team members
   - Returns assignment summary with assigned responder count and failure reasons if applicable
   - Triggers auto-transition of incident from `verified` → `in_progress` on success
+  - Second primary team (or duplicate dept notify) returns `409 PRIMARY_TEAM_ALREADY_ASSIGNED` / `DEPARTMENT_ALREADY_NOTIFIED` — use reassign-team
+- `POST /api/dispatches/confirm-suggestion` (dispatcher, admin, department-admin, department-head): Apply stored hybrid suggestion as auto-team
+- `POST /api/dispatches/reassign-team` (same roles; dept roles scoped): Release busy team, write new group; `reason` min 10 characters
+- `PATCH /api/dispatches/me/status` (responder): Update this member's `dispatches.response_status`; does not resolve the incident unless the user is also the volunteer acceptor
 - `GET /api/dispatches` (dispatcher, admin): List all dispatches with optional filters
   - Filters: `status`, `incident_id`, `responder_id`
   - Includes responder details and assignment metadata
@@ -283,7 +287,10 @@ Manage emergency response dispatch and resource allocation:
 
 Manage emergency responders and operational teams:
 
-- `GET /api/responders` (dispatcher, admin): List all responders with availability and specialization
+- `GET /api/responders/me/profile` (responder): Self profile
+- `GET /api/responders/me/assigned-incidents` (responder): Incidents where this account is on an assigned team (`my_response_status`, `assigned_team_name`)
+- `GET /api/responders/me/team` (responder): Roster for teams this responder belongs to
+- `PATCH /api/responders/me/online-status` (responder): Online/offline + optional GPS
 - `POST /api/responders` (admin): Create new responder record
 - `GET /api/responders/:id` (dispatcher, admin): Get responder details
 - `PUT /api/responders/:id` (admin): Update responder information

@@ -107,6 +107,57 @@ class ResponderService {
     }
   }
 
+  /// GET /api/responders/me/assigned-incidents
+  Future<List<Map<String, dynamic>>> getAssignedIncidents() async {
+    final uri = Uri.parse('${AppConfig.apiBaseUrl}/api/responders/me/assigned-incidents');
+    try {
+      final res = await _client
+          .get(uri, headers: _headers())
+          .timeout(AppConfig.apiTimeout);
+      final body = await _handleResponse(res);
+      final list = body['incidents'];
+      if (list is List) {
+        return list.whereType<Map>().map((e) => e.cast<String, dynamic>()).toList();
+      }
+      return [];
+    } on SocketException {
+      throw ResponderServiceException('No connection.');
+    }
+  }
+
+  /// GET /api/responders/me/team
+  Future<Map<String, dynamic>> getMyTeam() async {
+    final uri = Uri.parse('${AppConfig.apiBaseUrl}/api/responders/me/team');
+    try {
+      final res = await _client
+          .get(uri, headers: _headers())
+          .timeout(AppConfig.apiTimeout);
+      return await _handleResponse(res);
+    } on SocketException {
+      throw ResponderServiceException('No connection.');
+    }
+  }
+
+  /// PATCH /api/dispatches/me/status
+  Future<void> updateMyDispatchStatus(int reportId, String status) async {
+    final uri = Uri.parse('${AppConfig.apiBaseUrl}/api/dispatches/me/status');
+    try {
+      final res = await _client
+          .patch(
+            uri,
+            headers: _headers(),
+            body: jsonEncode({
+              'report_id': reportId,
+              'response_status': status,
+            }),
+          )
+          .timeout(AppConfig.apiTimeout);
+      await _handleResponse(res);
+    } on SocketException {
+      throw ResponderServiceException('No connection.');
+    }
+  }
+
   /// GET /api/incidents/responder/history
   Future<List<Map<String, dynamic>>> getIncidentHistory({int page = 1}) async {
     final offset = (page - 1) * 20;

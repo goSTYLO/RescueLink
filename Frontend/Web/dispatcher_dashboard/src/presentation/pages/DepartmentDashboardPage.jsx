@@ -12,7 +12,7 @@ import { getDepartmentById, getDepartmentUnits, assignDepartmentUnit } from '@/d
 import { getResponderTeams } from '@/data/api/responders.api';
 import { createDispatch } from '@/data/api/dispatches.api';
 import { inferDepartmentSectorCode, normalizeSectorCode } from '@/core/utils/departmentSector';
-import { mapApiIncidentToDisplay, isIncidentActiveForDashboard, hasOpenBackupUi, getBackupDialogCapabilities } from '@/core/utils/incidentDisplay';
+import { mapApiIncidentToDisplay, isIncidentActiveForDashboard, hasOpenBackupUi, getBackupDialogCapabilities, getAutoAssignmentBadge } from '@/core/utils/incidentDisplay';
 import { formatDepartmentToIncidentDistance } from '@/core/utils/geoDistance';
 import { VolunteerStatusBadge } from '@/presentation/components/common/VolunteerStatusBadge';
 import { BackupRequestedBadge } from '@/presentation/components/common/BackupRequestedBadge';
@@ -348,7 +348,12 @@ export function DepartmentDashboardPage() {
 
   const activeIncidents = departmentIncidents.filter((i) => isIncidentActiveForDashboard(i));
 
-  const getAssignment = useCallback((incidentId) => assignments[incidentId] || null, [assignments]);
+  const getAssignment = useCallback((incident) => {
+    if (incident?.assignedTeamName) {
+      return { teamName: incident.assignedTeamName };
+    }
+    return null;
+  }, []);
   const isTeamAssignable = useCallback((team) => {
     const status = String(team?.team_status || 'available').trim().toLowerCase();
     return status.includes('available') || status.includes('standby');
@@ -850,6 +855,11 @@ export function DepartmentDashboardPage() {
                         <div className="flex flex-col gap-1">
                           {getStatusBadge(incident.status)}
                           <VolunteerStatusBadge responderStatus={incident.responderStatus} />
+                          {getAutoAssignmentBadge(incident) && (
+                            <Badge className={`${getAutoAssignmentBadge(incident).className} border rounded-lg px-2 py-0.5 text-[11px] font-semibold w-fit`}>
+                              {getAutoAssignmentBadge(incident).label}
+                            </Badge>
+                          )}
                           {hasOpenBackupUi(incident) && (
                             <BackupRequestedBadge
                               status={incident.openBackupStatus || 'pending'}
@@ -895,12 +905,12 @@ export function DepartmentDashboardPage() {
                         </>
                       )}
                       <td className="px-2.5 py-2 text-xs text-muted">
-                        {getAssignment(incident.id) ? (getAssignment(incident.id).teamName || getAssignment(incident.id).name) : '—'}
+                        {getAssignment(incident) ? (getAssignment(incident).teamName || getAssignment(incident).name) : '—'}
                       </td>
                       <td className="px-2.5 py-2 text-xs text-muted">{incident.timeReported || '—'}</td>
                       <td className="px-2.5 py-2">
                         <div className="flex items-center gap-1">
-                          {normalizedRole === ROLES.DEPARTMENT_ADMIN && !isArchivedView && (
+                          {(normalizedRole === ROLES.DEPARTMENT_ADMIN || normalizedRole === ROLES.DEPARTMENT_HEAD) && !isArchivedView && !incident.assignedTeamName && (
                             <Button size="sm" variant="ghost" onClick={() => openAssignModal(incident.id)} className="text-primary" title="Assign personnel">
                               <UserPlus className="w-4 h-4" />
                             </Button>

@@ -14,9 +14,33 @@ class OneSignalService {
   static const String _promptedKey = 'rescuelink_prompted_push_permission';
 
   bool _initialized = false;
+  void Function(String reportId)? _onNotificationOpened;
+  String? _pendingOpenedReportId;
+
+  /// Register a deep-link handler after the app has a navigator (e.g. home screen).
+  void setOnNotificationOpened(void Function(String reportId)? callback) {
+    _onNotificationOpened = callback;
+    final pending = _pendingOpenedReportId;
+    if (callback != null && pending != null) {
+      _pendingOpenedReportId = null;
+      callback(pending);
+    }
+  }
+
+  void _handleOpenedReportId(String reportId) {
+    final cb = _onNotificationOpened;
+    if (cb != null) {
+      cb(reportId);
+    } else {
+      _pendingOpenedReportId = reportId;
+    }
+  }
 
   /// Initialize OneSignal with App ID from environment
   Future<void> init({void Function(String reportId)? onNotificationOpened}) async {
+    if (onNotificationOpened != null) {
+      _onNotificationOpened = onNotificationOpened;
+    }
     if (_initialized) return;
 
     final appId = dotenv.env['ONESIGNAL_APP_ID'];
@@ -41,8 +65,8 @@ class OneSignalService {
       OneSignal.Notifications.addClickListener((event) {
         final data = event.notification.additionalData;
         final reportId = data?['report_id']?.toString() ?? data?['reportId']?.toString();
-        if (reportId != null && onNotificationOpened != null) {
-          onNotificationOpened(reportId);
+        if (reportId != null && reportId.isNotEmpty) {
+          _handleOpenedReportId(reportId);
         }
       });
 

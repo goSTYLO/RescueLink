@@ -1,6 +1,16 @@
 const pool = require('../config/db');
 const Responder = require('./responder');
 
+function normalizeResponseStatus(value) {
+  const key = String(value || '').trim().toLowerCase();
+  return {
+    assigned: 'Assigned',
+    'en route': 'En Route',
+    'on scene': 'On Scene',
+    resolved: 'Resolved',
+  }[key] || value;
+}
+
 const Dispatch = {
   async create({
     report_id,
@@ -25,7 +35,7 @@ const Dispatch = {
         [
           report_id,
           responder_id,
-          response_status,
+          normalizeResponseStatus(response_status),
           assignment_group_id,
           department_code,
           department_name,
@@ -42,7 +52,7 @@ const Dispatch = {
       if (error.code === '42703' || /assignment_group_id|department_code|responder_source|assigned_by_user_id/i.test(error.message)) {
         const fallback = await pool.query(
           'INSERT INTO dispatches(report_id, responder_id, response_status) VALUES($1, $2, $3) RETURNING *',
-          [report_id, responder_id, response_status]
+          [report_id, responder_id, normalizeResponseStatus(response_status)]
         );
         return fallback.rows[0];
       }
@@ -376,7 +386,130 @@ const Dispatch = {
       [responder_id]
     );
     return res.rows.length > 0;
-  }
+  },
+
+  isEscalationSource(row) {
+    return String(row?.responder_source || '').toLowerCase() === 'escalation';
+  },
+
+  hasTeamName(row) {
+    return String(row?.team_name || '').trim() !== '';
+  },
+
+  async findPrimaryTeamDispatches(report_id) {
+    const rows = await this.findAll({ report_id, limit: 200, offset: 0 });
+    return (rows || []).filter((row) => this.hasTeamName(row) && !this.isEscalationSource(row));
+  },
+
+  async hasPrimaryTeamAssignment(report_id) {
+    const rows = await this.findPrimaryTeamDispatches(report_id);
+    return rows.length > 0;
+  },
+
+  async getPrimaryTeamDepartment(report_id) {
+    const rows = await this.findPrimaryTeamDispatches(report_id);
+    const code = rows[0]?.department_code;
+    return code ? String(code).trim().toLowerCase() : null;
+  },
+
+  async departmentHasDispatch(report_id, department_code) {
+    const rows = await this.findAll({ report_id, department_code, limit: 20, offset: 0 });
+    return Array.isArray(rows) && rows.length > 0;
+  },
+
+  async departmentHasTeam(report_id, department_code) {
+    const rows = await this.findAll({ report_id, department_code, limit: 50, offset: 0 });
+    return (rows || []).some((row) => this.hasTeamName(row));
+  },
+
+  async isAssistingDepartment(report_id, department_code) {
+    const rows = await this.findAll({ report_id, department_code, limit: 50, offset: 0 });
+    return (rows || []).some((row) => this.isEscalationSource(row));
+  },
+
+  async updateResponseStatus(dispatch_id, response_status) {
+    const res = await pool.query(
+      'UPDATE dispatches SET response_status = $1 WHERE dispatch_id = $2 RETURNING *',
+      [response_status, dispatch_id]
+    );
+    return res.rows[0] || null;
+  },
+
+  async findByReportAndUser(report_id, user_id) {
+    const res = await pool.query(
+      `SELECT d.*
+         FROM dispatches d
+         INNER JOIN responders r ON r.responder_id = d.responder_id
+        WHERE d.report_id = $1 AND r.user_id = $2
+        ORDER BY d.dispatched_at DESC
+        LIMIT 1`,
+      [report_id, user_id]
+    );
+    return res.rows[0] || null;
+  },
+
+  async findAssignedIncidentsForUser(user_id, { limit = 50, offset = 0 } = {}) {
+    const cappedLimit = Math.min(Math.max(Number(limit) || 50, 1), 100);
+    const res = await pool.query(
+      `SELECT DISTINCT ON (ir.report_id) ir.*, d.team_name AS assigned_team_name,
+              d.department_code AS assigned_department_code, d.response_status AS my_response_status,
+              d.dispatch_id AS my_dispatch_id
+         FROM dispatches d
+         INNER JOIN responders r ON r.responder_id = d.responder_id
+         INNER JOIN incident_reports ir ON ir.report_id = d.report_id
+        WHERE r.user_id = $1
+          AND COALESCE(d.team_name, '') <> ''
+          AND LOWER(COALESCE(ir.status, '')) NOT IN ('closed', 'archived')
+        ORDER BY ir.report_id, d.dispatched_at DESC
+        LIMIT $2 OFFSET $3`,
+      [user_id, cappedLimit, Number(offset) || 0]
+    );
+    return res.rows;
+  },
+
+  async releaseTeamAssignment(report_id, department_code = null) {
+    const rows = department_code
+      ? await this.findAll({ report_id, department_code, limit: 200, offset: 0 })
+      : await this.findPrimaryTeamDispatches(report_id);
+    const teamRows = (rows || []).filter((row) => this.hasTeamName(row));
+    const seenTeams = new Set();
+    const deleted = [];
+
+    for (const row of teamRows) {
+      const key = `${String(row.department_code || '').toLowerCase()}::${String(row.team_name || '').toLowerCase()}`;
+      if (!seenTeams.has(key) && row.department_code && row.team_name) {
+        seenTeams.add(key);
+        try {
+          const team = await Responder.findTeamByDepartmentAndName(row.department_code, row.team_name);
+          if (team?.team_id) await Responder.updateTeamStatus(team.team_id, 'available');
+        } catch (err) {
+          console.error('Failed to release team status:', err.message);
+        }
+      }
+      if (row.responder_id) {
+        try {
+          await Responder.updateStatus(row.responder_id, 'available');
+        } catch (err) {
+          console.error('Failed to release responder status:', err.message);
+        }
+      }
+      const removed = await this.delete(row.dispatch_id);
+      if (removed) deleted.push(removed);
+    }
+    return deleted;
+  },
+
+  async deleteEscalationDispatches(report_id, department_code) {
+    const res = await pool.query(
+      `DELETE FROM dispatches
+        WHERE report_id = $1
+          AND LOWER(department_code) = LOWER($2)
+          AND LOWER(COALESCE(responder_source, '')) = 'escalation'
+        RETURNING *`,
+      [report_id, department_code]
+    );
+    return res.rows;
+  },
 };
 
 module.exports = Dispatch;

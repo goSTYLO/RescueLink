@@ -31,12 +31,12 @@ import {
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { getIncidentById, getIncidentAudioUrl, getIncidentMediaUrl, getIncidentWithAi, reclassifyIncident, updateIncidentStatus, verifyIncident, getCoordinationNotes, addCoordinationNote, getIncidentDuplicates, getPotentialDuplicates, linkDuplicate, unlinkDuplicate, clearDuplicateFlag, acknowledgeBackupRequest, getIncidentEscalations, createIncidentEscalation, updateIncidentEscalationStatus } from '@/data/api/incidents.api';
 import { getResponders, getResponderTeams, updateResponderStatus, updateResponderTeamStatus, getTeamMembers } from '@/data/api/responders.api';
-import { createDispatch, undoDepartmentNotification } from '@/data/api/dispatches.api';
+import { createDispatch, undoDepartmentNotification, confirmSuggestion, reassignTeam } from '@/data/api/dispatches.api';
 import { getDepartments } from '@/data/api/departments.api';
 import { DEV_MODE } from '@/core/config/app.config';
 import { ROLES, normalizeRole, getRoleDisplayLabel } from '@/core/constants';
 import { normalizeIncidentTaskType, doesTeamSupportIncidentType } from '@/core/utils/incidentClassification';
-import { formatIncidentTypeLabel, incidentTypesFromApi, formatIncidentTypesLabel, isIncidentEffectivelyResolved, isIncidentClosed, hasOpenBackupUi, getBackupDialogCapabilities } from '@/core/utils/incidentDisplay';
+import { formatIncidentTypeLabel, incidentTypesFromApi, formatIncidentTypesLabel, isIncidentEffectivelyResolved, isIncidentClosed, hasOpenBackupUi, getBackupDialogCapabilities, getAutoAssignmentBadge } from '@/core/utils/incidentDisplay';
 import { IncidentTypeChips } from '@/presentation/components/common/IncidentTypeChips';
 import { Loader2 } from 'lucide-react';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
@@ -191,6 +191,11 @@ function mapApiToIncidentDetails(api, aiClassification = null) {
     leadDepartment,
     assignedTeamName: api.assigned_team_name || null,
     assignedTeamDepartmentCode: api.assigned_team_department_code || api.assigned_department_code || null,
+    autoAssignmentStatus: String(api.auto_assignment_status || 'none').toLowerCase(),
+    suggestedDepartmentCode: api.suggested_department_code || null,
+    suggestedTeamName: api.suggested_team_name || null,
+    autoAssignmentReason: api.auto_assignment_reason || null,
+    autoAssignmentMismatch: Boolean(api.auto_assignment_mismatch),
     timeline: api.timeline || [],
     estimatedEtaMinutes: api.estimated_eta_minutes != null ? Number(api.estimated_eta_minutes) : null,
     estimatedArrivalAt: api.estimated_arrival_at || null,
@@ -434,6 +439,16 @@ export function IncidentDetailsPage() {
     || normalizedRole === ROLES.DEPARTMENT_HEAD
     || normalizedRole === ROLES.PERSONNEL
   );
+  const canConfirmOrReassign = (
+    normalizedRole === ROLES.SUPER_ADMIN
+    || normalizedRole === ROLES.DISPATCHER
+    || normalizedRole === ROLES.DEPARTMENT_ADMIN
+    || normalizedRole === ROLES.DEPARTMENT_HEAD
+  );
+  const autoStatus = String(incident?.autoAssignmentStatus || '').toLowerCase();
+  const autoBadge = getAutoAssignmentBadge(incident);
+  const isSuggested = autoStatus === 'suggested';
+  const isAutoApplied = autoStatus === 'auto_applied' || autoStatus === 'confirmed' || autoStatus === 'overridden';
   const canManualReclassify = (
     normalizedRole === ROLES.SUPER_ADMIN
     || ['dispatcher', 'supervisor', 'admin', 'super-admin', 'superadmin'].includes(roleLower)
@@ -547,6 +562,10 @@ export function IncidentDetailsPage() {
   const [undoDepartmentCode, setUndoDepartmentCode] = useState('');
   const [assignTeamDialogOpen, setAssignTeamDialogOpen] = useState(false);
   const [assignTeamName, setAssignTeamName] = useState('');
+  const [reassignDialogOpen, setReassignDialogOpen] = useState(false);
+  const [reassignTeamName, setReassignTeamName] = useState('');
+  const [reassignReason, setReassignReason] = useState('');
+  const [reassignLoading, setReassignLoading] = useState(false);
   const [assignTeamSelectOpen, setAssignTeamSelectOpen] = useState(false);
   const [closureOutcome, setClosureOutcome] = useState('');
   const [closureClassification, setClosureClassification] = useState('');
@@ -629,9 +648,14 @@ export function IncidentDetailsPage() {
   const notifiedDepartments = Object.values(timelineDepartmentState);
   const notifiedDepartmentCodes = new Set(notifiedDepartments.map((dept) => String(dept.code || '').toLowerCase()));
   const availableNotifyDepartments = departmentList.filter((dept) => !notifiedDepartmentCodes.has(String(dept.code || '').toLowerCase()));
-  const assignedDepartmentCodeForTeamActions = incident?.assignedDepartmentId || notifiedDepartments[0]?.code || incident?.assignedTeamDepartmentCode || '';
-  const showNotifyDepartmentButton = canNotifyDepartment && !incidentIsClosed && notifiedDepartments.length === 0 && availableNotifyDepartments.length > 0;
-  const showUndoNotifyButton = canNotifyDepartment && !incidentIsClosed && notifiedDepartments.length > 0;
+  const assignedDepartmentCodeForTeamActions = incident?.assignedDepartmentId || notifiedDepartments[0]?.code || incident?.assignedTeamDepartmentCode || incident?.suggestedDepartmentCode || '';
+  const hasSuggestedTeam = Boolean(incident?.suggestedTeamName);
+  const showNotifyDepartmentButton = canNotifyDepartment && !incidentIsClosed && notifiedDepartments.length === 0 && availableNotifyDepartments.length > 0 && !isAutoApplied && !isSuggested;
+  const showUndoNotifyButton = canNotifyDepartment && !incidentIsClosed && notifiedDepartments.length > 0 && !isAutoApplied && autoStatus !== 'suggested';
+  const showSelectTeamButton = !incident?.assignedTeamName && !incidentIsClosed && !isAutoApplied && (
+    (canSelectTeamForDepartment && !isSuggested)
+    || (canConfirmOrReassign && (isSuggested || autoStatus === 'dept_notified'))
+  );
 
   const openNotifyDepartmentDialog = useCallback(() => {
     const defaultCode = getDefaultSectorByIncidentType(incident?.emergencyType);
@@ -656,7 +680,7 @@ export function IncidentDetailsPage() {
   useEffect(() => {
     if (!focusAssign || !incident || detailsTab !== 'details') return;
     const timer = setTimeout(() => {
-      if (canSelectTeamForDepartment && !incident?.assignedTeamName && assignedDepartmentCodeForTeamActions) {
+      if (showSelectTeamButton && assignedDepartmentCodeForTeamActions) {
         const preferred = responderTeams.find(
           (team) => String(team.department_code || '').toLowerCase() === String(assignedDepartmentCodeForTeamActions || '').toLowerCase()
         );
@@ -665,7 +689,7 @@ export function IncidentDetailsPage() {
       }
     }, 400);
     return () => clearTimeout(timer);
-  }, [focusAssign, incident, detailsTab, canSelectTeamForDepartment, assignedDepartmentCodeForTeamActions, responderTeams]);
+  }, [focusAssign, incident, detailsTab, showSelectTeamButton, assignedDepartmentCodeForTeamActions, responderTeams]);
 
   useEffect(() => {
     const token = sessionStorage.getItem('token');
@@ -1098,6 +1122,74 @@ export function IncidentDetailsPage() {
     }
   };
 
+  const handleConfirmSuggestion = async () => {
+    try {
+      await confirmSuggestion({
+        report_id: Number(id),
+        department_code: incident?.suggestedDepartmentCode || assignedDepartmentCodeForTeamActions || undefined,
+        team_name: incident?.suggestedTeamName || assignTeamName || undefined,
+      });
+      await fetchIncident();
+      window.dispatchEvent(new CustomEvent('incident:updated', { detail: { incidentId: id } }));
+      await Swal.fire({
+        icon: 'success',
+        title: 'Suggestion confirmed',
+        text: `${incident?.suggestedTeamName || 'Team'} has been assigned.`,
+        timer: 2200,
+        showConfirmButton: false,
+        timerProgressBar: true,
+      });
+    } catch (err) {
+      await Swal.fire({
+        icon: 'error',
+        title: 'Confirm failed',
+        text: err.message || 'Could not confirm the suggested team.',
+        confirmButtonColor: '#134178',
+      });
+    }
+  };
+
+  const handleReassignTeam = async () => {
+    if (!reassignReason || reassignReason.trim().length < 10) {
+      await Swal.fire({
+        icon: 'warning',
+        title: 'Reason required',
+        text: 'Enter at least 10 characters explaining the reassignment.',
+        confirmButtonColor: '#134178',
+      });
+      return;
+    }
+    setReassignLoading(true);
+    try {
+      await reassignTeam({
+        report_id: Number(id),
+        department_code: incident?.assignedTeamDepartmentCode || assignedDepartmentCodeForTeamActions || undefined,
+        team_name: reassignTeamName || undefined,
+        reason: reassignReason.trim(),
+      });
+      setReassignDialogOpen(false);
+      setReassignReason('');
+      await fetchIncident();
+      window.dispatchEvent(new CustomEvent('incident:updated', { detail: { incidentId: id } }));
+      await Swal.fire({
+        icon: 'success',
+        title: 'Team reassigned',
+        timer: 2200,
+        showConfirmButton: false,
+        timerProgressBar: true,
+      });
+    } catch (err) {
+      await Swal.fire({
+        icon: 'error',
+        title: 'Reassign failed',
+        text: err.message || 'Could not reassign the team.',
+        confirmButtonColor: '#134178',
+      });
+    } finally {
+      setReassignLoading(false);
+    }
+  };
+
   const selectedTeamMeta = responderTeams.find(
     (team) =>
       String(team.department_code || '').toLowerCase() === String(notifyDepartment || '').toLowerCase()
@@ -1196,37 +1288,42 @@ export function IncidentDetailsPage() {
     setEscalateDialogOpen(false);
   };
 
-  const handleAddDepartment = () => {
+  const handleAddDepartment = async () => {
     if (!additionalDepartment) return;
     const selectedSector = activeSectors.find((dept) => dept.id === additionalDepartment);
     const selectedDepartmentName = selectedSector?.name || additionalDepartment;
-    const teamName = responderTeams.find((team) => String(team.department_code || '').toLowerCase() === additionalDepartment)?.team_name || null;
-
-    setIncident((prev) => {
-      if (!prev) return prev;
-      const existingDepartments = Array.isArray(prev.assignedDepartments)
-        ? prev.assignedDepartments
-        : [];
-      return {
-        ...prev,
-        assignedDepartment: selectedDepartmentName,
-        assignedDepartmentId: additionalDepartment,
-        assignedTeamName: teamName || prev?.assignedTeamName || null,
-        assignedDepartments: [...new Set([...existingDepartments, selectedDepartmentName])],
-      };
+    const proceed = await Swal.fire({
+      icon: 'question',
+      title: 'Add supporting department?',
+      text: `Notify ${selectedDepartmentName} to assist. This will not replace the primary assigned team.`,
+      showCancelButton: true,
+      confirmButtonText: 'Notify department',
+      cancelButtonText: 'Cancel',
+      confirmButtonColor: '#134178',
     });
-
-    setAddDepartmentDialogOpen(false);
-    setAdditionalDepartment('');
-    tryCreateDispatchAssignment(additionalDepartment, teamName).catch(() => {});
-    Swal.fire({
-      icon: 'success',
-      title: 'Department added',
-      text: `${selectedDepartmentName} has been added to this incident.`,
-      timer: 1800,
-      showConfirmButton: false,
-      timerProgressBar: true,
-    });
+    if (!proceed.isConfirmed) return;
+    try {
+      await tryCreateDepartmentOnlyAssignment(additionalDepartment);
+      setAddDepartmentDialogOpen(false);
+      setAdditionalDepartment('');
+      await fetchIncident();
+      window.dispatchEvent(new CustomEvent('incident:updated', { detail: { incidentId: id } }));
+      await Swal.fire({
+        icon: 'success',
+        title: 'Department added',
+        text: `${selectedDepartmentName} has been notified to assist.`,
+        timer: 1800,
+        showConfirmButton: false,
+        timerProgressBar: true,
+      });
+    } catch (err) {
+      await Swal.fire({
+        icon: 'error',
+        title: 'Could not add department',
+        text: err.message || 'The department may already be notified, or a primary team lock blocked this.',
+        confirmButtonColor: '#134178',
+      });
+    }
   };
 
   const handleCloseIncident = async () => {
@@ -1337,6 +1434,21 @@ export function IncidentDetailsPage() {
   const handleMarkDuplicate = async (parentReportId) => {
     const numericId = /^\d+$/.test(String(id));
     if (!numericId) return;
+    const assignmentStatus = String(incident?.autoAssignmentStatus || '').toLowerCase();
+    const hasAssignment = Boolean(incident?.assignedTeamName)
+      || ['auto_applied', 'confirmed', 'overridden', 'dept_notified'].includes(assignmentStatus);
+    if (hasAssignment) {
+      const proceed = await Swal.fire({
+        icon: 'warning',
+        title: 'This incident already has an assignment',
+        text: 'Linking as a duplicate will not release the current team or department notify. Reassign or undo notify first if this child should stop being worked.',
+        showCancelButton: true,
+        confirmButtonText: 'Link anyway',
+        cancelButtonText: 'Cancel',
+        confirmButtonColor: '#134178',
+      });
+      if (!proceed.isConfirmed) return;
+    }
     setLinkDuplicateInProgress(true);
     try {
       await linkDuplicate(id, parentReportId);
@@ -1565,6 +1677,28 @@ export function IncidentDetailsPage() {
           Send Backup
         </Button>
       )}
+      {canConfirmOrReassign && isSuggested && hasSuggestedTeam && !incidentIsClosed && (
+        <Button
+          className={`gap-2 bg-[#134178] hover:bg-[#0f3256] ${compact ? 'h-8 px-3 text-xs rounded-lg' : ''}`}
+          onClick={handleConfirmSuggestion}
+        >
+          <Users className="w-4 h-4" />
+          Confirm suggested team
+        </Button>
+      )}
+      {canConfirmOrReassign && isAutoApplied && !incidentIsClosed && (
+        <Button
+          variant="outline"
+          className={`gap-2 rounded-xl ${compact ? 'h-8 px-3 text-xs rounded-lg' : ''}`}
+          onClick={() => {
+            setReassignTeamName(incident?.assignedTeamName || '');
+            setReassignDialogOpen(true);
+          }}
+        >
+          <Users className="w-4 h-4" />
+          Reassign Team
+        </Button>
+      )}
       {showUndoNotifyButton && (
         <Button
           variant="outline"
@@ -1575,7 +1709,7 @@ export function IncidentDetailsPage() {
           Undo Notified Department
         </Button>
       )}
-      {canSelectTeamForDepartment && !incident?.assignedTeamName && assignedDepartmentCodeForTeamActions && !incidentIsClosed && (
+      {showSelectTeamButton && assignedDepartmentCodeForTeamActions && (
         <Button
           variant="outline"
           className={`gap-2 rounded-xl ${compact ? 'h-8 px-3 text-xs rounded-lg' : ''}`}
@@ -1747,6 +1881,16 @@ export function IncidentDetailsPage() {
                 <Badge className={`${getStatusColor(incident.status)} rounded-lg px-3 py-1`}>
                   {incident.status}
                 </Badge>
+                {autoBadge && (
+                  <Badge className={`${autoBadge.className} border rounded-lg px-3 py-1`}>
+                    {autoBadge.label}
+                  </Badge>
+                )}
+                {incident.autoAssignmentMismatch && (
+                  <Badge className="bg-orange-500/20 text-orange-700 border border-orange-500/40 rounded-lg px-3 py-1">
+                    Type/team mismatch
+                  </Badge>
+                )}
                 <VolunteerStatusBadge responderStatus={incident.responderStatus} className="rounded-lg px-3 py-1" />
                 {hasOpenBackupUi(incident) && (
                   <BackupRequestedBadge
@@ -2752,6 +2896,62 @@ export function IncidentDetailsPage() {
                   })()}
                 >
                   Undo Notification
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={reassignDialogOpen} onOpenChange={setReassignDialogOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Reassign team</DialogTitle>
+                <DialogDescription>
+                  Releases the current team and assigns another. Reason is required.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-2">
+                <div>
+                  <Label>Team</Label>
+                  <Select value={reassignTeamName} onValueChange={setReassignTeamName}>
+                    {({ value, onValueChange, dropdownRect }) => {
+                      const candidateTeams = responderTeams.filter((team) =>
+                        String(team.department_code || '').toLowerCase() === String(assignedDepartmentCodeForTeamActions || incident?.assignedTeamDepartmentCode || '').toLowerCase()
+                      );
+                      return (
+                        <>
+                          <SelectTrigger>
+                            <SelectValue
+                              value={value}
+                              options={candidateTeams.map((team) => ({ value: team.team_name || '', label: `${team.team_name || '—'} (${team.team_status || 'unknown'})` }))}
+                              placeholder="Choose replacement team"
+                            />
+                          </SelectTrigger>
+                          <SelectContent dropdownRect={dropdownRect}>
+                            {candidateTeams.map((team) => (
+                              <SelectItem key={team.team_id || team.team_name} value={team.team_name} onValueChange={onValueChange}>
+                                {team.team_name} ({team.team_status || 'unknown'})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </>
+                      );
+                    }}
+                  </Select>
+                </div>
+                <div>
+                  <Label>Reason</Label>
+                  <Textarea
+                    value={reassignReason}
+                    onChange={(event) => setReassignReason(event.target.value)}
+                    placeholder="Why is this team being replaced?"
+                    minLength={10}
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setReassignDialogOpen(false)}>Cancel</Button>
+                <Button className="bg-[#134178] hover:bg-[#0f3256]" onClick={handleReassignTeam} disabled={reassignLoading || !reassignTeamName}>
+                  {reassignLoading ? 'Saving…' : 'Reassign'}
                 </Button>
               </DialogFooter>
             </DialogContent>

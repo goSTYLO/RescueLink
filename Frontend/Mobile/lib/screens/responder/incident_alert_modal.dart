@@ -28,6 +28,7 @@ class _IncidentAlertModalState extends State<IncidentAlertModal> {
   final ResponderService _service = ResponderService();
   bool _loading = false;
   String? _error;
+  String? _assignedTeamName;
 
   int? get _reportId {
     final id = widget.event.reportId ?? widget.event.data['report_id'];
@@ -37,6 +38,15 @@ class _IncidentAlertModalState extends State<IncidentAlertModal> {
   int? get _backupRequestId {
     final id = widget.event.data['backup_request_id'];
     return id is int ? id : (id is num ? id.toInt() : int.tryParse(id?.toString() ?? ''));
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    final fromEvent = widget.event.data['assigned_team_name']?.toString().trim();
+    if (fromEvent != null && fromEvent.isNotEmpty) {
+      _assignedTeamName = fromEvent;
+    }
   }
 
   Future<void> _accept() async {
@@ -221,6 +231,22 @@ class _IncidentAlertModalState extends State<IncidentAlertModal> {
           if (isBackup && notes != null && notes.isNotEmpty) ...[
             const SizedBox(height: 10),
             Text('Notes: $notes', style: TextStyle(fontSize: 12, color: textSec)),
+          ],
+          if (!isBackup && _assignedTeamName != null && _assignedTeamName!.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF134178).withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFF134178).withValues(alpha: 0.25)),
+              ),
+              child: Text(
+                'A formal team is already assigned: $_assignedTeamName. You can still volunteer nearby.',
+                style: TextStyle(fontSize: 13, color: textSec, height: 1.35),
+              ),
+            ),
           ],
           const SizedBox(height: 24),
           if (widget.onViewDetails != null && !isBackup) ...[

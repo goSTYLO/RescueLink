@@ -68,6 +68,17 @@ const processPendingIncident = async (incident) => {
     }
     
     console.log(`✅ Successfully classified incident ${reportId} on retry ${retryCount + 1}`);
+    try {
+      const { maybeAutoDispatch } = require('./autoDispatchService');
+      const classified = await Incident.findById(reportId);
+      await maybeAutoDispatch(classified, {
+        source: 'retry',
+        aiResult,
+        duplicateFlagged: Boolean(classified?.is_duplicate || classified?.flagged_for_review),
+      });
+    } catch (autoErr) {
+      console.error('[autoDispatch] retry hook failed:', autoErr.message);
+    }
     return { success: true, reportId };
     
   } catch (error) {

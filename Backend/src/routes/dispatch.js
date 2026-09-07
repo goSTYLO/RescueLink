@@ -8,10 +8,14 @@ const { ROLES } = require('../config/roles');
 // All dispatch endpoints require dispatcher or admin role
 
 // Create new dispatch (department admin can create for their own department only; controller enforces)
-router.post('/', authMiddleware, authorize([ROLES.DISPATCHER, ROLES.ADMIN, ROLES.DEPARTMENT_ADMIN]), dispatchController.create);
+router.post('/', authMiddleware, authorize([ROLES.DISPATCHER, ROLES.ADMIN, ROLES.DEPARTMENT_ADMIN, ROLES.DEPARTMENT_HEAD]), dispatchController.create);
 
 // Get all dispatches with pagination and filters
 router.get('/', authMiddleware, authorize([ROLES.DISPATCHER, ROLES.ADMIN]), dispatchController.getAll);
+
+router.post('/confirm-suggestion', authMiddleware, authorize([ROLES.DISPATCHER, ROLES.ADMIN, ROLES.DEPARTMENT_ADMIN, ROLES.DEPARTMENT_HEAD]), dispatchController.confirmSuggestion);
+router.post('/reassign-team', authMiddleware, authorize([ROLES.DISPATCHER, ROLES.ADMIN, ROLES.DEPARTMENT_ADMIN, ROLES.DEPARTMENT_HEAD]), dispatchController.reassignTeam);
+router.patch('/me/status', authMiddleware, authorize([ROLES.RESPONDER]), dispatchController.updateMyResponseStatus);
 
 // Undo department notification when no team has been assigned yet
 router.post('/undo-department', authMiddleware, authorize([ROLES.DISPATCHER, ROLES.ADMIN]), dispatchController.undoDepartmentNotification);

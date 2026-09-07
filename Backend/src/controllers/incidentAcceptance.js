@@ -14,6 +14,7 @@ const { buildIncidentEventPayload, emitIncidentEvent } = require('../utils/incid
 const { tryDecryptValue } = require('../utils/encryption');
 const User = require('../models/user');
 const Department = require('../models/department');
+const Dispatch = require('../models/dispatch');
 const { ROLES } = require('../config/roles');
 
 const RESPONDER_STATUSES = ['Assigned', 'En Route', 'On Scene', 'Resolved'];
@@ -741,6 +742,12 @@ async function requestBackup(req, res) {
     const incident = incRow.rows[0];
     if (incident.accepted_by_user_id !== userId) {
       return res.status(403).json({ error: 'Only the primary responder can request backup.' });
+    }
+    if (await Dispatch.hasPrimaryTeamAssignment(reportId)) {
+      return res.status(409).json({
+        error: 'A formal team is already assigned. Volunteer backup is disabled.',
+        code: 'TEAM_ALREADY_ASSIGNED',
+      });
     }
 
     const insertResult = await pool.query(

@@ -18,7 +18,7 @@ import { normalizeRole, ROLES } from '@/core/constants';
 // Feature flag — mirrors USE_BLOCKCHAIN in Backend/.env
 const USE_BLOCKCHAIN = import.meta.env.VITE_USE_BLOCKCHAIN === 'true';
 import { mapIncidentTypeFilterToApi } from '@/core/utils/incidentClassification';
-import { mapApiIncidentToDisplay, hasOpenBackupUi, getBackupDialogCapabilities } from '@/core/utils/incidentDisplay';
+import { mapApiIncidentToDisplay, hasOpenBackupUi, getBackupDialogCapabilities, getAutoAssignmentBadge } from '@/core/utils/incidentDisplay';
 import { formatDepartmentToIncidentDistance } from '@/core/utils/geoDistance';
 import { SelectParentIncidentDialog } from '@/presentation/components/common/SelectParentIncidentDialog';
 import { VolunteerStatusBadge } from '@/presentation/components/common/VolunteerStatusBadge';
@@ -1039,6 +1039,11 @@ export function DashboardPage() {
                                 {(incident.status || '—').toString().toUpperCase()}
                               </Badge>
                               <VolunteerStatusBadge responderStatus={incident.responderStatus} />
+                              {getAutoAssignmentBadge(incident) && (
+                                <Badge className={`${getAutoAssignmentBadge(incident).className} border rounded-lg px-2 py-0.5 text-[11px] font-semibold w-fit`}>
+                                  {getAutoAssignmentBadge(incident).label}
+                                </Badge>
+                              )}
                               {hasOpenBackupUi(incident) && (
                                 <BackupRequestedBadge
                                   status={incident.openBackupStatus || 'pending'}

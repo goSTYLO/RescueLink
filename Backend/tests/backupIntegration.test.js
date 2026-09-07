@@ -18,8 +18,13 @@ jest.mock('../src/models/department', () => ({
   findById: jest.fn(),
 }));
 
+jest.mock('../src/models/dispatch', () => ({
+  hasPrimaryTeamAssignment: jest.fn().mockResolvedValue(false),
+}));
+
 const pool = require('../src/config/db');
 const Notification = require('../src/models/notification');
+const Dispatch = require('../src/models/dispatch');
 const {
   requestBackup,
   acknowledgeBackupRequest,
@@ -76,6 +81,31 @@ describe('backup request integration', () => {
       })
     );
     expect(res.status).toHaveBeenCalledWith(201);
+  });
+
+  it('requestBackup returns 409 when a formal team is already assigned', async () => {
+    Dispatch.hasPrimaryTeamAssignment.mockResolvedValueOnce(true);
+    pool.query
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({
+        rows: [{
+          accepted_by_user_id: 9,
+          latitude: 16.04,
+          longitude: 120.33,
+          incident_type: 'medical',
+          barangay: 'Bonuan',
+          severity_level: 'high',
+        }],
+      });
+
+    const res = { json: jest.fn(), status: jest.fn().mockReturnThis() };
+    await requestBackup(mockReq('responder', 9), res);
+
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'TEAM_ALREADY_ASSIGNED',
+    }));
+    expect(Notification.create).not.toHaveBeenCalled();
   });
 
   it('requestBackup with nearby_responders emits responder:backup_alert', async () => {

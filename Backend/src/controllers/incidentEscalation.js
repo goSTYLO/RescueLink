@@ -278,12 +278,7 @@ async function updateEscalationStatus(req, res) {
       try {
         const toDept = await Department.findById(existing.to_department_id);
         if (toDept && toDept.code) {
-          await pool.query(
-            `DELETE FROM dispatches
-             WHERE report_id = $1
-               AND LOWER(department_code) = LOWER($2)`,
-            [reportId, toDept.code]
-          );
+          await Dispatch.deleteEscalationDispatches(reportId, toDept.code);
         }
       } catch (dispErr) {
         console.warn('[incidentEscalation] Auto-dispatch cleanup note:', dispErr.message);

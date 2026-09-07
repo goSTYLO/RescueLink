@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../screens/responder/responder_incident_detail_screen.dart';
 import '../services/auth_service.dart';
 import '../services/incident_service.dart';
+import '../services/responder_service.dart';
 import 'report_ui.dart';
 
 /// Derive how the current user relates to an incident.
@@ -77,6 +78,28 @@ Future<void> openIncidentByReportId(
   String involvementFilter = 'all',
   required void Function(int reportId) onCitizenTap,
 }) async {
+  if (AuthService().getUserRole() == 'responder') {
+    try {
+      final assigned = await ResponderService().getAssignedIncidents();
+      final match = assigned
+          .where((row) => parseInt(row['report_id']) == reportId)
+          .toList();
+      if (match.isNotEmpty) {
+        if (!context.mounted) return;
+        await Navigator.of(context, rootNavigator: true).push(
+          MaterialPageRoute<void>(
+            builder: (_) => ResponderIncidentDetailScreen(
+              reportId: reportId,
+              isTeamAssignment: true,
+              initialIncident: match.first,
+            ),
+          ),
+        );
+        return;
+      }
+    } catch (_) {}
+  }
+
   Map<String, dynamic>? incident = incidentHint;
   if (incident == null || incident['user_id'] == null) {
     try {

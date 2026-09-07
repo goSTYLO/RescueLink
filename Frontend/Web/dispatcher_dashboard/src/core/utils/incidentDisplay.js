@@ -237,5 +237,31 @@ export function mapApiIncidentToDisplay(api) {
     isDuplicate: Boolean(api?.is_duplicate),
     flaggedForReview: Boolean(api?.flagged_for_review),
     hasPendingEscalation: Boolean(api?.has_pending_escalation),
+    autoAssignmentStatus: String(api?.auto_assignment_status || 'none').toLowerCase(),
+    suggestedDepartmentCode: api?.suggested_department_code || null,
+    suggestedTeamName: api?.suggested_team_name || null,
+    autoAssignmentReason: api?.auto_assignment_reason || null,
+    autoAssignmentMismatch: Boolean(api?.auto_assignment_mismatch),
+    assignedTeamName: api?.assigned_team_name || null,
   };
+}
+
+export function getAutoAssignmentBadge(incident) {
+  const status = String(incident?.autoAssignmentStatus || incident?.auto_assignment_status || '').toLowerCase();
+  if (status === 'suggested') {
+    return { label: 'Needs confirm', className: 'bg-amber-500/20 text-amber-700 border-amber-500/40 dark:text-amber-300' };
+  }
+  if (status === 'auto_applied') {
+    return { label: 'Auto-assigned', className: 'bg-sky-500/20 text-sky-700 border-sky-500/40 dark:text-sky-300' };
+  }
+  if (status === 'dept_notified') {
+    return { label: 'Dept notified (no team)', className: 'bg-violet-500/20 text-violet-700 border-violet-500/40 dark:text-violet-300' };
+  }
+  if (status === 'overridden') {
+    return { label: 'Reassigned', className: 'bg-slate-500/20 text-slate-700 border-slate-500/40 dark:text-slate-300' };
+  }
+  if (status === 'confirmed') {
+    return { label: 'Suggestion confirmed', className: 'bg-emerald-500/20 text-emerald-700 border-emerald-500/40 dark:text-emerald-300' };
+  }
+  return null;
 }

@@ -7,12 +7,14 @@ class ResponderIncidentCard extends StatelessWidget {
   final Map<String, dynamic> incident;
   final VoidCallback? onTap;
   final bool compact;
+  final String? badgeText;
 
   const ResponderIncidentCard({
     super.key,
     required this.incident,
     this.onTap,
     this.compact = false,
+    this.badgeText,
   });
 
   static IconData iconForType(String? type) {
@@ -167,21 +169,38 @@ class ResponderIncidentCard extends StatelessWidget {
                   ),
                 ),
               const SizedBox(height: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: sevColor.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  sevLabel,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: sevColor,
+              if (badgeText != null && badgeText!.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF134178).withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    badgeText!,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF134178),
+                    ),
+                  ),
+                )
+              else
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: sevColor.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    sevLabel,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: sevColor,
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
           const SizedBox(width: 4),

@@ -3,11 +3,14 @@ const Responder = require('../models/responder');
 const Incident = require('../models/incident');
 const User = require('../models/user');
 const Department = require('../models/department');
+const pool = require('../config/db');
 const { validateInteger, validateOptionalString, validatePagination } = require('../utils/validation');
 const { logDispatcherAction } = require('../utils/auditLog');
 const { ROLES } = require('../config/roles');
 const { persistIncidentNotifications } = require('../services/notificationPersistence');
 const { buildIncidentEventPayload, emitIncidentEvent } = require('../utils/incidentEvents');
+const IncidentCoordinationNote = require('../models/incidentCoordinationNote');
+const { AUTO_STATUS, applyTeam } = require('../services/autoDispatchService');
 
 function emitDispatchEvent(req, event, reportId, incident = null) {
   if (!reportId) return;
@@ -19,6 +22,75 @@ function emitDispatchEvent(req, event, reportId, incident = null) {
     }).catch(() => {
       emitIncidentEvent(req, event, { report_id: reportId });
     });
+  }
+}
+
+const OPS_ASSIGN_ROLES = [ROLES.DISPATCHER, ROLES.ADMIN, ROLES.DEPARTMENT_ADMIN, ROLES.DEPARTMENT_HEAD];
+
+function isDeptScopedRole(role) {
+  return role === ROLES.DEPARTMENT_ADMIN || role === ROLES.DEPARTMENT_HEAD;
+}
+
+function isOpsAssignRole(role) {
+  return OPS_ASSIGN_ROLES.includes(role);
+}
+
+async function assertDepartmentScope(req, departmentCode) {
+  if (!isDeptScopedRole(req.user?.role)) return { ok: true };
+  if (!req.user?.user_id) return { ok: false, status: 403, body: { error: 'Forbidden.' } };
+  const fullUser = await User.findById(req.user.user_id);
+  if (!fullUser?.department_id) {
+    return { ok: false, status: 403, body: { error: 'You are not assigned to a department.' } };
+  }
+  const dept = await Department.findById(fullUser.department_id);
+  if (!dept?.code || String(dept.code).toLowerCase() !== String(departmentCode || '').toLowerCase()) {
+    return { ok: false, status: 403, body: { error: 'You can only assign teams within your own department.' } };
+  }
+  return { ok: true, department: dept };
+}
+
+async function assertPrimaryTeamLock({ reportId, departmentCode, creatingTeam, creatingDeptOnly }) {
+  if (creatingDeptOnly && departmentCode) {
+    const exists = await Dispatch.departmentHasDispatch(reportId, departmentCode);
+    if (exists) {
+      return {
+        ok: false,
+        status: 409,
+        body: { error: 'Department already notified for this incident', code: 'DEPARTMENT_ALREADY_NOTIFIED' },
+      };
+    }
+  }
+  if (creatingTeam && departmentCode) {
+    if (await Dispatch.departmentHasTeam(reportId, departmentCode)) {
+      return {
+        ok: false,
+        status: 409,
+        body: { error: 'A team is already assigned for this department. Use reassign-team.', code: 'PRIMARY_TEAM_ALREADY_ASSIGNED' },
+      };
+    }
+    const hasPrimary = await Dispatch.hasPrimaryTeamAssignment(reportId);
+    if (hasPrimary && !(await Dispatch.isAssistingDepartment(reportId, departmentCode))) {
+      return {
+        ok: false,
+        status: 409,
+        body: { error: 'A primary team is already assigned. Use reassign-team.', code: 'PRIMARY_TEAM_ALREADY_ASSIGNED' },
+      };
+    }
+  }
+  return { ok: true };
+}
+
+async function stampManualTeamAssignment(reportId, departmentCode, teamName) {
+  try {
+    await Incident.updateAutoAssignment(reportId, {
+      auto_assignment_status: AUTO_STATUS.CONFIRMED,
+      suggested_department_code: departmentCode || null,
+      suggested_team_name: teamName || null,
+      auto_assignment_reason: 'manual_team_assign',
+      auto_assignment_mismatch: false,
+    });
+  } catch (err) {
+    console.warn('[dispatch] auto-assignment stamp failed:', err.message);
   }
 }
 
@@ -73,7 +145,7 @@ const dispatchController = {
       };
 
       // Department admin may only create dispatches for their own department
-      if (req.user.role === ROLES.DEPARTMENT_ADMIN && req.user.user_id && validatedDepartmentCode) {
+      if (isDeptScopedRole(req.user.role) && req.user.user_id && validatedDepartmentCode) {
         const fullUser = await User.findById(req.user.user_id);
         if (!fullUser || fullUser.department_id == null) {
           return res.status(403).json({ error: 'You can only create dispatches for your own department.' });
@@ -104,6 +176,18 @@ const dispatchController = {
       }
 
       const hasResponderArray = Array.isArray(responders) && responders.length > 0;
+      const creatingTeam = Boolean(validatedTeamName) || hasResponderArray;
+      const creatingDeptOnly = !responder_id && Boolean(validatedDepartmentCode) && !validatedTeamName && !hasResponderArray;
+      const lock = await assertPrimaryTeamLock({
+        reportId: validatedReportId,
+        departmentCode: validatedDepartmentCode,
+        creatingTeam,
+        creatingDeptOnly,
+      });
+      if (!lock.ok) {
+        return res.status(lock.status).json(lock.body);
+      }
+
       if (hasResponderArray) {
         const normalizedResponders = [];
         for (const entry of responders) {
@@ -168,6 +252,7 @@ const dispatchController = {
           } catch (_) {
             // Best-effort lifecycle hook; keep dispatch creation successful.
           }
+          await stampManualTeamAssignment(validatedReportId, validatedDepartmentCode, validatedTeamName);
         }
 
         const updatedIncident = await Incident.findById(validatedReportId);
@@ -287,6 +372,7 @@ const dispatchController = {
           } catch (_) {
             // Best-effort lifecycle hook; keep dispatch creation successful.
           }
+          await stampManualTeamAssignment(validatedReportId, validatedDepartmentCode, validatedTeamName);
         }
 
         const updatedIncident = await Incident.findById(validatedReportId);
@@ -579,6 +665,18 @@ const dispatchController = {
         deleted_count: deletedDispatches.length,
       });
 
+      const remaining = await Dispatch.findAll({ report_id: validatedReportId, limit: 20, offset: 0 });
+      const stillNotified = Array.isArray(remaining) && remaining.length > 0;
+      if (!stillNotified) {
+        await Incident.updateAutoAssignment(validatedReportId, {
+          auto_assignment_status: AUTO_STATUS.NONE,
+          suggested_department_code: null,
+          suggested_team_name: null,
+          auto_assignment_reason: 'notify_undone',
+          auto_assignment_mismatch: false,
+        }).catch(() => null);
+      }
+
       const incident = await Incident.findById(validatedReportId);
       emitDispatchEvent(req, 'incident:dispatched', validatedReportId, incident);
 
@@ -595,7 +693,240 @@ const dispatchController = {
       }
       return res.status(500).json({ error: 'Internal server error' });
     }
-  }
+  },
+
+  async confirmSuggestion(req, res) {
+    try {
+      if (!isOpsAssignRole(req.user?.role)) {
+        return res.status(403).json({ error: 'Forbidden.' });
+      }
+      const validatedReportId = validateInteger(req.body?.report_id, 'report_id');
+      const incident = await Incident.findById(validatedReportId);
+      if (!incident) return res.status(404).json({ error: 'Incident report not found' });
+      if (String(incident.auto_assignment_status || '').toLowerCase() !== AUTO_STATUS.SUGGESTED) {
+        return res.status(409).json({ error: 'No pending suggestion to confirm', code: 'NO_SUGGESTION' });
+      }
+
+      const departmentCode = validateOptionalString(req.body?.department_code, 'department_code', 40)
+        || incident.suggested_department_code;
+      const teamName = validateOptionalString(req.body?.team_name, 'team_name', 150)
+        || incident.suggested_team_name;
+      if (!departmentCode || !teamName) {
+        return res.status(400).json({ error: 'department_code and team_name are required (or persist a suggestion first)' });
+      }
+
+      const scope = await assertDepartmentScope(req, departmentCode);
+      if (!scope.ok) return res.status(scope.status).json(scope.body);
+
+      if (await Dispatch.departmentHasTeam(validatedReportId, departmentCode)) {
+        return res.status(409).json({ error: 'A team is already assigned. Use reassign-team.', code: 'PRIMARY_TEAM_ALREADY_ASSIGNED' });
+      }
+
+      const departmentName = (await Department.findByCode(departmentCode))?.name || departmentCode;
+      const assignedByUserId = req.user?.user_id ? validateInteger(req.user.user_id, 'assigned_by_user_id') : null;
+      const result = await applyTeam({
+        req,
+        incident,
+        departmentCode,
+        departmentName,
+        teamName,
+        incidentType: incident.incident_type,
+        assignedByUserId,
+        autoStatus: AUTO_STATUS.CONFIRMED,
+        reason: 'suggestion_confirmed',
+      });
+      if (result.outcome !== 'auto_applied') {
+        return res.status(409).json({ error: 'No available or standby responders found for selected team', assignment_summary: result.assignment_summary });
+      }
+      await logDispatcherAction(req, 'dispatch_confirm_suggestion', 'dispatch', result.dispatches?.[0]?.dispatch_id || null, {
+        report_id: validatedReportId,
+        department_code: departmentCode,
+        team_name: teamName,
+      });
+      return res.status(201).json(result);
+    } catch (error) {
+      console.error('Error confirming suggestion:', error);
+      if (error.message?.includes('must be') || error.message?.includes('must not')) {
+        return res.status(400).json({ error: error.message });
+      }
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+
+  async reassignTeam(req, res) {
+    try {
+      if (!isOpsAssignRole(req.user?.role)) {
+        return res.status(403).json({ error: 'Forbidden.' });
+      }
+      const validatedReportId = validateInteger(req.body?.report_id, 'report_id');
+      const departmentCode = validateOptionalString(req.body?.department_code, 'department_code', 40);
+      const teamName = validateOptionalString(req.body?.team_name, 'team_name', 150);
+      const reason = validateOptionalString(req.body?.reason, 'reason', 500);
+      if (!reason || String(reason).trim().length < 10) {
+        return res.status(400).json({ error: 'A reassign reason with at least 10 characters is required' });
+      }
+      const incident = await Incident.findById(validatedReportId);
+      if (!incident) return res.status(404).json({ error: 'Incident report not found' });
+      if (String(incident.status || '').toLowerCase() === 'closed') {
+        return res.status(409).json({ error: 'Cannot reassign a closed incident' });
+      }
+
+      const releaseDept = departmentCode || await Dispatch.getPrimaryTeamDepartment(validatedReportId);
+      if (releaseDept) {
+        const scope = await assertDepartmentScope(req, releaseDept);
+        if (!scope.ok) return res.status(scope.status).json(scope.body);
+      }
+      if (departmentCode && teamName) {
+        const scope = await assertDepartmentScope(req, departmentCode);
+        if (!scope.ok) return res.status(scope.status).json(scope.body);
+        const currentPrimary = (await Dispatch.findPrimaryTeamDispatches(validatedReportId))[0];
+        const sameTeam = currentPrimary
+          && String(currentPrimary.department_code || '').toLowerCase() === String(departmentCode).toLowerCase()
+          && String(currentPrimary.team_name || '').toLowerCase() === String(teamName).toLowerCase();
+        if (sameTeam) {
+          return res.status(409).json({ error: 'That team is already assigned to this incident' });
+        }
+        const team = await Responder.findTeamByDepartmentAndName(departmentCode, teamName);
+        if (!team) return res.status(404).json({ error: 'Selected team not found in department' });
+        const teamStatus = String(team.team_status || '').toLowerCase();
+        if (!(teamStatus.includes('available') || teamStatus.includes('standby'))) {
+          return res.status(409).json({ error: 'Selected team is currently unavailable', team_status: team.team_status });
+        }
+        const eligible = await Responder.findEligibleByTeam({
+          department_code: departmentCode,
+          team_name: teamName,
+          incident_type: incident.incident_type,
+          limit: 1,
+        });
+        if (!Array.isArray(eligible) || eligible.length === 0) {
+          return res.status(409).json({ error: 'No available or standby responders found for selected team' });
+        }
+      }
+
+      await Dispatch.releaseTeamAssignment(validatedReportId, releaseDept || null);
+      const assignedByUserId = req.user?.user_id ? validateInteger(req.user.user_id, 'assigned_by_user_id') : null;
+
+      if (!departmentCode || !teamName) {
+        await Incident.updateAutoAssignment(validatedReportId, {
+          auto_assignment_status: AUTO_STATUS.OVERRIDDEN,
+          suggested_department_code: departmentCode || null,
+          suggested_team_name: null,
+          auto_assignment_reason: reason,
+          auto_assignment_mismatch: false,
+        });
+        try {
+          await Incident.transitionStatus(validatedReportId, {
+            next_status: 'verified',
+            actor_user_id: assignedByUserId,
+            actor_role: req.user?.role || null,
+          });
+        } catch (_) {}
+        const updated = await Incident.findById(validatedReportId);
+        emitDispatchEvent(req, 'incident:dispatched', validatedReportId, updated);
+        emitDispatchEvent(req, 'incident:status_updated', validatedReportId, updated);
+        return res.json({ outcome: 'released', incident: updated });
+      }
+
+      const departmentName = (await Department.findByCode(departmentCode))?.name || departmentCode;
+      const refreshed = await Incident.findById(validatedReportId);
+      const result = await applyTeam({
+        req,
+        incident: refreshed,
+        departmentCode,
+        departmentName,
+        teamName,
+        incidentType: refreshed.incident_type,
+        assignedByUserId,
+        autoStatus: AUTO_STATUS.OVERRIDDEN,
+        reason,
+      });
+      if (result.outcome !== 'auto_applied') {
+        return res.status(409).json({ error: 'No available or standby responders found for selected team', assignment_summary: result.assignment_summary });
+      }
+      await logDispatcherAction(req, 'dispatch_reassign_team', 'dispatch', result.dispatches?.[0]?.dispatch_id || null, {
+        report_id: validatedReportId,
+        department_code: departmentCode,
+        team_name: teamName,
+        reason,
+      });
+      return res.status(201).json(result);
+    } catch (error) {
+      console.error('Error reassigning team:', error);
+      if (error.message?.includes('must be') || error.message?.includes('must not')) {
+        return res.status(400).json({ error: error.message });
+      }
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+
+  async updateMyResponseStatus(req, res) {
+    try {
+      const userId = req.user?.user_id;
+      if (!userId) return res.status(401).json({ error: 'Authentication required' });
+      const validatedReportId = validateInteger(req.body?.report_id, 'report_id');
+      const nextStatus = validateOptionalString(req.body?.response_status, 'response_status', 50);
+      const allowed = new Set(['assigned', 'en route', 'on scene', 'resolved']);
+      const normalized = String(nextStatus || '').trim().toLowerCase();
+      if (!allowed.has(normalized)) {
+        return res.status(400).json({ error: 'response_status must be Assigned, En Route, On Scene, or Resolved' });
+      }
+      const titleCase = {
+        assigned: 'Assigned',
+        'en route': 'En Route',
+        'on scene': 'On Scene',
+        resolved: 'Resolved',
+      }[normalized];
+
+      const dispatch = await Dispatch.findByReportAndUser(validatedReportId, userId);
+      if (!dispatch) {
+        return res.status(404).json({ error: 'No team assignment found for this incident' });
+      }
+
+      const updatedDispatch = await Dispatch.updateResponseStatus(dispatch.dispatch_id, titleCase);
+      const incident = await Incident.findById(validatedReportId);
+      const isVolunteerAcceptor = Number(incident?.accepted_by_user_id) === Number(userId);
+      if (isVolunteerAcceptor) {
+        try {
+          await pool.query(
+            'UPDATE incident_reports SET responder_status = $1 WHERE report_id = $2',
+            [titleCase, validatedReportId]
+          );
+        } catch (_) {}
+      }
+
+      const actorName = [req.user?.first_name, req.user?.last_name].filter(Boolean).join(' ')
+        || `Responder #${userId}`;
+      try {
+        await IncidentCoordinationNote.create({
+          report_id: validatedReportId,
+          user_id: userId,
+          author_name: actorName,
+          author_role: req.user?.role || 'responder',
+          department: dispatch.department_name || dispatch.department_code || 'Operations',
+          note: `${actorName} set status to ${titleCase}`,
+          source: 'Team Member',
+        });
+      } catch (noteErr) {
+        console.warn('[dispatch] team status note failed:', noteErr.message);
+      }
+
+      const refreshed = await Incident.findById(validatedReportId);
+      emitDispatchEvent(req, 'incident:status_updated', validatedReportId, refreshed);
+      emitDispatchEvent(req, 'incident:note_added', validatedReportId, refreshed);
+      return res.json({
+        dispatch: updatedDispatch,
+        incident_responder_status_updated: isVolunteerAcceptor,
+        incident_resolved: false,
+      });
+    } catch (error) {
+      console.error('Error updating member response status:', error);
+      if (error.message?.includes('must be') || error.message?.includes('must not')) {
+        return res.status(400).json({ error: error.message });
+      }
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  },
 };
 
+dispatchController.assertPrimaryTeamLock = assertPrimaryTeamLock;
 module.exports = dispatchController;

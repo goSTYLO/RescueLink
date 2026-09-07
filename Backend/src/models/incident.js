@@ -90,7 +90,7 @@ function decodeReporterFields(row, options = {}) {
 }
 
 const INCIDENT_STATUS_FLOW = {
-  pending: new Set(['verified']),
+  pending: new Set(['verified', 'in_progress']),
   verified: new Set(['in_progress']),
   in_progress: new Set(['resolved']),
   resolved: new Set(['closed']),
@@ -361,7 +361,20 @@ const Incident = {
                         EXISTS (
                           SELECT 1 FROM incident_escalations ie
                            WHERE ie.report_id = ir.report_id AND ie.status = 'pending'
-                        ) AS has_pending_escalation
+                        ) AS has_pending_escalation,
+                        ir.auto_assignment_status,
+                        ir.suggested_department_code,
+                        ir.suggested_team_name,
+                        ir.auto_assignment_reason,
+                        ir.auto_assignment_mismatch,
+                        (
+                          SELECT d.team_name FROM dispatches d
+                           WHERE d.report_id = ir.report_id
+                             AND COALESCE(TRIM(d.team_name), '') <> ''
+                             AND LOWER(COALESCE(d.responder_source, '')) <> 'escalation'
+                           ORDER BY d.dispatched_at ASC
+                           LIMIT 1
+                        ) AS assigned_team_name
       FROM incident_reports ir
       LEFT JOIN users u ON ir.user_id = u.user_id
       LEFT JOIN users acceptor ON acceptor.user_id = ir.accepted_by_user_id
@@ -1330,7 +1343,42 @@ const Incident = {
       [report_id]
     );
     return res.rows[0];
-  }
+  },
+
+  async updateAutoAssignment(report_id, {
+    auto_assignment_status = undefined,
+    suggested_department_code = undefined,
+    suggested_team_name = undefined,
+    auto_assignment_reason = undefined,
+    auto_assignment_mismatch = undefined,
+  } = {}) {
+    const sets = [];
+    const params = [];
+    const push = (column, value) => {
+      params.push(value);
+      sets.push(`${column} = $${params.length}`);
+    };
+    if (auto_assignment_status !== undefined) push('auto_assignment_status', auto_assignment_status);
+    if (suggested_department_code !== undefined) push('suggested_department_code', suggested_department_code);
+    if (suggested_team_name !== undefined) push('suggested_team_name', suggested_team_name);
+    if (auto_assignment_reason !== undefined) push('auto_assignment_reason', auto_assignment_reason);
+    if (auto_assignment_mismatch !== undefined) push('auto_assignment_mismatch', Boolean(auto_assignment_mismatch));
+    if (sets.length === 0) return this.findById(report_id);
+
+    params.push(report_id);
+    try {
+      const res = await pool.query(
+        `UPDATE incident_reports SET ${sets.join(', ')} WHERE report_id = $${params.length} RETURNING *`,
+        params
+      );
+      return res.rows[0] || null;
+    } catch (error) {
+      if (error.code === '42703' || /auto_assignment/i.test(error.message)) {
+        return this.findById(report_id);
+      }
+      throw error;
+    }
+  },
 };
 
 module.exports = Incident;

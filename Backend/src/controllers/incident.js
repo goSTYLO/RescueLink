@@ -9,6 +9,7 @@ const pool = require('../config/db');
 const { validateLatitude, validateLongitude, validateInteger, validatePagination, validateOptionalString, validateAllowedValue } = require('../utils/validation');
 const { getBarangayFromCoordinates, calculateDistance } = require('../utils/geolocation');
 const { processIncidentWithAudio } = require('../services/aiService');
+const { maybeAutoDispatch, refreshSuggestionAfterReclassify, cancelSuggestion } = require('../services/autoDispatchService');
 const { queueDeepScanJob, computeInitialScanStatus } = require('../services/fileScanService');
 const { verifyIncidentOnBlockchain } = require('../services/blockchainService');
 const { findPotentialDuplicates, linkAsDuplicate, getDuplicateInfo } = require('../services/duplicateDetectionService');
@@ -34,6 +35,25 @@ function canReadOwnOrAcceptedIncident(user, incident) {
     return true;
   }
   return false;
+}
+
+/** Backup joiner or dispatched team member may read the incident they are assigned to. */
+async function canResponderReadAssignedIncident(user, reportId) {
+  if (user?.role !== ROLES.RESPONDER || user?.user_id == null) return false;
+  try {
+    const joined = await pool.query(
+      `SELECT 1 FROM backup_responses
+        WHERE report_id = $1 AND user_id = $2 AND status = 'joined'
+        LIMIT 1`,
+      [reportId, user.user_id]
+    );
+    if (joined.rows.length > 0) return true;
+  } catch (_) {}
+  try {
+    return Boolean(await Dispatch.findByReportAndUser(reportId, user.user_id));
+  } catch (_) {
+    return false;
+  }
 }
 
 /** Check if a department-scoped user (head/admin) has access via direct dispatch or active escalation */
@@ -108,7 +128,7 @@ async function logIncidentAction(req, action, resourceId, details) {
 function emitResponderAlert(req, incident) {
   if (!incident) return;
   const status = String(incident.status || '').toLowerCase();
-  if (!['pending', 'verified'].includes(status)) return;
+  if (!['pending', 'verified', 'in_progress'].includes(status)) return;
   if (incident.accepted_by_user_id) return;
 
   const wss = req.app?.locals?.wss;
@@ -117,6 +137,22 @@ function emitResponderAlert(req, incident) {
   wss.broadcastToResponders('responder:incident_alert', data).catch((err) => {
     console.error('[emitResponderAlert] broadcast failed:', err.message);
   });
+}
+
+async function runAutoDispatchThenAlert(req, incident, options) {
+  let autoResult = null;
+  try {
+    autoResult = await maybeAutoDispatch(incident, options);
+  } catch (autoErr) {
+    console.error('[autoDispatch] hook failed:', autoErr.message);
+  }
+  const reportId = incident?.report_id;
+  const latest = autoResult?.incident || (reportId ? await Incident.findById(reportId) : incident) || incident;
+  if (latest && autoResult?.outcome === 'auto_applied' && !latest.assigned_team_name) {
+    latest.assigned_team_name = autoResult.dispatches?.[0]?.team_name || latest.suggested_team_name || null;
+  }
+  emitResponderAlert(req, latest);
+  return latest;
 }
 
 async function getDispatchesForReport(reportId, limit = 50) {
@@ -518,12 +554,15 @@ const incidentController = {
       const duplicateInfo = await runRealtimeDuplicateCheck(incident);
 
       emitIncidentEvent(req, 'incident:created', incident);
-      emitResponderAlert(req, incident);
-
+      const dispatchedIncident = await runAutoDispatchThenAlert(req, incident, {
+        req,
+        source: 'sos',
+        duplicateFlagged: Boolean(duplicateInfo),
+      });
       res.status(201).json({
         success: true,
         message: 'Emergency incident reported successfully',
-        incident: incident,
+        incident: dispatchedIncident || incident,
         ...(duplicateInfo && { duplicate_info: duplicateInfo }),
       });
     } catch (error) {
@@ -564,19 +603,7 @@ const incidentController = {
         }
       }
       if (!canReadOwnOrAcceptedIncident(req.user, incident)) {
-        let backupJoiner = false;
-        if (req.user?.role === ROLES.RESPONDER && req.user.user_id) {
-          try {
-            const joined = await pool.query(
-              `SELECT 1 FROM backup_responses
-                WHERE report_id = $1 AND user_id = $2 AND status = 'joined'
-                LIMIT 1`,
-              [validatedId, req.user.user_id]
-            );
-            backupJoiner = joined.rows.length > 0;
-          } catch (_) {}
-        }
-        if (!backupJoiner) {
+        if (!(await canResponderReadAssignedIncident(req.user, validatedId))) {
           return res.status(403).json({ error: 'Forbidden. You can only access your own incidents.' });
         }
       }
@@ -913,13 +940,18 @@ const incidentController = {
         console.log(`[backend][incident][createWithAudio] request_id=${requestId} report_id=${reportId} status=success latency_ms=${Date.now() - startedAt} ai_pending=false`);
 
         emitIncidentEvent(req, 'incident:created', updatedIncident);
-        emitResponderAlert(req, updatedIncident);
+        const dispatchedIncident = await runAutoDispatchThenAlert(req, updatedIncident, {
+          req,
+          source: 'ai',
+          aiResult,
+          duplicateFlagged: Boolean(duplicateInfo),
+        });
 
         res.status(201).json({
           success: true,
           message: 'Incident reported successfully with AI classification',
           incident: {
-            ...updatedIncident,
+            ...(dispatchedIncident || updatedIncident),
             audio_path: audioPath,
             media_paths: mediaPaths
           },
@@ -965,7 +997,11 @@ const incidentController = {
         console.log(`[backend][incident][createWithAudio] request_id=${requestId} report_id=${reportId} status=pending_ai_retry latency_ms=${Date.now() - startedAt}`);
 
         emitIncidentEvent(req, 'incident:created', { ...incident, report_id: reportId });
-        emitResponderAlert(req, { ...incident, report_id: reportId });
+        await runAutoDispatchThenAlert(req, { ...incident, report_id: reportId }, {
+          req,
+          source: 'text',
+          duplicateFlagged: Boolean(duplicateInfo),
+        });
 
         res.status(201).json({
           success: true,
@@ -1430,11 +1466,17 @@ const incidentController = {
       });
 
       emitIncidentEvent(req, 'incident:reclassified', { ...updatedIncident, report_id: validatedId });
+      try {
+        await refreshSuggestionAfterReclassify({ ...updatedIncident, report_id: validatedId });
+      } catch (autoErr) {
+        console.error('[autoDispatch] reclassify hook failed:', autoErr.message);
+      }
+      const refreshed = await Incident.findById(validatedId);
 
       res.json({
         success: true,
         message: 'Incident reclassified successfully',
-        incident: updatedIncident,
+        incident: refreshed || updatedIncident,
         ai_classification: overrideClassification,
       });
     } catch (error) {
@@ -1617,19 +1659,7 @@ const incidentController = {
         }
       }
       if (!canReadOwnOrAcceptedIncident(req.user, incident)) {
-        let backupJoiner = false;
-        if (req.user?.role === ROLES.RESPONDER && req.user.user_id) {
-          try {
-            const joined = await pool.query(
-              `SELECT 1 FROM backup_responses
-                WHERE report_id = $1 AND user_id = $2 AND status = 'joined'
-                LIMIT 1`,
-              [validatedId, req.user.user_id]
-            );
-            backupJoiner = joined.rows.length > 0;
-          } catch (_) {}
-        }
-        if (!backupJoiner) {
+        if (!(await canResponderReadAssignedIncident(req.user, validatedId))) {
           return res.status(403).json({ error: 'Forbidden. You can only access your own incidents.' });
         }
       }
@@ -1754,6 +1784,11 @@ const incidentController = {
 
       const { linkAsDuplicate: linkDup } = require('../services/duplicateDetectionService');
       await linkDup(validatedId, validatedParentId, 1.0, 'manual');
+      try {
+        await cancelSuggestion(validatedId, 'duplicate_linked');
+      } catch (autoErr) {
+        console.error('[autoDispatch] duplicate-link hook failed:', autoErr.message);
+      }
 
       await logIncidentAction(req, 'incident_link_duplicate', validatedId, { parent_report_id: validatedParentId, reason: reason || null });
 
@@ -1781,6 +1816,15 @@ const incidentController = {
 
       await logIncidentAction(req, 'incident_unlink_duplicate', validatedId, {});
 
+      const refreshed = await Incident.findById(validatedId);
+      try {
+        if (refreshed && String(refreshed.status || '').toLowerCase() === 'pending') {
+          await maybeAutoDispatch(refreshed, { req, source: 'text', duplicateFlagged: false });
+        }
+      } catch (autoErr) {
+        console.error('[autoDispatch] unlink hook failed:', autoErr.message);
+      }
+
       emitIncidentEvent(req, 'incident:duplicate_changed', incident);
 
       res.json({ success: true, is_duplicate: false });
@@ -1804,6 +1848,15 @@ const incidentController = {
       await clearFlag(validatedId);
 
       await logIncidentAction(req, 'incident_clear_duplicate_flag', validatedId, {});
+
+      const refreshed = await Incident.findById(validatedId);
+      try {
+        if (refreshed && String(refreshed.status || '').toLowerCase() === 'pending') {
+          await maybeAutoDispatch(refreshed, { req, source: 'text', duplicateFlagged: false });
+        }
+      } catch (autoErr) {
+        console.error('[autoDispatch] clear-flag hook failed:', autoErr.message);
+      }
 
       emitIncidentEvent(req, 'incident:duplicate_changed', { ...incident, flagged_for_review: false });
 

@@ -49,6 +49,7 @@ const MIGRATION_ORDER = [
   'add_user_location_columns.sql',
   'add_incident_archival.sql',
   'add_notification_preferences.sql',
+  'add_auto_team_assignment.sql',
 ];
 
 console.log('🔧 Setting up database...');

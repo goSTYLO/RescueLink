@@ -24,6 +24,8 @@ router.get('/', authorize([ROLES.DISPATCHER, ROLES.ADMIN, ROLES.DEPARTMENT_ADMIN
 // ── Phase 3: Responder self-service (must be before /:id to avoid shadowing) ──
 router.patch('/me/online-status', authorize([ROLES.RESPONDER]), responderController.updateOnlineStatus);
 router.get('/me/profile',         authorize([ROLES.RESPONDER]), responderController.getSelfProfile);
+router.get('/me/assigned-incidents', authorize([ROLES.RESPONDER]), responderController.getAssignedIncidents);
+router.get('/me/team', authorize([ROLES.RESPONDER]), responderController.getMyTeam);
 router.post('/', authorize([ROLES.ADMIN, ROLES.DEPARTMENT_ADMIN]), responderController.create);
 router.get('/:id', authorize([ROLES.DISPATCHER, ROLES.ADMIN, ROLES.DEPARTMENT_ADMIN]), responderController.getById);
 router.put('/:id', authorize([ROLES.ADMIN, ROLES.DEPARTMENT_ADMIN]), responderController.update);

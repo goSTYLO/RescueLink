@@ -136,4 +136,23 @@ describe('incident lifecycle model transitions', () => {
     expect(updated).toEqual(existing);
     expect(pool.query).toHaveBeenCalledTimes(1);
   });
+
+  it('allows pending -> in_progress when a team is auto-assigned', async () => {
+    pool.query
+      .mockResolvedValueOnce({
+        rows: [{ report_id: 108, status: 'pending', reporter_confirmed_at: null, responder_status: null }],
+      })
+      .mockResolvedValueOnce({
+        rows: [{ report_id: 108, status: 'in_progress' }],
+      });
+
+    const updated = await Incident.transitionStatus(108, {
+      next_status: 'in_progress',
+      actor_user_id: 1,
+      actor_role: 'system',
+    });
+
+    expect(updated.status).toBe('in_progress');
+    expect(pool.query).toHaveBeenCalledTimes(2);
+  });
 });

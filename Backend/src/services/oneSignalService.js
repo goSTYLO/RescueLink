@@ -223,7 +223,9 @@ function formatPushBody(event, data) {
     case 'incident:verified':
       return `Incident #${reportId} (${incidentType}) has been verified${barangay}`;
     case 'incident:dispatched':
-      return `Incident #${reportId} (${incidentType}${severity}) assigned to department${barangay}`;
+      return data?.assigned_team_name
+        ? `Your team was assigned to Incident #${reportId} (${incidentType}${severity})${barangay}`
+        : `Incident #${reportId} (${incidentType}${severity}) assigned to department${barangay}`;
     case 'incident:status_updated':
       return `Incident #${reportId} is now ${data?.status || 'updated'}${barangay ? ` (${data.barangay})` : ''}`;
     case 'incident:resolution_confirmed':

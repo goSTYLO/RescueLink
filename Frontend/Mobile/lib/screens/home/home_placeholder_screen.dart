@@ -143,6 +143,7 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkAndPromptNotifications();
+      OneSignalService().setOnNotificationOpened(_onPushOpened);
     });
   }
 
@@ -232,8 +233,15 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
     );
   }
 
+  void _onPushOpened(String reportId) {
+    final id = int.tryParse(reportId);
+    if (id == null || id <= 0 || !mounted) return;
+    _openIncidentByInvolvement(id);
+  }
+
   @override
   void dispose() {
+    OneSignalService().setOnNotificationOpened(null);
     _wsSubscription?.cancel();
     _responderAlertCoordinator.stop();
     _sosTimer?.cancel();

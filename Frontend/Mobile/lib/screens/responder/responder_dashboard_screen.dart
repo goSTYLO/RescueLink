@@ -8,6 +8,7 @@ import '../../services/websocket_service.dart';
 import '../../utils/report_ui.dart';
 import '../../widgets/app_map_tile_layer.dart';
 import '../../widgets/glass_card.dart';
+import 'responder_incident_detail_screen.dart';
 import 'responder_incident_preview_screen.dart';
 import 'widgets/responder_incident_card.dart';
 
@@ -39,6 +40,7 @@ class ResponderDashboardScreenState extends State<ResponderDashboardScreen> {
     'incident:created',
     'incident:status_updated',
     'incident:accepted',
+    'incident:dispatched',
     'responder:incident_alert',
     'responder:backup_alert',
     'responder:backup_joined',
@@ -51,6 +53,7 @@ class ResponderDashboardScreenState extends State<ResponderDashboardScreen> {
   bool _togglingOnline = false;
   bool _loadingIncidents = true;
   List<Map<String, dynamic>> _activeIncidents = [];
+  List<Map<String, dynamic>> _assignedIncidents = [];
   String? _error;
   DateTime? _lastRefreshedAt;
   _ActiveIncidentsView _incidentsView = _ActiveIncidentsView.list;
@@ -111,12 +114,30 @@ class ResponderDashboardScreenState extends State<ResponderDashboardScreen> {
     });
     try {
       await _syncResponderLocationIfOnline();
-      final incidents = await _service.getActiveIncidents();
+      List<Map<String, dynamic>> incidents = [];
+      List<Map<String, dynamic>> assigned = [];
+      Object? nearbyError;
+      try {
+        incidents = await _service.getActiveIncidents();
+      } catch (e) {
+        nearbyError = e;
+      }
+      try {
+        assigned = await _service.getAssignedIncidents();
+      } catch (_) {}
+      assigned = assigned.where((inc) {
+        final status = (inc['status'] ?? '').toString().toLowerCase();
+        return status != 'closed' && status != 'archived';
+      }).toList();
       if (!mounted) return;
+      if (nearbyError != null && incidents.isEmpty && assigned.isEmpty) {
+        throw nearbyError;
+      }
       setState(() {
         _activeIncidents = incidents
             .where((inc) => inc['accepted_by_user_id'] == null)
             .toList();
+        _assignedIncidents = assigned;
         _loadingIncidents = false;
         _lastRefreshedAt = DateTime.now();
         _pruneMapSelection();
@@ -234,6 +255,22 @@ class ResponderDashboardScreenState extends State<ResponderDashboardScreen> {
         .push(
           MaterialPageRoute<void>(
             builder: (_) => ResponderIncidentPreviewScreen(reportId: id),
+          ),
+        )
+        .then((_) => _loadActiveIncidents());
+  }
+
+  void _openAssignedIncident(Map<String, dynamic> inc) {
+    final id = parseInt(inc['report_id']) ?? 0;
+    if (id <= 0) return;
+    Navigator.of(context, rootNavigator: true)
+        .push(
+          MaterialPageRoute<void>(
+            builder: (_) => ResponderIncidentDetailScreen(
+              reportId: id,
+              isTeamAssignment: true,
+              initialIncident: inc,
+            ),
           ),
         )
         .then((_) => _loadActiveIncidents());
@@ -499,17 +536,18 @@ class ResponderDashboardScreenState extends State<ResponderDashboardScreen> {
     );
   }
 
-  Widget _buildListBody(Color textSec) {
+  Widget _buildListBody(Color textPrimary, Color textSec) {
     final incidents = _visibleIncidents;
-    if (_loadingIncidents && incidents.isEmpty) {
+    final assigned = _assignedIncidents;
+    if (_loadingIncidents && incidents.isEmpty && assigned.isEmpty) {
       return const Center(child: CircularProgressIndicator(color: Color(0xFFEF4444)));
     }
-    if (_error != null && incidents.isEmpty) {
+    if (_error != null && incidents.isEmpty && assigned.isEmpty) {
       return Center(
         child: Text(_error!, style: const TextStyle(color: Color(0xFFEF4444))),
       );
     }
-    if (incidents.isEmpty) {
+    if (incidents.isEmpty && assigned.isEmpty) {
       return Center(
         child: Text(
           widget.online ? 'No nearby incidents' : 'Go online to see nearby incidents',
@@ -522,18 +560,57 @@ class ResponderDashboardScreenState extends State<ResponderDashboardScreen> {
     return RefreshIndicator(
       onRefresh: _loadActiveIncidents,
       color: const Color(0xFFEF4444),
-      child: ListView.separated(
+      child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-        itemCount: incidents.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 12),
-        itemBuilder: (context, index) {
-          final inc = incidents[index];
-          return ResponderIncidentCard(
-            incident: inc,
-            onTap: () => _openIncidentPreview(inc),
-          );
-        },
+        children: [
+          if (assigned.isNotEmpty) ...[
+            Text(
+              'Assigned to my team',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: textPrimary,
+              ),
+            ),
+            const SizedBox(height: 10),
+            ...assigned.map((inc) => Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: ResponderIncidentCard(
+                    incident: inc,
+                    badgeText: (inc['my_response_status'] ?? 'Assigned').toString(),
+                    onTap: () => _openAssignedIncident(inc),
+                  ),
+                )),
+            const SizedBox(height: 8),
+            Text(
+              'Nearby incidents',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: textPrimary,
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
+          if (incidents.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 24),
+              child: Text(
+                widget.online ? 'No nearby incidents' : 'Go online to see nearby incidents',
+                style: TextStyle(color: textSec),
+                textAlign: TextAlign.center,
+              ),
+            )
+          else
+            ...incidents.map((inc) => Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: ResponderIncidentCard(
+                    incident: inc,
+                    onTap: () => _openIncidentPreview(inc),
+                  ),
+                )),
+        ],
       ),
     );
   }
@@ -806,7 +883,7 @@ class ResponderDashboardScreenState extends State<ResponderDashboardScreen> {
             Expanded(
               child: _incidentsView == _ActiveIncidentsView.map
                   ? _buildMapBody()
-                  : _buildListBody(textSec),
+                  : _buildListBody(textPrimary, textSec),
             ),
           ],
         ),
