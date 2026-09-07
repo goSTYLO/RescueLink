@@ -76,3 +76,10 @@ Added: 2026-08-18 — dispatcher close for resolved / volunteer-resolved inciden
 - Team members reuse volunteer stepper UI but write `dispatches.response_status` + a named coordination note. Team-member Resolved does **not** resolve the incident. Volunteer `Request Backup` is disabled once a formal `assigned_team_name` exists.
 - Mobile: `GET /api/responders/me/assigned-incidents`, `GET /api/responders/me/team`, `PATCH /api/dispatches/me/status`. OneSignal copy: “Your team was assigned…”.
 - Audit (2026-09-07): auto-apply now walks `pending → in_progress` (was swallowed by the lifecycle machine). Empty-team race after pick falls through to CDRRMO/dept notify. Event payload no longer treats `suggested_team_name` as assigned. Dispatch `response_status` is title-cased so the mobile stepper can advance. Add-department is department-only (does not replace the primary team). Undo-notify resets `auto_assignment_status` when no dispatches remain. Queue list API now includes auto-assignment fields + primary `assigned_team_name` so dashboard badges and Assign-button gating work.
+
+## SOS activation (2026-09-08)
+
+- Mobile SOS no longer requires a 3-second hold. **Tap** the SOS tile or **shake** the phone while the logged-in home shell is foreground (any tab) to start the existing **5-second cancel overlay**, then submit via `reportEmergency()` (no AI/audio). A **2-second heavy haptic pulse** plays when the cancel overlay opens (tap or shake).
+- Shake uses `sensors_plus` user accelerometer with a fixed threshold + cooldown; tune in field if pocket false-positives appear.
+
+Added: 2026-09-08 — tap/shake SOS replaces hold-to-activate.

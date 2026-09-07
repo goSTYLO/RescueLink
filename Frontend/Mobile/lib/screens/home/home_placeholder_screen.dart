@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:sensors_plus/sensors_plus.dart';
 import 'report_history_screen.dart';
 import '../../services/websocket_service.dart';
 import '../../services/notification_service.dart';
@@ -11,6 +12,7 @@ import '../../services/auth_service.dart';
 import '../../services/responder_alert_coordinator.dart';
 import '../../utils/incident_navigation.dart';
 import '../../utils/responsive.dart';
+import '../../utils/sos_shake_detector.dart';
 import '../../widgets/staggered_fade_in.dart';
 import '../responder/responder_dashboard_screen.dart';
 
@@ -51,8 +53,9 @@ class HomePlaceholderScreen extends StatefulWidget {
 }
 
 class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
-    with TickerProviderStateMixin {
+    with WidgetsBindingObserver {
   Timer? _sosTimer;
+  Timer? _sosVibrateTimer;
   int _sosCountdown = 0;
   bool _loadingLocation = true;
   int _unreadReportsCount = 0;
@@ -68,21 +71,15 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
   final GlobalKey<ResponderDashboardScreenState> _responderDashboardKey =
       GlobalKey<ResponderDashboardScreenState>();
 
-  // SOS hold animation
-  late AnimationController _sosHoldController;
-  bool _sosPressing = false;
+  StreamSubscription<UserAccelerometerEvent>? _shakeSubscription;
+  final SosShakeDetector _shakeDetector = SosShakeDetector();
+  bool _shakeListening = false;
 
   @override
   void initState() {
     super.initState();
-    _sosHoldController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 3),
-    )..addStatusListener((status) {
-        if (status == AnimationStatus.completed && mounted) {
-          _triggerSos();
-        }
-      });
+    WidgetsBinding.instance.addObserver(this);
+    _startShakeListening();
 
     _loadHomeLocation();
     _fetchUnreadCount();
@@ -240,12 +237,61 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    switch (state) {
+      case AppLifecycleState.resumed:
+      case AppLifecycleState.inactive:
+        // inactive = still foreground (modal, notification shade, transition)
+        _startShakeListening();
+      case AppLifecycleState.paused:
+      case AppLifecycleState.detached:
+      case AppLifecycleState.hidden:
+        _stopShakeListening();
+    }
+  }
+
+  void _startShakeListening() {
+    if (_shakeListening) return;
+    _shakeListening = true;
+    _shakeSubscription = userAccelerometerEventStream().listen(
+      (event) {
+        if (!mounted || _sosCountdown > 0) return;
+        final nowMs = DateTime.now().millisecondsSinceEpoch;
+        if (_shakeDetector.feed(event.x, event.y, event.z, nowMs: nowMs)) {
+          _triggerSos();
+        }
+      },
+      onError: (_) => _restartShakeListening(),
+      onDone: _restartShakeListening,
+      cancelOnError: false,
+    );
+  }
+
+  void _restartShakeListening() {
+    if (!mounted) return;
+    _stopShakeListening();
+    final state = WidgetsBinding.instance.lifecycleState;
+    if (state == AppLifecycleState.resumed ||
+        state == AppLifecycleState.inactive) {
+      _startShakeListening();
+    }
+  }
+
+  void _stopShakeListening() {
+    _shakeListening = false;
+    _shakeSubscription?.cancel();
+    _shakeSubscription = null;
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _stopShakeListening();
     OneSignalService().setOnNotificationOpened(null);
     _wsSubscription?.cancel();
     _responderAlertCoordinator.stop();
     _sosTimer?.cancel();
-    _sosHoldController.dispose();
+    _stopSosCancelVibration();
     super.dispose();
   }
 
@@ -469,13 +515,13 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
   }
 
   void _triggerSos() {
-    _sosHoldController.reset();
-    setState(() => _sosPressing = false);
+    if (_sosCountdown > 0) return;
     _startSosCountdown();
   }
 
   void _startSosCountdown() {
     _sosTimer?.cancel();
+    _startSosCancelVibration();
     setState(() => _sosCountdown = 5);
     _sosTimer = Timer.periodic(const Duration(seconds: 1), (t) {
       if (!mounted) {
@@ -496,7 +542,31 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
   void _cancelSosCountdown() {
     _sosTimer?.cancel();
     _sosTimer = null;
+    _stopSosCancelVibration();
+    _shakeDetector.reset();
+    _restartShakeListening();
     setState(() => _sosCountdown = 0);
+  }
+
+  static const Duration _sosVibrateDuration = Duration(seconds: 2);
+  static const Duration _sosVibratePulse = Duration(milliseconds: 200);
+
+  void _startSosCancelVibration() {
+    _stopSosCancelVibration();
+    HapticFeedback.heavyImpact();
+    final endAt = DateTime.now().add(_sosVibrateDuration);
+    _sosVibrateTimer = Timer.periodic(_sosVibratePulse, (_) {
+      if (!mounted || DateTime.now().isAfter(endAt)) {
+        _stopSosCancelVibration();
+        return;
+      }
+      HapticFeedback.heavyImpact();
+    });
+  }
+
+  void _stopSosCancelVibration() {
+    _sosVibrateTimer?.cancel();
+    _sosVibrateTimer = null;
   }
 
   String? _formatNotificationTitle(IncidentEvent event) {
@@ -963,104 +1033,68 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
         Expanded(
           child: Semantics(
             button: true,
-            label: 'SOS. Hold for 3 seconds to activate',
+            label: 'SOS. Tap or shake to activate',
             child: GestureDetector(
-            onTapDown: (_) {
-              if (_sosCountdown > 0) return;
-              setState(() => _sosPressing = true);
-              _sosHoldController.forward(from: 0);
-              HapticFeedback.mediumImpact();
-            },
-            onTapUp: (_) {
-              if (!_sosPressing) return;
-              _sosHoldController.reset();
-              setState(() => _sosPressing = false);
-            },
-            onTapCancel: () {
-              _sosHoldController.reset();
-              setState(() => _sosPressing = false);
-            },
-            child: AnimatedBuilder(
-              animation: _sosHoldController,
-              builder: (context, child) {
-                return Container(
-                  height: 170,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [Color(0xFFDC2626), Color(0xFF991B1B)],
-                    ),
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFFEF4444)
-                            .withValues(alpha: 0.35 + _sosHoldController.value * 0.25),
-                        blurRadius: 16 + _sosHoldController.value * 12,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      // progress ring
-                      if (_sosPressing)
-                        Positioned.fill(
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: CircularProgressIndicator(
-                              value: _sosHoldController.value,
-                              strokeWidth: 3,
-                              color: Colors.white.withValues(alpha: 0.6),
-                              backgroundColor:
-                                  Colors.white.withValues(alpha: 0.15),
-                            ),
-                          ),
-                        ),
-                      Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Container(
-                            width: 72,
-                            height: 72,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color:
-                                  Colors.white.withValues(alpha: 0.15),
-                            ),
-                            child: const Icon(
-                              Icons.notifications_active,
-                              color: Colors.white,
-                              size: 36,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          const Text(
-                            'SOS',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          const Text(
-                            'Hold 3 sec',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                                color: Color(0xFFFFCDD2),
-                                fontSize: 11,
-                                height: 1.4),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                );
+              onTap: () {
+                if (_sosCountdown > 0) return;
+                _triggerSos();
               },
+              child: Container(
+                height: 170,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Color(0xFFDC2626), Color(0xFF991B1B)],
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFEF4444).withValues(alpha: 0.35),
+                      blurRadius: 16,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 72,
+                      height: 72,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white.withValues(alpha: 0.15),
+                      ),
+                      child: const Icon(
+                        Icons.notifications_active,
+                        color: Colors.white,
+                        size: 36,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'SOS',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Tap or shake',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Color(0xFFFFCDD2),
+                        fontSize: 11,
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
-          ),
           ),
         ),
         const SizedBox(width: 12),

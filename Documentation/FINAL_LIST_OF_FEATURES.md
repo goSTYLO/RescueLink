@@ -51,6 +51,7 @@ Mapped to manuscript FR-01–FR-09. Partial items document what is implemented; 
 
 ### Emergency Reporting & Tracking
 
+- **SOS quick report:** tap the SOS tile or shake the phone (foreground, any home tab) → 5-second cancel overlay → immediate GPS SOS submit (no AI/audio)
 - Emergency report submission with GPS coordinates and barangay context
 - Audio recording for incident reports (`createWithAudio` API)
 - Photo and video attachment support with device-side capture

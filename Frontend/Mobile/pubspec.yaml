@@ -26,6 +26,9 @@ dependencies:
   # Location Services
   geolocator: ^10.1.0
 
+  # Device sensors (SOS shake gesture)
+  sensors_plus: ^6.1.1
+
   # Audio recording and media
   record: ^6.0.0
   audioplayers: ^6.1.0
