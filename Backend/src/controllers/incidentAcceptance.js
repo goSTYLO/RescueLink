@@ -312,7 +312,7 @@ async function findEligibleNearbyVolunteerUserIds(reportId, backupRequestId, inc
       `SELECT u.user_id, u.latitude, u.longitude, r.supported_incident_types
          FROM users u
          LEFT JOIN responders r ON r.user_id = u.user_id
-        WHERE u.role = 'responder' AND COALESCE(u.responder_online, FALSE) = TRUE`
+        WHERE u.role = 'volunteer' AND COALESCE(u.responder_online, FALSE) = TRUE`
     );
   } catch (err) {
     if (err.code !== '42703') throw err;
@@ -321,7 +321,7 @@ async function findEligibleNearbyVolunteerUserIds(reportId, backupRequestId, inc
               r.supported_incident_types
          FROM users u
          LEFT JOIN responders r ON r.user_id = u.user_id
-        WHERE u.role = 'responder' AND COALESCE(u.responder_online, FALSE) = TRUE`
+        WHERE u.role = 'volunteer' AND COALESCE(u.responder_online, FALSE) = TRUE`
     );
   }
 
@@ -1356,7 +1356,7 @@ async function getIncidentPreview(req, res) {
     if (!responderRow.rows[0]) return res.status(404).json({ error: 'Responder user not found.' });
 
     const poolRow = await pool.query('SELECT user_id FROM responders WHERE user_id = $1', [userId]);
-    const isVolunteer = poolRow.rows.length > 0 || String(req.user.role || '').toLowerCase() === 'responder';
+    const isVolunteer = poolRow.rows.length > 0 || String(req.user.role || '').toLowerCase() === 'volunteer';
     if (!isVolunteer) {
       return res.status(403).json({ error: 'Only registered responders can preview incidents.' });
     }

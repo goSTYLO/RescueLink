@@ -2,10 +2,10 @@ import 'dart:math';
 
 /// Detects deliberate phone shakes from user-accelerometer samples (gravity stripped).
 class SosShakeDetector {
-  // ponytail: fixed threshold; tune if pocket false-positives show up in field
+  // ponytail: fixed threshold; raise toward 15 if pocket false-positives show up in field
   SosShakeDetector({
-    this.spikeThreshold = 18.0,
-    this.windowMs = 400,
+    this.spikeThreshold = 12.0,
+    this.windowMs = 500,
     this.requiredSpikes = 2,
     this.cooldownMs = 1500,
   });
@@ -56,10 +56,10 @@ class SosShakeDetector {
     assert(!d.feed(0, 0, 0, nowMs: 0));
     assert(!d.feed(5, 5, 5, nowMs: 50));
     assert(!d.feed(20, 0, 0, nowMs: 100));
-    assert(d.feed(0, 20, 0, nowMs: 150));
-    assert(!d.feed(20, 0, 0, nowMs: 200)); // cooldown
+    assert(d.feed(0, 13, 0, nowMs: 150));
+    assert(!d.feed(13, 0, 0, nowMs: 200)); // cooldown
     final d2 = SosShakeDetector(cooldownMs: 0);
-    assert(!d2.feed(20, 0, 0, nowMs: 0)); // single spike
-    assert(d2.feed(0, 20, 0, nowMs: 50));
+    assert(!d2.feed(13, 0, 0, nowMs: 0)); // single spike
+    assert(d2.feed(0, 13, 0, nowMs: 50));
   }
 }

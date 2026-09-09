@@ -95,19 +95,13 @@ Note:
 - Use `--reset` to clear prior incident-related records before repopulating.
 - Use `--count=N` to override the default (max: 30).
 
-**Seeded test accounts:**
+**Seeded test accounts:** see [`Documentation/backend/ACCOUNTS.md`](../backend/ACCOUNTS.md) for the full list. After auto-dispatch seed updates, re-run `npm run migrate && npm run seed-db` in `Backend/` — 24 responder accounts (2 per team, password `responder123`).
 
 Dispatchers (password: `dispatcher123`):
 - `dispatcher@rescuelink.test`, `dispatcher2@rescuelink.test`, `dispatcher3@rescuelink.test`, `dispatcher4@rescuelink.test`
 
-Responders (password: `responder123`):
-- `responder@rescuelink.test` (PNP, Pob. Oeste)
-- `responder2@rescuelink.test` (PNP, Pob. Oeste)
-- `responder3@rescuelink.test` (DRRMO, Bonuan Gueset)
-- `responder4@rescuelink.test` (DRRMO, Bonuan Gueset)
-
 Regular Users (password: `user123`):
-- `user@rescuelink.test` through `user6@rescuelink.test` (distributed across Dagupan barangays: Bonuan Binloc, Tapuac, Mangin, Pantal, Bonuan Boquig, Lucao)
+- `user@rescuelink.test` through `user6@rescuelink.test`
 
 Ganache (Terminal 2)
 - Option A: open Ganache Desktop and use the GUI
@@ -263,7 +257,7 @@ Testing Responder Application Flow (Phase 2)
 3. **Approve / Reject Application**:
    - Check applicant personal details and credential documents (`/api/responder-applications/:id/documents/:filename`).
    - Add reviewer notes.
-   - Tap `Approve & Promote to Responder` -> updates `users.role = 'responder'`, creates responder pool entry, and sends in-app notification.
+   - Tap `Approve & Promote to Responder` -> updates `users.role = 'volunteer'`, creates volunteer pool entry, and sends in-app notification.
    - Or tap `Reject Application` -> sends in-app notification with reviewer notes to applicant for transparency.
 
 Web API base URL configuration

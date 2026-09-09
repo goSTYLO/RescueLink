@@ -12,6 +12,7 @@ const DispatcherOtp = require('../models/dispatcherOtp');
 const { sendOtpEmail } = require('../services/email');
 const { ROLES } = require('../config/roles');
 const Department = require('../models/department');
+const pool = require('../config/db');
 
 const WEB_EMAIL_AUTH_ROLES = [
   ROLES.DISPATCHER,
@@ -96,6 +97,12 @@ exports.login = async (req, res) => {
     const isPasswordValid = await comparePassword(password, user.password);
     if (!isPasswordValid) return res.status(401).json({ message: 'Invalid credentials' });
 
+    if (user.role === ROLES.RESPONDER) {
+      try {
+        await pool.query('UPDATE users SET responder_online = TRUE WHERE user_id = $1', [user.user_id]);
+      } catch (_) {}
+    }
+
     const token = jwt.sign({ user_id: user.user_id, phone: user.phone_number, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
     console.log('✅ Login successful:', { user_id: user.user_id });
     res.json({ user: { user_id: user.user_id, phone: user.phone_number, role: user.role }, token });
@@ -138,8 +145,8 @@ exports.onboardPhone = async (req, res) => {
       return res.status(404).json({ message: 'User not found. Please register first.' });
     }
 
-    // Update phone_verified to true
-    let user = await User.updatePhoneVerified(phone, true);
+    // Update phone_verified to true (use stored phone_number, not Firebase E.164)
+    let user = await User.updatePhoneVerified(existing.phone_number, true);
 
     const token = jwt.sign({ user_id: user.user_id, phone: user.phone_number, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
     console.log('✅ Phone onboarding successful:', { user_id: user.user_id });

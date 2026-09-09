@@ -56,7 +56,7 @@ function normalizeRole(role) {
     'department-head': ROLES.DEPARTMENT_HEAD,
     'personnel': 'personnel',
     'responder': ROLES.RESPONDER,
-    'volunteer': ROLES.RESPONDER,
+    'volunteer': ROLES.VOLUNTEER,
     'user': ROLES.USER,
   };
   return map[r] || r;
@@ -171,7 +171,7 @@ function init(server) {
     }
 
     let supportedIncidentTypes = null;
-    if (role === ROLES.RESPONDER) {
+    if (role === ROLES.RESPONDER || role === ROLES.VOLUNTEER) {
       try {
         const rRes = await pool.query('SELECT supported_incident_types FROM responders WHERE user_id = $1', [userId]);
         if (rRes.rows[0] && Array.isArray(rRes.rows[0].supported_incident_types)) {
@@ -284,7 +284,7 @@ function init(server) {
     if (isResponderAlert || isBackupAlert) {
       const responderUserIds = [];
       for (const [, meta] of clients) {
-        if (meta.role === ROLES.RESPONDER && meta.userId != null) {
+        if (meta.role === ROLES.VOLUNTEER && meta.userId != null) {
           responderUserIds.push(meta.userId);
         }
       }
@@ -351,8 +351,8 @@ function init(server) {
         continue;
       }
 
-      // Responder: filter by supported incident types if event is responder alert
-      if (role === ROLES.RESPONDER) {
+      // Volunteer: nearby incident / backup alerts
+      if (role === ROLES.VOLUNTEER) {
         if (isBackupAlert) {
           if (acceptorUserId != null && Number(acceptorUserId) === Number(userId)) continue;
           if (backupExcludedUserIds.has(Number(userId))) continue;

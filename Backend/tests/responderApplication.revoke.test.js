@@ -64,7 +64,7 @@ beforeEach(() => {
       return Promise.resolve({ user_id: 3, role: ROLES.ADMIN, password: 'hashed-admin' });
     }
     if (id === 100) {
-      return Promise.resolve({ user_id: 100, role: ROLES.RESPONDER, password: 'hashed-user' });
+      return Promise.resolve({ user_id: 100, role: ROLES.VOLUNTEER, password: 'hashed-user' });
     }
     return Promise.resolve(null);
   });

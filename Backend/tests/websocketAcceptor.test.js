@@ -42,7 +42,7 @@ describe('WebSocket volunteer acceptor delivery', () => {
         return { rows: [{ user_id: 1, accepted_by_user_id: 9 }] };
       }
       if (typeof sql === 'string' && sql.includes('SELECT role FROM users')) {
-        return { rows: [{ role: 'responder' }] };
+        return { rows: [{ role: 'volunteer' }] };
       }
       if (typeof sql === 'string' && sql.includes('supported_incident_types')) {
         return { rows: [{ supported_incident_types: ['fire'] }] };
@@ -74,7 +74,7 @@ describe('WebSocket volunteer acceptor delivery', () => {
   }
 
   it('delivers incident:dispatched to volunteer acceptor outside assigned department', async () => {
-    const ws = await connectAs(9, 'responder');
+    const ws = await connectAs(9, 'volunteer');
     await new Promise((r) => setTimeout(r, 50));
 
     await wss.broadcast('incident:dispatched', {
@@ -91,7 +91,7 @@ describe('WebSocket volunteer acceptor delivery', () => {
   });
 
   it('does not deliver incident:dispatched to unrelated volunteer', async () => {
-    const ws = await connectAs(99, 'responder');
+    const ws = await connectAs(99, 'volunteer');
     await new Promise((r) => setTimeout(r, 50));
 
     await wss.broadcast('incident:dispatched', {

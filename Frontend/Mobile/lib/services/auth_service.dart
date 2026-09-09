@@ -44,6 +44,12 @@ class AuthService {
     return _prefs.getString(_keyUserRole);
   }
 
+  bool get isPersonnelResponder => getUserRole() == 'responder';
+
+  bool get isVolunteer => getUserRole() == 'volunteer';
+
+  bool get hasResponderTab => isPersonnelResponder || isVolunteer;
+
   /// Returns the logged-in user's id from cache or JWT payload.
   int? getUserId() {
     final cached = _prefs.getInt('user_id');
@@ -481,6 +487,13 @@ class AuthService {
         await _storeToken(response['token']);
         await saveTokenForBiometric(response['token'] as String);
         await saveCredentialsForBiometric(phone: formattedPhone, password: password);
+        final user = response['user'];
+        if (user is Map<String, dynamic>) {
+          final role = user['role']?.toString();
+          if (role != null && role.isNotEmpty) {
+            await _prefs.setString(_keyUserRole, role);
+          }
+        }
         debugPrint('✅ Login successful, token stored');
       }
 

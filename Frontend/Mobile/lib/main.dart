@@ -543,7 +543,7 @@ class _AuthNavigatorState extends State<AuthNavigator> with WidgetsBindingObserv
             HomePlaceholderScreen(
             onThemeChanged: widget.onThemeChanged,
             initialTabIndex: _returnToSettingsTab
-                ? (AuthService().getUserRole() == 'responder' ? 3 : 2)
+                ? (AuthService().hasResponderTab ? 3 : 2)
                 : (_returnToReportsTab ? 1 : null),
             onInitialTabApplied: (_returnToSettingsTab || _returnToReportsTab)
                 ? () => setState(() {

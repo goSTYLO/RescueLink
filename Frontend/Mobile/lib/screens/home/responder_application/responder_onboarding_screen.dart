@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../services/responder_application_service.dart';
+import '../../../utils/validators.dart';
 import '../../../widgets/glass_card.dart';
 
 class ResponderOnboardingScreen extends StatefulWidget {
@@ -568,19 +569,26 @@ class _ResponderOnboardingScreenState extends State<ResponderOnboardingScreen>
                     const SizedBox(height: 16),
                     TextFormField(
                       controller: _nameController,
+                      maxLength: 100,
                       decoration: const InputDecoration(labelText: 'Full Name *', prefixIcon: Icon(Icons.person)),
                       validator: (v) => v == null || v.trim().isEmpty ? 'Name is required' : null,
                     ),
                     const SizedBox(height: 12),
                     TextFormField(
                       controller: _phoneController,
-                      decoration: const InputDecoration(labelText: 'Contact Phone Number *', prefixIcon: Icon(Icons.phone)),
-                      validator: (v) => v == null || v.trim().isEmpty ? 'Phone is required' : null,
+                      keyboardType: TextInputType.phone,
+                      inputFormatters: Validators.phoneInputFormatters,
+                      maxLength: 11,
+                      decoration: const InputDecoration(labelText: 'Contact Phone Number *', prefixIcon: Icon(Icons.phone), hintText: '09171234567'),
+                      validator: Validators.validatePhoneNumber,
                     ),
                     const SizedBox(height: 12),
                     TextFormField(
                       controller: _emailController,
+                      maxLength: 255,
+                      keyboardType: TextInputType.emailAddress,
                       decoration: const InputDecoration(labelText: 'Email Address', prefixIcon: Icon(Icons.email)),
+                      validator: Validators.validateEmail,
                     ),
                     const SizedBox(height: 12),
                     TextFormField(
@@ -595,14 +603,18 @@ class _ResponderOnboardingScreenState extends State<ResponderOnboardingScreen>
                     const SizedBox(height: 12),
                     TextFormField(
                       controller: _emergencyNameController,
+                      maxLength: 100,
                       decoration: const InputDecoration(labelText: 'Emergency Contact Name *', prefixIcon: Icon(Icons.contact_phone)),
                       validator: (v) => v == null || v.trim().isEmpty ? 'Emergency contact name is required' : null,
                     ),
                     const SizedBox(height: 12),
                     TextFormField(
                       controller: _emergencyPhoneController,
-                      decoration: const InputDecoration(labelText: 'Emergency Contact Phone *', prefixIcon: Icon(Icons.phone_in_talk)),
-                      validator: (v) => v == null || v.trim().isEmpty ? 'Emergency contact phone is required' : null,
+                      keyboardType: TextInputType.phone,
+                      inputFormatters: Validators.phoneInputFormatters,
+                      maxLength: 11,
+                      decoration: const InputDecoration(labelText: 'Emergency Contact Phone *', prefixIcon: Icon(Icons.phone_in_talk), hintText: '09171234567'),
+                      validator: Validators.validatePhoneNumber,
                     ),
                     const SizedBox(height: 12),
                     TextFormField(

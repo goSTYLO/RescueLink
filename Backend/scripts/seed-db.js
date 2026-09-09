@@ -5,10 +5,12 @@ const { Pool } = require('pg');
 const bcryptjs = require('bcryptjs');
 const { ROLES } = require('../src/config/roles');
 const { encrypt } = require('../src/utils/encryption');
+const { validatePhone } = require('../src/utils/validation');
 const fs = require('fs/promises');
 const path = require('path');
 
 const DATABASE_URL = process.env.DATABASE_URL;
+const RESPONDER_PASSWORD = 'responder123';
 
 if (!DATABASE_URL) {
   console.error('❌ Error: DATABASE_URL not set in .env file');
@@ -22,7 +24,6 @@ const pool = new Pool({
   connectionString: DATABASE_URL,
 });
 
-// Password hashing utility
 async function hashPassword(password) {
   const salt = await bcryptjs.genSalt(10);
   return bcryptjs.hash(password, salt);
@@ -36,7 +37,6 @@ function encryptNullable(value) {
 function estimateEncryptedHexLength(value) {
   if (value === null || value === undefined) return 0;
   const plainBytes = Buffer.byteLength(String(value), 'utf8');
-  // hex(salt[64] + iv[12] + tag[16] + ciphertext[n]) => 2 * (92 + plainBytes)
   return 2 * (92 + plainBytes);
 }
 
@@ -52,16 +52,9 @@ async function getColumnMeta(client, tableName, columnName) {
 
 function shouldEncryptForColumn(columnMeta, value) {
   if (!columnMeta || value === null || value === undefined) return false;
-
-  if (columnMeta.data_type === 'text') {
-    return true;
-  }
-
+  if (columnMeta.data_type === 'text') return true;
   const maxLen = columnMeta.character_maximum_length;
-  if (!maxLen) {
-    return false;
-  }
-
+  if (!maxLen) return false;
   return estimateEncryptedHexLength(value) <= maxLen;
 }
 
@@ -71,6 +64,14 @@ function maybeEncrypt(value, columnMeta) {
     return encryptNullable(value);
   }
   return value;
+}
+
+async function deleteOptional(client, tableName) {
+  try {
+    await client.query(`DELETE FROM ${tableName}`);
+  } catch (err) {
+    if (err.code !== '42P01') throw err;
+  }
 }
 
 const DEPARTMENTS = [
@@ -83,6 +84,7 @@ const DEPARTMENTS = [
     latitude: 16.043037,
     longitude: 120.3323573,
     status: 'active',
+    supported_incident_types: ['police'],
   },
   {
     code: 'drrmo',
@@ -93,6 +95,7 @@ const DEPARTMENTS = [
     latitude: 16.043652,
     longitude: 120.333521,
     status: 'active',
+    supported_incident_types: ['fire', 'medical', 'disaster', 'accident'],
   },
 ];
 
@@ -130,6 +133,151 @@ const INCIDENT_TEMPLATES = [
   { type: 'disaster', severity: 'high', description: 'Flooding reported with stranded residents and rising water.' },
   { type: 'disaster', severity: 'medium', description: 'Strong winds damaged structures and power lines.' },
   { type: 'disaster', severity: 'low', description: 'Localized water accumulation affecting side streets.' },
+];
+
+/** 12 teams × 2 account-backed members each (24 mobile-testable responder logins). */
+const TEAM_ROSTER = [
+  {
+    department_code: 'pnp',
+    team_name: 'Patrol Alpha',
+    team_status: 'available',
+    supported_incident_types: ['police'],
+    members: [
+      { email: 'responder@rescuelink.test', first_name: 'SPO2', last_name: 'Reyes', phone_number: '639003000001', contact_number: '09171230001', availability_status: 'available', supported_incident_types: ['police'] },
+      { email: 'responder5@rescuelink.test', first_name: 'Patrol', last_name: 'Officer', phone_number: '639003000005', contact_number: '09171230007', availability_status: 'standby', supported_incident_types: ['police'] },
+    ],
+  },
+  {
+    department_code: 'pnp',
+    team_name: 'Patrol Bravo',
+    team_status: 'standby',
+    supported_incident_types: ['police'],
+    members: [
+      { email: 'responder2@rescuelink.test', first_name: 'SPO1', last_name: 'Flores', phone_number: '639003000002', contact_number: '09171230002', availability_status: 'standby', supported_incident_types: ['police'] },
+      { email: 'responder6@rescuelink.test', first_name: 'Desk', last_name: 'Officer', phone_number: '639003000006', contact_number: '09171230008', availability_status: 'available', supported_incident_types: ['police'] },
+    ],
+  },
+  {
+    department_code: 'pnp',
+    team_name: 'Traffic Unit',
+    team_status: 'available',
+    supported_incident_types: ['police'],
+    members: [
+      { email: 'responder7@rescuelink.test', first_name: 'Miguel', last_name: 'Cruz', phone_number: '639003000007', contact_number: '09171230003', availability_status: 'available', supported_incident_types: ['police'] },
+      { email: 'responder8@rescuelink.test', first_name: 'Traffic', last_name: 'Auxiliary', phone_number: '639003000008', contact_number: '09171230013', availability_status: 'standby', supported_incident_types: ['police'] },
+    ],
+  },
+  {
+    department_code: 'pnp',
+    team_name: 'K9 Unit',
+    team_status: 'available',
+    supported_incident_types: ['police'],
+    members: [
+      { email: 'responder9@rescuelink.test', first_name: 'K9', last_name: 'Handler', phone_number: '639003000009', contact_number: '09171230004', availability_status: 'available', supported_incident_types: ['police'] },
+      { email: 'responder10@rescuelink.test', first_name: 'K9', last_name: 'Partner', phone_number: '639003000010', contact_number: '09171230014', availability_status: 'standby', supported_incident_types: ['police'] },
+    ],
+  },
+  {
+    department_code: 'pnp',
+    team_name: 'Investigation Unit',
+    team_status: 'available',
+    supported_incident_types: ['police'],
+    members: [
+      { email: 'responder11@rescuelink.test', first_name: 'Lead', last_name: 'Investigator', phone_number: '639003000011', contact_number: '09171230005', availability_status: 'available', supported_incident_types: ['police'] },
+      { email: 'responder12@rescuelink.test', first_name: 'Scene', last_name: 'Investigator', phone_number: '639003000012', contact_number: '09171230015', availability_status: 'standby', supported_incident_types: ['police'] },
+    ],
+  },
+  {
+    department_code: 'pnp',
+    team_name: 'Quick Response Team',
+    team_status: 'available',
+    supported_incident_types: ['police'],
+    members: [
+      { email: 'responder13@rescuelink.test', first_name: 'QRT', last_name: 'Alpha', phone_number: '639003000013', contact_number: '09171230006', availability_status: 'available', supported_incident_types: ['police'] },
+      { email: 'responder14@rescuelink.test', first_name: 'QRT', last_name: 'Bravo', phone_number: '639003000014', contact_number: '09171230016', availability_status: 'standby', supported_incident_types: ['police'] },
+    ],
+  },
+  {
+    department_code: 'drrmo',
+    team_name: 'Rescue Alpha',
+    team_status: 'available',
+    supported_incident_types: ['disaster', 'medical'],
+    members: [
+      { email: 'responder3@rescuelink.test', first_name: 'Rescuer', last_name: 'Ramos', phone_number: '639003000003', contact_number: '09181230001', availability_status: 'available', supported_incident_types: ['disaster', 'medical'] },
+      { email: 'responder15@rescuelink.test', first_name: 'Rescue', last_name: 'Driver', phone_number: '639003000015', contact_number: '09181230005', availability_status: 'standby', supported_incident_types: ['disaster'] },
+    ],
+  },
+  {
+    department_code: 'drrmo',
+    team_name: 'Medical Alpha',
+    team_status: 'available',
+    supported_incident_types: ['medical'],
+    members: [
+      { email: 'responder4@rescuelink.test', first_name: 'Medic', last_name: 'Santos', phone_number: '639003000004', contact_number: '09181230002', availability_status: 'available', supported_incident_types: ['medical'] },
+      { email: 'responder16@rescuelink.test', first_name: 'Ambulance', last_name: 'Driver', phone_number: '639003000016', contact_number: '09181230010', availability_status: 'standby', supported_incident_types: ['medical'] },
+    ],
+  },
+  {
+    department_code: 'drrmo',
+    team_name: 'Fire Support',
+    team_status: 'standby',
+    supported_incident_types: ['fire', 'disaster'],
+    members: [
+      { email: 'responder17@rescuelink.test', first_name: 'Leo', last_name: 'Dela Cruz', phone_number: '639003000017', contact_number: '09181230003', availability_status: 'standby', supported_incident_types: ['fire', 'disaster'] },
+      { email: 'responder18@rescuelink.test', first_name: 'Fire', last_name: 'Support', phone_number: '639003000018', contact_number: '09181230011', availability_status: 'available', supported_incident_types: ['fire', 'disaster'] },
+    ],
+  },
+  {
+    department_code: 'drrmo',
+    team_name: 'Emergency Response Alpha',
+    team_status: 'available',
+    supported_incident_types: ['disaster', 'medical'],
+    members: [
+      { email: 'responder19@rescuelink.test', first_name: 'Emergency', last_name: 'Medic', phone_number: '639003000019', contact_number: '09181230006', availability_status: 'available', supported_incident_types: ['disaster', 'medical'] },
+      { email: 'responder20@rescuelink.test', first_name: 'Field', last_name: 'Paramedic', phone_number: '639003000020', contact_number: '09181230009', availability_status: 'standby', supported_incident_types: ['medical'] },
+    ],
+  },
+  {
+    department_code: 'drrmo',
+    team_name: 'Logistics Support',
+    team_status: 'available',
+    supported_incident_types: ['disaster'],
+    members: [
+      { email: 'responder21@rescuelink.test', first_name: 'Logistics', last_name: 'Lead', phone_number: '639003000021', contact_number: '09181230007', availability_status: 'available', supported_incident_types: ['disaster'] },
+      { email: 'responder22@rescuelink.test', first_name: 'Supply', last_name: 'Coordinator', phone_number: '639003000022', contact_number: '09181230012', availability_status: 'standby', supported_incident_types: ['disaster'] },
+    ],
+  },
+  {
+    department_code: 'drrmo',
+    team_name: 'Search and Rescue',
+    team_status: 'standby',
+    supported_incident_types: ['disaster'],
+    members: [
+      { email: 'responder23@rescuelink.test', first_name: 'SAR', last_name: 'Lead', phone_number: '639003000023', contact_number: '09181230008', availability_status: 'standby', supported_incident_types: ['disaster'] },
+      { email: 'responder24@rescuelink.test', first_name: 'SAR', last_name: 'Member', phone_number: '639003000024', contact_number: '09181230013', availability_status: 'available', supported_incident_types: ['disaster'] },
+    ],
+  },
+];
+
+const STAFF_USERS = [
+  { first_name: 'Ariel', last_name: 'Admin', email: 'admin@rescuelink.test', phone_number: '639001000001', password: 'admin123', role: ROLES.ADMIN, address: 'Arellano St, Dagupan City', department_code: null },
+  { first_name: 'Bianca', last_name: 'Admin', email: 'admin2@rescuelink.test', phone_number: '639001000002', password: 'admin123', role: ROLES.ADMIN, address: 'Perez Blvd, Dagupan City', department_code: null },
+  { first_name: 'Paolo', last_name: 'DeptAdmin', email: 'deptadmin_pnp@rescuelink.test', phone_number: '639001000010', password: 'deptadmin123', role: ROLES.DEPARTMENT_ADMIN, address: 'PNP Headquarters, Dagupan City', department_code: 'pnp' },
+  { first_name: 'Rosa', last_name: 'DeptAdmin', email: 'deptadmin_drrmo@rescuelink.test', phone_number: '639001000011', password: 'deptadmin123', role: ROLES.DEPARTMENT_ADMIN, address: 'CDRRMO Office, Dagupan City', department_code: 'drrmo' },
+  { first_name: 'Alice', last_name: 'Dispatcher', email: 'dispatcher@rescuelink.test', phone_number: '639002000001', password: 'dispatcher123', role: ROLES.DISPATCHER, address: 'Bonuan Boquig, Dagupan City', department_code: 'drrmo' },
+  { first_name: 'Bob', last_name: 'Dispatcher', email: 'dispatcher2@rescuelink.test', phone_number: '639002000002', password: 'dispatcher123', role: ROLES.DISPATCHER, address: 'Pantal, Dagupan City', department_code: 'pnp' },
+  { first_name: 'Carla', last_name: 'Dispatcher', email: 'dispatcher3@rescuelink.test', phone_number: '639002000003', password: 'dispatcher123', role: ROLES.DISPATCHER, address: 'Lucao, Dagupan City', department_code: 'drrmo' },
+  { first_name: 'Daniel', last_name: 'Dispatcher', email: 'dispatcher4@rescuelink.test', phone_number: '639002000004', password: 'dispatcher123', role: ROLES.DISPATCHER, address: 'Arellano St, Dagupan City', department_code: 'pnp' },
+  { first_name: 'Maria', last_name: 'DeptHead', email: 'depthead_pnp@rescuelink.test', phone_number: '639001000020', password: 'depthead123', role: ROLES.DEPARTMENT_HEAD, address: 'PNP Field Office, Dagupan City', department_code: 'pnp' },
+  { first_name: 'Lucia', last_name: 'DeptHead', email: 'depthead_drrmo@rescuelink.test', phone_number: '639001000021', password: 'depthead123', role: ROLES.DEPARTMENT_HEAD, address: 'CDRRMO Operations, Dagupan City', department_code: 'drrmo' },
+  { first_name: 'Evan', last_name: 'Supervisor', email: 'supervisor@rescuelink.test', phone_number: '639004000001', password: 'supervisor123', role: ROLES.SUPERVISOR, address: 'Lasip Chico, Dagupan City', department_code: 'drrmo' },
+  { first_name: 'Fiona', last_name: 'Supervisor', email: 'supervisor2@rescuelink.test', phone_number: '639004000002', password: 'supervisor123', role: ROLES.SUPERVISOR, address: 'Malued, Dagupan City', department_code: 'pnp' },
+  { first_name: 'John', last_name: 'Cruz', email: 'user@rescuelink.test', phone_number: '639005000001', password: 'user123', role: ROLES.USER, address: 'Bonuan Binloc, Dagupan City', department_code: null },
+  { first_name: 'Jane', last_name: 'Sarmiento', email: 'user2@rescuelink.test', phone_number: '639005000002', password: 'user123', role: ROLES.USER, address: 'Tapuac, Dagupan City', department_code: null },
+  { first_name: 'Miguel', last_name: 'Domingo', email: 'user3@rescuelink.test', phone_number: '639005000003', password: 'user123', role: ROLES.USER, address: 'Mangin, Dagupan City', department_code: null },
+  { first_name: 'Alyssa', last_name: 'Reyes', email: 'user4@rescuelink.test', phone_number: '639005000004', password: 'user123', role: ROLES.USER, address: 'Pantal, Dagupan City', department_code: null },
+  { first_name: 'Ramon', last_name: 'Velasco', email: 'user5@rescuelink.test', phone_number: '639005000005', password: 'user123', role: ROLES.USER, address: 'Bonuan Boquig, Dagupan City', department_code: null },
+  { first_name: 'Katrina', last_name: 'Perez', email: 'user6@rescuelink.test', phone_number: '639005000006', password: 'user123', role: ROLES.USER, address: 'Lucao, Dagupan City', department_code: null },
 ];
 
 function shuffleList(items) {
@@ -181,80 +329,63 @@ async function collectAudioFiles() {
   return shuffleList([...unique.values()]);
 }
 
-const TEAMS = [
-  { department_code: 'pnp', team_name: 'Patrol Alpha', team_status: 'available', supported_incident_types: ['police'] },
-  { department_code: 'pnp', team_name: 'Patrol Bravo', team_status: 'standby', supported_incident_types: ['police'] },
-  { department_code: 'pnp', team_name: 'Traffic Unit', team_status: 'available', supported_incident_types: ['police'] },
-  { department_code: 'pnp', team_name: 'K9 Unit', team_status: 'available', supported_incident_types: ['police'] },
-  { department_code: 'pnp', team_name: 'Investigation Unit', team_status: 'available', supported_incident_types: ['police'] },
-  { department_code: 'pnp', team_name: 'Quick Response Team', team_status: 'available', supported_incident_types: ['police'] },
-  { department_code: 'drrmo', team_name: 'Rescue Alpha', team_status: 'available', supported_incident_types: ['disaster', 'medical'] },
-  { department_code: 'drrmo', team_name: 'Medical Alpha', team_status: 'available', supported_incident_types: ['medical'] },
-  { department_code: 'drrmo', team_name: 'Fire Support', team_status: 'standby', supported_incident_types: ['fire', 'disaster'] },
-  { department_code: 'drrmo', team_name: 'Emergency Response Alpha', team_status: 'available', supported_incident_types: ['disaster', 'medical'] },
-  { department_code: 'drrmo', team_name: 'Logistics Support', team_status: 'available', supported_incident_types: ['disaster'] },
-  { department_code: 'drrmo', team_name: 'Search and Rescue', team_status: 'standby', supported_incident_types: ['disaster'] },
-];
+function organizationForDepartment(departmentCode) {
+  return departmentCode === 'pnp' ? 'Dagupan City Police Office' : 'Dagupan CDRRMO';
+}
 
-const USERS = [
-  // System Admins (full system access)
-  { first_name: 'Ariel', last_name: 'Admin', email: 'admin@rescuelink.test', phone_number: '639001000001', password: 'admin123', role: ROLES.ADMIN, address: 'Arellano St, Dagupan City', department_code: null },
-  { first_name: 'Bianca', last_name: 'Admin', email: 'admin2@rescuelink.test', phone_number: '639001000002', password: 'admin123', role: ROLES.ADMIN, address: 'Perez Blvd, Dagupan City', department_code: null },
-  // Department Admins (manage rosters, teams, and department resources)
-  { first_name: 'Paolo', last_name: 'DeptAdmin', email: 'deptadmin_pnp@rescuelink.test', phone_number: '639001000010', password: 'deptadmin123', role: ROLES.DEPARTMENT_ADMIN, address: 'PNP Headquarters, Dagupan City', department_code: 'pnp' },
-  { first_name: 'Rosa', last_name: 'DeptAdmin', email: 'deptadmin_drrmo@rescuelink.test', phone_number: '639001000011', password: 'deptadmin123', role: ROLES.DEPARTMENT_ADMIN, address: 'CDRRMO Office, Dagupan City', department_code: 'drrmo' },
-  // Dispatchers (manage dispatches and handle incidents)
-  { first_name: 'Alice', last_name: 'Dispatcher', email: 'dispatcher@rescuelink.test', phone_number: '639002000001', password: 'dispatcher123', role: ROLES.DISPATCHER, address: 'Bonuan Boquig, Dagupan City', department_code: 'drrmo' },
-  { first_name: 'Bob', last_name: 'Dispatcher', email: 'dispatcher2@rescuelink.test', phone_number: '639002000002', password: 'dispatcher123', role: ROLES.DISPATCHER, address: 'Pantal, Dagupan City', department_code: 'pnp' },
-  { first_name: 'Carla', last_name: 'Dispatcher', email: 'dispatcher3@rescuelink.test', phone_number: '639002000003', password: 'dispatcher123', role: ROLES.DISPATCHER, address: 'Lucao, Dagupan City', department_code: 'drrmo' },
-  { first_name: 'Daniel', last_name: 'Dispatcher', email: 'dispatcher4@rescuelink.test', phone_number: '639002000004', password: 'dispatcher123', role: ROLES.DISPATCHER, address: 'Arellano St, Dagupan City', department_code: 'pnp' },
-  // Department Heads (operational leadership: view and assign responders/teams)
-  { first_name: 'Maria', last_name: 'DeptHead', email: 'depthead_pnp@rescuelink.test', phone_number: '639001000020', password: 'depthead123', role: ROLES.DEPARTMENT_HEAD, address: 'PNP Field Office, Dagupan City', department_code: 'pnp' },
-  { first_name: 'Lucia', last_name: 'DeptHead', email: 'depthead_drrmo@rescuelink.test', phone_number: '639001000021', password: 'depthead123', role: ROLES.DEPARTMENT_HEAD, address: 'CDRRMO Operations, Dagupan City', department_code: 'drrmo' },
-  // Supervisors (escalation management)
-  { first_name: 'Evan', last_name: 'Supervisor', email: 'supervisor@rescuelink.test', phone_number: '639004000001', password: 'supervisor123', role: ROLES.SUPERVISOR, address: 'Lasip Chico, Dagupan City', department_code: 'drrmo' },
-  { first_name: 'Fiona', last_name: 'Supervisor', email: 'supervisor2@rescuelink.test', phone_number: '639004000002', password: 'supervisor123', role: ROLES.SUPERVISOR, address: 'Malued, Dagupan City', department_code: 'pnp' },
-  // Mobile app reporters/users (incident reporting)
-  { first_name: 'John', last_name: 'Cruz', email: 'user@rescuelink.test', phone_number: '639005000001', password: 'user123', role: ROLES.USER, address: 'Bonuan Binloc, Dagupan City', department_code: null },
-  { first_name: 'Jane', last_name: 'Sarmiento', email: 'user2@rescuelink.test', phone_number: '639005000002', password: 'user123', role: ROLES.USER, address: 'Tapuac, Dagupan City', department_code: null },
-  { first_name: 'Miguel', last_name: 'Domingo', email: 'user3@rescuelink.test', phone_number: '639005000003', password: 'user123', role: ROLES.USER, address: 'Mangin, Dagupan City', department_code: null },
-  { first_name: 'Alyssa', last_name: 'Reyes', email: 'user4@rescuelink.test', phone_number: '639005000004', password: 'user123', role: ROLES.USER, address: 'Pantal, Dagupan City', department_code: null },
-  { first_name: 'Ramon', last_name: 'Velasco', email: 'user5@rescuelink.test', phone_number: '639005000005', password: 'user123', role: ROLES.USER, address: 'Bonuan Boquig, Dagupan City', department_code: null },
-  { first_name: 'Katrina', last_name: 'Perez', email: 'user6@rescuelink.test', phone_number: '639005000006', password: 'user123', role: ROLES.USER, address: 'Lucao, Dagupan City', department_code: null },
-  // Responders (field personnel with accounts)
-  { first_name: 'SPO2', last_name: 'Reyes', email: 'responder@rescuelink.test', phone_number: '639003000001', password: 'responder123', role: ROLES.RESPONDER, address: 'Pob. Oeste, Dagupan City', department_code: 'pnp' },
-  { first_name: 'SPO1', last_name: 'Flores', email: 'responder2@rescuelink.test', phone_number: '639003000002', password: 'responder123', role: ROLES.RESPONDER, address: 'Pob. Oeste, Dagupan City', department_code: 'pnp' },
-  { first_name: 'Rescuer', last_name: 'Ramos', email: 'responder3@rescuelink.test', phone_number: '639003000003', password: 'responder123', role: ROLES.RESPONDER, address: 'Bonuan Gueset, Dagupan City', department_code: 'drrmo' },
-  { first_name: 'Medic', last_name: 'Santos', email: 'responder4@rescuelink.test', phone_number: '639003000004', password: 'responder123', role: ROLES.RESPONDER, address: 'Bonuan Gueset, Dagupan City', department_code: 'drrmo' },
-];
+async function insertUser(client, user, departmentIdByCode, userColumnMeta) {
+  const hashedPassword = await hashPassword(user.password);
+  const normalizedPhone = validatePhone(user.phone_number);
+  const encryptedFirstName = maybeEncrypt(user.first_name, userColumnMeta.first_name);
+  const encryptedLastName = maybeEncrypt(user.last_name, userColumnMeta.last_name);
+  const encryptedEmail = maybeEncrypt(user.email, userColumnMeta.email);
+  const encryptedPhone = maybeEncrypt(normalizedPhone, userColumnMeta.phone_number);
+  const encryptedAddress = maybeEncrypt(user.address, userColumnMeta.address);
+  const userDepartmentId = user.department_code ? (departmentIdByCode[user.department_code] || null) : null;
+  const result = userColumnMeta.department_id
+    ? await client.query(
+      `INSERT INTO users (first_name, last_name, email, phone_number, password, role, phone_verified, address, department_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       RETURNING user_id`,
+      [encryptedFirstName, encryptedLastName, encryptedEmail, encryptedPhone, hashedPassword, user.role, true, encryptedAddress, userDepartmentId]
+    )
+    : await client.query(
+      `INSERT INTO users (first_name, last_name, email, phone_number, password, role, phone_verified, address)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING user_id`,
+      [encryptedFirstName, encryptedLastName, encryptedEmail, encryptedPhone, hashedPassword, user.role, true, encryptedAddress]
+    );
+  return result.rows[0].user_id;
+}
 
-const RESPONDERS = [
-  { name: 'SPO2 Paolo Reyes', organization: 'Dagupan City Police Office', contact_number: '09171230001', availability_status: 'available', source_type: 'account', team_name: 'Patrol Alpha', supported_incident_types: ['police'] },
-  { name: 'SPO1 Diana Flores', organization: 'Dagupan City Police Office', contact_number: '09171230002', availability_status: 'standby', source_type: 'account', team_name: 'Patrol Bravo', supported_incident_types: ['police'] },
-  { name: 'Traffic Officer Miguel Cruz', organization: 'Dagupan City Police Office', contact_number: '09171230003', availability_status: 'available', source_type: 'directory', team_name: 'Traffic Unit', supported_incident_types: ['police'] },
-  { name: 'K9 Officer', organization: 'Dagupan City Police Office', contact_number: '09171230004', availability_status: 'available', source_type: 'directory', team_name: 'K9 Unit', supported_incident_types: ['police'] },
-  { name: 'Investigator', organization: 'Dagupan City Police Office', contact_number: '09171230005', availability_status: 'available', source_type: 'directory', team_name: 'Investigation Unit', supported_incident_types: ['police'] },
-  { name: 'QRT Officer', organization: 'Dagupan City Police Office', contact_number: '09171230006', availability_status: 'available', source_type: 'directory', team_name: 'Quick Response Team', supported_incident_types: ['police'] },
-  { name: 'Patrol Officer', organization: 'Dagupan City Police Office', contact_number: '09171230007', availability_status: 'available', source_type: 'directory', team_name: 'Patrol Alpha', supported_incident_types: ['police'] },
-  { name: 'Desk Officer', organization: 'Dagupan City Police Office', contact_number: '09171230008', availability_status: 'standby', source_type: 'directory', team_name: 'Patrol Bravo', supported_incident_types: ['police'] },
-  { name: 'Rescuer Noel Ramos', organization: 'Dagupan CDRRMO', contact_number: '09181230001', availability_status: 'available', source_type: 'account', team_name: 'Rescue Alpha', supported_incident_types: ['disaster', 'medical'] },
-  { name: 'Medic Trina Santos', organization: 'Dagupan CDRRMO', contact_number: '09181230002', availability_status: 'available', source_type: 'account', team_name: 'Medical Alpha', supported_incident_types: ['medical'] },
-  { name: 'Fire Volunteer Leo Dela Cruz', organization: 'Dagupan CDRRMO', contact_number: '09181230003', availability_status: 'standby', source_type: 'directory', team_name: 'Fire Support', supported_incident_types: ['fire', 'disaster'] },
-  { name: 'BLS Medic Karen Villanueva', organization: 'Dagupan CDRRMO', contact_number: '09181230004', availability_status: 'busy', source_type: 'directory', team_name: 'Medical Alpha', supported_incident_types: ['medical'] },
-  { name: 'Rescue Driver Omar Garcia', organization: 'Dagupan CDRRMO', contact_number: '09181230005', availability_status: 'off-duty', source_type: 'directory', team_name: 'Rescue Alpha', supported_incident_types: ['disaster'] },
-  { name: 'Emergency Medic', organization: 'Dagupan CDRRMO', contact_number: '09181230006', availability_status: 'available', source_type: 'directory', team_name: 'Emergency Response Alpha', supported_incident_types: ['disaster', 'medical'] },
-  { name: 'Logistics Coordinator', organization: 'Dagupan CDRRMO', contact_number: '09181230007', availability_status: 'available', source_type: 'directory', team_name: 'Logistics Support', supported_incident_types: ['disaster'] },
-  { name: 'SAR Volunteer', organization: 'Dagupan CDRRMO', contact_number: '09181230008', availability_status: 'standby', source_type: 'directory', team_name: 'Search and Rescue', supported_incident_types: ['disaster'] },
-  { name: 'Paramedic', organization: 'Dagupan CDRRMO', contact_number: '09181230009', availability_status: 'available', source_type: 'directory', team_name: 'Emergency Response Alpha', supported_incident_types: ['medical'] },
-  { name: 'Ambulance Driver', organization: 'Dagupan CDRRMO', contact_number: '09181230010', availability_status: 'available', source_type: 'directory', team_name: 'Medical Alpha', supported_incident_types: ['medical'] },
-];
+async function markResponderOnline(client, userId, role) {
+  if (role !== ROLES.RESPONDER) return;
+  try {
+    await client.query('UPDATE users SET responder_online = TRUE WHERE user_id = $1', [userId]);
+  } catch (_) {}
+}
 
-function toRoleLabel(role) {
-  if (role === ROLES.ADMIN) return 'admin';
-  if (role === ROLES.DISPATCHER) return 'dispatcher';
-  if (role === ROLES.RESPONDER) return 'responder';
-  if (role === ROLES.SUPERVISOR) return 'supervisor';
-  return 'user';
+async function insertResponder(client, { userId, name, organization, contactNumber, availabilityStatus, teamName, supportedIncidentTypes }) {
+  try {
+    const result = await client.query(
+      `INSERT INTO responders (name, organization, contact_number, availability_status, source_type, team_name, supported_incident_types, user_id)
+       VALUES ($1, $2, $3, $4, 'account', $5, $6, $7)
+       RETURNING responder_id`,
+      [name, organization, contactNumber, availabilityStatus, teamName, supportedIncidentTypes, userId]
+    );
+    return result.rows[0].responder_id;
+  } catch (error) {
+    if (error.code === '42703' && /user_id/i.test(error.message)) {
+      const fallback = await client.query(
+        `INSERT INTO responders (name, organization, contact_number, availability_status, source_type, team_name, supported_incident_types)
+         VALUES ($1, $2, $3, $4, 'account', $5, $6)
+         RETURNING responder_id`,
+        [name, organization, contactNumber, availabilityStatus, teamName, supportedIncidentTypes]
+      );
+      return fallback.rows[0].responder_id;
+    }
+    throw error;
+  }
 }
 
 async function seedDatabase() {
@@ -262,22 +393,29 @@ async function seedDatabase() {
   try {
     console.log('\n🔄 Clearing existing data (maintaining referential integrity)...');
 
-    // Delete in reverse dependency order
-    await client.query('DELETE FROM dispatcher_login_otp');
-    await client.query('DELETE FROM token_blacklist');
-    await client.query('DELETE FROM dispatcher_audit_logs');
-    await client.query('DELETE FROM notifications');
-    await client.query('DELETE FROM dispatches');
-    await client.query('DELETE FROM blockchain_records');
-    await client.query('DELETE FROM ai_classifications');
-    await client.query('DELETE FROM responder_team_members');
-    await client.query('DELETE FROM responder_teams');
-    await client.query('DELETE FROM incident_reports');
-    await client.query('DELETE FROM responders');
-    await client.query('DELETE FROM department_personnel');
-    await client.query('DELETE FROM department_units');
-    await client.query('DELETE FROM users');
-    await client.query('DELETE FROM departments');
+    await deleteOptional(client, 'dispatcher_login_otp');
+    await deleteOptional(client, 'token_blacklist');
+    await deleteOptional(client, 'dispatcher_audit_logs');
+    await deleteOptional(client, 'notifications');
+    await deleteOptional(client, 'backup_responses');
+    await deleteOptional(client, 'backup_requests');
+    await deleteOptional(client, 'incident_coordination_notes');
+    await deleteOptional(client, 'incident_escalations');
+    await deleteOptional(client, 'responder_status_history');
+    await deleteOptional(client, 'duplicate_clusters');
+    await deleteOptional(client, 'dispatches');
+    await deleteOptional(client, 'blockchain_records');
+    await deleteOptional(client, 'ai_classifications');
+    await deleteOptional(client, 'responder_team_members');
+    await deleteOptional(client, 'responder_teams');
+    await deleteOptional(client, 'incident_reports');
+    await deleteOptional(client, 'responders');
+    await deleteOptional(client, 'responder_applications');
+    await deleteOptional(client, 'notification_preferences');
+    await deleteOptional(client, 'department_personnel');
+    await deleteOptional(client, 'department_units');
+    await deleteOptional(client, 'users');
+    await deleteOptional(client, 'departments');
 
     console.log('✅ Cleared old data\n');
 
@@ -290,24 +428,36 @@ async function seedDatabase() {
       department_id: await getColumnMeta(client, 'users', 'department_id'),
     };
 
-    // Seed departments
     console.log('🏢 Seeding departments...');
     const departmentIdByCode = {};
     for (const dept of DEPARTMENTS) {
-      const result = await client.query(
-        `INSERT INTO departments(code, name, type, color, address, latitude, longitude, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-         RETURNING department_id, code`,
-        [dept.code, dept.name, dept.type, dept.color, dept.address || null, dept.latitude || null, dept.longitude || null, dept.status]
-      );
-      departmentIdByCode[result.rows[0].code] = result.rows[0].department_id;
+      try {
+        const result = await client.query(
+          `INSERT INTO departments(code, name, type, color, address, latitude, longitude, status, supported_incident_types)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+           RETURNING department_id, code`,
+          [dept.code, dept.name, dept.type, dept.color, dept.address || null, dept.latitude || null, dept.longitude || null, dept.status, dept.supported_incident_types]
+        );
+        departmentIdByCode[result.rows[0].code] = result.rows[0].department_id;
+      } catch (error) {
+        if (error.code === '42703' && /supported_incident_types/i.test(error.message)) {
+          const result = await client.query(
+            `INSERT INTO departments(code, name, type, color, address, latitude, longitude, status)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+             RETURNING department_id, code`,
+            [dept.code, dept.name, dept.type, dept.color, dept.address || null, dept.latitude || null, dept.longitude || null, dept.status]
+          );
+          departmentIdByCode[result.rows[0].code] = result.rows[0].department_id;
+        } else {
+          throw error;
+        }
+      }
     }
-    console.log(`✅ Seeded ${DEPARTMENTS.length} departments\n`);
+    console.log(`✅ Seeded ${DEPARTMENTS.length} departments (with supported_incident_types for auto-dispatch)\n`);
 
-    // Seed teams
     console.log('👥 Seeding responder teams...');
     const teamIdByKey = {};
-    for (const team of TEAMS) {
+    for (const team of TEAM_ROSTER) {
       const result = await client.query(
         `INSERT INTO responder_teams(department_code, team_name, team_status, supported_incident_types, is_active)
          VALUES($1, $2, $3, $4, TRUE)
@@ -317,43 +467,21 @@ async function seedDatabase() {
       const key = `${result.rows[0].department_code}::${result.rows[0].team_name}`;
       teamIdByKey[key] = result.rows[0].team_id;
     }
-    console.log(`✅ Seeded ${TEAMS.length} teams\n`);
+    console.log(`✅ Seeded ${TEAM_ROSTER.length} teams\n`);
 
-    // Seed users
-    console.log('👤 Seeding users...');
-    const users = USERS;
+    console.log('👤 Seeding staff users...');
     const userIds = [];
     const userIdsByRole = {};
     Object.values(ROLES).forEach((role) => { userIdsByRole[role] = []; });
 
-    for (const user of users) {
-      const hashedPassword = await hashPassword(user.password);
-      const encryptedFirstName = maybeEncrypt(user.first_name, userColumnMeta.first_name);
-      const encryptedLastName = maybeEncrypt(user.last_name, userColumnMeta.last_name);
-      const encryptedEmail = maybeEncrypt(user.email, userColumnMeta.email);
-      const encryptedPhone = maybeEncrypt(user.phone_number, userColumnMeta.phone_number);
-      const encryptedAddress = maybeEncrypt(user.address, userColumnMeta.address);
-      const userDepartmentId = user.department_code ? (departmentIdByCode[user.department_code] || null) : null;
-      const result = userColumnMeta.department_id
-        ? await client.query(
-          `INSERT INTO users (first_name, last_name, email, phone_number, password, role, phone_verified, address, department_id)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-           RETURNING user_id`,
-          [encryptedFirstName, encryptedLastName, encryptedEmail, encryptedPhone, hashedPassword, user.role, true, encryptedAddress, userDepartmentId]
-        )
-        : await client.query(
-          `INSERT INTO users (first_name, last_name, email, phone_number, password, role, phone_verified, address)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-           RETURNING user_id`,
-          [encryptedFirstName, encryptedLastName, encryptedEmail, encryptedPhone, hashedPassword, user.role, true, encryptedAddress]
-        );
-      const newUserId = result.rows[0].user_id;
+    for (const user of STAFF_USERS) {
+      const newUserId = await insertUser(client, user, departmentIdByCode, userColumnMeta);
+      await markResponderOnline(client, newUserId, user.role);
       userIds.push(newUserId);
       userIdsByRole[user.role].push(newUserId);
     }
-    console.log(`✅ Seeded ${users.length} users\n`);
+    console.log(`✅ Seeded ${STAFF_USERS.length} staff users\n`);
 
-    // Seed incidents (audio-backed, no AI/STT processing)
     console.log('🆘 Seeding incident reports (Dagupan-only, broad status/type/severity mix)...');
     const audioFiles = await collectAudioFiles();
     const reporterIds = userIdsByRole[ROLES.USER] || [];
@@ -437,95 +565,112 @@ async function seedDatabase() {
 
       incidentsSeeded += 1;
     }
-    console.log(`✅ Seeded ${incidentsSeeded} incident reports\n`);
+    console.log(`✅ Seeded ${incidentsSeeded} incident reports (auto_assignment_status left at default none)\n`);
 
-    // Seed responders
-    console.log('🚨 Seeding responders...');
-    const responders = RESPONDERS;
+    console.log('🚨 Seeding account-backed team roster (users + responders + memberships)...');
     const responderIds = [];
-    const responderIdByTeam = {};
-
-    for (const responder of responders) {
-      const result = await client.query(
-        `INSERT INTO responders (name, organization, contact_number, availability_status, source_type, team_name, supported_incident_types)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
-         RETURNING responder_id`,
-        [
-          responder.name,
-          responder.organization,
-          responder.contact_number,
-          responder.availability_status,
-          responder.source_type,
-          responder.team_name,
-          responder.supported_incident_types,
-        ]
-      );
-      const id = result.rows[0].responder_id;
-      responderIds.push(id);
-      if (!responderIdByTeam[responder.team_name]) {
-        responderIdByTeam[responder.team_name] = [];
-      }
-      responderIdByTeam[responder.team_name].push(id);
-    }
-    console.log(`✅ Seeded ${responders.length} responders\n`);
-
-    // Map responder memberships
-    console.log('🔗 Seeding responder team memberships...');
     let membershipCount = 0;
-    for (const team of TEAMS) {
+
+    for (const team of TEAM_ROSTER) {
       const teamKey = `${team.department_code}::${team.team_name}`;
       const teamId = teamIdByKey[teamKey];
-      if (!teamId) continue;
-      for (const responderId of responderIdByTeam[team.team_name] || []) {
+      const organization = organizationForDepartment(team.department_code);
+
+      for (const member of team.members) {
+        const userId = await insertUser(client, {
+          first_name: member.first_name,
+          last_name: member.last_name,
+          email: member.email,
+          phone_number: member.phone_number,
+          password: RESPONDER_PASSWORD,
+          role: ROLES.RESPONDER,
+          address: `${team.team_name}, Dagupan City`,
+          department_code: team.department_code,
+        }, departmentIdByCode, userColumnMeta);
+        await markResponderOnline(client, userId, ROLES.RESPONDER);
+
+        userIds.push(userId);
+        userIdsByRole[ROLES.RESPONDER].push(userId);
+
+        const displayName = `${member.first_name} ${member.last_name}`.trim();
+        const responderId = await insertResponder(client, {
+          userId,
+          name: displayName,
+          organization,
+          contactNumber: member.contact_number,
+          availabilityStatus: member.availability_status,
+          teamName: team.team_name,
+          supportedIncidentTypes: member.supported_incident_types,
+        });
+        responderIds.push(responderId);
+
         await client.query(
           `INSERT INTO responder_team_members(team_id, responder_id, is_active)
            VALUES($1, $2, TRUE)`,
           [teamId, responderId]
         );
-        membershipCount++;
+        membershipCount += 1;
       }
     }
-    console.log(`✅ Seeded ${membershipCount} team memberships\n`);
+    console.log(`✅ Seeded ${responderIds.length} account-linked responders across ${membershipCount} memberships\n`);
+
+    const verifyTeams = await client.query(
+      `SELECT rt.department_code, rt.team_name, COUNT(r.responder_id)::int AS account_members
+         FROM responder_teams rt
+         JOIN responder_team_members rtm ON rtm.team_id = rt.team_id AND rtm.is_active = TRUE
+         JOIN responders r ON r.responder_id = rtm.responder_id
+        WHERE r.source_type = 'account'
+          AND r.user_id IS NOT NULL
+          AND (
+            LOWER(COALESCE(r.availability_status, '')) LIKE '%available%'
+            OR LOWER(COALESCE(r.availability_status, '')) LIKE '%standby%'
+          )
+        GROUP BY rt.team_id, rt.department_code, rt.team_name
+        ORDER BY rt.department_code, rt.team_name`
+    );
+
+    const unlinked = await client.query(
+      `SELECT COUNT(*)::int AS count
+         FROM responders r
+         JOIN responder_team_members rtm ON rtm.responder_id = r.responder_id
+        WHERE r.user_id IS NULL`
+    );
+
+    const deptTypes = await client.query(
+      `SELECT code, supported_incident_types FROM departments ORDER BY code`
+    ).catch(() => ({ rows: [] }));
 
     console.log('════════════════════════════════════════════════');
     console.log('🎉 Core data seeding completed successfully!');
     console.log('════════════════════════════════════════════════');
     console.log('\n📋 Summary:');
-    console.log(`   👤  Users: ${userIds.length} (2 Admins, 2 Dept Admins, 4 Dispatchers, 2 Dept Heads, 2 Supervisors, 4 Responders, 6 Reporters)`);
+    console.log(`   👤  Users: ${userIds.length} (${STAFF_USERS.length} staff + ${responderIds.length} responders)`);
     console.log(`   🏢 Departments: ${DEPARTMENTS.length}`);
-    console.log(`   👥 Teams: ${TEAMS.length}`);
-    console.log(`   🚨 Responders: ${responderIds.length}`);
+    console.log(`   👥 Teams: ${TEAM_ROSTER.length} (2 account members each)`);
+    console.log(`   🚨 Responders: ${responderIds.length} (all account-backed with user_id)`);
     console.log(`   🔗 Team memberships: ${membershipCount}`);
     console.log(`   🆘 Incident reports: ${INCIDENT_SEED_COUNT}`);
-    console.log('\n🔑 Test Account Credentials:');
-    console.log('\n   System Admins (full access):');
-    console.log('   - admin@rescuelink.test / admin123');
-    console.log('   - admin2@rescuelink.test / admin123');
-    console.log('\n   Department Admins (manage rosters & teams):');
-    console.log('   - deptadmin_pnp@rescuelink.test / deptadmin123');
-    console.log('   - deptadmin_drrmo@rescuelink.test / deptadmin123');
-    console.log('\n   Dispatchers (manage incidents & dispatches):');
-    console.log('   - dispatcher@rescuelink.test / dispatcher123');
-    console.log('   - dispatcher2@rescuelink.test / dispatcher123');
-    console.log('   - dispatcher3@rescuelink.test / dispatcher123');
-    console.log('   - dispatcher4@rescuelink.test / dispatcher123');
-    console.log('\n   Department Heads (operational leadership: view responders/teams):');
-    console.log('   - depthead_pnp@rescuelink.test / depthead123');
-    console.log('   - depthead_drrmo@rescuelink.test / depthead123');
-    console.log('\n   Responders (field personnel):');
-    console.log('   - responder@rescuelink.test / responder123');
-    console.log('   - responder2@rescuelink.test / responder123');
-    console.log('   - responder3@rescuelink.test / responder123');
-    console.log('   - responder4@rescuelink.test / responder123');
-    console.log('\n   Reporters (mobile app users):');
-    console.log('   - user@rescuelink.test / user123');
-    console.log('   - user2@rescuelink.test / user123');
-    console.log('   - user3@rescuelink.test / user123');
-    console.log('   - user4@rescuelink.test / user123');
-    console.log('   - user5@rescuelink.test / user123');
-    console.log('   - user6@rescuelink.test / user123');
-    console.log('\nℹ️ Incident reports are seeded in this script using audio files without AI/STT for broad test coverage.');
-    console.log('   Optional additional seeding: npm run seed-incidents');
+    console.log('\n✅ Auto-dispatch roster check:');
+    for (const row of verifyTeams.rows) {
+      console.log(`   - ${row.department_code}/${row.team_name}: ${row.account_members} eligible account member(s)`);
+    }
+    if (Number(unlinked.rows[0]?.count || 0) > 0) {
+      console.warn(`   ⚠️  ${unlinked.rows[0].count} team member(s) missing user_id`);
+    } else {
+      console.log('   - All team members linked to user accounts');
+    }
+    if (deptTypes.rows.length > 0) {
+      console.log('\n✅ Department type map:');
+      for (const row of deptTypes.rows) {
+        console.log(`   - ${row.code}: ${JSON.stringify(row.supported_incident_types)}`);
+      }
+    }
+    console.log('\n🔑 Mobile login (phone + password):');
+    console.log('   Sample responder: 09003000003 / responder123 (Rescue Alpha, responder3@rescuelink.test)');
+    console.log('   Sample citizen:    09005000001 / user123');
+    console.log('   Full list: Documentation/backend/ACCOUNTS.md');
+    console.log('\nℹ️ Incident reports are seeded without auto-assignment for clean manual testing.');
+    console.log('   Optional: npm run seed-incidents');
     console.log('');
 
   } catch (err) {

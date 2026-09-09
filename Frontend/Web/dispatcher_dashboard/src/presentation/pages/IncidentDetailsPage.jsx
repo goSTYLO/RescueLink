@@ -2427,6 +2427,7 @@ export function IncidentDetailsPage() {
                                 value={escalationReason}
                                 onChange={(e) => setEscalationReason(e.target.value)}
                                 rows={3}
+                                maxLength={1000}
                               />
                             </div>
                           </div>
@@ -2596,6 +2597,7 @@ export function IncidentDetailsPage() {
                     value={reclassReason}
                     onChange={(e) => setReclassReason(e.target.value)}
                     rows={3}
+                    maxLength={500}
                     disabled={reclassLoading}
                   />
                 </div>
@@ -2673,6 +2675,7 @@ export function IncidentDetailsPage() {
                     value={closureOutcome}
                     onChange={(e) => setClosureOutcome(e.target.value)}
                     rows={3}
+                    maxLength={500}
                   />
                 </div>
                 <div>
@@ -2945,6 +2948,7 @@ export function IncidentDetailsPage() {
                     onChange={(event) => setReassignReason(event.target.value)}
                     placeholder="Why is this team being replaced?"
                     minLength={10}
+                    maxLength={500}
                   />
                 </div>
               </div>
@@ -3188,6 +3192,7 @@ export function IncidentDetailsPage() {
                     value={coordinationNote}
                     onChange={(e) => setCoordinationNote(e.target.value)}
                     rows={3}
+                    maxLength={500}
                     className={`mt-2 rounded-xl ${isLight ? 'bg-gray-50 border-gray-200' : 'bg-white/5 border-border'}`}
                   />
                   <Button 

@@ -273,7 +273,7 @@ Manage emergency response dispatch and resource allocation:
   - Second primary team (or duplicate dept notify) returns `409 PRIMARY_TEAM_ALREADY_ASSIGNED` / `DEPARTMENT_ALREADY_NOTIFIED` — use reassign-team
 - `POST /api/dispatches/confirm-suggestion` (dispatcher, admin, department-admin, department-head): Apply stored hybrid suggestion as auto-team
 - `POST /api/dispatches/reassign-team` (same roles; dept roles scoped): Release busy team, write new group; `reason` min 10 characters
-- `PATCH /api/dispatches/me/status` (responder): Update this member's `dispatches.response_status`; does not resolve the incident unless the user is also the volunteer acceptor
+- `PATCH /api/dispatches/me/status` (responder personnel): Update this member's `dispatches.response_status`; does not resolve the incident unless the user is also the volunteer acceptor
 - `GET /api/dispatches` (dispatcher, admin): List all dispatches with optional filters
   - Filters: `status`, `incident_id`, `responder_id`
   - Includes responder details and assignment metadata
@@ -287,10 +287,10 @@ Manage emergency response dispatch and resource allocation:
 
 Manage emergency responders and operational teams:
 
-- `GET /api/responders/me/profile` (responder): Self profile
-- `GET /api/responders/me/assigned-incidents` (responder): Incidents where this account is on an assigned team (`my_response_status`, `assigned_team_name`)
-- `GET /api/responders/me/team` (responder): Roster for teams this responder belongs to
-- `PATCH /api/responders/me/online-status` (responder): Online/offline + optional GPS
+- `GET /api/responders/me/profile` (responder, volunteer): Self profile
+- `GET /api/responders/me/assigned-incidents` (responder personnel): Incidents where this account is on an assigned team (`my_response_status`, `assigned_team_name`)
+- `GET /api/responders/me/team` (responder personnel): Roster for teams this responder belongs to
+- `PATCH /api/responders/me/online-status` (responder, volunteer): Online/offline + optional GPS (personnel are forced online at phone login)
 - `POST /api/responders` (admin): Create new responder record
 - `GET /api/responders/:id` (dispatcher, admin): Get responder details
 - `PUT /api/responders/:id` (admin): Update responder information

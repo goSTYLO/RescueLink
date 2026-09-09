@@ -2,6 +2,8 @@ import { Layout } from '@/presentation/components/layout/Layout';
 import { Badge } from '@/presentation/components/ui/Badge';
 import { Button } from '@/presentation/components/ui/Button';
 import { Input } from '@/presentation/components/ui/Input';
+import { PhoneInput } from '@/presentation/components/ui/PhoneInput';
+import { isValidLocalPhone } from '@/core/utils/inputUtils';
 import { Label } from '@/presentation/components/ui/Label';
 import {
   Dialog,
@@ -528,12 +530,17 @@ export function DepartmentsPage() {
 
   const handleCreateResponder = async () => {
     if (!responderForm.name.trim()) return;
+    const contact = responderForm.contact_number.trim();
+    if (contact && !isValidLocalPhone(contact)) {
+      Swal.fire({ icon: 'warning', title: 'Invalid contact number', text: 'Use local format 09XXXXXXXXX (11 digits).', confirmButtonColor: '#134178' });
+      return;
+    }
     try {
       await createResponder({
         ...responderForm,
         name: responderForm.name.trim(),
         organization: responderForm.organization.trim() || null,
-        contact_number: responderForm.contact_number.trim() || null,
+        contact_number: contact || null,
         team_name: responderForm.team_name || null,
       });
       setResponderForm((prev) => ({ ...prev, name: '', contact_number: '' }));
@@ -957,8 +964,8 @@ export function DepartmentsPage() {
               <div className={panelClass}>
                 <div className={headerClass}><div className={iconBoxClass('secondary')}><PlusCircle className="w-4 h-4" /></div><h3 className="text-sm font-semibold text-foreground">Create Responder</h3></div>
                 <div className="p-3 space-y-2.5">
-                  <div><Label className="text-xs">Name</Label><Input value={responderForm.name} onChange={(e) => setResponderForm((prev) => ({ ...prev, name: e.target.value }))} /></div>
-                  <div><Label className="text-xs">Contact Number</Label><Input value={responderForm.contact_number} onChange={(e) => setResponderForm((prev) => ({ ...prev, contact_number: e.target.value }))} /></div>
+                  <div><Label className="text-xs">Name</Label><Input maxLength={100} value={responderForm.name} onChange={(e) => setResponderForm((prev) => ({ ...prev, name: e.target.value }))} /></div>
+                  <div><Label className="text-xs">Contact Number</Label><PhoneInput value={responderForm.contact_number} onChange={(e) => setResponderForm((prev) => ({ ...prev, contact_number: e.target.value }))} /></div>
                   <div>
                     <Label className="text-xs">Team</Label>
                     <select className="w-full mt-1 px-2.5 py-2 border border-border rounded-lg bg-card text-foreground text-sm" value={responderForm.team_name} onChange={(e) => setResponderForm((prev) => ({ ...prev, team_name: e.target.value }))}>
@@ -1077,6 +1084,7 @@ export function DepartmentsPage() {
             <div className="w-full min-w-0">
               <Label className="block text-sm font-medium text-foreground mb-2">Name</Label>
               <Input
+                maxLength={100}
                 value={form.name}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                 placeholder="e.g. Bureau of Fire Protection"
@@ -1106,6 +1114,7 @@ export function DepartmentsPage() {
               <Label className="block text-sm font-medium text-foreground mb-2">Address</Label>
               <div className="relative">
                 <Input
+                  maxLength={255}
                   value={form.address}
                   onChange={(e) => {
                     setNoSuggestionForQuery('');

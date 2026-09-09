@@ -1,5 +1,6 @@
 const pool = require('../config/db');
 const { decrypt } = require('../utils/encryption');
+const { normalizePhoneDigits } = require('../utils/validation');
 
 function looksEncryptedValue(value) {
   return typeof value === 'string'
@@ -64,25 +65,30 @@ const User = {
   },
 
   async findByPhone(phone) {
-    const directMatch = await pool.query(
-      'SELECT user_id, email, phone_number, address, password, phone_verified, first_name, last_name, role, department_id, created_at FROM users WHERE phone_number = $1',
-      [phone]
-    );
+    const lookupKey = normalizePhoneDigits(phone);
+    if (!lookupKey) return null;
 
-    if (directMatch.rows[0]) {
-      return decodeUserFields(directMatch.rows[0]);
+    const localPhone = lookupKey.startsWith('63') ? `0${lookupKey.slice(2)}` : phone;
+    const directCandidates = [...new Set([phone, localPhone, `+${lookupKey}`, lookupKey].filter(Boolean))];
+    for (const candidate of directCandidates) {
+      const directMatch = await pool.query(
+        'SELECT user_id, email, phone_number, address, password, phone_verified, first_name, last_name, role, department_id, created_at FROM users WHERE phone_number = $1',
+        [candidate]
+      );
+      if (directMatch.rows[0]) {
+        return decodeUserFields(directMatch.rows[0]);
+      }
     }
 
     const allUsers = await pool.query(
       'SELECT user_id, email, phone_number, address, password, phone_verified, first_name, last_name, role, department_id, created_at FROM users'
     );
 
-    const normalizedPhone = String(phone).trim();
     const matchedUser = allUsers.rows
       .map(decodeUserFields)
       .find((user) => {
         if (!user?.phone_number) return false;
-        return String(user.phone_number).trim() === normalizedPhone;
+        return normalizePhoneDigits(user.phone_number) === lookupKey;
       });
 
     return matchedUser || null;

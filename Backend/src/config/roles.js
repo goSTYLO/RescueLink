@@ -6,7 +6,8 @@
 const ROLES = {
   USER: 'user',           // Mobile app users who report incidents
   DISPATCHER: 'dispatcher', // Web app administrators who manage dispatches
-  RESPONDER: 'responder', // Authenticated responders
+  RESPONDER: 'responder', // Team personnel (mobile assigned-incidents portal)
+  VOLUNTEER: 'volunteer', // Approved first-responders (nearby pool + accept/decline)
   SUPERVISOR: 'supervisor', // Supervisors for escalation/reclassification
   ADMIN: 'admin',         // Super-users with full system access
   DEPARTMENT_ADMIN: 'department-admin',  // Full department dashboard access
@@ -49,9 +50,18 @@ const PERMISSIONS = {
     settings: []
   },
   [ROLES.RESPONDER]: {
-    incidents: ['create', 'readOwn', 'updateOwn', 'deleteOwn', 'read'], // 'read' needed to view nearby active incidents for alert flow
+    incidents: ['create', 'readOwn', 'updateOwn', 'deleteOwn'],
+    dispatches: ['updateOwn'],
+    responders: ['readOwn'],
+    notifications: ['readOwn'],
+    auditLogs: [],
+    users: [],
+    settings: []
+  },
+  [ROLES.VOLUNTEER]: {
+    incidents: ['create', 'readOwn', 'updateOwn', 'deleteOwn', 'read'],
     dispatches: [],
-    responders: ['readOwn'],  // own profile via /me/profile
+    responders: ['readOwn'],
     notifications: ['readOwn'],
     backup_requests: ['create', 'readOwn'],
     auditLogs: [],

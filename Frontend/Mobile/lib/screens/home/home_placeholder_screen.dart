@@ -73,18 +73,16 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
 
   StreamSubscription<UserAccelerometerEvent>? _shakeSubscription;
   final SosShakeDetector _shakeDetector = SosShakeDetector();
-  bool _shakeListening = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _startShakeListening();
 
     _loadHomeLocation();
     _fetchUnreadCount();
     // Detect responder role (synchronous from cache, refreshed by _loadHomeLocation)
-    _isResponder = AuthService().getUserRole() == 'responder';
+    _isResponder = AuthService().hasResponderTab;
     if (_isResponder) {
       unawaited(_initResponderAlerts());
     }
@@ -97,13 +95,13 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
         return;
       }
       if (event.event == 'responder:incident_alert') {
-        if (_isResponder) {
+        if (AuthService().isVolunteer) {
           unawaited(_responderAlertCoordinator.handleEvent(context, event));
         }
         return;
       }
       if (event.event == 'responder:backup_alert') {
-        if (_isResponder) {
+        if (AuthService().isVolunteer) {
           unawaited(_responderAlertCoordinator.handleEvent(context, event));
         }
         return;
@@ -139,6 +137,7 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
       });
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _restartShakeListening();
       _checkAndPromptNotifications();
       OneSignalService().setOnNotificationOpened(_onPushOpened);
     });
@@ -228,6 +227,7 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
         ],
       ),
     );
+    _restartShakeListening();
   }
 
   void _onPushOpened(String reportId) {
@@ -241,18 +241,25 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
     switch (state) {
       case AppLifecycleState.resumed:
       case AppLifecycleState.inactive:
-        // inactive = still foreground (modal, notification shade, transition)
-        _startShakeListening();
+      case AppLifecycleState.hidden:
+        _restartShakeListening();
       case AppLifecycleState.paused:
       case AppLifecycleState.detached:
-      case AppLifecycleState.hidden:
         _stopShakeListening();
     }
   }
 
+  bool _isForegroundForShake() {
+    final state = WidgetsBinding.instance.lifecycleState;
+    return state == AppLifecycleState.resumed ||
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.hidden;
+  }
+
   void _startShakeListening() {
-    if (_shakeListening) return;
-    _shakeListening = true;
+    if (!mounted || !_isForegroundForShake() || _shakeSubscription != null) {
+      return;
+    }
     _shakeSubscription = userAccelerometerEventStream().listen(
       (event) {
         if (!mounted || _sosCountdown > 0) return;
@@ -270,15 +277,12 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
   void _restartShakeListening() {
     if (!mounted) return;
     _stopShakeListening();
-    final state = WidgetsBinding.instance.lifecycleState;
-    if (state == AppLifecycleState.resumed ||
-        state == AppLifecycleState.inactive) {
-      _startShakeListening();
-    }
+    if (!_isForegroundForShake()) return;
+    _shakeDetector.reset();
+    _startShakeListening();
   }
 
   void _stopShakeListening() {
-    _shakeListening = false;
     _shakeSubscription?.cancel();
     _shakeSubscription = null;
   }
@@ -305,16 +309,22 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
   static const int _responderTabIndex = 2;
 
   Future<void> _initResponderAlerts() async {
-    final online = await _responderAlertCoordinator.refreshOnlineStatus();
+    var online = await _responderAlertCoordinator.refreshOnlineStatus();
+    if (AuthService().isPersonnelResponder) {
+      online = true;
+      _responderAlertCoordinator.setOnline(true);
+    }
     if (!mounted) return;
     setState(() => _responderOnline = online);
     _responderAlertCoordinator.updateContext(context);
     _responderAlertCoordinator.onAlertDismissed = _onResponderAlertDismissed;
     _responderAlertCoordinator.start();
+    _restartShakeListening();
   }
 
   void _onResponderAlertDismissed() {
     _responderDashboardKey.currentState?.refreshIncidents();
+    _restartShakeListening();
     if (_currentIndex != _responderTabIndex && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -373,7 +383,7 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
     } else if (status == 'approved') {
       final wasResponder = _isResponder;
       if (!wasResponder) {
-        await AuthService().cacheUserRole('responder');
+        await AuthService().cacheUserRole('volunteer');
         if (mounted) setState(() => _isResponder = true);
         if (mounted) {
           WebSocketService().disconnect();
@@ -428,6 +438,7 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
     } else {
       _revokeModalShowing = false;
     }
+    _restartShakeListening();
   }
 
   Future<void> _showApprovedModal({String? notes}) async {
@@ -467,6 +478,7 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
     } else {
       _approveModalShowing = false;
     }
+    _restartShakeListening();
   }
 
   Future<void> _loadHomeLocation() async {
@@ -488,16 +500,20 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
       // Re-check role after profile refresh (covers just-approved responders)
       final user = result['user'] as Map<String, dynamic>? ?? {};
       final freshRole = user['role']?.toString();
-      if (mounted && freshRole != null && (freshRole == 'responder') != _isResponder) {
-        final becameResponder = freshRole == 'responder';
-        setState(() => _isResponder = becameResponder);
-        if (becameResponder) {
+      if (freshRole != null && freshRole.isNotEmpty) {
+        await AuthService().cacheUserRole(freshRole);
+      }
+      final hasTab = AuthService().hasResponderTab;
+      if (mounted && freshRole != null && hasTab != _isResponder) {
+        setState(() => _isResponder = hasTab);
+        if (hasTab) {
           WebSocketService().disconnect();
           WebSocketService().connect();
           unawaited(_initResponderAlerts());
         } else {
           _responderAlertCoordinator.stop();
         }
+        _restartShakeListening();
       }
       setState(() {
         _loadingLocation = false;

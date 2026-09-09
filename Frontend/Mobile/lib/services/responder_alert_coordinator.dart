@@ -86,7 +86,7 @@ class ResponderAlertCoordinator {
     final isIncidentAlert = event.event == 'responder:incident_alert';
     final isBackupAlert = event.event == 'responder:backup_alert';
     if (!isIncidentAlert && !isBackupAlert) return;
-    if (AuthService().getUserRole() != 'responder') return;
+    if (!AuthService().isVolunteer) return;
     if (_modalShowing) return;
 
     final selfId = AuthService().getUserId();

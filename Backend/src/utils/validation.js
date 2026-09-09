@@ -25,7 +25,27 @@ function validateString(value, fieldName, minLength = 0, maxLength = 500) {
   return sanitized;
 }
 
-// Validate phone number format and convert to E.164 format (Philippine mobile: 09xxxxxxxxx or +639xxxxxxxxx)
+// Canonical Philippine mobile digits for lookup (63 + 10 digits). Lenient — no throw.
+function normalizePhoneDigits(phone) {
+  if (phone == null || phone === '') return '';
+  let normalized = String(phone).trim().replace(/\D/g, '');
+  if (normalized.startsWith('0')) {
+    normalized = '63' + normalized.slice(1);
+  }
+  if (normalized.length && !normalized.startsWith('63')) {
+    normalized = '63' + normalized;
+  }
+  return normalized;
+}
+
+// Local storage format: 09XXXXXXXXX (11 digits). Accepts +639… / 639… / 09… on input.
+function toLocalPhoneFormat(normalizedDigits) {
+  if (normalizedDigits.startsWith('63') && normalizedDigits.length === 12) {
+    return '0' + normalizedDigits.slice(2);
+  }
+  return normalizedDigits;
+}
+
 function validatePhone(phone) {
   if (typeof phone !== 'string') {
     throw new Error('Phone number must be a string');
@@ -36,30 +56,19 @@ function validatePhone(phone) {
     throw new Error('Phone number is required');
   }
 
-  // Allow common separators: spaces, hyphens, parentheses, dots; strip for digit check
-  const digitsOnly = trimmed.replace(/\D/g, '');
-  if (digitsOnly.length < 10 || digitsOnly.length > 15) {
-    throw new Error('Invalid phone number format. Use a valid Philippine mobile number (e.g. 09XXXXXXXXX or +639XXXXXXXXX).');
+  const normalized = normalizePhoneDigits(trimmed);
+  if (normalized.length < 10 || normalized.length > 15) {
+    throw new Error('Invalid phone number format. Use a valid Philippine mobile number (e.g. 09XXXXXXXXX).');
   }
 
-  // Normalize to E.164 for Philippines: +63 9XX XXX XXXX (12 digits total)
-  let normalized = digitsOnly;
-  if (normalized.startsWith('0')) {
-    normalized = '63' + normalized.slice(1);
-  }
-  if (!normalized.startsWith('63')) {
-    normalized = '63' + normalized;
-  }
-
-  // Philippine mobile: country code 63 + 10 digits, mobile numbers start with 9
   if (normalized.length !== 12) {
-    throw new Error('Invalid phone number format. Philippine mobile must be 10 digits (e.g. 09XXXXXXXXX).');
+    throw new Error('Invalid phone number format. Philippine mobile must be 11 digits (e.g. 09XXXXXXXXX).');
   }
   if (!/^63[0-9]{10}$/.test(normalized)) {
     throw new Error('Invalid phone number format. Use a valid Philippine mobile number (e.g. 09XXXXXXXXX).');
   }
 
-  return '+' + normalized;
+  return toLocalPhoneFormat(normalized);
 }
 
 // Validate email format (normalizes to lowercase for consistent signup/login)
@@ -248,6 +257,8 @@ function validateSessionToken(value) {
 module.exports = {
   validateInteger,
   validateString,
+  normalizePhoneDigits,
+  toLocalPhoneFormat,
   validatePhone,
   validateEmail,
   validateOptionalString,

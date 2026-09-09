@@ -547,17 +547,28 @@ const Incident = {
     } = {}
   ) {
     const cappedLimit = Math.min(limit, 100);
-    const normalizedInvolvement = ['reported', 'accepted', 'all'].includes(involvement)
+    const normalizedInvolvement = ['reported', 'accepted', 'assigned', 'all'].includes(involvement)
       ? involvement
       : 'reported';
+
+    const assignedExists = `EXISTS (
+      SELECT 1 FROM dispatches d
+      INNER JOIN responders r ON r.responder_id = d.responder_id
+      WHERE r.user_id = $1
+        AND d.report_id = incident_reports.report_id
+        AND COALESCE(d.team_name, '') <> ''
+    )`;
 
     let whereClause;
     switch (normalizedInvolvement) {
       case 'accepted':
         whereClause = 'accepted_by_user_id = $1';
         break;
+      case 'assigned':
+        whereClause = assignedExists;
+        break;
       case 'all':
-        whereClause = '(user_id = $1 OR accepted_by_user_id = $1)';
+        whereClause = `(user_id = $1 OR accepted_by_user_id = $1 OR ${assignedExists})`;
         break;
       default:
         whereClause = 'user_id = $1';
@@ -567,8 +578,9 @@ const Incident = {
     let query = `
       SELECT *,
         CASE
-          WHEN user_id = $1 AND accepted_by_user_id = $1 THEN 'both'
+          WHEN user_id = $1 AND (accepted_by_user_id = $1 OR ${assignedExists}) THEN 'both'
           WHEN user_id = $1 THEN 'reported'
+          WHEN ${assignedExists} THEN 'assigned'
           WHEN accepted_by_user_id = $1 THEN 'accepted'
           ELSE NULL
         END AS involvement

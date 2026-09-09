@@ -6,6 +6,8 @@ import { Badge } from '@/presentation/components/ui/Badge';
 import { IncidentTypeChips } from '@/presentation/components/common/IncidentTypeChips';
 import { Button } from '@/presentation/components/ui/Button';
 import { Input } from '@/presentation/components/ui/Input';
+import { PhoneInput } from '@/presentation/components/ui/PhoneInput';
+import { isValidLocalPhone } from '@/core/utils/inputUtils';
 import { Label } from '@/presentation/components/ui/Label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/presentation/components/ui/Dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/presentation/components/ui/Tabs';
@@ -100,7 +102,7 @@ export function DepartmentPersonnelPage() {
   const [responderStatusFilter, setResponderStatusFilter] = useState('all');
   const [responderTeamFilter, setResponderTeamFilter] = useState('all');
   const [responderPage, setResponderPage] = useState(1);
-  const [responderForm, setResponderForm] = useState({ name: '', organization: '', contact_number: '', availability_status: 'available', team_name: '', supported_incident_types: [] });
+  const [responderForm, setResponderForm] = useState({ name: '', organization: '', contact_number: '', availability_status: 'available', team_name: '', supported_incident_types: [], email: '', password: '' });
   const [teamMemberSearch, setTeamMemberSearch] = useState('');
   const [teamMemberStatusFilter, setTeamMemberStatusFilter] = useState('all');
   const [teamMemberPage, setTeamMemberPage] = useState(1);
@@ -304,17 +306,41 @@ export function DepartmentPersonnelPage() {
 
   const handleCreateResponder = async () => {
     if (!responderForm.name.trim()) return;
+    const contact = responderForm.contact_number?.trim() || '';
+    if (contact && !isValidLocalPhone(contact)) {
+      Swal.fire({ icon: 'warning', title: 'Invalid contact number', text: 'Use local format 09XXXXXXXXX (11 digits).', confirmButtonColor: '#134178' });
+      return;
+    }
+    const email = responderForm.email?.trim() || '';
+    const password = responderForm.password || '';
+    if (email || password) {
+      if (!email || !password || !contact) {
+        Swal.fire({ icon: 'warning', title: 'Mobile login incomplete', text: 'Email, password, and contact number are required together to create a mobile login.', confirmButtonColor: '#134178' });
+        return;
+      }
+      if (password.length < 8) {
+        Swal.fire({ icon: 'warning', title: 'Invalid password', text: 'Password must be at least 8 characters.', confirmButtonColor: '#134178' });
+        return;
+      }
+    }
     try {
       await createResponder({
         ...responderForm,
         name: responderForm.name.trim(),
         organization: responderForm.organization?.trim() || null,
-        contact_number: responderForm.contact_number?.trim() || null,
+        contact_number: contact || null,
         team_name: responderForm.team_name || null,
+        ...(email ? { email, password, phone_number: contact } : {}),
       });
-      setResponderForm((prev) => ({ ...prev, name: '', contact_number: '' }));
+      setResponderForm((prev) => ({ ...prev, name: '', contact_number: '', email: '', password: '' }));
       await loadResponderResources();
-      Swal.fire({ icon: 'success', title: 'Responder added', timer: 1500, showConfirmButton: false });
+      Swal.fire({
+        icon: 'success',
+        title: 'Responder added',
+        text: email ? 'They can sign in on mobile with that phone number and password.' : undefined,
+        timer: email ? 2500 : 1500,
+        showConfirmButton: false,
+      });
     } catch (error) {
       Swal.fire({ icon: 'error', title: 'Responder create failed', text: error.message || 'Please try again.' });
     }
@@ -549,8 +575,10 @@ export function DepartmentPersonnelPage() {
                   <div className={panelClass}>
                     <div className={headerClass}><div className={iconBoxClass('secondary')}><PlusCircle className="w-4 h-4" /></div><h3 className="text-sm font-semibold text-foreground">Create Responder</h3></div>
                     <div className="p-3 space-y-2.5">
-                      <div><Label className="text-xs">Name</Label><Input value={responderForm.name} onChange={(e) => setResponderForm((p) => ({ ...p, name: e.target.value }))} /></div>
-                      <div><Label className="text-xs">Contact Number</Label><Input value={responderForm.contact_number} onChange={(e) => setResponderForm((p) => ({ ...p, contact_number: e.target.value }))} /></div>
+                      <div><Label className="text-xs">Name</Label><Input maxLength={100} value={responderForm.name} onChange={(e) => setResponderForm((p) => ({ ...p, name: e.target.value }))} /></div>
+                      <div><Label className="text-xs">Contact Number</Label><PhoneInput value={responderForm.contact_number} onChange={(e) => setResponderForm((p) => ({ ...p, contact_number: e.target.value }))} /></div>
+                      <div><Label className="text-xs">Email (optional mobile login)</Label><Input type="email" value={responderForm.email} onChange={(e) => setResponderForm((p) => ({ ...p, email: e.target.value }))} /></div>
+                      <div><Label className="text-xs">Password (optional mobile login)</Label><Input type="password" value={responderForm.password} onChange={(e) => setResponderForm((p) => ({ ...p, password: e.target.value }))} placeholder="Min 8 characters" /></div>
                       <div>
                         <Label className="text-xs">Team</Label>
                         <select className="w-full mt-1 px-2.5 py-2 border border-border rounded-lg bg-card text-foreground text-sm" value={responderForm.team_name} onChange={(e) => setResponderForm((p) => ({ ...p, team_name: e.target.value }))}>

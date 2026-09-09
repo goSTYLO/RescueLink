@@ -49,6 +49,7 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
   String? _filterType;
   String? _involvementFilter;
   bool _isResponder = false;
+  bool _isPersonnel = false;
   String _searchQuery = '';
   bool _sortNewestFirst = true;
   DateTime? _dateFrom;
@@ -60,7 +61,8 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
   @override
   void initState() {
     super.initState();
-    _isResponder = AuthService().getUserRole() == 'responder';
+    _isResponder = AuthService().hasResponderTab;
+    _isPersonnel = AuthService().isPersonnelResponder;
     _loadIncidents();
     _wsSubscription = WebSocketService().eventStream.listen((event) {
       if (!mounted) return;
@@ -92,7 +94,9 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
         offset: 0,
         status: _filterStatus,
         incidentType: _filterType,
-        involvement: _isResponder ? (_involvementFilter ?? 'all') : null,
+        involvement: _isResponder
+            ? (_involvementFilter ?? (_isPersonnel ? 'assigned' : 'all'))
+            : null,
       );
       if (!mounted) return;
       setState(() {
@@ -119,7 +123,9 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
         offset: _incidents.length,
         status: _filterStatus,
         incidentType: _filterType,
-        involvement: _isResponder ? (_involvementFilter ?? 'all') : null,
+        involvement: _isResponder
+            ? (_involvementFilter ?? (_isPersonnel ? 'assigned' : 'all'))
+            : null,
       );
       if (!mounted) return;
       setState(() {
@@ -1028,10 +1034,9 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
   }
 
   Widget _involvementFilterChips() {
-    const options = [
-      ('reported', 'Reported'),
-      ('accepted', 'Accepted'),
-    ];
+    final options = _isPersonnel
+        ? [('reported', 'Reported'), ('assigned', 'Assigned')]
+        : [('reported', 'Reported'), ('accepted', 'Accepted')];
 
     return Row(
       children: options.map((option) {
@@ -1076,7 +1081,8 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
     if (involvement == null || involvement.isEmpty) return const [];
 
     final isReported = involvement == 'reported' || involvement == 'both';
-    final isAccepted = involvement == 'accepted' || involvement == 'both';
+    final isAssigned = involvement == 'assigned' || involvement == 'both';
+    final isAccepted = involvement == 'accepted' || (involvement == 'both' && !_isPersonnel);
     final widgets = <Widget>[];
 
     if (isReported) {
@@ -1086,7 +1092,14 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
         color: const Color(0xFF2563EB),
       ));
     }
-    if (isAccepted) {
+    if (isAssigned) {
+      if (widgets.isNotEmpty) widgets.add(const SizedBox(width: 4));
+      widgets.add(_involvementBadge(
+        label: 'Assigned',
+        icon: Icons.emergency_outlined,
+        color: const Color(0xFF10B981),
+      ));
+    } else if (isAccepted) {
       if (widgets.isNotEmpty) widgets.add(const SizedBox(width: 4));
       widgets.add(_involvementBadge(
         label: 'Accepted',

@@ -52,12 +52,15 @@ Automation **does not** read the threshold directly. It uses `lowConfidenceFlag`
 
 ### 1.4 Seed data (recommended)
 
-Fresh seed gives predictable teams and accounts:
+Fresh seed gives predictable teams and accounts (12 teams × 2 account-backed members each):
 
 ```bash
 cd Backend
-node scripts/seed-db.js
+npm run migrate
+npm run seed-db
 ```
+
+Full credential + team mapping: [`Documentation/backend/ACCOUNTS.md`](../backend/ACCOUNTS.md).
 
 **Teams to know:**
 
@@ -68,19 +71,19 @@ node scripts/seed-db.js
 | `drrmo` | Fire Support | standby | fire, disaster |
 | `pnp` | Patrol Alpha | available | police |
 
-**Test accounts (from seed):**
+**Test accounts:** see [`Documentation/backend/ACCOUNTS.md`](../backend/ACCOUNTS.md) — 24 responder logins (`responder@` … `responder24@`, password `responder123`), 2 per team. **Mobile uses phone + password** (not email).
 
-| Role | Email | Password |
-|------|-------|----------|
-| Dispatcher | `dispatcher@rescuelink.test` | `dispatcher123` |
-| Admin | `admin@rescuelink.test` | `admin123` |
-| CDRRMO dept admin | `deptadmin_drrmo@rescuelink.test` | `deptadmin123` |
-| CDRRMO dept head | `depthead_drrmo@rescuelink.test` | `depthead123` |
-| PNP dept admin | `deptadmin_pnp@rescuelink.test` | `deptadmin123` |
-| Citizen | `user@rescuelink.test` | `user123` |
-| Volunteer (PNP) | `responder@rescuelink.test` | `responder123` |
-| Team member (CDRRMO, Rescue Alpha) | `responder3@rescuelink.test` | `responder123` |
-| Team member (CDRRMO, Medical Alpha) | `responder4@rescuelink.test` | `responder123` |
+| Role | Phone (mobile) | Password | Email (web only) |
+|------|----------------|----------|------------------|
+| Dispatcher | `09002000001` | `dispatcher123` | `dispatcher@rescuelink.test` |
+| Admin | `09001000001` | `admin123` | `admin@rescuelink.test` |
+| CDRRMO dept admin | `09001000011` | `deptadmin123` | `deptadmin_drrmo@rescuelink.test` |
+| CDRRMO dept head | `09001000021` | `depthead123` | `depthead_drrmo@rescuelink.test` |
+| PNP dept admin | `09001000010` | `deptadmin123` | `deptadmin_pnp@rescuelink.test` |
+| Citizen | `09005000001` | `user123` | `user@rescuelink.test` |
+| Team member (Rescue Alpha) | `09003000003` | `responder123` | `responder3@rescuelink.test` |
+| Team member (Medical Alpha) | `09003000004` | `responder123` | `responder4@rescuelink.test` |
+| Team member (Patrol Alpha) | `09003000001` | `responder123` | `responder@rescuelink.test` |
 
 Before each scenario block, ensure **at least one CDRRMO team is `available`** and members are `available`/`standby` (not `busy`/`off-duty`). Use dept admin Team page or SQL if a prior test left teams busy.
 
@@ -258,11 +261,13 @@ Login: `deptadmin_drrmo@rescuelink.test`
 
 ### 5.1 Assigned-to-my-team list
 
-Login: `responder3@rescuelink.test` (Rescue Alpha)
+Login: `09003000003` / `responder123` (Rescue Alpha, role `responder`)
 
-- [ ] **Assigned to my team** section appears above volunteer pool
+- [ ] Status shows **Online** (toggle hidden)
+- [ ] List/map is **assigned incidents only** (no nearby volunteer pool)
 - [ ] Auto-applied incident from §3.1 or §3.2 listed with status badge
 - [ ] Tap opens detail **without** Accept step (`isTeamAssignment: true`)
+- [ ] History chips: Reported / **Assigned** (not Accepted)
 
 ### 5.2 Per-member status stepper
 
@@ -284,7 +289,7 @@ Repeat with second member on same team — independent dispatch rows.
 
 ### 5.4 Volunteer coexistence
 
-Login: `responder@rescuelink.test` (PNP volunteer, not on formal team)
+Do **not** use `responder@rescuelink.test` (that is Patrol Alpha **personnel**). Approve a reporter application first, e.g. `09005000001` / `user123`, then login as that **`volunteer`**.
 
 | Step | Action | Expected |
 |------|--------|----------|
@@ -293,7 +298,7 @@ Login: `responder@rescuelink.test` (PNP volunteer, not on formal team)
 | 3 | **Request Backup** | **Hidden/disabled** when `assigned_team_name` present |
 | 4 | API `POST .../backup` on teamed incident | 409 `TEAM_ALREADY_ASSIGNED` |
 
-Volunteer who **accepted** before team assign: still uses volunteer stepper; can resolve incident (existing parallel track).
+Volunteer who **accepted** before team assign: still uses volunteer stepper; can resolve incident (existing parallel track). Personnel never see Accept/Decline or volunteer/backup popups.
 
 ### 5.5 OneSignal / push deep link
 

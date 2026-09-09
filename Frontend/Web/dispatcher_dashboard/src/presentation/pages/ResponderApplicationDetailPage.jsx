@@ -11,6 +11,7 @@ import { getApplicationById, updateApplicationStatus, revokeResponderRole, getDo
 import { useTheme } from '@/presentation/context/ThemeContext';
 import { isSuperAdmin } from '@/core/constants';
 import { REVOKE_REASONS, SWAL_PRIMARY } from '@/core/constants/responderRevokeReasons';
+import { attachPasswordToggle } from '@/core/utils/inputUtils';
 
 function isImageFile(filepath) {
   if (!filepath) return false;
@@ -122,6 +123,7 @@ export function ResponderApplicationDetailPage() {
             otherWrap.style.display = reasonSelect.value === 'other' ? 'block' : 'none';
           }
         });
+        attachPasswordToggle('swal-admin-password');
       },
       preConfirm: () => {
         const reason = document.getElementById('swal-revoke-reason')?.value?.trim();
@@ -541,6 +543,7 @@ export function ResponderApplicationDetailPage() {
                 </label>
                 <textarea
                   rows={4}
+                  maxLength={500}
                   value={reviewNotes}
                   onChange={(e) => setReviewNotes(e.target.value)}
                   placeholder="Enter review findings, approval comments, or rejection details..."

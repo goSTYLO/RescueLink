@@ -646,7 +646,7 @@ Multipart upload with government ID, specialization proofs, and personal details
 
 **PATCH** `/api/responder-applications/:id/status`
 
-Approve or reject a pending application.
+Approve or reject a pending application. Approval sets `users.role = volunteer` and adds the applicant to the volunteer nearby pool (not team `responder` personnel).
 
 **Required Role:** `dispatcher`, `admin`, `supervisor`, `department-admin`
 
@@ -1795,12 +1795,13 @@ Unlink an incident from its duplicate (if falsely marked).
 
 **GET** `/api/incidents/user/my`
 
-Retrieve a paginated list of incidents reported by the authenticated user. Requires authentication.
+Retrieve a paginated list of incidents involving the authenticated user. Requires authentication.
 
 **Query Parameters:**
 
 - `limit` (integer, optional) - Number of records to return (default: 20, max: 100)
 - `offset` (integer, optional) - Number of records to skip (default: 0)
+- `involvement` (string, optional) - `reported` (default), `accepted` (volunteer acceptor), `assigned` (personnel dispatch), or `all`
 
 **Example:**
 

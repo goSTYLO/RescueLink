@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../utils/app_config.dart';
+import '../../utils/validators.dart';
 import '../../widgets/recaptcha_webview.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/gradient_header.dart';
@@ -128,9 +129,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
   Future<void> _handleRequestCode() async {
     final phone = _phoneController.text.trim();
-    if (phone.isEmpty) {
+    final phoneError = Validators.validatePhoneNumber(phone);
+    if (phoneError != null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter your registered phone number')),
+        SnackBar(content: Text(phoneError)),
       );
       return;
     }
@@ -141,7 +143,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       return;
     }
     setState(() => _isLoading = true);
-    final formattedPhone = phone.startsWith('+') ? phone : '+63$phone';
+    final formattedPhone = Validators.formatPhoneForFirebase(phone);
     final ok = await widget.onRequestCode?.call(formattedPhone) ?? false;
     if (!mounted) return;
     setState(() => _isLoading = false);
@@ -190,35 +192,24 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFE5E7EB)),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                      decoration: const BoxDecoration(
-                        border: Border(
-                          right: BorderSide(color: Color(0xFFE5E7EB)),
-                        ),
-                      ),
-                      child: const Text('+63', style: TextStyle(color: Color(0xFF6B7280), fontSize: 16)),
-                    ),
-                    Expanded(
-                      child: TextField(
-                        controller: _phoneController,
-                        keyboardType: TextInputType.phone,
-                        decoration: const InputDecoration(
-                          hintText: '917 123 4567',
-                          border: InputBorder.none,
-                          contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                        ),
-                      ),
-                    ),
-                  ],
+              TextField(
+                controller: _phoneController,
+                keyboardType: TextInputType.phone,
+                inputFormatters: Validators.phoneInputFormatters,
+                maxLength: 11,
+                decoration: InputDecoration(
+                  hintText: '09171234567',
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                 ),
               ),
               const SizedBox(height: 24),

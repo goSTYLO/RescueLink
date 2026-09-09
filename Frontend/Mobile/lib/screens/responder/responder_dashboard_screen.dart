@@ -4,6 +4,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../../services/geolocation_service.dart';
 import '../../services/responder_service.dart';
+import '../../services/auth_service.dart';
 import '../../services/websocket_service.dart';
 import '../../utils/report_ui.dart';
 import '../../widgets/app_map_tile_layer.dart';
@@ -65,6 +66,7 @@ class ResponderDashboardScreenState extends State<ResponderDashboardScreen> {
   Timer? _mapCameraTimer;
 
   StreamSubscription<IncidentEvent>? _wsSub;
+  bool get _isPersonnel => AuthService().isPersonnelResponder;
 
   /// Called from [HomePlaceholderScreen] when an alert modal is dismissed.
   Future<void> refreshIncidents() => _loadActiveIncidents();
@@ -94,7 +96,7 @@ class ResponderDashboardScreenState extends State<ResponderDashboardScreen> {
   }
 
   Future<void> _syncResponderLocationIfOnline() async {
-    if (!widget.online) return;
+    if (!_isPersonnel && !widget.online) return;
     try {
       final pos = await GeolocationService.getCurrentPosition();
       if (!mounted) return;
@@ -117,10 +119,12 @@ class ResponderDashboardScreenState extends State<ResponderDashboardScreen> {
       List<Map<String, dynamic>> incidents = [];
       List<Map<String, dynamic>> assigned = [];
       Object? nearbyError;
-      try {
-        incidents = await _service.getActiveIncidents();
-      } catch (e) {
-        nearbyError = e;
+      if (!_isPersonnel) {
+        try {
+          incidents = await _service.getActiveIncidents();
+        } catch (e) {
+          nearbyError = e;
+        }
       }
       try {
         assigned = await _service.getAssignedIncidents();
@@ -172,7 +176,9 @@ class ResponderDashboardScreenState extends State<ResponderDashboardScreen> {
   }
 
   List<Map<String, dynamic>> get _visibleIncidents {
-    var list = List<Map<String, dynamic>>.from(_activeIncidents);
+    var list = List<Map<String, dynamic>>.from(
+      _isPersonnel ? _assignedIncidents : _activeIncidents,
+    );
 
     if (_typeFilter != null && _typeFilter!.isNotEmpty) {
       final filter = _typeFilter!.toLowerCase();
@@ -205,7 +211,7 @@ class ResponderDashboardScreenState extends State<ResponderDashboardScreen> {
 
   List<String> get _availableTypeFilters {
     final types = <String>{};
-    for (final inc in _activeIncidents) {
+    for (final inc in (_isPersonnel ? _assignedIncidents : _activeIncidents)) {
       final type = primaryIncidentType(inc) ?? inc['incident_type']?.toString();
       if (type != null && type.trim().isNotEmpty) {
         types.add(type.trim().toLowerCase());
@@ -509,7 +515,9 @@ class ResponderDashboardScreenState extends State<ResponderDashboardScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                count == 1 ? '1 incident nearby' : '$count incidents nearby',
+                _isPersonnel
+                    ? (count == 1 ? '1 assigned incident' : '$count assigned incidents')
+                    : (count == 1 ? '1 incident nearby' : '$count incidents nearby'),
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
@@ -550,9 +558,32 @@ class ResponderDashboardScreenState extends State<ResponderDashboardScreen> {
     if (incidents.isEmpty && assigned.isEmpty) {
       return Center(
         child: Text(
-          widget.online ? 'No nearby incidents' : 'Go online to see nearby incidents',
+          _isPersonnel
+              ? 'No assigned incidents'
+              : (widget.online ? 'No nearby incidents' : 'Go online to see nearby incidents'),
           style: TextStyle(color: textSec),
           textAlign: TextAlign.center,
+        ),
+      );
+    }
+
+    if (_isPersonnel) {
+      return RefreshIndicator(
+        onRefresh: _loadActiveIncidents,
+        color: const Color(0xFFEF4444),
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+          children: [
+            ...assigned.map((inc) => Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: ResponderIncidentCard(
+                    incident: inc,
+                    badgeText: (inc['my_response_status'] ?? 'Assigned').toString(),
+                    onTap: () => _openAssignedIncident(inc),
+                  ),
+                )),
+          ],
         ),
       );
     }
@@ -716,10 +747,12 @@ class ResponderDashboardScreenState extends State<ResponderDashboardScreen> {
             child: ResponderIncidentCard(
               incident: _selectedMapIncident!,
               compact: true,
-              onTap: () => _openIncidentPreview(_selectedMapIncident!),
+              onTap: () => _isPersonnel
+                  ? _openAssignedIncident(_selectedMapIncident!)
+                  : _openIncidentPreview(_selectedMapIncident!),
             ),
           ),
-        if (!widget.online)
+        if (!widget.online && !_isPersonnel)
           Positioned(
             top: 12,
             left: 16,
@@ -742,6 +775,7 @@ class ResponderDashboardScreenState extends State<ResponderDashboardScreen> {
   }
 
   Widget _buildHeader(Color textPrimary, Color textSec, bool isDark) {
+    final online = _isPersonnel || widget.online;
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
       child: Column(
@@ -813,13 +847,13 @@ class ResponderDashboardScreenState extends State<ResponderDashboardScreen> {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: (widget.online ? const Color(0xFF10B981) : const Color(0xFF6B7280))
+                    color: (online ? const Color(0xFF10B981) : const Color(0xFF6B7280))
                         .withValues(alpha: 0.15),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
-                    widget.online ? Icons.wifi_rounded : Icons.wifi_off_rounded,
-                    color: widget.online ? const Color(0xFF10B981) : const Color(0xFF6B7280),
+                    online ? Icons.wifi_rounded : Icons.wifi_off_rounded,
+                    color: online ? const Color(0xFF10B981) : const Color(0xFF6B7280),
                     size: 22,
                   ),
                 ),
@@ -830,7 +864,7 @@ class ResponderDashboardScreenState extends State<ResponderDashboardScreen> {
                     children: [
                       Text('Status', style: TextStyle(fontSize: 13, color: textSec)),
                       Text(
-                        widget.online ? 'Online' : 'Offline',
+                        online ? 'Online' : 'Offline',
                         style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w600,
@@ -840,17 +874,18 @@ class ResponderDashboardScreenState extends State<ResponderDashboardScreen> {
                     ],
                   ),
                 ),
-                _togglingOnline
-                    ? const SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Switch(
-                        value: widget.online,
-                        onChanged: (_) => _toggleOnline(),
-                        activeTrackColor: const Color(0xFF10B981),
-                      ),
+                if (!_isPersonnel)
+                  _togglingOnline
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Switch(
+                          value: widget.online,
+                          onChanged: (_) => _toggleOnline(),
+                          activeTrackColor: const Color(0xFF10B981),
+                        ),
               ],
             ),
           ),

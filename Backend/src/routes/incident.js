@@ -32,11 +32,11 @@ const incidentReportLimiter = rateLimit({
 
 // Create emergency incident report (fast endpoint, no AI classification)
 // Allows citizens (user), volunteer responders, dispatchers, and admins to create incidents
-router.post('/emergency', authMiddleware, incidentReportLimiter, authorize([ROLES.USER, ROLES.RESPONDER, ROLES.DISPATCHER, ROLES.ADMIN]), incidentController.createEmergency);
+router.post('/emergency', authMiddleware, incidentReportLimiter, authorize([ROLES.USER, ROLES.RESPONDER, ROLES.VOLUNTEER, ROLES.DISPATCHER, ROLES.ADMIN]), incidentController.createEmergency);
 
 // Create incident with audio and media files (AI-enhanced)
 // Allows citizens (user), volunteer responders, dispatchers, and admins to create incidents
-router.post('/with-audio', authMiddleware, incidentReportLimiter, authorize([ROLES.USER, ROLES.RESPONDER, ROLES.DISPATCHER, ROLES.ADMIN]), uploadMiddleware, incidentController.createWithAudio);
+router.post('/with-audio', authMiddleware, incidentReportLimiter, authorize([ROLES.USER, ROLES.RESPONDER, ROLES.VOLUNTEER, ROLES.DISPATCHER, ROLES.ADMIN]), uploadMiddleware, incidentController.createWithAudio);
 
 // Download audio file from incident
 // Users can only download their own; dispatchers/admins can download any
@@ -58,7 +58,7 @@ router.post('/:id/verify', authMiddleware, authorize([ROLES.DISPATCHER, ROLES.AD
 router.patch('/:id/status', authMiddleware, authorize([ROLES.DISPATCHER, ROLES.ADMIN, ROLES.DEPARTMENT_ADMIN, ROLES.DEPARTMENT_HEAD]), incidentController.updateStatus);
 
 // Reporter confirms resolution (owner-only is enforced in controller)
-router.post('/:id/confirm-resolution', authMiddleware, authorize([ROLES.USER, ROLES.RESPONDER]), incidentController.confirmResolution);
+router.post('/:id/confirm-resolution', authMiddleware, authorize([ROLES.USER, ROLES.RESPONDER, ROLES.VOLUNTEER]), incidentController.confirmResolution);
 
 // Manual reclassification with AI override audit trail
 // Dispatcher/admin/supervisor including admin role aliases
@@ -91,17 +91,17 @@ router.get('/user/my', authMiddleware, incidentController.getMyIncidents);
 
 // ── Phase 3: Responder self-service endpoints ─────────────────────────────────
 // Must be registered before /:id routes to avoid Express shadowing them.
-router.get('/responder/active',       authMiddleware, authorize([ROLES.RESPONDER]), incidentAcceptance.getActiveAssigned);
-router.get('/responder/history',      authMiddleware, authorize([ROLES.RESPONDER]), incidentAcceptance.getResponderHistory);
-router.get('/:id/responder-preview',   authMiddleware, authorize([ROLES.RESPONDER]), incidentAcceptance.getIncidentPreview);
-router.post('/:id/accept',            authMiddleware, authorize([ROLES.RESPONDER]), incidentAcceptance.acceptIncident);
-router.post('/:id/decline',           authMiddleware, authorize([ROLES.RESPONDER]), incidentAcceptance.declineIncident);
-router.patch('/:id/responder-status', authMiddleware, authorize([ROLES.RESPONDER]), incidentAcceptance.updateResponderStatus);
-router.post('/:id/backup',            authMiddleware, authorize([ROLES.RESPONDER]), incidentAcceptance.requestBackup);
-router.post('/:id/backup/:backupId/join', authMiddleware, authorize([ROLES.RESPONDER]), incidentAcceptance.joinBackup);
-router.post('/:id/backup/:backupId/decline', authMiddleware, authorize([ROLES.RESPONDER]), incidentAcceptance.declineBackup);
-router.post('/:id/backup/:backupId/withdraw', authMiddleware, authorize([ROLES.RESPONDER]), incidentAcceptance.withdrawBackup);
-router.patch('/:id/backup/:backupId/responder-status', authMiddleware, authorize([ROLES.RESPONDER]), incidentAcceptance.updateBackupResponderStatus);
+router.get('/responder/active',       authMiddleware, authorize([ROLES.VOLUNTEER]), incidentAcceptance.getActiveAssigned);
+router.get('/responder/history',      authMiddleware, authorize([ROLES.VOLUNTEER]), incidentAcceptance.getResponderHistory);
+router.get('/:id/responder-preview',   authMiddleware, authorize([ROLES.VOLUNTEER]), incidentAcceptance.getIncidentPreview);
+router.post('/:id/accept',            authMiddleware, authorize([ROLES.VOLUNTEER]), incidentAcceptance.acceptIncident);
+router.post('/:id/decline',           authMiddleware, authorize([ROLES.VOLUNTEER]), incidentAcceptance.declineIncident);
+router.patch('/:id/responder-status', authMiddleware, authorize([ROLES.VOLUNTEER]), incidentAcceptance.updateResponderStatus);
+router.post('/:id/backup',            authMiddleware, authorize([ROLES.VOLUNTEER]), incidentAcceptance.requestBackup);
+router.post('/:id/backup/:backupId/join', authMiddleware, authorize([ROLES.VOLUNTEER]), incidentAcceptance.joinBackup);
+router.post('/:id/backup/:backupId/decline', authMiddleware, authorize([ROLES.VOLUNTEER]), incidentAcceptance.declineBackup);
+router.post('/:id/backup/:backupId/withdraw', authMiddleware, authorize([ROLES.VOLUNTEER]), incidentAcceptance.withdrawBackup);
+router.patch('/:id/backup/:backupId/responder-status', authMiddleware, authorize([ROLES.VOLUNTEER]), incidentAcceptance.updateBackupResponderStatus);
 router.get('/:id/backup',             authMiddleware, authorize([ROLES.DISPATCHER, ROLES.ADMIN]), incidentAcceptance.getBackupRequests);
 router.patch('/:id/backup/:backupId/acknowledge', authMiddleware, authorize([
   ROLES.DISPATCHER,

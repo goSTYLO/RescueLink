@@ -6,6 +6,7 @@ import '../../services/onesignal_service.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/animated_collapse.dart';
 import '../../widgets/glass_card.dart';
+import '../../widgets/biometric_password_dialog.dart';
 import '../../widgets/skeleton_placeholder.dart';
 import 'responder_application/responder_onboarding_screen.dart';
 import 'responder_application/application_status_screen.dart';
@@ -131,7 +132,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       return;
     }
 
-    final password = await _showBiometricPasswordDialog();
+    final password = await showBiometricPasswordDialog(context);
     if (password == null || !mounted) return;
 
     await AuthService().setBiometricLoginEnabled(true);
@@ -148,48 +149,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         );
       }
     }
-  }
-
-  Future<String?> _showBiometricPasswordDialog() async {
-    final controller = TextEditingController();
-    return showDialog<String>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Enable Biometric Login'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Enter your password to store it securely. It will be used to start a new session when you use biometrics after exiting the app.',
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: controller,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'Password',
-                  border: OutlineInputBorder(),
-                ),
-                onSubmitted: (_) => Navigator.of(ctx).pop(controller.text),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(controller.text),
-            child: const Text('Continue'),
-          ),
-        ],
-      ),
-    );
   }
 
   Future<void> _loadProfile() async {

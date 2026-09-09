@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../bloc/auth/auth_bloc.dart';
 import '../../bloc/auth/auth_state.dart';
 import '../../utils/responsive.dart';
+import '../../utils/validators.dart';
 import '../../widgets/glass_card.dart';
 
 // Dagupan City Barangays
@@ -110,31 +111,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
       return 'Password must contain at least one number';
     }
     return null;
-  }
-
-  // Validate phone number (Philippine format)
-  String? _validatePhone(String? value) {
-    if (value == null || value.isEmpty) {
-      return 'Phone number is required';
-    }
-    // Remove all non-digit characters
-    final digitsOnly = value.replaceAll(RegExp(r'[^\d]'), '');
-
-    // Philippine phone number formats:
-    // 10 digits: 9XXXXXXXXX (without 0 prefix)
-    // 11 digits: 09XXXXXXXXX (with 0 prefix)
-    // 12 digits: 639XXXXXXXXX (with +63 country code, no +)
-    if (digitsOnly.length == 10 && digitsOnly.startsWith('9')) {
-      return null; // Valid: 9XXXXXXXXX
-    }
-    if (digitsOnly.length == 11 && digitsOnly.startsWith('09')) {
-      return null; // Valid: 09XXXXXXXXX
-    }
-    if (digitsOnly.length == 12 && digitsOnly.startsWith('639')) {
-      return null; // Valid: 639XXXXXXXXX
-    }
-
-    return 'Please enter a valid Philippine phone number (e.g., 09XX-XXXX-XXXX)';
   }
 
   // Validate name
@@ -380,9 +356,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           TextFormField(
                             controller: _phoneController,
                             keyboardType: TextInputType.phone,
+                            inputFormatters: Validators.phoneInputFormatters,
+                            maxLength: 11,
                             decoration: InputDecoration(
                               prefixIcon: Icon(Icons.phone, size: 20, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6)),
-                              hintText: 'Enter your number',
+                              hintText: '09171234567',
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 borderSide: BorderSide(
@@ -407,7 +385,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                 vertical: 14,
                               ),
                             ),
-                            validator: _validatePhone,
+                            validator: Validators.validatePhoneNumber,
                           ),
                           const SizedBox(height: 20),
 

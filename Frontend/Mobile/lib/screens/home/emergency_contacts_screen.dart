@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../utils/validators.dart';
 import '../../widgets/bottom_sheet_wrapper.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/skeleton_placeholder.dart';
@@ -61,7 +62,7 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
             _contacts.add(EmergencyContact(
               name: name,
               relation: relation,
-              phone: phone.startsWith('+63') ? phone : '+63 $phone',
+              phone: Validators.formatPhoneForFirebase(phone),
             ));
           });
           if (context.mounted) Navigator.of(context).pop();
@@ -376,7 +377,8 @@ class _AddContactFormContentState extends State<_AddContactFormContent> {
   void _submit() {
     final name = _fullNameController.text.trim();
     final phone = _phoneController.text.trim();
-    if (name.isEmpty || _selectedRelation == null || _selectedRelation!.isEmpty || phone.isEmpty) return;
+    if (name.isEmpty || _selectedRelation == null || _selectedRelation!.isEmpty) return;
+    if (Validators.validatePhoneNumber(phone) != null) return;
     widget.onAdd(name, _selectedRelation!, phone);
   }
 
@@ -388,6 +390,7 @@ class _AddContactFormContentState extends State<_AddContactFormContent> {
       children: [
         TextField(
           controller: _fullNameController,
+          maxLength: 100,
           decoration: const InputDecoration(
             hintText: 'Full name',
             border: OutlineInputBorder(),
@@ -409,8 +412,10 @@ class _AddContactFormContentState extends State<_AddContactFormContent> {
         TextField(
           controller: _phoneController,
           keyboardType: TextInputType.phone,
+          inputFormatters: Validators.phoneInputFormatters,
+          maxLength: 11,
           decoration: const InputDecoration(
-            hintText: '+63 917 123 4567',
+            hintText: '09171234567',
             border: OutlineInputBorder(),
           ),
         ),

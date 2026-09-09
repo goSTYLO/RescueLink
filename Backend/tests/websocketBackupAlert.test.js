@@ -39,7 +39,7 @@ describe('WebSocket responder:backup_alert delivery', () => {
     jest.clearAllMocks();
     pool.query.mockImplementation(async (sql, params) => {
       if (typeof sql === 'string' && sql.includes('SELECT role FROM users')) {
-        return { rows: [{ role: 'responder' }] };
+        return { rows: [{ role: 'volunteer' }] };
       }
       if (typeof sql === 'string' && sql.includes('supported_incident_types')) {
         const userId = params?.[0];
@@ -72,7 +72,7 @@ describe('WebSocket responder:backup_alert delivery', () => {
   });
 
   function connectAs(userId) {
-    const token = jwt.sign({ user_id: userId, role: 'responder' }, JWT_SECRET, { expiresIn: '1h' });
+    const token = jwt.sign({ user_id: userId, role: 'volunteer' }, JWT_SECRET, { expiresIn: '1h' });
     return new Promise((resolve, reject) => {
       const ws = new WebSocket(`${wsUrl}?token=${encodeURIComponent(token)}`);
       ws.on('open', () => resolve(ws));

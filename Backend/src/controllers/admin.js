@@ -5,10 +5,13 @@
  */
 
 const User = require('../models/user');
+const Responder = require('../models/responder');
+const Department = require('../models/department');
 const { ROLES } = require('../config/roles');
 const { hashPassword } = require('../utils/hash');
-const { validateEmail, validatePhoneNumber, validateOptionalString, validatePagination } = require('../utils/validation');
+const { validateEmail, validatePhone, validateOptionalString, validatePagination } = require('../utils/validation');
 const { logAdminAction } = require('../utils/auditLog');
+const pool = require('../config/db');
 
 /** Normalize incoming role from request body to canonical value (never default to supervisor). */
 function normalizeRoleForAdmin(role) {
@@ -17,8 +20,37 @@ function normalizeRoleForAdmin(role) {
   if (r === 'admin' || r === 'super-admin' || r === 'superadmin') return ROLES.ADMIN;
   if (r === 'department-admin' || r === 'department admin' || r === 'dept admin') return ROLES.DEPARTMENT_ADMIN;
   if (r === 'department-head' || r === 'department head') return ROLES.DEPARTMENT_HEAD;
+  if (r === 'responder' || r === 'field-responder' || r === 'field responder') return ROLES.RESPONDER;
   if (Object.values(ROLES).includes(r)) return r;
   return ROLES.USER;
+}
+
+function requiresDepartmentId(role) {
+  return role === ROLES.DEPARTMENT_HEAD || role === ROLES.DEPARTMENT_ADMIN || role === ROLES.USER || role === ROLES.RESPONDER;
+}
+
+async function ensureFieldResponderProfile(user, departmentId) {
+  try {
+    await pool.query('UPDATE users SET responder_online = TRUE WHERE user_id = $1', [user.user_id]);
+  } catch (_) {}
+  const existing = await pool.query('SELECT responder_id FROM responders WHERE user_id = $1 LIMIT 1', [user.user_id]);
+  if (existing.rows[0]) return;
+  let organization = null;
+  if (departmentId) {
+    try {
+      const dept = await Department.findById(departmentId);
+      organization = dept?.name || null;
+    } catch (_) {}
+  }
+  const name = `${user.first_name || ''} ${user.last_name || ''}`.trim() || `Responder ${user.user_id}`;
+  await Responder.create({
+    name,
+    organization,
+    contact_number: user.phone_number || null,
+    availability_status: 'available',
+    source_type: 'account',
+    user_id: user.user_id,
+  });
 }
 
 const adminController = {
@@ -130,15 +162,24 @@ const adminController = {
       }
 
       // department_id required for department-head, department-admin, and user (Personnel)
-      if (effectiveRole === ROLES.DEPARTMENT_HEAD || effectiveRole === ROLES.DEPARTMENT_ADMIN || effectiveRole === ROLES.USER) {
+      if (requiresDepartmentId(effectiveRole)) {
         if (department_id == null || department_id === '' || isNaN(parseInt(department_id, 10))) {
-          return res.status(400).json({ error: 'department_id is required for department-head, department-admin, and user (Personnel) roles' });
+          return res.status(400).json({ error: 'department_id is required for department-head, department-admin, user (Personnel), and responder roles' });
         }
       }
 
-      // Validate phone if provided
-      if (phone_number && !validatePhoneNumber(phone_number)) {
-        return res.status(400).json({ error: 'Invalid phone number format' });
+      if (effectiveRole === ROLES.RESPONDER && !phone_number) {
+        return res.status(400).json({ error: 'phone_number is required for field responder accounts (mobile login)' });
+      }
+
+      // Validate and normalize phone if provided (stored as 09XXXXXXXXX)
+      let normalizedPhone = null;
+      if (phone_number) {
+        try {
+          normalizedPhone = validatePhone(String(phone_number));
+        } catch (err) {
+          return res.status(400).json({ error: err.message || 'Invalid phone number format' });
+        }
       }
 
       // Check if email already exists
@@ -148,8 +189,8 @@ const adminController = {
       }
 
       // Check if phone already exists (if provided)
-      if (phone_number) {
-        const existingPhone = await User.findByPhone(phone_number);
+      if (normalizedPhone) {
+        const existingPhone = await User.findByPhone(normalizedPhone);
         if (existingPhone) {
           return res.status(409).json({ error: 'Phone number already exists' });
         }
@@ -158,14 +199,13 @@ const adminController = {
       // Hash password
       const passwordHash = await hashPassword(password);
 
-      const departmentIdValue = (effectiveRole === ROLES.DEPARTMENT_HEAD || effectiveRole === ROLES.DEPARTMENT_ADMIN || effectiveRole === ROLES.USER)
+      const departmentIdValue = requiresDepartmentId(effectiveRole)
         ? parseInt(department_id, 10)
         : null;
 
-      // Create user with specified role
       const newUser = await User.create({
         email,
-        phone_number: phone_number || null,
+        phone_number: normalizedPhone,
         first_name: validateOptionalString(first_name, 'first_name', 100),
         last_name: validateOptionalString(last_name, 'last_name', 100),
         password: passwordHash,
@@ -173,12 +213,16 @@ const adminController = {
         department_id: departmentIdValue
       });
 
+      if (effectiveRole === ROLES.RESPONDER) {
+        await ensureFieldResponderProfile(newUser, departmentIdValue);
+      }
+
       // Remove password from response
       newUser.password = undefined;
 
       await logAdminAction(req, 'user_create', 'user', newUser.user_id, {
         email,
-        phone_number: phone_number || null,
+        phone_number: normalizedPhone,
         role: effectiveRole,
         department_id: departmentIdValue
       });
@@ -201,7 +245,7 @@ const adminController = {
   async updateUserRole(req, res) {
     try {
       const { id } = req.params;
-      const { role: roleParam, department_id, first_name: first_nameParam, last_name: last_nameParam } = req.body;
+      const { role: roleParam, department_id, first_name: first_nameParam, last_name: last_nameParam, phone_number } = req.body;
 
       // Validate ID format
       if (!id || isNaN(parseInt(id, 10))) {
@@ -218,9 +262,9 @@ const adminController = {
       }
 
       // department_id required for department-head, department-admin, and user (Personnel)
-      if (role === ROLES.DEPARTMENT_HEAD || role === ROLES.DEPARTMENT_ADMIN || role === ROLES.USER) {
+      if (requiresDepartmentId(role)) {
         if (department_id == null || department_id === '' || isNaN(parseInt(department_id, 10))) {
-          return res.status(400).json({ error: 'department_id is required for department-head, department-admin, and user (Personnel) roles' });
+          return res.status(400).json({ error: 'department_id is required for department-head, department-admin, user (Personnel), and responder roles' });
         }
       }
 
@@ -238,9 +282,25 @@ const adminController = {
         return res.status(404).json({ error: 'User not found' });
       }
 
+      if (role === ROLES.RESPONDER) {
+        let phone = user.phone_number;
+        if (phone_number) {
+          try {
+            phone = validatePhone(String(phone_number));
+          } catch (err) {
+            return res.status(400).json({ error: err.message || 'Invalid phone number format' });
+          }
+          await pool.query('UPDATE users SET phone_number = $1 WHERE user_id = $2', [phone, user.user_id]);
+          user.phone_number = phone;
+        }
+        if (!user.phone_number) {
+          return res.status(400).json({ error: 'phone_number is required before promoting a user to field responder' });
+        }
+      }
+
       const oldRole = user.role;
       const userId = parseInt(id, 10);
-      const departmentIdValue = (role === ROLES.DEPARTMENT_HEAD || role === ROLES.DEPARTMENT_ADMIN || role === ROLES.USER)
+      const departmentIdValue = requiresDepartmentId(role)
         ? parseInt(department_id, 10)
         : null;
 
@@ -255,6 +315,10 @@ const adminController = {
 
       const updatedUser = await User.updateRoleDepartmentAndName(userId, role, departmentIdValue, first_name, last_name);
       updatedUser.password = undefined;
+
+      if (role === ROLES.RESPONDER) {
+        await ensureFieldResponderProfile(updatedUser, departmentIdValue);
+      }
 
       await logAdminAction(req, 'user_role_update', 'user', user.user_id, {
         user_id: userId,

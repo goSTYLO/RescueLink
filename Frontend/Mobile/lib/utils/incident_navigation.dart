@@ -30,8 +30,8 @@ bool shouldOpenResponderDetail({
   required String? involvement,
   String involvementFilter = 'all',
 }) {
-  if (involvement == 'accepted') return true;
-  if (involvement == 'both' && involvementFilter == 'accepted') return true;
+  if (involvement == 'accepted' || involvement == 'assigned') return true;
+  if (involvement == 'both' && (involvementFilter == 'accepted' || involvementFilter == 'assigned')) return true;
   return false;
 }
 
@@ -60,6 +60,7 @@ Future<void> openIncidentByInvolvement(
         builder: (_) => ResponderIncidentDetailScreen(
           reportId: reportId,
           readOnly: readOnly,
+          isTeamAssignment: involvement == 'assigned' || involvementFilter == 'assigned',
           initialIncident: incident,
         ),
       ),
@@ -78,7 +79,7 @@ Future<void> openIncidentByReportId(
   String involvementFilter = 'all',
   required void Function(int reportId) onCitizenTap,
 }) async {
-  if (AuthService().getUserRole() == 'responder') {
+  if (AuthService().isPersonnelResponder) {
     try {
       final assigned = await ResponderService().getAssignedIncidents();
       final match = assigned

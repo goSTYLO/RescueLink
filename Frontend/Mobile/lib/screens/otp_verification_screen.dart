@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../services/auth_service.dart';
 
 class OTPVerificationScreen extends StatefulWidget {
@@ -268,6 +269,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                                         textAlign: TextAlign.center,
                                         keyboardType: TextInputType.number,
                                         maxLength: 1,
+                                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                                         enabled:
                                             !_isLoading,
                                         decoration: InputDecoration(

@@ -2,76 +2,125 @@
 
 This document lists all seeded test credentials for development and testing.
 
+**Password pattern:** staff roles use `[role]123` (e.g. `dispatcher123`); all responders use **`responder123`**.
+
+**Mobile login:** the app accepts **phone number + password** only (not email). The UI enforces local format **`09XXXXXXXXX`** (digits only, 11 characters). The API accepts `09…`, `639…`, or `+639…` on input but **stores** `09XXXXXXXXX`. Web staff login uses email via the dispatcher portal.
+
+After re-seeding for auto team dispatch testing, every team has **2 account-backed members** linked via `responders.user_id` (mobile assigned-incidents + stepper).
+
+---
+
 ## System Admins (Full System Access)
 
-Full system access to all features, settings, and management functions.
-
-- **[admin@rescuelink.test](mailto:admin@rescuelink.test)** / `admin123`
-- **[admin2@rescuelink.test](mailto:admin2@rescuelink.test)** / `admin123`
+| Email | Phone (mobile) | Password |
+|-------|----------------|----------|
+| admin@rescuelink.test | 09001000001 | admin123 |
+| admin2@rescuelink.test | 09001000002 | admin123 |
 
 ## Department Admins (Roster & Team Management)
 
-Create, update, and delete responders and teams. Manage department resources and personnel rosters.
-
-- **[deptadmin_pnp@rescuelink.test](mailto:deptadmin_pnp@rescuelink.test)** / `deptadmin123` (PNP)
-- **[deptadmin_drrmo@rescuelink.test](mailto:deptadmin_drrmo@rescuelink.test)** / `deptadmin123` (DRRMO)
+| Email | Phone (mobile) | Password | Dept |
+|-------|----------------|----------|------|
+| deptadmin_pnp@rescuelink.test | 09001000010 | deptadmin123 | PNP |
+| deptadmin_drrmo@rescuelink.test | 09001000011 | deptadmin123 | DRRMO |
 
 ## Dispatchers (Incident & Dispatch Management)
 
-Create and manage incidents and dispatches. Assign responders and update status.
-
-- **[dispatcher@rescuelink.test](mailto:dispatcher@rescuelink.test)** / `dispatcher123` (DRRMO)
-- **[dispatcher2@rescuelink.test](mailto:dispatcher2@rescuelink.test)** / `dispatcher123` (PNP)
-- **[dispatcher3@rescuelink.test](mailto:dispatcher3@rescuelink.test)** / `dispatcher123` (DRRMO)
-- **[dispatcher4@rescuelink.test](mailto:dispatcher4@rescuelink.test)** / `dispatcher123` (PNP)
+| Email | Phone (mobile) | Password | Dept |
+|-------|----------------|----------|------|
+| dispatcher@rescuelink.test | 09002000001 | dispatcher123 | DRRMO |
+| dispatcher2@rescuelink.test | 09002000002 | dispatcher123 | PNP |
+| dispatcher3@rescuelink.test | 09002000003 | dispatcher123 | DRRMO |
+| dispatcher4@rescuelink.test | 09002000004 | dispatcher123 | PNP |
 
 ## Department Heads (Operational Leadership)
 
-View and read responders and teams within assigned department (read-only access).
-
-- **[depthead_pnp@rescuelink.test](mailto:depthead_pnp@rescuelink.test)** / `depthead123` (PNP)
-- **[depthead_drrmo@rescuelink.test](mailto:depthead_drrmo@rescuelink.test)** / `depthead123` (DRRMO)
+| Email | Phone (mobile) | Password | Dept |
+|-------|----------------|----------|------|
+| depthead_pnp@rescuelink.test | 09001000020 | depthead123 | PNP |
+| depthead_drrmo@rescuelink.test | 09001000021 | depthead123 | DRRMO |
 
 ## Supervisors (Escalation Management)
 
-Manage incident escalation and reclassification.
-
-- **[supervisor@rescuelink.test](mailto:supervisor@rescuelink.test)** / `supervisor123` (DRRMO)
-- **[supervisor2@rescuelink.test](mailto:supervisor2@rescuelink.test)** / `supervisor123` (PNP)
-
-## Responders (Field Personnel)
-
-Field personnel who can report incidents and view roster information.
-
-- **[responder@rescuelink.test](mailto:responder@rescuelink.test)** / `responder123` (PNP)
-- **[responder2@rescuelink.test](mailto:responder2@rescuelink.test)** / `responder123` (PNP)
-- **[responder3@rescuelink.test](mailto:responder3@rescuelink.test)** / `responder123` (DRRMO)
-- **[responder4@rescuelink.test](mailto:responder4@rescuelink.test)** / `responder123` (DRRMO)
+| Email | Phone (mobile) | Password | Dept |
+|-------|----------------|----------|------|
+| supervisor@rescuelink.test | 09004000001 | supervisor123 | DRRMO |
+| supervisor2@rescuelink.test | 09004000002 | supervisor123 | PNP |
 
 ## Reporters (Mobile App Users)
 
-Mobile app users who can report emergency incidents.
+| Email | Phone (mobile) | Password |
+|-------|----------------|----------|
+| user@rescuelink.test | 09005000001 | user123 |
+| user2@rescuelink.test | 09005000002 | user123 |
+| user3@rescuelink.test | 09005000003 | user123 |
+| user4@rescuelink.test | 09005000004 | user123 |
+| user5@rescuelink.test | 09005000005 | user123 |
+| user6@rescuelink.test | 09005000006 | user123 |
 
-- **[user@rescuelink.test](mailto:user@rescuelink.test)** / `user123`
-- **[user2@rescuelink.test](mailto:user2@rescuelink.test)** / `user123`
-- **[user3@rescuelink.test](mailto:user3@rescuelink.test)** / `user123`
-- **[user4@rescuelink.test](mailto:user4@rescuelink.test)** / `user123`
-- **[user5@rescuelink.test](mailto:user5@rescuelink.test)** / `user123`
-- **[user6@rescuelink.test](mailto:user6@rescuelink.test)** / `user123`
+---
+
+## Responders (Field Personnel — 24 accounts, role `responder`)
+
+All use password **`responder123`**. Each team has two mobile-testable logins. These are **team personnel**, not volunteers: Assigned history, assigned nearby list, no Accept/Decline, always online.
+
+Volunteers are **not** these accounts. Approve a reporter application (e.g. `09005000001`) to promote `users.role = volunteer`. Do not use `responder@rescuelink.test` as a volunteer.
+
+All use password **`responder123`**. Each team has two mobile-testable logins.
+
+### PNP
+
+| Email | Phone (mobile) | Team | Availability |
+|-------|----------------|------|--------------|
+| responder@rescuelink.test | 09003000001 | Patrol Alpha | available |
+| responder5@rescuelink.test | 09003000005 | Patrol Alpha | standby |
+| responder2@rescuelink.test | 09003000002 | Patrol Bravo | standby |
+| responder6@rescuelink.test | 09003000006 | Patrol Bravo | available |
+| responder7@rescuelink.test | 09003000007 | Traffic Unit | available |
+| responder8@rescuelink.test | 09003000008 | Traffic Unit | standby |
+| responder9@rescuelink.test | 09003000009 | K9 Unit | available |
+| responder10@rescuelink.test | 09003000010 | K9 Unit | standby |
+| responder11@rescuelink.test | 09003000011 | Investigation Unit | available |
+| responder12@rescuelink.test | 09003000012 | Investigation Unit | standby |
+| responder13@rescuelink.test | 09003000013 | Quick Response Team | available |
+| responder14@rescuelink.test | 09003000014 | Quick Response Team | standby |
+
+### CDRRMO (drrmo)
+
+| Email | Phone (mobile) | Team | Availability |
+|-------|----------------|------|--------------|
+| responder3@rescuelink.test | 09003000003 | Rescue Alpha | available |
+| responder15@rescuelink.test | 09003000015 | Rescue Alpha | standby |
+| responder4@rescuelink.test | 09003000004 | Medical Alpha | available |
+| responder16@rescuelink.test | 09003000016 | Medical Alpha | standby |
+| responder17@rescuelink.test | 09003000017 | Fire Support | standby |
+| responder18@rescuelink.test | 09003000018 | Fire Support | available |
+| responder19@rescuelink.test | 09003000019 | Emergency Response Alpha | available |
+| responder20@rescuelink.test | 09003000020 | Emergency Response Alpha | standby |
+| responder21@rescuelink.test | 09003000021 | Logistics Support | available |
+| responder22@rescuelink.test | 09003000022 | Logistics Support | standby |
+| responder23@rescuelink.test | 09003000023 | Search and Rescue | standby |
+| responder24@rescuelink.test | 09003000024 | Search and Rescue | available |
+
+**Suggested auto-dispatch smoke tests (mobile login):**
+
+- SOS → **Rescue Alpha**: `09003000003` / `responder123`
+- High-confidence medical → **Medical Alpha**: `09003000004` / `responder123`
+- Police incident → **Patrol Alpha**: `09003000001` / `responder123`
+
+---
 
 ## Departments
 
-All accounts from the same department can see other department members.
+- **PNP** — Dagupan City Police Station (`supported_incident_types`: police)
+- **DRRMO** — Dagupan CDRRMC (`supported_incident_types`: fire, medical, disaster, accident)
 
-- **PNP** - Dagupan City Police Station (PNP admins, dispatchers, responders)
-- **DRRMO** - Dagupan CDRRMC at City Engineers Office (DRRMO admins, dispatchers, responders)
+## Re-seed command
 
-## Testing Notes
+```bash
+cd Backend
+npm run migrate
+npm run seed-db
+```
 
-- All passwords follow the pattern: `[role]123` (e.g., `dispatcher123`, `responder123`)
-- Department-scoped accounts are linked to their respective departments via `department_code`
-- System admins and reporters have no department affiliation
-- Use **department-admin** email accounts to manage rosters and teams
-- Use **dispatcher** accounts for incident and dispatch management
-- Use **department-head** accounts to view department-specific operational data (read-only)
-
+See also: [AUTO_TEAM_DISPATCH_MANUAL_TEST_GUIDE.md](../guides/AUTO_TEAM_DISPATCH_MANUAL_TEST_GUIDE.md)

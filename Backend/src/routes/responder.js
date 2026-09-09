@@ -22,8 +22,8 @@ router.delete('/teams/:teamId/members/:responderId', authorize([ROLES.ADMIN, ROL
 router.get('/', authorize([ROLES.DISPATCHER, ROLES.ADMIN, ROLES.DEPARTMENT_ADMIN]), responderController.getAll);
 
 // ── Phase 3: Responder self-service (must be before /:id to avoid shadowing) ──
-router.patch('/me/online-status', authorize([ROLES.RESPONDER]), responderController.updateOnlineStatus);
-router.get('/me/profile',         authorize([ROLES.RESPONDER]), responderController.getSelfProfile);
+router.patch('/me/online-status', authorize([ROLES.RESPONDER, ROLES.VOLUNTEER]), responderController.updateOnlineStatus);
+router.get('/me/profile',         authorize([ROLES.RESPONDER, ROLES.VOLUNTEER]), responderController.getSelfProfile);
 router.get('/me/assigned-incidents', authorize([ROLES.RESPONDER]), responderController.getAssignedIncidents);
 router.get('/me/team', authorize([ROLES.RESPONDER]), responderController.getMyTeam);
 router.post('/', authorize([ROLES.ADMIN, ROLES.DEPARTMENT_ADMIN]), responderController.create);

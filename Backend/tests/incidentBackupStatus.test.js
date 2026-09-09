@@ -88,7 +88,7 @@ describe('incidentController.getById acceptor access', () => {
 
     const req = {
       params: { id: '42' },
-      user: { user_id: 9, role: 'responder' },
+      user: { user_id: 9, role: 'volunteer' },
     };
     const res = {
       status: jest.fn().mockReturnThis(),
@@ -116,7 +116,7 @@ describe('incidentController.getById acceptor access', () => {
 
     const req = {
       params: { id: '42' },
-      user: { user_id: 9, role: 'responder' },
+      user: { user_id: 9, role: 'volunteer' },
     };
     const res = {
       status: jest.fn().mockReturnThis(),

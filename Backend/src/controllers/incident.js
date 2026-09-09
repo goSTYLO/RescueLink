@@ -27,7 +27,7 @@ const fs = require('fs').promises;
 function canReadOwnOrAcceptedIncident(user, incident) {
   if (isResourceOwner(user, incident.user_id)) return true;
   if (
-    user?.role === ROLES.RESPONDER
+    user?.role === ROLES.VOLUNTEER
     && user.user_id != null
     && incident.accepted_by_user_id != null
     && Number(incident.accepted_by_user_id) === Number(user.user_id)
@@ -39,7 +39,7 @@ function canReadOwnOrAcceptedIncident(user, incident) {
 
 /** Backup joiner or dispatched team member may read the incident they are assigned to. */
 async function canResponderReadAssignedIncident(user, reportId) {
-  if (user?.role !== ROLES.RESPONDER || user?.user_id == null) return false;
+  if (![ROLES.RESPONDER, ROLES.VOLUNTEER].includes(user?.role) || user?.user_id == null) return false;
   try {
     const joined = await pool.query(
       `SELECT 1 FROM backup_responses
@@ -749,7 +749,7 @@ const incidentController = {
       const { limit: validatedLimit, offset: validatedOffset } = validatePagination(limit, offset);
       const validatedStatus = validateAllowedValue(status, ['pending', 'verified', 'in_progress', 'resolved', 'closed'], 'status');
       const validatedIncidentType = validateAllowedValue(incident_type, ['fire', 'medical', 'police', 'disaster', 'sos', 'other', 'accident'], 'incident_type');
-      const validatedInvolvement = validateAllowedValue(involvement, ['reported', 'accepted', 'all'], 'involvement') || 'reported';
+      const validatedInvolvement = validateAllowedValue(involvement, ['reported', 'accepted', 'assigned', 'all'], 'involvement') || 'reported';
 
       const incidents = await Incident.findByUserInvolvement(user_id, {
         limit: validatedLimit,

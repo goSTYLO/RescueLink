@@ -37,7 +37,21 @@ describe('Incident.findByUserInvolvement', () => {
     expect(sql).not.toContain('OR accepted_by_user_id');
   });
 
-  it('returns both reported and accepted incidents when involvement is all', async () => {
+    it('returns assigned incidents via dispatch join, not accepted_by', async () => {
+      pool.query.mockResolvedValueOnce({
+        rows: [{ report_id: 8, involvement: 'assigned' }],
+      });
+
+      await Incident.findByUserInvolvement(11, { involvement: 'assigned' });
+
+      const [sql] = pool.query.mock.calls[0];
+      expect(sql).toContain('FROM dispatches d');
+      expect(sql).toContain('INNER JOIN responders r');
+      expect(sql).toContain('r.user_id = $1');
+      expect(sql).not.toContain('WHERE accepted_by_user_id = $1');
+    });
+
+    it('returns both reported and accepted incidents when involvement is all', async () => {
     pool.query.mockResolvedValueOnce({
       rows: [
         { report_id: 3, user_id: 9, involvement: 'reported' },
@@ -49,7 +63,8 @@ describe('Incident.findByUserInvolvement', () => {
     await Incident.findByUserInvolvement(9, { involvement: 'all' });
 
     const [sql] = pool.query.mock.calls[0];
-    expect(sql).toContain('(user_id = $1 OR accepted_by_user_id = $1)');
+    expect(sql).toContain('user_id = $1 OR accepted_by_user_id = $1 OR EXISTS');
+    expect(sql).toContain('FROM dispatches d');
     expect(sql).toContain("THEN 'both'");
   });
 

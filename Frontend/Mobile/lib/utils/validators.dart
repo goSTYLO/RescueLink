@@ -1,54 +1,45 @@
+import 'package:flutter/services.dart';
+
 /// Validation utilities for form inputs
 class Validators {
-  /// Validates Philippine phone numbers
-  /// Accepts formats:
-  /// - 09171234567 (11 digits starting with 09)
-  /// - +639171234567 (with country code)
-  /// - 639171234567 (country code without +)
+  /// Digits-only, max 11 chars for local PH mobile (09XXXXXXXXX).
+  static final phoneInputFormatters = [
+    FilteringTextInputFormatter.digitsOnly,
+    LengthLimitingTextInputFormatter(11),
+  ];
+
+  /// Validates Philippine phone numbers (local format: 09XXXXXXXXX).
   static String? validatePhoneNumber(String? value) {
     if (value == null || value.isEmpty) {
       return 'Phone number is required';
     }
 
-    // Remove spaces, dashes, and parentheses
-    final cleaned = value.replaceAll(RegExp(r'[\s\-\(\)]'), '');
-
-    // Pattern for PH phone numbers:
-    // 09XXXXXXXXX (11 digits starting with 09)
-    // +639XXXXXXXXX (country code with +)
-    // 639XXXXXXXXX (country code without +)
-    final phoneRegex = RegExp(
-      r'^(\+?63|0)9\d{9}$',
-    );
-
-    if (!phoneRegex.hasMatch(cleaned)) {
+    final cleaned = value.replaceAll(RegExp(r'\D'), '');
+    if (!RegExp(r'^09\d{9}$').hasMatch(cleaned)) {
       return 'Invalid PH phone number. Use format: 09171234567';
     }
 
     return null;
   }
 
+  /// Optional phone — empty is OK; non-empty must be local 09XXXXXXXXX.
+  static String? validateOptionalPhoneNumber(String? value) {
+    if (value == null || value.trim().isEmpty) return null;
+    return validatePhoneNumber(value);
+  }
+
   /// Formats phone number to E.164 format for Firebase (+639171234567)
   static String formatPhoneForFirebase(String phone) {
-    // Remove spaces, dashes, and parentheses
-    final cleaned = phone.replaceAll(RegExp(r'[\s\-\(\)]'), '');
+    final cleaned = phone.replaceAll(RegExp(r'\D'), '');
 
-    // If starts with 0, replace with +63
     if (cleaned.startsWith('0')) {
       return '+63${cleaned.substring(1)}';
     }
 
-    // If starts with 63 (no +), add +
-    if (cleaned.startsWith('63') && !cleaned.startsWith('+')) {
+    if (cleaned.startsWith('63')) {
       return '+$cleaned';
     }
 
-    // Already has +63
-    if (cleaned.startsWith('+63')) {
-      return cleaned;
-    }
-
-    // Fallback: assume it's missing country code
     return '+63$cleaned';
   }
 

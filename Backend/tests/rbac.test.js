@@ -31,6 +31,7 @@ jest.mock('../src/models/user', () => {
       if (id === 3) return 'admin';
       if (id === 4) return 'responder';
       if (id === 5) return 'supervisor';
+      if (id === 6) return 'volunteer';
       return actual.getRoleById(id);
     }),
   };
@@ -64,6 +65,7 @@ const userToken = createToken(1, ROLES.USER);
 const dispatcherToken = createToken(2, ROLES.DISPATCHER);
 const adminToken = createToken(3, ROLES.ADMIN);
 const responderToken = createToken(4, ROLES.RESPONDER);
+const volunteerToken = createToken(6, ROLES.VOLUNTEER);
 
 describe('RBAC Integration Tests', () => {
   describe('Dispatch Endpoints - Dispatcher/Admin Only', () => {
@@ -283,8 +285,8 @@ describe('RBAC Integration Tests', () => {
         .get('/api/incidents/999')
         .set('Authorization', `Bearer ${userToken}`);
       
-      // Should be 403 (ownership check) or 404 (not found), but middleware allows check
-      expect([200, 404, 400]).toContain(res.status);
+      // Should be 403 (ownership check) or 404 (not found)
+      expect([200, 403, 404, 400]).toContain(res.status);
     });
 
     it('should allow dispatcher to view any incident', async () => {
@@ -519,6 +521,42 @@ describe('RBAC Unit Tests - Permission Functions', () => {
 
     it('should return false for null user', () => {
       expect(isResourceOwner(null, resourceOwnerId)).toBe(false);
+    });
+  });
+
+  describe('Volunteer vs personnel field RBAC', () => {
+    it('should deny volunteer from personnel assigned-incidents', async () => {
+      const res = await request(app)
+        .get('/api/responders/me/assigned-incidents')
+        .set('Authorization', `Bearer ${volunteerToken}`);
+
+      expect(res.status).toBe(403);
+    });
+
+    it('should deny personnel from volunteer accept', async () => {
+      const res = await request(app)
+        .post('/api/incidents/1/accept')
+        .set('Authorization', `Bearer ${responderToken}`)
+        .send({});
+
+      expect(res.status).toBe(403);
+    });
+
+    it('should allow personnel assigned-incidents without RBAC 403', async () => {
+      const res = await request(app)
+        .get('/api/responders/me/assigned-incidents')
+        .set('Authorization', `Bearer ${responderToken}`);
+
+      expect(res.status).not.toBe(403);
+    });
+
+    it('should allow volunteer accept without RBAC 403', async () => {
+      const res = await request(app)
+        .post('/api/incidents/1/accept')
+        .set('Authorization', `Bearer ${volunteerToken}`)
+        .send({});
+
+      expect(res.status).not.toBe(403);
     });
   });
 

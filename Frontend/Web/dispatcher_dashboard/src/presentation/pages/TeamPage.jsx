@@ -6,24 +6,29 @@ import { Input } from '@/presentation/components/ui/Input';
 import { Label } from '@/presentation/components/ui/Label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/presentation/components/ui/Dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/presentation/components/ui/Select';
-import { Plus, Edit, Ban, Users, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Edit, Ban, Users, ChevronLeft, ChevronRight, Eye, EyeOff } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { listUsers, createUser, updateUserRole, deactivateUser } from '@/data/api/adminUsers.api';
 import { getDepartments } from '@/data/api/departments.api';
 import { ROLES, normalizeRole } from '@/core/constants';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
 import { Breadcrumb } from '@/presentation/components/common/Breadcrumb';
+import { PhoneInput } from '@/presentation/components/ui/PhoneInput';
+import { isValidLocalPhone } from '@/core/utils/inputUtils';
 
 const SWAL_PRIMARY = '#134178';
 const ROWS_PER_PAGE = 10;
 
 // Frontend display value -> backend API value
+const FIELD_RESPONDER = 'field-responder';
+
 const ROLE_TO_BACKEND = {
   [ROLES.SUPER_ADMIN]: 'admin',
   [ROLES.DISPATCHER]: 'dispatcher',
   [ROLES.DEPARTMENT_ADMIN]: 'department-admin',
   [ROLES.DEPARTMENT_HEAD]: 'department-head',
   [ROLES.PERSONNEL]: 'user',
+  [FIELD_RESPONDER]: 'responder',
 };
 
 const ROLE_OPTIONS = [
@@ -32,13 +37,14 @@ const ROLE_OPTIONS = [
   { value: ROLES.DEPARTMENT_ADMIN, label: 'Department Admin', backend: 'department-admin' },
   { value: ROLES.DEPARTMENT_HEAD, label: 'Department Head', backend: 'department-head' },
   { value: ROLES.PERSONNEL, label: 'Personnel', backend: 'user' },
+  { value: FIELD_RESPONDER, label: 'Field Responder', backend: 'responder' },
 ];
 
-// Add/Edit user modal: only these roles (no Department Head when adding, no Personnel)
 const ROLE_OPTIONS_FOR_ADD = [
   { value: ROLES.SUPER_ADMIN, label: 'Super Admin', backend: 'admin' },
   { value: ROLES.DISPATCHER, label: 'Dispatcher', backend: 'dispatcher' },
   { value: ROLES.DEPARTMENT_ADMIN, label: 'Department Admin', backend: 'department-admin' },
+  { value: FIELD_RESPONDER, label: 'Field Responder', backend: 'responder' },
 ];
 
 function roleToBackend(frontendRole) {
@@ -78,11 +84,13 @@ export function TeamPage() {
     password: '',
     role: ROLES.PERSONNEL,
     department_id: '',
+    phone_number: '',
   });
   const [deptSelectOpen, setDeptSelectOpen] = useState(false);
   const [roleSelectOpen, setRoleSelectOpen] = useState(false);
   const [savingUser, setSavingUser] = useState(false);
   const [deactivatingUserId, setDeactivatingUserId] = useState(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   const fetchUsers = useCallback(async (page = pagination.page) => {
     setLoadingUsers(true);
@@ -135,6 +143,7 @@ export function TeamPage() {
       password: '',
       role: ROLES.DEPARTMENT_ADMIN,
       department_id: '',
+      phone_number: '',
     });
     setUserModalOpen(true);
   };
@@ -150,21 +159,26 @@ export function TeamPage() {
       password: '',
       role: frontendRole,
       department_id: u.department_id != null ? String(u.department_id) : '',
+      phone_number: u.phone_number || '',
     });
     setUserModalOpen(true);
   };
 
   const requiresDepartment = (r) =>
-    r === ROLES.DEPARTMENT_HEAD || r === ROLES.DEPARTMENT_ADMIN || r === ROLES.PERSONNEL;
+    r === ROLES.DEPARTMENT_HEAD || r === ROLES.DEPARTMENT_ADMIN || r === ROLES.PERSONNEL || r === FIELD_RESPONDER;
 
   const saveUser = async () => {
-    const { first_name, last_name, email, password, role: frontendRole, department_id } = userForm;
+    const { first_name, last_name, email, password, role: frontendRole, department_id, phone_number } = userForm;
     if (!first_name?.trim() || !last_name?.trim() || !email?.trim()) {
       Swal.fire({ icon: 'warning', title: 'Missing required fields', text: 'Please enter first name, last name, and email.', confirmButtonColor: SWAL_PRIMARY });
       return;
     }
     if (requiresDepartment(frontendRole) && !department_id) {
       Swal.fire({ icon: 'warning', title: 'Department required', text: 'Please select a department for this role.', confirmButtonColor: SWAL_PRIMARY });
+      return;
+    }
+    if (frontendRole === FIELD_RESPONDER && !isValidLocalPhone(phone_number)) {
+      Swal.fire({ icon: 'warning', title: 'Phone required', text: 'Field responders need a local mobile number (09XXXXXXXXX) to sign in on the app.', confirmButtonColor: SWAL_PRIMARY });
       return;
     }
     if (!editingUser && !password?.trim()) {
@@ -178,6 +192,7 @@ export function TeamPage() {
 
     const backendRole = roleToBackend(frontendRole);
     const deptId = requiresDepartment(frontendRole) && department_id ? parseInt(department_id, 10) : null;
+    const isFieldResponder = frontendRole === FIELD_RESPONDER;
 
     setSavingUser(true);
     try {
@@ -187,8 +202,9 @@ export function TeamPage() {
           department_id: deptId,
           first_name: first_name.trim(),
           last_name: last_name.trim(),
+          ...(isFieldResponder ? { phone_number: phone_number.trim() } : {}),
         });
-        Swal.fire({ icon: 'success', title: 'User updated', text: 'User role, department, and name have been saved.', timer: 2000, showConfirmButton: false, timerProgressBar: true });
+        Swal.fire({ icon: 'success', title: 'User updated', text: isFieldResponder ? 'They sign in on mobile with phone + password, not the web dispatcher portal.' : 'User role, department, and name have been saved.', timer: 2000, showConfirmButton: false, timerProgressBar: true });
       } else {
         await createUser({
           first_name: first_name.trim(),
@@ -197,8 +213,18 @@ export function TeamPage() {
           password: password.trim(),
           role: backendRole,
           department_id: deptId,
+          ...(isFieldResponder ? { phone_number: phone_number.trim() } : {}),
         });
-        Swal.fire({ icon: 'success', title: 'User created', text: 'The user can now sign in with their email and password.', timer: 2500, showConfirmButton: false, timerProgressBar: true });
+        Swal.fire({
+          icon: 'success',
+          title: 'User created',
+          text: isFieldResponder
+            ? 'They sign in on the mobile app with their phone number and password, not the web dispatcher portal.'
+            : 'The user can now sign in with their email and password.',
+          timer: 2500,
+          showConfirmButton: false,
+          timerProgressBar: true,
+        });
       }
       setUserModalOpen(false);
       await fetchUsers(currentPage);
@@ -391,6 +417,7 @@ export function TeamPage() {
                 <div>
                   <Label className="text-foreground">First name *</Label>
                   <Input
+                    maxLength={100}
                     value={userForm.first_name}
                     onChange={(e) => setUserForm({ ...userForm, first_name: e.target.value })}
                     placeholder="First name"
@@ -400,6 +427,7 @@ export function TeamPage() {
                 <div>
                   <Label className="text-foreground">Last name *</Label>
                   <Input
+                    maxLength={100}
                     value={userForm.last_name}
                     onChange={(e) => setUserForm({ ...userForm, last_name: e.target.value })}
                     placeholder="Last name"
@@ -421,13 +449,23 @@ export function TeamPage() {
               {!editingUser && (
                 <div>
                   <Label className="text-foreground">Password * (min 8 characters)</Label>
-                  <Input
-                    type="password"
-                    value={userForm.password}
-                    onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
-                    placeholder="••••••••"
-                    className="mt-1.5"
-                  />
+                  <div className="relative mt-1.5">
+                    <Input
+                      type={showPassword ? 'text' : 'password'}
+                      value={userForm.password}
+                      onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
+                      placeholder="••••••••"
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-foreground focus:outline-none"
+                      onClick={() => setShowPassword((v) => !v)}
+                    >
+                      {showPassword ? <EyeOff className="w-5 h-5" strokeWidth={2} /> : <Eye className="w-5 h-5" strokeWidth={2} />}
+                    </button>
+                  </div>
                 </div>
               )}
               <div>
@@ -456,6 +494,17 @@ export function TeamPage() {
                   )}
                 </Select>
               </div>
+              {userForm.role === FIELD_RESPONDER && (
+                <div>
+                  <Label className="text-foreground">Mobile phone *</Label>
+                  <PhoneInput
+                    value={userForm.phone_number}
+                    onChange={(e) => setUserForm({ ...userForm, phone_number: e.target.value })}
+                    className="mt-1.5"
+                  />
+                  <p className="text-xs text-muted mt-1">Used to sign in on the mobile app (09XXXXXXXXX).</p>
+                </div>
+              )}
               {requiresDepartment(userForm.role) && (
                 <div>
                   <Label className="text-foreground">Department *</Label>

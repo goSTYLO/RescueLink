@@ -1,16 +1,26 @@
 # RescueLink Memory
 
-## Incident detail routing (promoted responders)
+## Frontend form validation (mobile + web)
 
-- **Account role** (`user` vs `responder`) unlocks capabilities (Responder tab, accept alerts). It must **not** choose which incident detail screen to show from History.
+- Phone inputs: digits only, max 11 chars, local PH format `09XXXXXXXXX` (`Validators.phoneInputFormatters` on mobile; `PhoneInput` / `inputUtils.js` on web). Backend `validatePhone()` stores local format; login lookup normalizes across `09` / `639` / `+639`.
+- All password fields include show/hide toggles; mobile biometric enable uses shared `biometric_password_dialog.dart`.
+- Name/notes fields use `maxLength` aligned with backend limits (100 names, 255 address, 500 notes).
+
+Added: 2026-09-09 — consistent client-side validation across forms.
+
+## Incident detail routing (personnel vs volunteer)
+
+- **`responder`** (team personnel, e.g. `09003000003`): Assigned history, assigned nearby list, no Accept/Decline, always online (toggle hidden).
+- **`volunteer`** (approved first-responder application): nearby pool, Accept/Decline, backup join, Online/Offline switch.
+- Both can still report SOS/incidents. History API: `GET /api/incidents/user/my?involvement=reported|accepted|assigned|all`.
 - **Involvement** chooses the detail screen:
-  - `reported` → citizen `IncidentDetailsScreen` (timeline, confirm resolution)
-  - `accepted` → `ResponderIncidentDetailScreen` (response actions / read-only when resolved)
-  - `both` → citizen view under All/Reported filters; responder view under Accepted filter
-- History API: `GET /api/incidents/user/my?involvement=reported|accepted|all` returns an `involvement` field per row.
-- `ResponderIncidentPreviewScreen` is only for **unaccepted pool** incidents (dashboard alerts), not History.
+  - `reported` → citizen `IncidentDetailsScreen`
+  - `accepted` → volunteer `ResponderIncidentDetailScreen`
+  - `assigned` → personnel detail with `isTeamAssignment: true`
+  - `both` → citizen view under Reported; responder/volunteer view under Assigned/Accepted
+- `ResponderIncidentPreviewScreen` is only for **unaccepted volunteer pool** incidents, not History.
 
-Added: 2026-08-16 — dual incident views after citizen-to-responder promotion.
+Added: 2026-08-16 — dual incident views after citizen-to-responder promotion. Updated: 2026-09-09 — personnel Assigned vs volunteer Accepted.
 
 ## Multi-type AI classification (display vs dispatch)
 
@@ -80,6 +90,23 @@ Added: 2026-08-18 — dispatcher close for resolved / volunteer-resolved inciden
 ## SOS activation (2026-09-08)
 
 - Mobile SOS no longer requires a 3-second hold. **Tap** the SOS tile or **shake** the phone while the logged-in home shell is foreground (any tab) to start the existing **5-second cancel overlay**, then submit via `reportEmergency()` (no AI/audio). A **2-second heavy haptic pulse** plays when the cancel overlay opens (tap or shake).
-- Shake uses `sensors_plus` user accelerometer with a fixed threshold + cooldown; tune in field if pocket false-positives appear.
+- Shake uses `sensors_plus` user accelerometer (~12 m/s² spike threshold, 2 spikes / 500ms); tune in field if pocket false-positives appear.
 
 Added: 2026-09-08 — tap/shake SOS replaces hold-to-activate.
+
+## Seeded account mobile login (2026-09-08)
+
+- Mobile auth is phone + password only; web staff uses email. Seeded users store E.164 `+639…` phones; `User.findByPhone` compares canonical digits so `639…`, `+639…`, and `09…` all match.
+- Full phone credentials: `Documentation/backend/ACCOUNTS.md`.
+
+Added: 2026-09-08 — phone format normalization for seeded mobile login.
+
+## Responder vs volunteer RBAC (2026-09-09)
+
+- Team personnel keep `users.role = responder`. Approved applications promote to `volunteer`, not `responder`.
+- Volunteer-only: nearby `/incidents/responder/active`, preview, accept/decline, volunteer `responder-status`, backup join APIs, `responder:incident_alert` / `backup_alert` WS.
+- Personnel-only: `/responders/me/assigned-incidents`, `/me/team`, `PATCH /dispatches/me/status`. Phone login forces `responder_online = true`.
+- Super-admin Team **Field Responder** creates a mobile personnel account (phone + department). Dept Add Responder may attach email/password/phone for the same.
+- Migration `add_volunteer_role.sql` remaps non-team `responder` users to `volunteer`.
+
+Added: 2026-09-09 — split mobile field roles.

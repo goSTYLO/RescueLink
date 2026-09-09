@@ -245,9 +245,11 @@ class _LoginScreenState extends State<LoginScreen> {
                           TextFormField(
                             controller: _phoneController,
                             keyboardType: TextInputType.phone,
+                            inputFormatters: Validators.phoneInputFormatters,
+                            maxLength: 11,
                             decoration: InputDecoration(
                               prefixIcon: Icon(Icons.phone, size: 20, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6)),
-                              hintText: 'Enter your number',
+                              hintText: '09171234567',
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 borderSide: BorderSide(

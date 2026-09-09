@@ -433,7 +433,7 @@ async function promoteToVolunteerResponder(options = {}) {
   } = options;
 
   const userRow = await pool.query(
-    "SELECT user_id, role FROM users WHERE role IN ('user', 'responder') ORDER BY user_id LIMIT 1"
+    "SELECT user_id, role FROM users WHERE role IN ('user', 'volunteer') ORDER BY user_id LIMIT 1"
   );
   if (!userRow.rows[0]) {
     throw new Error('No suitable user in DB for volunteer responder test');
@@ -442,7 +442,7 @@ async function promoteToVolunteerResponder(options = {}) {
   const originalRole = userRow.rows[0].role;
 
   await pool.query(
-    `UPDATE users SET role = 'responder', responder_online = $1 WHERE user_id = $2`,
+    `UPDATE users SET role = 'volunteer', responder_online = $1 WHERE user_id = $2`,
     [online, userId]
   );
 
@@ -460,7 +460,7 @@ async function promoteToVolunteerResponder(options = {}) {
     );
   }
 
-  const token = jwt.sign({ user_id: userId, role: ROLES.RESPONDER }, JWT_SECRET, { expiresIn: '1h' });
+  const token = jwt.sign({ user_id: userId, role: ROLES.VOLUNTEER }, JWT_SECRET, { expiresIn: '1h' });
   return { userId, token, originalRole };
 }
 

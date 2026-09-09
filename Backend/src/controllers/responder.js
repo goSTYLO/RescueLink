@@ -3,7 +3,8 @@ const User = require('../models/user');
 const Department = require('../models/department');
 const Dispatch = require('../models/dispatch');
 const pool = require('../config/db');
-const { validateInteger, validateString, validateOptionalString, validatePagination, validateAllowedValue, validateLatitude, validateLongitude } = require('../utils/validation');
+const { hashPassword } = require('../utils/hash');
+const { validateInteger, validateString, validateOptionalString, validatePagination, validateAllowedValue, validateLatitude, validateLongitude, validatePhone, validateEmail, validatePassword } = require('../utils/validation');
 const { logDispatcherAction } = require('../utils/auditLog');
 const { ROLES } = require('../config/roles');
 
@@ -34,7 +35,10 @@ function normalizeTaskTypes(input) {
 const responderController = {
   async create(req, res) {
     try {
-      const { name, organization, contact_number, availability_status, source_type, team_name, supported_incident_types } = req.body;
+      const {
+        name, organization, contact_number, availability_status, source_type, team_name, supported_incident_types,
+        email, password, phone_number, first_name, last_name, department_id,
+      } = req.body;
       if (!name) return res.status(400).json({ error: 'Name is required' });
 
       const validatedName = validateString(name, 'name', 1, 150);
@@ -49,14 +53,47 @@ const responderController = {
       const validatedTeamName = validateOptionalString(team_name, 'team_name', 150);
       const normalizedTaskTypes = normalizeTaskTypes(supported_incident_types);
 
+      let userId = null;
+      const wantsLogin = Boolean(email || password || phone_number);
+      if (wantsLogin) {
+        if (!email || !password || !phone_number) {
+          return res.status(400).json({ error: 'email, password, and phone_number are required together to create a mobile login' });
+        }
+        const validatedEmail = validateEmail(email);
+        const validatedPassword = validatePassword(password);
+        const validatedPhone = validatePhone(String(phone_number));
+        if (await User.findByEmail(validatedEmail)) {
+          return res.status(409).json({ error: 'Email already exists' });
+        }
+        if (await User.findByPhone(validatedPhone)) {
+          return res.status(409).json({ error: 'Phone number already exists' });
+        }
+        const passwordHash = await hashPassword(validatedPassword);
+        const deptId = department_id != null && department_id !== '' ? validateInteger(department_id, 'department_id') : (req.user?.department_id || null);
+        const createdUser = await User.create({
+          email: validatedEmail,
+          phone_number: validatedPhone,
+          first_name: validateOptionalString(first_name || validatedName.split(' ')[0], 'first_name', 100),
+          last_name: validateOptionalString(last_name || validatedName.split(' ').slice(1).join(' ') || validatedName, 'last_name', 100),
+          password: passwordHash,
+          role: ROLES.RESPONDER,
+          department_id: deptId,
+        });
+        userId = createdUser.user_id;
+        try {
+          await pool.query('UPDATE users SET responder_online = TRUE WHERE user_id = $1', [userId]);
+        } catch (_) {}
+      }
+
       const responder = await Responder.create({
         name: validatedName,
         organization: validatedOrganization,
         contact_number: validatedContactNumber,
         availability_status: validatedAvailabilityStatus,
-        source_type: validatedSourceType,
+        source_type: userId ? 'account' : validatedSourceType,
         team_name: validatedTeamName,
         supported_incident_types: normalizedTaskTypes,
+        user_id: userId,
       });
 
       await logDispatcherAction(req, 'responder_create', 'responder', responder.responder_id, {
@@ -297,6 +334,17 @@ const responderController = {
       const teamId = validateInteger(req.params.teamId, 'team ID');
       const responderId = validateInteger(req.body?.responder_id, 'responder ID');
       const member = await Responder.addTeamMember(teamId, responderId);
+      const linked = await pool.query('SELECT user_id FROM responders WHERE responder_id = $1', [responderId]);
+      if (linked.rows[0]?.user_id) {
+        await pool.query(
+          `UPDATE users SET role = $1
+            WHERE user_id = $2 AND LOWER(COALESCE(role, '')) IN ('volunteer', 'user')`,
+          [ROLES.RESPONDER, linked.rows[0].user_id]
+        );
+        try {
+          await pool.query('UPDATE users SET responder_online = TRUE WHERE user_id = $1', [linked.rows[0].user_id]);
+        } catch (_) {}
+      }
       await logDispatcherAction(req, 'responder_team_member_add', 'responder_team', teamId, { responder_id: responderId });
       res.status(201).json(member || { team_id: teamId, responder_id: responderId });
     } catch (error) {

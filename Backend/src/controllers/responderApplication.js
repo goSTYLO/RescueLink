@@ -82,6 +82,10 @@ const responderApplicationController = {
         return res.status(400).json({ error: 'Please select at least one specialization field (Fire, Medical, Police, Disaster).' });
       }
 
+      if (!req.files?.gov_id?.[0]) {
+        return res.status(400).json({ error: 'Government ID upload is required.' });
+      }
+
       // Check per-field proof files
       const fieldProofPaths = {};
       for (const field of specializationFields) {
@@ -265,10 +269,9 @@ const responderApplicationController = {
         reviewed_by: req.user.user_id,
       });
 
-      // If approved: Promote user to 'responder' role and add to responder pool
+      // If approved: Promote user to volunteer first-responder and add to volunteer pool
       if (normalizedStatus === 'approved') {
-        // Update role in DB
-        await pool.query("UPDATE users SET role = 'responder' WHERE user_id = $1", [application.user_id]);
+        await pool.query("UPDATE users SET role = 'volunteer' WHERE user_id = $1", [application.user_id]);
 
         // Add to responders table pool if not present
         const applicantUser = await User.findById(application.user_id);
@@ -381,7 +384,7 @@ const responderApplicationController = {
         return res.status(404).json({ error: 'Applicant user not found.' });
       }
 
-      if ((applicantUser.role || '').toLowerCase() !== 'responder') {
+      if ((applicantUser.role || '').toLowerCase() !== 'volunteer') {
         return res.status(400).json({
           error: 'User is not currently a volunteer first responder.',
           current_role: applicantUser.role,

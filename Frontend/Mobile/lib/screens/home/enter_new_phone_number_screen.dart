@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
-import 'package:flutter/services.dart';
+import '../../utils/validators.dart';
 
 class EnterNewPhoneNumberScreen extends StatefulWidget {
   final VoidCallback? onBack;
@@ -17,12 +17,24 @@ class EnterNewPhoneNumberScreen extends StatefulWidget {
 }
 
 class _EnterNewPhoneNumberScreenState extends State<EnterNewPhoneNumberScreen> {
-  final _numberController = TextEditingController(text: '917 123 4567');
+  final _numberController = TextEditingController();
 
   @override
   void dispose() {
     _numberController.dispose();
     super.dispose();
+  }
+
+  void _handleSendOtp() {
+    final phone = _numberController.text.trim();
+    final error = Validators.validatePhoneNumber(phone);
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error)),
+      );
+      return;
+    }
+    widget.onSendOtp?.call(Validators.formatPhoneForFirebase(phone));
   }
 
   @override
@@ -34,7 +46,6 @@ class _EnterNewPhoneNumberScreenState extends State<EnterNewPhoneNumberScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // Red header
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -93,7 +104,6 @@ class _EnterNewPhoneNumberScreenState extends State<EnterNewPhoneNumberScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Illustration
                     SizedBox(
                       height: 200,
                       child: Image.asset(
@@ -103,7 +113,6 @@ class _EnterNewPhoneNumberScreenState extends State<EnterNewPhoneNumberScreen> {
                       ),
                     ),
                     const SizedBox(height: 24),
-                    // Current Verified Number input card
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
@@ -122,7 +131,7 @@ class _EnterNewPhoneNumberScreenState extends State<EnterNewPhoneNumberScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text(
-                            'Current Verified Number',
+                            'New Phone Number',
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
@@ -130,43 +139,16 @@ class _EnterNewPhoneNumberScreenState extends State<EnterNewPhoneNumberScreen> {
                             ),
                           ),
                           const SizedBox(height: 12),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF9FAFB),
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: const Color(0xFFE5E7EB)),
-                            ),
-                            child: Row(
-                              children: [
-                                const Text(
-                                  '+63',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF111827),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: TextField(
-                                    controller: _numberController,
-                                    keyboardType: TextInputType.phone,
-                                    style: const TextStyle(fontSize: 16, color: Color(0xFF374151)),
-                                    decoration: const InputDecoration(
-                                      border: InputBorder.none,
-                                      isDense: true,
-                                      contentPadding: EdgeInsets.zero,
-                                      hintText: '917 123 4567',
-                                      hintStyle: TextStyle(color: Color(0xFF9CA3AF)),
-                                    ),
-                                    inputFormatters: [
-                                      FilteringTextInputFormatter.allow(RegExp(r'[\d\s]')),
-                                      LengthLimitingTextInputFormatter(11),
-                                    ],
-                                  ),
-                                ),
-                              ],
+                          TextField(
+                            controller: _numberController,
+                            keyboardType: TextInputType.phone,
+                            inputFormatters: Validators.phoneInputFormatters,
+                            maxLength: 11,
+                            style: const TextStyle(fontSize: 16, color: Color(0xFF374151)),
+                            decoration: const InputDecoration(
+                              border: OutlineInputBorder(),
+                              hintText: '09171234567',
+                              hintStyle: TextStyle(color: Color(0xFF9CA3AF)),
                             ),
                           ),
                           const SizedBox(height: 8),
@@ -178,7 +160,6 @@ class _EnterNewPhoneNumberScreenState extends State<EnterNewPhoneNumberScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    // Security Notice (light yellow)
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
@@ -232,7 +213,6 @@ class _EnterNewPhoneNumberScreenState extends State<EnterNewPhoneNumberScreen> {
                       ),
                     ),
                     const SizedBox(height: 28),
-                    // Cancel + Send OTP buttons
                     Row(
                       children: [
                         Expanded(
@@ -250,10 +230,7 @@ class _EnterNewPhoneNumberScreenState extends State<EnterNewPhoneNumberScreen> {
                         const SizedBox(width: 12),
                         Expanded(
                           child: ElevatedButton(
-                            onPressed: () {
-                              final number = _numberController.text.trim().replaceAll(' ', '');
-                              if (number.length >= 10) widget.onSendOtp?.call('+63$number');
-                            },
+                            onPressed: _handleSendOtp,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFFEF4444),
                               padding: const EdgeInsets.symmetric(vertical: 16),

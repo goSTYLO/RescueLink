@@ -121,7 +121,21 @@ class ResponderApplicationService {
       );
     }
 
-    final streamedResponse = await request.send().timeout(AppConfig.apiTimeout);
+    final http.StreamedResponse streamedResponse;
+    try {
+      streamedResponse = await request.send().timeout(AppConfig.apiTimeout);
+    } on SocketException {
+      throw ApiException(
+        'Could not reach the server. Check Wi‑Fi and that the RescueLink backend is running.',
+      );
+    } on http.ClientException catch (e) {
+      if (e.message.contains('Connection reset') || e.message.contains('Connection refused')) {
+        throw ApiException(
+          'Upload was interrupted. If the backend is in dev mode, wait a moment and try again.',
+        );
+      }
+      rethrow;
+    }
     final response = await http.Response.fromStream(streamedResponse);
 
     if (response.statusCode >= 200 && response.statusCode < 300) {

@@ -13,15 +13,16 @@ Implemented responder incident acceptance and status tracking workflow:
   - `backup_requests`: Field responder backup requests (`report_id`, `requested_by_user_id`, `target`, `notes`, `created_at`).
   - `notifications`: `category` (`incident`, `application`, `responder_alert`, `backup_request`, `system`).
 - **Endpoints**:
-  - `POST /api/incidents/:id/accept`: Responders accept an unassigned pending/verified incident within alert radius.
-  - `POST /api/incidents/:id/decline`: Logs decline action.
-  - `PATCH /api/incidents/:id/responder-status`: Enforces state transition machine (`Assigned` -> `En Route` -> `On Scene` -> `Resolved`).
-  - `POST /api/incidents/:id/backup`: Request backup from CDRRMO, nearby responders, or both.
+  - `POST /api/incidents/:id/accept`: **Volunteer** accepts an unassigned pending/verified incident within alert radius.
+  - `POST /api/incidents/:id/decline`: **Volunteer** logs decline action.
+  - `PATCH /api/incidents/:id/responder-status`: **Volunteer** acceptor state machine (`Assigned` -> `En Route` -> `On Scene` -> `Resolved`).
+  - `POST /api/incidents/:id/backup`: Request backup from CDRRMO, nearby volunteers, or both.
   - `GET /api/incidents/:id/backup`: Fetch backup requests for an incident.
-  - `GET /api/incidents/responder/active`: List the volunteer's active assignments plus nearby unaccepted open incidents matching their specialization (within alert radius).
+  - `GET /api/incidents/responder/active`: **Volunteer** nearby pool plus their accepted assignments.
   - `GET /api/incidents/responder/history`: Paginated list of completed (Resolved) incidents.
-  - `PATCH /api/responders/me/online-status`: Server-persisted online/offline toggle for responders.
-  - `GET /api/responders/me/profile`: Retrieve responder self-profile.
+  - `PATCH /api/responders/me/online-status`: Volunteers toggle online/offline; personnel are forced online at phone login.
+  - `GET /api/responders/me/profile`: Retrieve responder/volunteer self-profile.
+  - `GET /api/responders/me/assigned-incidents`: **Personnel** team assignments only.
 
 ## Phase 2: Volunteer Responder Onboarding (Credential-Based)
 
@@ -33,7 +34,7 @@ Implemented full backend module for credential-based volunteer responder applica
   - `GET /api/responder-applications/me`: Get current user's application status.
   - `GET /api/responder-applications`: List all applications (Dispatcher/Admin, filterable by `status`).
   - `GET /api/responder-applications/:id`: View application details.
-  - `PATCH /api/responder-applications/:id/status`: Approve or reject application with notes. On approval, automatically promotes `users.role = 'responder'` and adds applicant to `responders` pool.
+  - `PATCH /api/responder-applications/:id/status`: Approve or reject application with notes. On approval, automatically promotes `users.role = 'volunteer'` and adds applicant to the volunteer pool. Team personnel stay `responder`.
   - `GET /api/responder-applications/:id/documents/:filename`: Protected access-controlled document file serving.
 
 ## Session Updates (Rate Limit, Notifications, Incident Closure)
@@ -52,6 +53,10 @@ Recent backend updates:
   - `allow_force_close` passed to Incident model when actor is admin/dispatcher.
 - **Resource release on closed**:
   - `releaseIncidentResources` continues to run on `resolved` and `closed`, releasing teams, responders, and department units.
+
+## Dev: volunteer application upload (`Connection reset by peer`)
+
+`pnpm run dev` uses nodemon. Without `nodemon.json`, saving files under `uploads/` during `POST /api/responder-applications` restarted the server mid-request and the mobile app saw **Connection reset by peer**. Nodemon now watches only `src/` and ignores `uploads/**`. Restart the backend after pulling this change. Admin Field Responder / dept personnel create use JSON only — not affected.
 
 ## Session Updates (Mobile + Backend Incident Integration)
 
