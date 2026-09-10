@@ -251,7 +251,7 @@ class _AuthNavigatorState extends State<AuthNavigator> with WidgetsBindingObserv
 
   Future<void> _performLogout() async {
     WebSocketService().disconnect();
-    OneSignalService().logoutUser();
+    await OneSignalService().logoutUser();
     await AuthService().logout();
     if (!mounted) return;
     _backToLogin();
@@ -342,9 +342,16 @@ class _AuthNavigatorState extends State<AuthNavigator> with WidgetsBindingObserv
           context.read<AuthBloc>().add(const AuthReset());
         }
         if (state is LoginSuccess) {
-          // Brief delay so token is fully persisted before WebSocket connects
+          // Prefer LoginSuccess.user; fall back to JWT/prefs after token persist.
+          final fromState = parsePositiveUserId(state.user['user_id']);
+          // Brief delay so token is fully persisted before WebSocket / OneSignal link
           Future.delayed(const Duration(milliseconds: 200), () {
-            if (mounted) WebSocketService().connect();
+            if (!mounted) return;
+            WebSocketService().connect();
+            final userId = fromState ?? AuthService().getUserId();
+            if (userId != null) {
+              OneSignalService().loginUser(userId);
+            }
           });
           setState(() {
             _showDashboard = true;
@@ -531,6 +538,7 @@ class _AuthNavigatorState extends State<AuthNavigator> with WidgetsBindingObserv
           );
           if (confirmed == true && mounted) {
             WebSocketService().disconnect();
+            await OneSignalService().logoutUser();
             await AuthService().logout();
             if (!mounted) return;
             await Future.delayed(const Duration(milliseconds: 150));
@@ -850,18 +858,14 @@ class _AuthNavigatorState extends State<AuthNavigator> with WidgetsBindingObserv
     }
 
     // Default: Login screen
+    // OneSignal.login is owned by AuthNavigator LoginSuccess (+ _restoreSession).
+    // LoginScreen.onLoginSuccess is dead (listenWhen only admits LoginError).
     return LoginScreen(
       onSignUpTap: _toggleView,
       onForgotPasswordTap: _showForgotPassword,
       onLoginSuccess: () {
         Future.delayed(const Duration(milliseconds: 200), () {
-          if (mounted) {
-            WebSocketService().connect();
-            final userId = AuthService().getUserId();
-            if (userId != null) {
-              OneSignalService().loginUser(userId);
-            }
-          }
+          if (mounted) WebSocketService().connect();
         });
         setState(() => _showDashboard = true);
       },

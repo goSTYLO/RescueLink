@@ -10,10 +10,12 @@ import 'notifications_screen.dart';
 import 'settings_screen.dart';
 import '../../services/auth_service.dart';
 import '../../services/responder_alert_coordinator.dart';
+import '../../services/emergency_dispatch_alert_coordinator.dart';
 import '../../utils/incident_navigation.dart';
 import '../../utils/responsive.dart';
 import '../../utils/sos_shake_detector.dart';
 import '../../widgets/staggered_fade_in.dart';
+import '../department/department_ops_dashboard_screen.dart';
 import '../responder/responder_dashboard_screen.dart';
 
 class HomePlaceholderScreen extends StatefulWidget {
@@ -64,12 +66,19 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
   String _locationTitle = 'Dagupan City, Pangasinan';
   String _locationTimestamp = 'Updating...';
   bool _isResponder = false;
+  bool _isDepartmentOps = false;
   bool _responderOnline = false;
   bool _revokeModalShowing = false;
   bool _approveModalShowing = false;
   final ResponderAlertCoordinator _responderAlertCoordinator = ResponderAlertCoordinator();
+  final EmergencyDispatchAlertCoordinator _emergencyAlertCoordinator =
+      EmergencyDispatchAlertCoordinator();
   final GlobalKey<ResponderDashboardScreenState> _responderDashboardKey =
       GlobalKey<ResponderDashboardScreenState>();
+  final GlobalKey<DepartmentOpsDashboardScreenState> _deptOpsDashboardKey =
+      GlobalKey<DepartmentOpsDashboardScreenState>();
+
+  bool get _hasOpsTab => _isResponder;
 
   StreamSubscription<UserAccelerometerEvent>? _shakeSubscription;
   final SosShakeDetector _shakeDetector = SosShakeDetector();
@@ -81,10 +90,14 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
 
     _loadHomeLocation();
     _fetchUnreadCount();
-    // Detect responder role (synchronous from cache, refreshed by _loadHomeLocation)
+    // Detect ops roles (synchronous from cache, refreshed by _loadHomeLocation)
     _isResponder = AuthService().hasResponderTab;
+    _isDepartmentOps = AuthService().isDepartmentOps;
     if (_isResponder) {
       unawaited(_initResponderAlerts());
+    }
+    if (_isResponder || _isDepartmentOps) {
+      unawaited(_initStaffEmergencyAlerts());
     }
     _wsSubscription = WebSocketService().eventStream.listen((event) {
       if (!mounted) return;
@@ -145,14 +158,16 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
 
   Future<void> _checkAndPromptNotifications() async {
     final onesignal = OneSignalService();
+    final isEnabled = await onesignal.isPushEnabled();
+    if (isEnabled) {
+      // Already allowed — don't re-prompt on later launches; heal optedIn=false.
+      await onesignal.markPermissionPrompted();
+      await onesignal.ensureOptedInIfAllowed();
+      return;
+    }
+
     final alreadyPrompted = await onesignal.hasPromptedPermission();
     if (alreadyPrompted) return;
-
-    final isEnabled = await onesignal.isPushEnabled();
-    if (isEnabled) return;
-
-    // Mark as prompted so it only asks 1 time
-    await onesignal.markPermissionPrompted();
 
     if (!mounted) return;
 
@@ -205,6 +220,7 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
           FilledButton(
             onPressed: () async {
               Navigator.of(ctx).pop();
+              // requestPermission marks prompted; only after Turn On.
               final granted = await onesignal.requestPermission();
               if (mounted && granted) {
                 ScaffoldMessenger.maybeOf(context)?.showSnackBar(
@@ -294,6 +310,7 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
     OneSignalService().setOnNotificationOpened(null);
     _wsSubscription?.cancel();
     _responderAlertCoordinator.stop();
+    _emergencyAlertCoordinator.stop();
     _sosTimer?.cancel();
     _stopSosCancelVibration();
     super.dispose();
@@ -307,6 +324,25 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
   }
 
   static const int _responderTabIndex = 2;
+
+  Future<void> _initStaffEmergencyAlerts() async {
+    // Staff must receive amber pushes — request permission (not citizen opt-in default).
+    final onesignal = OneSignalService();
+    final enabled = await onesignal.isPushEnabled();
+    if (!enabled) {
+      await onesignal.requestPermission();
+    } else {
+      await onesignal.ensureOptedInIfAllowed();
+    }
+    _emergencyAlertCoordinator.onOpenIncident = (reportId) {
+      _openIncidentByInvolvement(reportId);
+    };
+    _emergencyAlertCoordinator.onAlertDismissed = () {
+      unawaited(_responderDashboardKey.currentState?.refreshIncidents() ?? Future.value());
+      unawaited(_deptOpsDashboardKey.currentState?.refreshIncidents() ?? Future.value());
+    };
+    _emergencyAlertCoordinator.start();
+  }
 
   Future<void> _initResponderAlerts() async {
     var online = await _responderAlertCoordinator.refreshOnlineStatus();
@@ -503,15 +539,27 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
       if (freshRole != null && freshRole.isNotEmpty) {
         await AuthService().cacheUserRole(freshRole);
       }
-      final hasTab = AuthService().hasResponderTab;
-      if (mounted && freshRole != null && hasTab != _isResponder) {
-        setState(() => _isResponder = hasTab);
-        if (hasTab) {
+      final hasResponder = AuthService().hasResponderTab;
+      final hasDeptOps = AuthService().isDepartmentOps;
+      if (mounted &&
+          (hasResponder != _isResponder || hasDeptOps != _isDepartmentOps)) {
+        setState(() {
+          _isResponder = hasResponder;
+          _isDepartmentOps = hasDeptOps;
+          final maxIdx = hasResponder ? 3 : 2;
+          if (_currentIndex > maxIdx) _currentIndex = maxIdx;
+        });
+        if (hasResponder) {
           WebSocketService().disconnect();
           WebSocketService().connect();
           unawaited(_initResponderAlerts());
         } else {
           _responderAlertCoordinator.stop();
+        }
+        if (hasResponder || hasDeptOps) {
+          unawaited(_initStaffEmergencyAlerts());
+        } else {
+          _emergencyAlertCoordinator.stop();
         }
         _restartShakeListening();
       }
@@ -1325,6 +1373,16 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
 
   // ── REPORTS TAB ────────────────────────────────────────────────────────────
   Widget _buildReportHistoryContent() {
+    if (_isDepartmentOps) {
+      return StaggeredFadeIn.single(
+        trigger: _currentIndex == 1 ? _tabSwitchCounter : null,
+        child: DepartmentOpsDashboardScreen(
+          key: _deptOpsDashboardKey,
+          onNotificationsTap: () => _openNotifications(context),
+          unreadNotificationCount: _apiUnreadCount + _unreadReportsCount,
+        ),
+      );
+    }
     return StaggeredFadeIn.single(
       trigger: _currentIndex == 1 ? _tabSwitchCounter : null,
       child: ReportHistoryScreen(
@@ -1338,7 +1396,7 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
 
   // ── SETTINGS TAB ───────────────────────────────────────────────────────────
   Widget _buildSettingsContent() {
-    final settingsIndex = _isResponder ? 3 : 2;
+    final settingsIndex = _hasOpsTab ? 3 : 2;
     return StaggeredFadeIn.single(
       trigger: _currentIndex == settingsIndex ? _tabSwitchCounter : null,
       child: SettingsScreen(
@@ -1359,6 +1417,7 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
   @override
   Widget build(BuildContext context) {
     _responderAlertCoordinator.updateContext(context);
+    _emergencyAlertCoordinator.updateContext(context);
     final screenWidth = MediaQuery.sizeOf(context).width;
     final List<Widget> pages = [
       _buildHomeContent(),
@@ -1388,7 +1447,7 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
 
   Widget _buildBottomNav(double screenWidth) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final settingsIndex = _isResponder ? 3 : 2;
+    final settingsIndex = _hasOpsTab ? 3 : 2;
     return Container(
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF111827) : Colors.white,
@@ -1443,6 +1502,9 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
         });
         if (_isResponder && index == 2) {
           unawaited(_syncResponderOnlineFromServer());
+        }
+        if (_isDepartmentOps && index == 1) {
+          unawaited(_deptOpsDashboardKey.currentState?.refreshIncidents() ?? Future.value());
         }
       },
       borderRadius: BorderRadius.circular(12),

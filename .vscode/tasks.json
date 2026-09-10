@@ -109,7 +109,7 @@
     },
     {
       "label": "Run All Services",
-      "dependsOn": ["Backend: dev", "RescueLink AI: dev", "Blockchain: dev", "Web: dev", "Web: open browser"],
+      "dependsOn": ["Backend: dev", "RescueLink AI: dev", "Web: dev", "Web: open browser"],
       "dependsOrder": "parallel",
       "group": {
         "kind": "build",

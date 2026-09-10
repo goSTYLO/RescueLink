@@ -13,6 +13,7 @@ This folder is the consolidated entry point for project documentation.
 ## Guides
 
 - [Manual Run & Test Guide](guides/MANUAL_RUN_TEST_GUIDE.md) — Primary runbook for full-stack startup, health checks, and test commands
+- [OneSignal Amber Alert Setup](guides/ONESIGNAL_AMBER_ALERT_SETUP.md) — Dashboard checklist for emergency channel, sounds, External IDs
 - [Security Manual QA Checklist](guides/SECURITY_MANUAL_QA_CHECKLIST.md)
 - [Security Checklist Presentation & Testing](guides/SECURITY_CHECKLIST_PRESENTATION_AND_TESTING.md)
 

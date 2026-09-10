@@ -16,6 +16,122 @@ const WEB_DASHBOARD_URL = process.env.WEB_DASHBOARD_URL || process.env.FRONTEND_
 const CHUNK_SIZE = 2000;
 const MAX_RETRIES = 3;
 
+/** Must match OneSignal dashboard + Android notification channel id. */
+const EMERGENCY_ANDROID_CHANNEL_ID = '724e011a-e821-4e40-a810-9c175737a997';
+/** Sound file base name (Android raw / iOS bundle); see ONESIGNAL_AMBER_ALERT_SETUP.md. */
+const EMERGENCY_SOUND = 'emergency_alert';
+
+/**
+ * Build the OneSignal REST notification body (exported for unit tests).
+ * @param {string} appId
+ * @param {string[]} stringIds - external user ids
+ * @param {object} payload
+ */
+function buildNotificationBody(appId, stringIds, payload) {
+  const body = {
+    app_id: appId,
+    include_aliases: { external_id: stringIds },
+    target_channel: 'push',
+    headings: { en: payload.title },
+    contents: { en: payload.body },
+    // High priority for both quiet and critical so OEM/emulator tray is not silent.
+    priority: 10,
+    android_visibility: 1,
+    // OneSignal rejects `url` when `web_url` / `app_url` is set.
+    // Web click-through uses web_url; mobile deep-link uses `data.report_id`.
+    ...(payload.url ? { web_url: payload.url } : {}),
+    ...(payload.data ? { data: payload.data } : {}),
+  };
+
+  if (payload.critical) {
+    body.android_channel_id = EMERGENCY_ANDROID_CHANNEL_ID;
+    body.android_sound = EMERGENCY_SOUND;
+    body.ios_sound = `${EMERGENCY_SOUND}.wav`;
+    // True DND bypass needs Apple Critical Alerts entitlement; upgrade to 'critical' then.
+    body.ios_interruption_level = 'time_sensitive';
+  } else {
+    body.android_sound = 'default';
+  }
+
+  return body;
+}
+
+/**
+ * Dedupe / sanitize internal user ids before OneSignal include_aliases.
+ * @param {unknown} userIds
+ * @returns {number[]}
+ */
+function normalizePushUserIds(userIds) {
+  return [...new Set(
+    (Array.isArray(userIds) ? userIds : [])
+      .map(Number)
+      .filter((id) => Number.isFinite(id) && id > 0)
+  )];
+}
+
+/**
+ * Interpret OneSignal create-notification HTTP body (exported for unit tests).
+ * HTTP 2xx with recipients:0 or errors[] is a delivery miss — log loudly.
+ * @param {number} statusCode
+ * @param {string} rawBody
+ * @returns {{ ok: boolean, message: string, notificationId?: string, recipients?: number }}
+ */
+function interpretOneSignalResponse(statusCode, rawBody) {
+  let parsed = null;
+  try {
+    parsed = rawBody ? JSON.parse(rawBody) : null;
+  } catch (_) {
+    parsed = null;
+  }
+
+  if (statusCode < 200 || statusCode >= 300) {
+    return {
+      ok: false,
+      message: `OneSignal HTTP ${statusCode}: ${rawBody || '(empty body)'}`,
+    };
+  }
+
+  const notificationId = parsed?.id != null ? String(parsed.id) : undefined;
+  const recipients = typeof parsed?.recipients === 'number' ? parsed.recipients : undefined;
+  const errors = parsed?.errors;
+  const hasErrors = Array.isArray(errors)
+    ? errors.length > 0
+    : errors != null && typeof errors === 'object'
+      ? Object.keys(errors).length > 0
+      : Boolean(errors);
+
+  if (hasErrors) {
+    const invalidAliases = errors && typeof errors === 'object' && !Array.isArray(errors)
+      ? errors.invalid_aliases
+      : null;
+    const hint = invalidAliases
+      ? ' — External ID not linked / no subscription; open app and OneSignal.login as that user_id'
+      : '';
+    return {
+      ok: false,
+      message: `OneSignal errors (id=${notificationId ?? 'n/a'}, recipients=${recipients ?? 'n/a'}): ${JSON.stringify(errors)}${hint}`,
+      notificationId,
+      recipients,
+    };
+  }
+
+  if (recipients === 0) {
+    return {
+      ok: false,
+      message: `OneSignal delivered to 0 recipients (id=${notificationId ?? 'n/a'}) — check External ID / subscription`,
+      notificationId,
+      recipients: 0,
+    };
+  }
+
+  return {
+    ok: true,
+    message: `OneSignal ok id=${notificationId ?? 'n/a'} recipients=${recipients ?? 'n/a'}`,
+    notificationId,
+    recipients,
+  };
+}
+
 /**
  * Make a single HTTPS POST to OneSignal.
  * @param {object} body - The notification payload object
@@ -47,10 +163,12 @@ function postToOneSignal(body) {
       let data = '';
       res.on('data', (chunk) => { data += chunk; });
       res.on('end', () => {
-        if (res.statusCode >= 200 && res.statusCode < 300) {
+        const result = interpretOneSignalResponse(res.statusCode, data);
+        if (result.ok) {
+          console.log(`[oneSignalService] ${result.message}`);
           resolve();
         } else {
-          reject(Object.assign(new Error(`OneSignal HTTP ${res.statusCode}: ${data}`), { statusCode: res.statusCode }));
+          reject(Object.assign(new Error(result.message), { statusCode: res.statusCode }));
         }
       });
     });
@@ -110,46 +228,48 @@ async function isPushEnabled(pool, userId, eventType) {
  * @param {string}   [payload.url]            - Web deep-link URL
  * @param {object}   [payload.data]           - Custom data for mobile deep-link
  * @param {string}   [payload.eventType]      - Used to filter by user preferences
+ * @param {boolean}  [payload.critical]       - Amber-style high-priority / emergency channel
  * @param {object}   [pool]                   - pg Pool for preference checks (optional)
  */
 async function sendPushToUsers(userIds, payload, pool = null) {
   const appId = (process.env.ONESIGNAL_APP_ID || '').trim();
   const apiKey = (process.env.ONESIGNAL_REST_API_KEY || '').trim();
 
-  if (!appId || !apiKey || process.env.NODE_ENV === 'test') {
-    // OneSignal not configured or running in test suite — skip silently
+  if (process.env.NODE_ENV === 'test') {
     return;
   }
-  if (!Array.isArray(userIds) || userIds.length === 0) return;
+  if (!appId || !apiKey) {
+    console.warn(
+      `[oneSignalService] skipped: OneSignal not configured (appId=${Boolean(appId)} apiKey=${Boolean(apiKey)})`
+    );
+    return;
+  }
+  const uniqueIds = normalizePushUserIds(userIds);
+  if (uniqueIds.length === 0) return;
 
   try {
     // Filter by notification preferences if pool is provided
-    let eligibleIds = userIds;
+    let eligibleIds = uniqueIds;
     if (pool && payload.eventType) {
       const filtered = [];
-      for (const uid of userIds) {
+      for (const uid of uniqueIds) {
         const enabled = await isPushEnabled(pool, uid, payload.eventType);
         if (enabled) filtered.push(uid);
       }
       eligibleIds = filtered;
     }
-    if (eligibleIds.length === 0) return;
+    if (eligibleIds.length === 0) {
+      console.warn(
+        `[oneSignalService] skipped: no eligible after prefs filter eventType=${payload.eventType || 'n/a'} requested=[${uniqueIds.join(',')}]`
+      );
+      return;
+    }
 
     // Chunk into groups of CHUNK_SIZE
     for (let i = 0; i < eligibleIds.length; i += CHUNK_SIZE) {
       const chunk = eligibleIds.slice(i, i + CHUNK_SIZE);
       const stringIds = chunk.map(String);
-      const body = {
-        app_id: appId,
-        include_aliases: { external_id: stringIds },
-        target_channel: 'push',
-        include_external_user_ids: stringIds,
-        channel_for_external_user_ids: 'push',
-        headings: { en: payload.title },
-        contents: { en: payload.body },
-        ...(payload.url ? { url: payload.url, web_url: payload.url } : {}),
-        ...(payload.data ? { data: payload.data } : {}),
-      };
+      const body = buildNotificationBody(appId, stringIds, payload);
 
       try {
         await postWithRetry(body);
@@ -160,6 +280,15 @@ async function sendPushToUsers(userIds, payload, pool = null) {
   } catch (err) {
     console.error('[oneSignalService] Unexpected error:', err.message);
   }
+}
+
+/**
+ * Amber-style titles for department notify vs team assign.
+ * @param {'dept'|'team'} kind
+ */
+function formatCriticalPushTitle(kind) {
+  if (kind === 'team') return 'EMERGENCY — Your team was assigned';
+  return 'EMERGENCY — Department notified';
 }
 
 /**
@@ -258,4 +387,15 @@ function formatPushBody(event, data) {
   }
 }
 
-module.exports = { sendPushToUsers, formatPushTitle, formatPushBody, getIncidentTypeLabel };
+module.exports = {
+  sendPushToUsers,
+  formatPushTitle,
+  formatPushBody,
+  formatCriticalPushTitle,
+  getIncidentTypeLabel,
+  buildNotificationBody,
+  interpretOneSignalResponse,
+  normalizePushUserIds,
+  EMERGENCY_ANDROID_CHANNEL_ID,
+  EMERGENCY_SOUND,
+};

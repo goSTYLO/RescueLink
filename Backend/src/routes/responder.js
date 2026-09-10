@@ -8,7 +8,7 @@ const { ROLES } = require('../config/roles');
 router.use(authMiddleware);
 
 // Team APIs (department-admin can list/create/update/manage members; delete remains admin-only)
-router.get('/teams', authorize([ROLES.DISPATCHER, ROLES.ADMIN, ROLES.DEPARTMENT_ADMIN]), responderController.listTeams);
+router.get('/teams', authorize([ROLES.DISPATCHER, ROLES.ADMIN, ROLES.DEPARTMENT_ADMIN, ROLES.DEPARTMENT_HEAD]), responderController.listTeams);
 router.post('/teams', authorize([ROLES.ADMIN, ROLES.DEPARTMENT_ADMIN]), responderController.createTeam);
 router.get('/teams/:teamId', authorize([ROLES.DISPATCHER, ROLES.ADMIN, ROLES.DEPARTMENT_ADMIN]), responderController.getTeamById);
 router.put('/teams/:teamId', authorize([ROLES.ADMIN, ROLES.DEPARTMENT_ADMIN]), responderController.updateTeam);

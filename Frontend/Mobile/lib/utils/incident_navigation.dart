@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../screens/department/department_ops_incident_detail_screen.dart';
 import '../screens/responder/responder_incident_detail_screen.dart';
 import '../services/auth_service.dart';
+import '../services/department_ops_service.dart';
 import '../services/incident_service.dart';
 import '../services/responder_service.dart';
 import 'report_ui.dart';
@@ -62,6 +64,22 @@ Future<void> _openPersonnelIncidentDetail(
   );
 }
 
+Future<void> _openDepartmentOpsIncidentDetail(
+  BuildContext context, {
+  required int reportId,
+  Map<String, dynamic>? incident,
+}) async {
+  if (!context.mounted) return;
+  await Navigator.of(context, rootNavigator: true).push(
+    MaterialPageRoute<void>(
+      builder: (_) => DepartmentOpsIncidentDetailScreen(
+        reportId: reportId,
+        initialIncident: incident,
+      ),
+    ),
+  );
+}
+
 /// Opens citizen or responder incident details based on involvement, not account role.
 Future<void> openIncidentByInvolvement(
   BuildContext context, {
@@ -71,6 +89,15 @@ Future<void> openIncidentByInvolvement(
 }) async {
   final reportId = parseInt(incident['report_id']);
   if (reportId == null || reportId <= 0) return;
+
+  if (AuthService().isDepartmentOps) {
+    await _openDepartmentOpsIncidentDetail(
+      context,
+      reportId: reportId,
+      incident: incident,
+    );
+    return;
+  }
 
   final userId = AuthService().getUserId();
   final involvement = computeInvolvement(incident, userId);
@@ -109,6 +136,34 @@ Future<void> openIncidentByReportId(
   String involvementFilter = 'all',
   required void Function(int reportId) onCitizenTap,
 }) async {
+  if (AuthService().isDepartmentOps) {
+    Map<String, dynamic>? incident = incidentHint;
+    if (incident == null || parseInt(incident['report_id']) != reportId) {
+      try {
+        final rows = await DepartmentOpsService().listDepartmentIncidents();
+        final match = rows.where((row) => parseInt(row['report_id']) == reportId).toList();
+        if (match.isNotEmpty) {
+          incident = match.first;
+        } else {
+          incident = await IncidentService().getIncidentById(reportId);
+        }
+      } catch (_) {
+        try {
+          incident = await IncidentService().getIncidentById(reportId);
+        } catch (_) {
+          incident = null;
+        }
+      }
+    }
+    if (!context.mounted) return;
+    await _openDepartmentOpsIncidentDetail(
+      context,
+      reportId: reportId,
+      incident: incident,
+    );
+    return;
+  }
+
   if (AuthService().isPersonnelResponder) {
     try {
       final assigned = await ResponderService().getAssignedIncidents();
@@ -116,6 +171,7 @@ Future<void> openIncidentByReportId(
           .where((row) => parseInt(row['report_id']) == reportId)
           .toList();
       if (match.isNotEmpty) {
+        if (!context.mounted) return;
         await _openPersonnelIncidentDetail(
           context,
           reportId: reportId,
@@ -134,6 +190,7 @@ Future<void> openIncidentByReportId(
       }
     }
     if (incident != null) {
+      if (!context.mounted) return;
       await _openPersonnelIncidentDetail(
         context,
         reportId: reportId,
@@ -155,12 +212,14 @@ Future<void> openIncidentByReportId(
         incident = raw.cast<String, dynamic>();
       }
     } catch (_) {
+      if (!context.mounted) return;
       onCitizenTap(reportId);
       return;
     }
   }
 
   if (incident == null) {
+    if (!context.mounted) return;
     onCitizenTap(reportId);
     return;
   }

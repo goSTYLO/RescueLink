@@ -1,5 +1,112 @@
 # RescueLink Memory
 
+## Dept admin mobile: responder-like queue + reassign/resolve (2026-09-11)
+
+- Department ops **Reports** tab shows the dept incident queue (responder-like list chrome); separate **Incidents** tab removed.
+- Detail reuses responder layout (team banner, map, info card) without personnel stepper.
+- Mobile actions: **Assign team** (`POST /api/dispatches`), **Reassign team** (`POST /api/dispatches/reassign-team`, reason ≥10), **Mark resolved** (`PATCH /api/incidents/:id/status` `{status:'resolved'}`) when status is In Progress + team assigned — same gates as web.
+- `DepartmentOpsService.reassignTeam` / `resolveIncident`; `isValidReassignReason` unit-tested.
+
+Added: 2026-09-11 — dept mobile assign/reassign/resolve parity.
+
+## Amber killed-app tray sound + invalid_aliases (2026-09-11)
+
+- Killed / not-running amber sound+vibe = OS tray + Android channel (app need not be open); requires OneSignal subscription for that External ID.
+- `MainActivity` again **delete+recreates** emergency channel `724e011a-…` on cold start (`emergency_alert`, vibe `0,400,200,400`) so sticky bad settings get repaired. Hot reload is not enough.
+- `sendPushToUsers` dedupes user ids via `normalizePushUserIds` before `include_aliases`; `invalid_aliases` log hints to open app + `OneSignal.login`.
+- Dashboard Vibration Custom must still be ms pattern `0,400,200,400` — not the word `custom`.
+
+Added: 2026-09-11 — killed-app tray sound fix + alias dedupe.
+
+## Amber dashboard channel + foreground blare (2026-09-11)
+
+- OneSignal dashboard channel `724e011a-…` matches REST `android_channel_id` (not `existing_android_channel_id`).
+- Dashboard Vibration Custom must be ms pattern `0,400,200,400` — never the word `custom`.
+- Foreground amber modal loops `assets/sounds/emergency_alert.wav` via `audioplayers` (stops on Open/Dismiss/dispose); haptics kept.
+
+Added: 2026-09-11 — restore amber custom sound/vibe + modal asset.
+
+## OneSignal HTTP 400 url + web_url (2026-09-11)
+
+- OneSignal rejects `url` when `web_url` is also set (`Remove url field when setting app_url or web_url`).
+- `buildNotificationBody` now sends only `web_url` (payload.url); mobile deep-link stays in `data.report_id`.
+
+Added: 2026-09-11 — fix push send 400 that blocked all tray notifications.
+
+## Quiet tray push priority + Android channels (2026-09-11)
+
+- Quiet OneSignal bodies now always set `priority: 10`, `android_visibility: 1`, `android_sound: 'default'` (critical still uses emergency channel + `emergency_alert`).
+- `MainActivity` delete+recreates emergency channel (`USAGE_ALARM` + vibe `0,400,200,400`) and `rescuelink_updates` HIGH for status trays.
+- Reporter testing on emulator: do not delete the emulator subscription; Send test to that sub while app is backgrounded; Google Play AVD required for FCM.
+
+Added: 2026-09-11 — tray sound/vibration for quiet + sticky channel fix.
+
+## Team assign amber includes dept admin/head (2026-09-11)
+
+- `getCriticalDispatchRecipients` on team assign unions account-backed team `user_id`s with `department-admin` + `department-head` for assigned depts (not all department field responders).
+- Foreground blare no longer skips dept ops on team assign; dept ops title is `EMERGENCY — Team assigned`.
+
+Added: 2026-09-11 — dept admin amber when team already assigned.
+
+## OneSignal send proof + post-login optIn (2026-09-10)
+
+- Logcat `GET .../iams` / refresh-user is **not** a received push.
+- Permission is requested **after** `OneSignal.login`; `ensureOptedInIfAllowed` + subscription observer heal `optedIn=false` once OS permission is true.
+- Backend `sendPushToUsers` logs `skipped: OneSignal not configured` and `skipped: no eligible after prefs filter` (no longer silent). `NODE_ENV=test` still skips quietly.
+- Verify: dashboard test push to live Subscription ID; then Notify Dept / status change and require both `[emitIncidentEvent] Push …` and `[oneSignalService] OneSignal ok … recipients=`.
+
+Added: 2026-09-10 — prove send path + opted-out recovery.
+
+## Dispatch push targeting: empty-team fallthrough + resident status (2026-09-10)
+
+- `getCriticalDispatchRecipients`: `kind: 'team'` only when account-backed team `user_id`s exist; `assigned_team_name` alone no longer returns empty critical (falls through to dept amber).
+- `getIncidentAssignedDepartmentIds` joins departments with `LOWER(TRIM(code))` so case mismatch does not drop dept recipients.
+- Volunteer `updateResponderStatus` (En Route / On Scene / Resolved / …) always emits `incident:status_updated` so the reporter gets a quiet OneSignal push (not only on Resolved).
+- Automation: suggestion-only → no dispatch push; auto/manual team → amber to team members **and** dept admin/head, quiet to reporter + others; Notify Dept → dept amber.
+
+Added: 2026-09-10 — fix missing resident quiet + dept amber after subscribe works.
+
+## OneSignal ghost subscriptions + tray miss (2026-09-10)
+
+- Dashboard **Delivered** ≠ this phone showed a tray notification; External ID fan-out can hit stale Subscribed rows.
+- Mobile Exit path now awaits `OneSignal.logout` (same as Settings logout) so JWT clear does not leave an identified subscription dangling.
+- `effectivePushEnabled` defaults prefer-push to **true** when unset; requires OS permission + not opted out when SDK is ready (`isPushEnabled` no longer returns false while OS already allowed).
+- Citizen permission dialog marks prompted only after **Turn On** (`requestPermission`) or when already enabled — **Not Now** no longer permanently skips the prompt.
+- Debug logs after login/permission: `externalId`, `subscriptionId`, `optedIn`, `tokenPresent`; subscription observer in debug init.
+- Android `MainActivity` delete+recreates emergency channel `724e011a-…` and `rescuelink_updates` HIGH on cold start.
+
+Added: 2026-09-10 — delivered-but-invisible / duplicate subscription fixes.
+
+## Amber audience on Notify Dept
+
+- Critical / amber push on **Notify Dept** targets `department-admin`, `department-head`, and `responder` (field personnel) in the assigned department.
+- **Assign Team** amber targets account-backed team members **plus** dept admin/head; foreground blare shows for dept ops on team assign too.
+- Foreground blare (`EmergencyDispatchAlertCoordinator`) matches: responders get dept modal on notify and team modal when assigned; dept ops get both notify and team assign.
+- `emitIncidentEvent` logs `Push critical userIds=[…]` / `Push quiet userIds=[…]` before OneSignal send.
+- Reporter fallback SQL uses `incident_reports` (not `incidents`).
+- Retest amber on staff login (`09001000011`), not citizen reporter phones.
+
+Added: 2026-09-10 — expand critical dept recipients + push target logs; 2026-09-11 team assign includes dept ops.
+
+## OneSignal push delivery observability + channel sound
+
+- Backend `interpretOneSignalResponse` logs notification `id` / `recipients` and treats HTTP 2xx with `recipients: 0` or `errors` as a logged failure (still best-effort, never breaks incident APIs).
+- REST body targets User Model only: `include_aliases.external_id` + `target_channel: push` (no legacy `include_external_user_ids`).
+- After `OneSignal.login`, mobile re-`optIn()` when OS permission + push preference allow (logout can leave subscription opted out).
+- Dashboard Android channel sound must be **`emergency_alert`** (no `.wav`); vibration Custom ms pattern `0,400,200,400` — not the word `custom`. Reinstall app after channel edits.
+- Amber critical push targets dept staff (admin/head/responder) on notify, or team members on assign; citizens never get amber.
+
+Added: 2026-09-10 — push delivery logging, optIn-after-login, channel sound docs.
+
+## OneSignal External ID on login
+
+- Backend push targets `external_id` = stringified `user_id` only (not stored `onesignal_player_id`).
+- Mobile must call `OneSignal.login(userId)` on **every** interactive `LoginSuccess` (AuthNavigator), not only cold-start `_restoreSession`. Logout clears the link via `OneSignal.logout`.
+- `AuthService._cacheUserProfileFields` persists `user_id` (via `parsePositiveUserId`) on login/profile so `getUserId()` works without JWT parse.
+- Verify: logout → login (no app kill) → OneSignal Audience shows External ID; then dept-notify delivers.
+
+Added: 2026-09-10 — fix missing External ID after interactive login.
+
 ## Frontend form validation (mobile + web)
 
 - Phone inputs: digits only, max 11 chars, local PH format `09XXXXXXXXX` (`Validators.phoneInputFormatters` on mobile; `PhoneInput` / `inputUtils.js` on web). Backend `validatePhone()` stores local format; login lookup normalizes across `09` / `639` / `+639`.
@@ -130,3 +237,12 @@ Added: 2026-09-09 — split mobile field roles.
 - Web: Profile page inline Edit; header chip shows photo or initials (no hardcoded illustration).
 
 Added: 2026-09-10.
+
+## Amber-style OneSignal + dept-admin mobile (2026-09-10)
+
+- `incident:dispatched` sends a **critical** OneSignal push to dept-admin/head (dept-only notify) or assigned team members (team assign), then a quiet push to everyone else.
+- Critical payload: Android channel `724e011a-e821-4e40-a810-9c175737a997`, sound `emergency_alert`, `ios_interruption_level: time_sensitive`.
+- Mobile: `department-admin` / `department-head` get the dept queue on the **Reports** tab (assign / reassign / resolve). Foreground blare modal on WS dispatch for ops/personnel. Staff roles auto-request push permission.
+- Setup checklist: [Documentation/guides/ONESIGNAL_AMBER_ALERT_SETUP.md](../guides/ONESIGNAL_AMBER_ALERT_SETUP.md).
+
+Added: 2026-09-10 — amber alerts + dept ops mobile.

@@ -24,6 +24,8 @@ After re-seeding for auto team dispatch testing, every team has **2 account-back
 | deptadmin_pnp@rescuelink.test | 09001000010 | deptadmin123 | PNP |
 | deptadmin_drrmo@rescuelink.test | 09001000011 | deptadmin123 | DRRMO |
 
+**Mobile:** phone login uses the **Reports** tab for the department incident queue (assign / reassign / mark resolved — same as web). No separate Incidents tab. Same for department heads below. Web email login remains the full department dashboard. Amber push setup: [Documentation/guides/ONESIGNAL_AMBER_ALERT_SETUP.md](../guides/ONESIGNAL_AMBER_ALERT_SETUP.md).
+
 ## Dispatchers (Incident & Dispatch Management)
 
 | Email | Phone (mobile) | Password | Dept |
@@ -39,6 +41,8 @@ After re-seeding for auto team dispatch testing, every team has **2 account-back
 |-------|----------------|----------|------|
 | depthead_pnp@rescuelink.test | 09001000020 | depthead123 | PNP |
 | depthead_drrmo@rescuelink.test | 09001000021 | depthead123 | DRRMO |
+
+**Mobile:** same **Reports** ops queue as department admins (dept-scoped list + assign / reassign / resolve).
 
 ## Supervisors (Escalation Management)
 

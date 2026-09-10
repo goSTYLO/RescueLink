@@ -11,7 +11,7 @@ async function getIncidentAssignedDepartmentIds(reportId) {
   try {
     const res = await pool.query(
       `SELECT DISTINCT d.department_id FROM dispatches dp
-       JOIN departments d ON d.code = dp.department_code
+       JOIN departments d ON LOWER(TRIM(d.code)) = LOWER(TRIM(dp.department_code))
        WHERE dp.report_id = $1
        UNION
        SELECT ie.to_department_id AS department_id
@@ -165,7 +165,7 @@ async function getRecipientUserIds(event, data) {
     let actualReporterId = reporterId;
     if (!actualReporterId && reportId) {
       try {
-        const incRes = await pool.query('SELECT user_id FROM incidents WHERE report_id = $1', [reportId]);
+        const incRes = await pool.query('SELECT user_id FROM incident_reports WHERE report_id = $1', [reportId]);
         if (incRes.rows.length > 0) {
           actualReporterId = incRes.rows[0].user_id;
         }
@@ -219,6 +219,78 @@ async function getRecipientUserIds(event, data) {
 }
 
 /**
+ * Amber-alert recipients for incident:dispatched.
+ * - Team assigned → account-backed team members + department-admin/head for the dept
+ * - Dept-only notify → department-admin + department-head + responder (field personnel)
+ * @returns {Promise<{ kind: 'team'|'dept'|null, userIds: number[] }>}
+ */
+async function getCriticalDispatchRecipients(data) {
+  const reportId = data?.report_id ?? data?.reportId;
+  if (!reportId) return { kind: null, userIds: [] };
+
+  try {
+    const teamRes = await pool.query(
+      `SELECT DISTINCT r.user_id
+         FROM dispatches d
+         JOIN responders r ON r.responder_id = d.responder_id
+        WHERE d.report_id = $1
+          AND r.user_id IS NOT NULL
+          AND NULLIF(TRIM(COALESCE(d.team_name, '')), '') IS NOT NULL
+          AND LOWER(COALESCE(d.responder_source, 'account')) <> 'escalation'`,
+      [reportId]
+    );
+    const teamIds = teamRes.rows
+      .map((r) => Number(r.user_id))
+      .filter((id) => Number.isFinite(id) && id > 0);
+
+    let assignedDeptIds = data?.assigned_department_ids ?? data?.assignedDepartmentIds ?? null;
+    if (assignedDeptIds == null) {
+      assignedDeptIds = await getIncidentAssignedDepartmentIds(reportId);
+    }
+    if (!Array.isArray(assignedDeptIds)) {
+      assignedDeptIds = assignedDeptIds != null ? [assignedDeptIds] : [];
+    }
+    const numericDeptIds = assignedDeptIds.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0);
+
+    // Only team-amber when we have account-backed members. assigned_team_name alone
+    // must not short-circuit to empty critical (auto applyTeam stamps the name).
+    if (teamIds.length > 0) {
+      const critical = new Set(teamIds);
+      // Dept admin/head still get amber when a team is already assigned.
+      if (numericDeptIds.length > 0) {
+        const opsRes = await pool.query(
+          `SELECT user_id FROM users
+            WHERE department_id = ANY($1::int[])
+              AND REPLACE(LOWER(role), '_', '-') IN ('department-admin', 'department-head')`,
+          [numericDeptIds]
+        );
+        opsRes.rows.forEach((r) => {
+          const id = Number(r.user_id);
+          if (Number.isFinite(id) && id > 0) critical.add(id);
+        });
+      }
+      return { kind: 'team', userIds: [...critical] };
+    }
+
+    if (numericDeptIds.length === 0) return { kind: null, userIds: [] };
+
+    const deptRes = await pool.query(
+      `SELECT user_id FROM users
+        WHERE department_id = ANY($1::int[])
+          AND REPLACE(LOWER(role), '_', '-') IN ('department-admin', 'department-head', 'responder')`,
+      [numericDeptIds]
+    );
+    const deptIds = deptRes.rows
+      .map((r) => Number(r.user_id))
+      .filter((id) => Number.isFinite(id) && id > 0);
+    return { kind: 'dept', userIds: [...new Set(deptIds)] };
+  } catch (err) {
+    console.error('[getCriticalDispatchRecipients]', err.message);
+    return { kind: null, userIds: [] };
+  }
+}
+
+/**
  * Persist notifications to the database for all recipients of an incident event.
  * Call this alongside (or from within) emitIncidentEvent/emitDispatchEvent.
  */
@@ -249,4 +321,8 @@ async function persistIncidentNotifications(event, data) {
   }
 }
 
-module.exports = { persistIncidentNotifications, getRecipientUserIds };
+module.exports = {
+  persistIncidentNotifications,
+  getRecipientUserIds,
+  getCriticalDispatchRecipients,
+};

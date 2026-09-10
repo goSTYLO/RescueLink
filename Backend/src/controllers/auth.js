@@ -33,9 +33,11 @@ const AVATAR_DIR = path.join(process.cwd(), 'uploads', 'avatars');
 
 async function buildUserPayload(user) {
   let department = null;
+  let departmentCode = null;
   if (user.department_id) {
     const dept = await Department.findById(user.department_id);
     department = dept ? dept.name : null;
+    departmentCode = dept?.code ? String(dept.code) : null;
   }
   return {
     user_id: user.user_id,
@@ -48,6 +50,7 @@ async function buildUserPayload(user) {
     role: user.role,
     department_id: user.department_id ?? null,
     department: department ?? null,
+    department_code: departmentCode,
     created_at: user.created_at,
     has_profile_image: Boolean(user.profile_image),
   };
@@ -145,7 +148,7 @@ exports.login = async (req, res) => {
 
     const token = jwt.sign({ user_id: user.user_id, phone: user.phone_number, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
     console.log('✅ Login successful:', { user_id: user.user_id });
-    res.json({ user: { user_id: user.user_id, phone: user.phone_number, role: user.role }, token });
+    res.json({ user: await buildUserPayload(user), token });
   } catch (err) {
     console.error('❌ Login error:', err.message);
     if (err.message.includes('must be') || err.message.includes('Invalid')) {

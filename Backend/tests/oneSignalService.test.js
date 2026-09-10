@@ -1,8 +1,14 @@
 const {
   formatPushTitle,
   formatPushBody,
+  formatCriticalPushTitle,
   getIncidentTypeLabel,
   sendPushToUsers,
+  buildNotificationBody,
+  interpretOneSignalResponse,
+  normalizePushUserIds,
+  EMERGENCY_ANDROID_CHANNEL_ID,
+  EMERGENCY_SOUND,
 } = require('../src/services/oneSignalService');
 
 describe('oneSignalService', () => {
@@ -30,6 +36,116 @@ describe('oneSignalService', () => {
 
     test('returns default fallback title for unknown events', () => {
       expect(formatPushTitle('unknown:event')).toBe('🔔 RescueLink Update');
+    });
+  });
+
+  describe('formatCriticalPushTitle', () => {
+    test('formats dept and team emergency titles', () => {
+      expect(formatCriticalPushTitle('dept')).toBe('EMERGENCY — Department notified');
+      expect(formatCriticalPushTitle('team')).toBe('EMERGENCY — Your team was assigned');
+    });
+  });
+
+  describe('buildNotificationBody critical fields', () => {
+    test('quiet payload uses high priority and default sound without emergency channel', () => {
+      const body = buildNotificationBody('app-1', ['10', '11'], {
+        title: 'Quiet',
+        body: 'Normal',
+        url: 'http://localhost:5173/incidents/10',
+      });
+      expect(body.priority).toBe(10);
+      expect(body.android_visibility).toBe(1);
+      expect(body.android_sound).toBe('default');
+      expect(body.android_channel_id).toBeUndefined();
+      expect(body.ios_interruption_level).toBeUndefined();
+      expect(body.web_url).toBe('http://localhost:5173/incidents/10');
+      expect(body.url).toBeUndefined();
+      expect(body.include_aliases).toEqual({ external_id: ['10', '11'] });
+      expect(body.target_channel).toBe('push');
+      expect(body.include_external_user_ids).toBeUndefined();
+      expect(body.channel_for_external_user_ids).toBeUndefined();
+    });
+
+    test('critical payload sets amber-style OneSignal fields', () => {
+      const body = buildNotificationBody('app-1', ['42'], {
+        title: 'EMERGENCY — Department notified',
+        body: 'Incident #1 assigned to department',
+        critical: true,
+        data: { report_id: 1, critical: true },
+      });
+      expect(body.priority).toBe(10);
+      expect(body.android_visibility).toBe(1);
+      expect(body.android_channel_id).toBe(EMERGENCY_ANDROID_CHANNEL_ID);
+      expect(body.android_sound).toBe(EMERGENCY_SOUND);
+      expect(body.ios_sound).toBe(`${EMERGENCY_SOUND}.wav`);
+      expect(body.ios_interruption_level).toBe('time_sensitive');
+      expect(body.data.critical).toBe(true);
+    });
+  });
+
+  describe('interpretOneSignalResponse', () => {
+    test('treats 2xx with recipients > 0 as ok', () => {
+      const result = interpretOneSignalResponse(200, JSON.stringify({ id: 'abc', recipients: 2 }));
+      expect(result.ok).toBe(true);
+      expect(result.recipients).toBe(2);
+      expect(result.notificationId).toBe('abc');
+    });
+
+    test('treats recipients 0 as failure', () => {
+      const result = interpretOneSignalResponse(200, JSON.stringify({ id: 'abc', recipients: 0 }));
+      expect(result.ok).toBe(false);
+      expect(result.recipients).toBe(0);
+      expect(result.message).toMatch(/0 recipients/);
+    });
+
+    test('treats errors array as failure', () => {
+      const result = interpretOneSignalResponse(
+        200,
+        JSON.stringify({ id: 'abc', recipients: 1, errors: ['InvalidPlayerIds'] })
+      );
+      expect(result.ok).toBe(false);
+      expect(result.message).toMatch(/InvalidPlayerIds/);
+    });
+
+    test('invalid_aliases hint mentions External ID login', () => {
+      const result = interpretOneSignalResponse(
+        200,
+        JSON.stringify({
+          id: 'abc',
+          errors: { invalid_aliases: { external_id: ['71', '71', '71'] } },
+        })
+      );
+      expect(result.ok).toBe(false);
+      expect(result.message).toMatch(/invalid_aliases/);
+      expect(result.message).toMatch(/OneSignal\.login/);
+    });
+
+    test('treats non-2xx as failure', () => {
+      const result = interpretOneSignalResponse(400, '{"errors":["Bad Request"]}');
+      expect(result.ok).toBe(false);
+      expect(result.message).toMatch(/HTTP 400/);
+    });
+  });
+
+  describe('normalizePushUserIds', () => {
+    test('dedupes duplicate user ids to a single alias id', () => {
+      expect(normalizePushUserIds([71, '71', 71])).toEqual([71]);
+      expect(normalizePushUserIds([71, 71, 71]).map(String)).toEqual(['71']);
+    });
+
+    test('drops non-positive and non-finite ids', () => {
+      expect(normalizePushUserIds([0, -1, NaN, null, 'x', 32])).toEqual([32]);
+    });
+  });
+
+  describe('buildNotificationBody aliases', () => {
+    test('duplicate ids passed through body only once when normalized first', () => {
+      const ids = normalizePushUserIds([71, 71, 71]).map(String);
+      const body = buildNotificationBody('app-1', ids, {
+        title: 'Quiet',
+        body: 'Normal',
+      });
+      expect(body.include_aliases.external_id).toEqual(['71']);
     });
   });
 
@@ -137,6 +253,7 @@ describe('oneSignalService', () => {
           title: 'Test Notification',
           body: 'Test content',
           url: 'http://localhost:5173/incidents/1',
+          critical: true,
         })
       ).resolves.not.toThrow();
     });

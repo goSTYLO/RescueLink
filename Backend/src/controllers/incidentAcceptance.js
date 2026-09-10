@@ -703,14 +703,13 @@ async function updateResponderStatus(req, res) {
       responder_status: newStatus,
     });
 
-    if (newStatus === 'Resolved') {
-      const updatedRow = await pool.query(
-        'SELECT * FROM incident_reports WHERE report_id = $1',
-        [reportId]
-      );
-      if (updatedRow.rows[0]) {
-        emitIncidentEvent(req, 'incident:status_updated', updatedRow.rows[0]);
-      }
+    // Quiet push to reporter (and other recipients) on En Route / On Scene / Resolved / etc.
+    const updatedRow = await pool.query(
+      'SELECT * FROM incident_reports WHERE report_id = $1',
+      [reportId]
+    );
+    if (updatedRow.rows[0]) {
+      emitIncidentEvent(req, 'incident:status_updated', updatedRow.rows[0]);
     }
 
     res.json({ message: 'Status updated.', report_id: reportId, old_status: currentStatus, new_status: newStatus });

@@ -13,6 +13,17 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/app_config.dart';
 import 'api_service.dart';
 
+/// Parses API `user_id` (int or numeric string). Used for prefs + OneSignal External ID.
+int? parsePositiveUserId(dynamic value) {
+  if (value is int) return value > 0 ? value : null;
+  if (value is num) {
+    final n = value.toInt();
+    return n > 0 ? n : null;
+  }
+  final parsed = int.tryParse(value?.toString() ?? '');
+  return (parsed != null && parsed > 0) ? parsed : null;
+}
+
 class AuthService {
   static final AuthService _instance = AuthService._internal();
 
@@ -31,6 +42,8 @@ class AuthService {
   static const _keyBiometricPhone = 'biometric_phone';
   static const _keyBiometricPassword = 'biometric_password';
   static const _keyUserRole = 'user_role';
+  static const _keyDepartmentCode = 'user_department_code';
+  static const _keyDepartmentName = 'user_department_name';
   String? _verificationId;
   int? _forceResendingToken;
 
@@ -54,7 +67,42 @@ class AuthService {
 
   bool get isVolunteer => getUserRole() == 'volunteer';
 
+  bool get isDepartmentOps {
+    final role = getUserRole();
+    return role == 'department-admin' || role == 'department-head';
+  }
+
   bool get hasResponderTab => isPersonnelResponder || isVolunteer;
+
+  bool get hasOpsTab => hasResponderTab || isDepartmentOps;
+
+  String? getDepartmentCode() => _prefs.getString(_keyDepartmentCode);
+
+  String? getDepartmentName() => _prefs.getString(_keyDepartmentName);
+
+  Future<void> _cacheUserProfileFields(Map<String, dynamic>? user) async {
+    if (user == null) return;
+    final userId = parsePositiveUserId(user['user_id']);
+    if (userId != null) {
+      await _prefs.setInt('user_id', userId);
+    }
+    final role = user['role']?.toString();
+    if (role != null && role.isNotEmpty) {
+      await _prefs.setString(_keyUserRole, role);
+    }
+    final deptCode = user['department_code']?.toString();
+    if (deptCode != null && deptCode.isNotEmpty) {
+      await _prefs.setString(_keyDepartmentCode, deptCode);
+    } else {
+      await _prefs.remove(_keyDepartmentCode);
+    }
+    final deptName = user['department']?.toString();
+    if (deptName != null && deptName.isNotEmpty) {
+      await _prefs.setString(_keyDepartmentName, deptName);
+    } else {
+      await _prefs.remove(_keyDepartmentName);
+    }
+  }
 
   /// Returns the logged-in user's id from cache or JWT payload.
   int? getUserId() {
@@ -101,6 +149,8 @@ class AuthService {
     }
     await _prefs.remove('jwt_token');
     await _prefs.remove(_keyUserRole);
+    await _prefs.remove(_keyDepartmentCode);
+    await _prefs.remove(_keyDepartmentName);
     await _prefs.remove('user_id');
     final biometricEnabled = await isBiometricLoginEnabled();
     if (!biometricEnabled) {
@@ -247,20 +297,8 @@ class AuthService {
       );
 
       final user = (response['user'] ?? response) as Map<String, dynamic>;
-      // Cache role for synchronous access across the UI
-      final role = user['role']?.toString();
-      if (role != null && role.isNotEmpty) {
-        await _prefs.setString(_keyUserRole, role);
-      }
-      final userId = user['user_id'];
-      if (userId is int && userId > 0) {
-        await _prefs.setInt('user_id', userId);
-      } else if (userId != null) {
-        final parsed = int.tryParse(userId.toString());
-        if (parsed != null && parsed > 0) {
-          await _prefs.setInt('user_id', parsed);
-        }
-      }
+      // Cache role + department + user_id for synchronous access across the UI
+      await _cacheUserProfileFields(user);
       return {
         'success': true,
         'user': user,
@@ -569,10 +607,7 @@ class AuthService {
         await saveCredentialsForBiometric(phone: formattedPhone, password: password);
         final user = response['user'];
         if (user is Map<String, dynamic>) {
-          final role = user['role']?.toString();
-          if (role != null && role.isNotEmpty) {
-            await _prefs.setString(_keyUserRole, role);
-          }
+          await _cacheUserProfileFields(user);
         }
         debugPrint('✅ Login successful, token stored');
       }

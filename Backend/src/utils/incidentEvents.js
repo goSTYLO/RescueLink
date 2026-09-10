@@ -1,6 +1,11 @@
 const { persistIncidentNotifications } = require('../services/notificationPersistence');
-const { getRecipientUserIds } = require('../services/notificationPersistence');
-const { sendPushToUsers, formatPushTitle, formatPushBody } = require('../services/oneSignalService');
+const { getRecipientUserIds, getCriticalDispatchRecipients } = require('../services/notificationPersistence');
+const {
+  sendPushToUsers,
+  formatPushTitle,
+  formatPushBody,
+  formatCriticalPushTitle,
+} = require('../services/oneSignalService');
 const { incidentTypesFromRow } = require('./incidentTypeNormalize');
 const pool = require('../config/db');
 
@@ -57,15 +62,51 @@ function emitIncidentEvent(req, event, incident) {
 
   // Push notification — fire-and-forget, never blocks the API response
   if (PUSH_EVENTS.has(event) && process.env.NODE_ENV !== 'test' && Boolean((process.env.ONESIGNAL_APP_ID || '').trim())) {
+    const webUrl = `${process.env.WEB_DASHBOARD_URL || process.env.FRONTEND_URL || 'http://localhost:5173'}/incidents/${data.report_id}`;
+    const pushData = { screen: 'incident_detail', report_id: data.report_id, critical: false };
+    const eventType = event.replace('incident:', '');
+
+    const sendQuiet = (userIds) => sendPushToUsers(userIds, {
+      title: formatPushTitle(event),
+      body: formatPushBody(event, data),
+      url: webUrl,
+      data: pushData,
+      eventType,
+    }, pool);
+
+    if (event === 'incident:dispatched') {
+      getCriticalDispatchRecipients(data).then(async ({ kind, userIds: criticalIds }) => {
+        const criticalSet = new Set(criticalIds.map(Number));
+        console.log(
+          `[emitIncidentEvent] Push critical kind=${kind || 'none'} userIds=[${criticalIds.join(',')}] report=${data.report_id}`
+        );
+        if (kind && criticalIds.length > 0) {
+          await sendPushToUsers(criticalIds, {
+            title: formatCriticalPushTitle(kind),
+            body: formatPushBody(event, data),
+            url: webUrl,
+            data: { ...pushData, critical: true, alert_kind: kind },
+            eventType,
+            critical: true,
+          }, pool);
+        }
+        const allIds = await getRecipientUserIds(event, data);
+        const quietIds = allIds.filter((id) => !criticalSet.has(Number(id)));
+        console.log(
+          `[emitIncidentEvent] Push quiet userIds=[${quietIds.join(',')}] report=${data.report_id}`
+        );
+        if (quietIds.length > 0) await sendQuiet(quietIds);
+      }).catch((err) =>
+        console.error('[emitIncidentEvent] Push notification failed:', err.message)
+      );
+      return;
+    }
+
     getRecipientUserIds(event, data).then((userIds) => {
-      const webUrl = `${process.env.WEB_DASHBOARD_URL || process.env.FRONTEND_URL || 'http://localhost:5173'}/incidents/${data.report_id}`;
-      return sendPushToUsers(userIds, {
-        title: formatPushTitle(event),
-        body: formatPushBody(event, data),
-        url: webUrl,
-        data: { screen: 'incident_detail', report_id: data.report_id },
-        eventType: event.replace('incident:', ''),
-      }, pool);
+      console.log(
+        `[emitIncidentEvent] Push quiet userIds=[${userIds.join(',')}] event=${event} report=${data.report_id}`
+      );
+      return sendQuiet(userIds);
     }).catch((err) =>
       console.error('[emitIncidentEvent] Push notification failed:', err.message)
     );
@@ -76,4 +117,3 @@ module.exports = {
   buildIncidentEventPayload,
   emitIncidentEvent,
 };
-

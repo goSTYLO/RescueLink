@@ -3,17 +3,41 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:onesignal_flutter/onesignal_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+/// Pure rule for Settings / staff checks (unit-tested).
+/// Preference defaults to true when unset; SDK must allow when ready.
+bool effectivePushEnabled({
+  required bool? preferPush,
+  required bool sdkReady,
+  required bool osPermission,
+  required bool optedOut,
+}) {
+  final prefer = preferPush ?? true;
+  if (!prefer) return false;
+  if (!sdkReady) return prefer;
+  return osPermission && !optedOut;
+}
+
 /// OneSignal Mobile Push Notification Service
 /// Integrates the official onesignal_flutter SDK with fallback safety.
+///
+/// Amber / emergency pushes use Android channel id [emergencyAndroidChannelId]
+/// (must match OneSignal dashboard + Backend EMERGENCY_ANDROID_CHANNEL_ID).
+///
+/// Permission is requested after login; [ensureOptedInIfAllowed] finishes opt-in
+/// once the OS grant lands (login alone often leaves optedIn=false).
 class OneSignalService {
   static final OneSignalService _instance = OneSignalService._internal();
   factory OneSignalService() => _instance;
   OneSignalService._internal();
 
+  /// Matches Backend `EMERGENCY_ANDROID_CHANNEL_ID` / OneSignal dashboard channel.
+  static const String emergencyAndroidChannelId = '724e011a-e821-4e40-a810-9c175737a997';
+
   static const String _pushEnabledKey = 'rescuelink_push_notifications_enabled';
   static const String _promptedKey = 'rescuelink_prompted_push_permission';
 
   bool _initialized = false;
+  bool _optInInFlight = false;
   void Function(String reportId)? _onNotificationOpened;
   String? _pendingOpenedReportId;
 
@@ -33,6 +57,46 @@ class OneSignalService {
       cb(reportId);
     } else {
       _pendingOpenedReportId = reportId;
+    }
+  }
+
+  Future<void> _logSubscriptionState(String label) async {
+    if (!kDebugMode || !_initialized) return;
+    final sub = OneSignal.User.pushSubscription;
+    final token = sub.token;
+    final externalId = await OneSignal.User.getExternalId();
+    print(
+      '[OneSignal Mobile] $label '
+      'externalId=$externalId '
+      'subscriptionId=${sub.id} '
+      'optedIn=${sub.optedIn} '
+      'permission=${OneSignal.Notifications.permission} '
+      'tokenPresent=${token != null && token.isNotEmpty}',
+    );
+  }
+
+  /// If OS permission + local preference allow push but SDK is still opted out, opt in.
+  Future<void> ensureOptedInIfAllowed() async {
+    if (!_initialized || _optInInFlight) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final preferPush = prefs.getBool(_pushEnabledKey) ?? true;
+      if (!preferPush) return;
+      if (!OneSignal.Notifications.permission) return;
+      if (OneSignal.User.pushSubscription.optedIn == true) return;
+
+      _optInInFlight = true;
+      try {
+        await OneSignal.User.pushSubscription.optIn();
+        await _logSubscriptionState('ensureOptedInIfAllowed');
+      } finally {
+        _optInInFlight = false;
+      }
+    } catch (e) {
+      _optInInFlight = false;
+      if (kDebugMode) {
+        print('[OneSignal Mobile] ensureOptedInIfAllowed error: $e');
+      }
     }
   }
 
@@ -70,6 +134,23 @@ class OneSignalService {
         }
       });
 
+      // Always recover: permission often lands after login, leaving optedIn=false.
+      OneSignal.User.pushSubscription.addObserver((state) {
+        final current = state.current;
+        if (kDebugMode) {
+          final token = current.token;
+          print(
+            '[OneSignal Mobile] subscription changed '
+            'id=${current.id} optedIn=${current.optedIn} '
+            'tokenPresent=${token != null && token.isNotEmpty}',
+          );
+        }
+        if (current.optedIn != true) {
+          // Fire-and-forget; ensureOptedInIfAllowed re-checks permission + prefs.
+          ensureOptedInIfAllowed();
+        }
+      });
+
       if (kDebugMode) {
         print('[OneSignal Mobile] Initialized with App ID: $appId');
       }
@@ -83,13 +164,22 @@ class OneSignalService {
   /// Checks if push notifications are enabled locally in preferences and SDK
   Future<bool> isPushEnabled() async {
     try {
-      if (_initialized) {
-        final permission = OneSignal.Notifications.permission;
-        final optOut = OneSignal.User.pushSubscription.optedIn == false;
-        if (!permission || optOut) return false;
-      }
       final prefs = await SharedPreferences.getInstance();
-      return prefs.getBool(_pushEnabledKey) ?? false;
+      final preferPush = prefs.getBool(_pushEnabledKey);
+      if (!_initialized) {
+        return effectivePushEnabled(
+          preferPush: preferPush,
+          sdkReady: false,
+          osPermission: false,
+          optedOut: false,
+        );
+      }
+      return effectivePushEnabled(
+        preferPush: preferPush,
+        sdkReady: true,
+        osPermission: OneSignal.Notifications.permission,
+        optedOut: OneSignal.User.pushSubscription.optedIn == false,
+      );
     } catch (_) {
       return false;
     }
@@ -103,8 +193,13 @@ class OneSignalService {
 
       if (_initialized) {
         final granted = await OneSignal.Notifications.requestPermission(true);
-        OneSignal.User.pushSubscription.optIn();
-        await prefs.setBool(_pushEnabledKey, granted);
+        if (granted) {
+          await prefs.setBool(_pushEnabledKey, true);
+          await OneSignal.User.pushSubscription.optIn();
+          await _logSubscriptionState('afterPermission');
+        } else {
+          await prefs.setBool(_pushEnabledKey, false);
+        }
         if (kDebugMode) {
           print('[OneSignal Mobile] Permission response: $granted');
         }
@@ -129,9 +224,9 @@ class OneSignalService {
 
       if (_initialized) {
         if (enabled) {
-          OneSignal.User.pushSubscription.optIn();
+          await OneSignal.User.pushSubscription.optIn();
         } else {
-          OneSignal.User.pushSubscription.optOut();
+          await OneSignal.User.pushSubscription.optOut();
         }
       }
 
@@ -168,9 +263,9 @@ class OneSignalService {
     if (!_initialized) return;
     try {
       await OneSignal.login(userId.toString());
-      if (kDebugMode) {
-        print('[OneSignal Mobile] Linked user external ID: $userId');
-      }
+      // Permission is usually granted after login on home; opt-in when already allowed.
+      await ensureOptedInIfAllowed();
+      await _logSubscriptionState('Linked user external ID: $userId');
     } catch (e) {
       if (kDebugMode) {
         print('[OneSignal Mobile] loginUser error: $e');

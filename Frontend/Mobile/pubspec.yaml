@@ -87,6 +87,7 @@ flutter:
 
   assets:
     - .env
+    - assets/sounds/emergency_alert.wav
     - assets/logo/logo.png
     - assets/logo/logo2.png
     - assets/logo/logo_new.png
