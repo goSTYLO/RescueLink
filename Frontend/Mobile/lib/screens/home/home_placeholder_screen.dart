@@ -694,8 +694,8 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
       children: [
         Image.asset(
           'assets/logo/icon.png',
-          width: 72,
-          height: 72,
+          width: Responsive.headerLogoSize,
+          height: Responsive.headerLogoSize,
           fit: BoxFit.contain,
           errorBuilder: (_, __, ___) => const Icon(
             Icons.health_and_safety,

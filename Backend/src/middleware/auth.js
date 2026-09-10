@@ -24,14 +24,15 @@ module.exports = async function (req, res, next) {
       return res.status(401).json({ message: 'Invalid or expired token' });
     }
 
-    // Use DB role so promotions/revokes apply without forcing re-login (JWT may be stale).
+    // Require a live account so stale JWTs (e.g. after re-seed) cannot hit FK errors downstream.
     const userId = payload.user_id ?? payload.userId;
     if (userId != null) {
       try {
         const currentRole = await User.getRoleById(userId);
-        if (currentRole) {
-          payload.role = currentRole;
+        if (!currentRole) {
+          return res.status(401).json({ message: 'User account not found. Please sign in again.' });
         }
+        payload.role = currentRole;
       } catch (_) {
         // Fall back to JWT role if lookup fails
       }

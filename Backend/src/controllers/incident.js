@@ -233,6 +233,9 @@ async function attachAssignedDepartment(incident, reportId, dispatches = null) {
         const dCode = (d.department_code ?? d.department_Code ?? '').toString().trim();
         return {
           dispatch_id: d.dispatch_id,
+          responder_id: d.responder_id ?? null,
+          responder_name: d.responder_name ? String(d.responder_name).trim() : null,
+          responder_source: d.responder_source || null,
           department_code: dCode || null,
           department_name: d.department_name ?? d.department_Name ?? (dCode ? departmentNameByCode.get(dCode) : null) ?? dCode ?? null,
           team_name: d.team_name ? String(d.team_name).trim() : null,
@@ -240,6 +243,21 @@ async function attachAssignedDepartment(incident, reportId, dispatches = null) {
           dispatched_at: d.dispatched_at || null,
         };
       });
+
+      const primaryTeamName = incident.assigned_team_name;
+      incident.assigned_team_roster = sourceDispatches
+        .filter((row) => {
+          const hasTeam = row.team_name && String(row.team_name).trim() !== '';
+          const isEscalation = String(row?.responder_source || '').toLowerCase() === 'escalation';
+          if (!hasTeam || isEscalation || !row.responder_id) return false;
+          if (!primaryTeamName) return true;
+          return String(row.team_name).trim().toLowerCase() === String(primaryTeamName).trim().toLowerCase();
+        })
+        .map((row) => ({
+          responder_id: row.responder_id,
+          name: row.responder_name ? String(row.responder_name).trim() : null,
+          response_status: row.response_status || 'Assigned',
+        }));
     }
   } catch (err) {
     console.error('Error attaching assigned department:', err.message);

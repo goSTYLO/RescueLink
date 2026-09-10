@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../utils/responsive.dart';
 import '../../services/auth_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/biometric_password_dialog.dart';
@@ -121,8 +122,8 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
                   ),
                   Image.asset(
                     'assets/logo/icon.png',
-                    width: 64,
-                    height: 64,
+                    width: Responsive.headerLogoSize,
+          height: Responsive.headerLogoSize,
                     fit: BoxFit.contain,
                     color: Colors.white,
                     colorBlendMode: BlendMode.srcIn,

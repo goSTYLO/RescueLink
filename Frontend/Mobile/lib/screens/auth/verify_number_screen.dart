@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../utils/responsive.dart';
 import 'package:flutter/services.dart';
 import '../../widgets/gradient_header.dart';
 
@@ -73,7 +74,7 @@ class _VerifyNumberScreenState extends State<VerifyNumberScreen> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Image.asset('assets/logo/icon.png', width: 104, height: 104, fit: BoxFit.contain),
+        Image.asset('assets/logo/icon.png', width: Responsive.logoSize(MediaQuery.sizeOf(context).width), height: Responsive.logoSize(MediaQuery.sizeOf(context).width), fit: BoxFit.contain),
         const SizedBox(width: 0),
         Column(
           crossAxisAlignment: CrossAxisAlignment.center,

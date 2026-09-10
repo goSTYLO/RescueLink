@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../utils/responsive.dart';
 
 class PasswordUpdatedScreen extends StatelessWidget {
   final VoidCallback? onBackToLogin;
@@ -107,7 +108,7 @@ class PasswordUpdatedScreen extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Image.asset('assets/logo/icon.png', width: 104, height: 104, fit: BoxFit.contain),
+        Image.asset('assets/logo/icon.png', width: Responsive.logoSize(MediaQuery.sizeOf(context).width), height: Responsive.logoSize(MediaQuery.sizeOf(context).width), fit: BoxFit.contain),
         const SizedBox(width: 0),
         Column(
           crossAxisAlignment: CrossAxisAlignment.center,

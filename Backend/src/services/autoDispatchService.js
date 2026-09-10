@@ -166,7 +166,7 @@ async function applyTeam({
     incident_type: incidentType,
     default_department_code: departmentCode,
     was_default_department: true,
-    response_status: 'Assigned',
+    response_status: 'En Route',
     assignment_group_id: assignmentGroupId,
     assigned_by_user_id: assignedByUserId,
   });

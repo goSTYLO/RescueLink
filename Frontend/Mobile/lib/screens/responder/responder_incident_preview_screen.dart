@@ -690,6 +690,24 @@ class _ResponderIncidentPreviewScreenState
                   ],
                 ),
               ),
+              if (safeString(inc['assigned_team_name']) != null) ...[
+                const SizedBox(height: 4),
+                RichText(
+                  text: TextSpan(
+                    style: const TextStyle(fontSize: 12, color: _mutedText),
+                    children: [
+                      const TextSpan(text: 'Assigned team: '),
+                      TextSpan(
+                        text: safeString(inc['assigned_team_name']),
+                        style: const TextStyle(
+                          color: Color(0xFF134178),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 4),
               Row(
                 children: [

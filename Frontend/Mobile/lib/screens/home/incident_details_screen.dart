@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import '../../utils/responsive.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -668,8 +669,8 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
                 const SizedBox(width: 8),
                 Image.asset(
                   'assets/logo/icon.png',
-                  width: 64,
-                  height: 64,
+                  width: Responsive.headerLogoSize,
+          height: Responsive.headerLogoSize,
                   fit: BoxFit.contain,
                   color: Colors.white,
                   colorBlendMode: BlendMode.srcIn,
@@ -1014,39 +1015,7 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
                                         ReportStatusUi.label(
                                             _incident?['status'] as String?)),
                                     const SizedBox(height: 10),
-                                    (() {
-                                      final deptEntries = assignedDepartmentTeamEntries(_incident);
-                                      if (deptEntries.length > 1) {
-                                        return Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            for (var i = 0; i < deptEntries.length; i++) ...[
-                                              if (i > 0) const SizedBox(height: 8),
-                                              _simpleRow(
-                                                deptEntries[i].isLead ? 'Lead Department' : 'Assisting Dept',
-                                                deptEntries[i].teamName != null
-                                                    ? '${deptEntries[i].departmentName} (${deptEntries[i].teamName})'
-                                                    : deptEntries[i].departmentName,
-                                              ),
-                                            ],
-                                          ],
-                                        );
-                                      }
-                                      final singleTeam = safeString(_incident?['assigned_team_name'] ?? _incident?['assignedTeamName']);
-                                      return Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          _simpleRow(
-                                              'Department',
-                                              assignedDepartmentDisplayName(
-                                                  _incident)),
-                                          if (singleTeam != null) ...[
-                                            const SizedBox(height: 10),
-                                            _simpleRow('Response Team', singleTeam),
-                                          ],
-                                        ],
-                                      );
-                                    })(),
+                                    _buildAssignedDepartmentSection(compact: true),
                                     if (BackupStatusUi.assignedBackupTeamLabel(_incident) != null) ...[
                                       const SizedBox(height: 10),
                                       _simpleRow(
@@ -1487,6 +1456,80 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
     );
   }
 
+  Widget _buildAssignedDepartmentSection({required bool compact}) {
+    final deptEntries = assignedDepartmentTeamEntries(_incident);
+    final leadEntry = deptEntries.isNotEmpty
+        ? deptEntries.firstWhere((entry) => entry.isLead, orElse: () => deptEntries.first)
+        : null;
+    final assistingEntries = deptEntries.where((entry) => !entry.isLead).toList();
+    final roster = assignedTeamRoster(_incident);
+    final gap = compact ? 10.0 : 6.0;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _simpleRow('Department', leadEntry?.departmentName ?? assignedDepartmentDisplayName(_incident)),
+        if (leadEntry?.teamName != null) ...[
+          SizedBox(height: gap),
+          _simpleRow('Assigned Team', leadEntry!.teamName!),
+        ] else if (safeString(_incident?['assigned_team_name'] ?? _incident?['assignedTeamName']) != null) ...[
+          SizedBox(height: gap),
+          _simpleRow(
+            'Assigned Team',
+            safeString(_incident?['assigned_team_name'] ?? _incident?['assignedTeamName'])!,
+          ),
+        ],
+        if (roster.isNotEmpty) ...[
+          SizedBox(height: gap),
+          Text(
+            'Team Roster',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 6),
+          ...roster.map((member) => Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Row(
+                  children: [
+                    const Icon(Icons.person_outline, size: 16, color: Color(0xFF134178)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        member.name,
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    if (member.responseStatus != null && member.responseStatus!.isNotEmpty)
+                      Text(
+                        member.responseStatus!,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                  ],
+                ),
+              )),
+        ],
+        if (assistingEntries.isNotEmpty) ...[
+          SizedBox(height: gap),
+          for (var i = 0; i < assistingEntries.length; i++) ...[
+            if (i > 0) SizedBox(height: gap),
+            _simpleRow(
+              'Assisting Dept',
+              assistingEntries[i].teamName != null
+                  ? '${assistingEntries[i].departmentName} (${assistingEntries[i].teamName})'
+                  : assistingEntries[i].departmentName,
+            ),
+          ],
+        ],
+      ],
+    );
+  }
+
   Widget _buildResponderAvailabilityCardContent() {
     if (_hasVolunteerResponder) {
       return Column(
@@ -1502,27 +1545,10 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
         ],
       );
     }
-    final deptEntries = assignedDepartmentTeamEntries(_incident);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (deptEntries.length > 1) ...[
-          for (var i = 0; i < deptEntries.length; i++) ...[
-            if (i > 0) const SizedBox(height: 6),
-            _simpleRow(
-              deptEntries[i].isLead ? 'Lead Department' : 'Assisting Dept',
-              deptEntries[i].teamName != null
-                  ? '${deptEntries[i].departmentName} (${deptEntries[i].teamName})'
-                  : deptEntries[i].departmentName,
-            ),
-          ],
-        ] else ...[
-          _simpleRow('Department', assignedDepartmentDisplayName(_incident)),
-          if (deptEntries.isNotEmpty && deptEntries.first.teamName != null) ...[
-            const SizedBox(height: 6),
-            _simpleRow('Response Team', deptEntries.first.teamName!),
-          ],
-        ],
+        _buildAssignedDepartmentSection(compact: false),
         const SizedBox(height: 8),
         _simpleRow('Estimated Arrival', _estimatedEtaMinutes != null ? '$_estimatedEtaMinutes min' : 'Pending'),
         const SizedBox(height: 8),

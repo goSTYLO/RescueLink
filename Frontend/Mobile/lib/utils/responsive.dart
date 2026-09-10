@@ -32,16 +32,20 @@ class Responsive {
     }
   }
 
+  /// Brand shield beside RescueLink text (cropped icon fills the box).
   static double logoSize(double width) {
     switch (sizeClass(width)) {
       case ScreenSizeClass.compact:
-        return 90;
+        return 36;
       case ScreenSizeClass.regular:
-        return 105;
+        return 40;
       case ScreenSizeClass.expanded:
-        return 120;
+        return 44;
     }
   }
+
+  /// App bar / screen header logo mark.
+  static const double headerLogoSize = 40;
 
   static double brandTitleSize(double width) {
     switch (sizeClass(width)) {

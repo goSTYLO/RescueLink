@@ -191,6 +191,8 @@ function mapApiToIncidentDetails(api, aiClassification = null) {
     leadDepartment,
     assignedTeamName: api.assigned_team_name || null,
     assignedTeamDepartmentCode: api.assigned_team_department_code || api.assigned_department_code || null,
+    assignedTeamRoster: Array.isArray(api.assigned_team_roster) ? api.assigned_team_roster : [],
+    dispatches: Array.isArray(api.dispatches) ? api.dispatches : [],
     autoAssignmentStatus: String(api.auto_assignment_status || 'none').toLowerCase(),
     suggestedDepartmentCode: api.suggested_department_code || null,
     suggestedTeamName: api.suggested_team_name || null,
@@ -2311,6 +2313,26 @@ export function IncidentDetailsPage() {
                             </div>
                           </div>
                         )}
+                        {incident?.assignedTeamRoster?.length > 0 && (
+                          <div>
+                            <p className="text-xs text-muted mb-1">Team Roster</p>
+                            <div className="space-y-2">
+                              {incident.assignedTeamRoster.map((member) => (
+                                <div
+                                  key={member.responder_id || member.name}
+                                  className={`p-2 rounded-lg border text-sm ${isLight ? 'bg-white/50 border-blue-200/50' : 'bg-white/5 border-blue-500/20'}`}
+                                >
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="font-medium text-foreground">{member.name || `Responder ${member.responder_id}`}</span>
+                                    <Badge variant="outline" className="text-xs">
+                                      {member.response_status || 'Assigned'}
+                                    </Badge>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                         {(incident?.estimatedEtaMinutes != null || incident?.estimatedArrivalAt) && (
                           <div>
                             <p className="text-xs text-muted mb-1">Estimated Arrival</p>
@@ -2507,25 +2529,27 @@ export function IncidentDetailsPage() {
                     </div>
                   )}
 
-                  {incident.assignedDepartments && incident.assignedDepartments.length > 1 && (
-                    <div className="space-y-2">
-                      <p className="text-xs uppercase tracking-wide text-muted font-semibold">Multi-Department Coordination</p>
+                  {(() => {
+                    const assistingDepts = (incident.dispatches || [])
+                      .filter((row) => String(row?.responder_source || '').toLowerCase() === 'escalation')
+                      .map((row) => row.department_name || row.department_code)
+                      .filter(Boolean)
+                      .filter((dept, idx, arr) => arr.indexOf(dept) === idx);
+                    if (assistingDepts.length === 0) return null;
+                    return (
                       <div className="space-y-2">
-                        <div className="flex items-center gap-2 text-sm">
-                          <Shield className="w-4 h-4 text-primary" />
-                          <span className="font-medium text-foreground">Lead: {incident.leadDepartment}</span>
-                        </div>
-                        {incident.assignedDepartments
-                          .filter(dept => dept !== incident.leadDepartment)
-                          .map((dept, idx) => (
+                        <p className="text-xs uppercase tracking-wide text-muted font-semibold">Assisting Departments</p>
+                        <div className="space-y-2">
+                          {assistingDepts.map((dept, idx) => (
                             <div key={idx} className={`flex items-center gap-2 p-2 rounded-lg ${isLight ? 'bg-gray-50' : 'bg-secondary/20'}`}>
                               <div className="w-2 h-2 rounded-full bg-primary" />
                               <span className="text-sm text-foreground">{dept}</span>
                             </div>
                           ))}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
 
                   {(incident.closureData || incident.status === 'Closed') && (
                     <div className={`p-3 rounded-xl border ${isLight ? 'border-severity-resolved/40 bg-severity-resolved/10' : 'border-severity-resolved/30 bg-severity-resolved/10'}`}>

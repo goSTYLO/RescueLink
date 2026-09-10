@@ -8,6 +8,15 @@
 
 Added: 2026-09-09 — consistent client-side validation across forms.
 
+## Team assignment display (reporter + web parity)
+
+- Incident GET attaches `assigned_team_roster` (primary team members + per-member `response_status`) and enriched `dispatches` (`responder_name`, `responder_source`).
+- Reporter mobile **Assigned Department** card shows department, assigned team, roster, and **Assisting Dept** only when `responder_source = escalation`.
+- Auto team dispatch sets member dispatch status to **En Route**; personnel detail auto-bumps legacy `Assigned` rows on open.
+- Personnel status updates emit `responder:status_changed`; WS delivers to assigned team personnel by dispatch join (not department_id alone).
+
+Added: 2026-09-10.
+
 ## Incident detail routing (personnel vs volunteer)
 
 - **`responder`** (team personnel, e.g. `09003000003`): Assigned history, assigned nearby list, no Accept/Decline, always online (toggle hidden).

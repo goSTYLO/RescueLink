@@ -104,7 +104,10 @@ const User = {
 
   /** Lightweight role lookup for auth middleware (promotions/revokes without re-login). */
   async getRoleById(user_id) {
-    const res = await pool.query('SELECT role FROM users WHERE user_id = $1', [user_id]);
+    const res = await pool.query(
+      'SELECT role FROM users WHERE user_id = $1 AND COALESCE(is_active, true) = true',
+      [user_id]
+    );
     if (!res.rows[0]) return null;
     return tryDecryptValue(res.rows[0].role);
   },

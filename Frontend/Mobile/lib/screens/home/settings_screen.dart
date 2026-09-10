@@ -180,8 +180,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       children: [
         Image.asset(
           'assets/logo/icon.png',
-          width: 72,
-          height: 72,
+          width: Responsive.headerLogoSize,
+          height: Responsive.headerLogoSize,
           fit: BoxFit.contain,
           errorBuilder: (_, __, ___) => const Icon(
             Icons.health_and_safety,
@@ -402,12 +402,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ClipOval(
                   child: Image.asset(
                     'assets/images/profilepicture_illustration.png',
-                    width: 64,
-                    height: 64,
+                    width: 72,
+                    height: 72,
                     fit: BoxFit.cover,
                     errorBuilder: (_, __, ___) => Container(
-                      width: 64,
-                      height: 64,
+                      width: 72,
+                      height: 72,
                       color: const Color(0xFFE5E7EB),
                       child: const Icon(Icons.person, size: 36, color: Color(0xFF6B7280)),
                     ),

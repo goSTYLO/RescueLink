@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../utils/responsive.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
@@ -194,8 +195,8 @@ class _BarangayInformationScreenState extends State<BarangayInformationScreen> {
               transparentFade: true,
               trailing: Image.asset(
                 'assets/logo/icon.png',
-                width: 64,
-                height: 64,
+                width: Responsive.headerLogoSize,
+          height: Responsive.headerLogoSize,
                 fit: BoxFit.contain,
                 color: const Color(0xFF93C5FD),
                 colorBlendMode: BlendMode.srcIn,

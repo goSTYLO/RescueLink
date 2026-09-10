@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../utils/responsive.dart';
 import '../../utils/app_config.dart';
 import '../../utils/validators.dart';
 import '../../widgets/recaptcha_webview.dart';
@@ -38,8 +39,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       children: [
         Image.asset(
           'assets/logo/icon.png',
-          width: 64,
-          height: 64,
+          width: Responsive.headerLogoSize,
+          height: Responsive.headerLogoSize,
           fit: BoxFit.contain,
         ),
         const SizedBox(width: 0),

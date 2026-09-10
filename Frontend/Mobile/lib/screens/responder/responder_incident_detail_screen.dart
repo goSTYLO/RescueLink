@@ -61,11 +61,11 @@ class _ResponderIncidentDetailScreenState
   };
 
   String _canonicalStatus(String? raw) {
-    final lower = (raw ?? 'Assigned').trim().toLowerCase();
+    final lower = (raw ?? 'En Route').trim().toLowerCase();
     for (final status in _statuses) {
       if (status.toLowerCase() == lower) return status;
     }
-    return 'Assigned';
+    return _isTeamAssignment ? 'En Route' : 'Assigned';
   }
 
   bool get _isBackupHelper =>
@@ -160,6 +160,7 @@ class _ResponderIncidentDetailScreenState
             _error = null;
           });
         }
+        await _ensureEnRouteForTeamAssignment();
         return;
       } on IncidentServiceException {
         if (widget.isTeamAssignment) {
@@ -219,6 +220,22 @@ class _ResponderIncidentDetailScreenState
         });
       }
     }
+  }
+
+  Future<void> _ensureEnRouteForTeamAssignment() async {
+    if (!_isTeamAssignment || widget.readOnly) return;
+    final status = _canonicalStatus(_incident?['my_response_status']?.toString());
+    if (status != 'Assigned') return;
+    try {
+      await _service.updateMyDispatchStatus(widget.reportId, 'En Route');
+      if (!mounted) return;
+      setState(() {
+        _incident = {
+          if (_incident != null) ..._incident!,
+          'my_response_status': 'En Route',
+        };
+      });
+    } catch (_) {}
   }
 
   Future<void> _updateStatus(String newStatus) async {

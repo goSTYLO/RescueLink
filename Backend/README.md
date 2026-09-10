@@ -54,6 +54,10 @@ Recent backend updates:
 - **Resource release on closed**:
   - `releaseIncidentResources` continues to run on `resolved` and `closed`, releasing teams, responders, and department units.
 
+## Stale JWT after re-seed
+
+If the DB is re-seeded, old mobile tokens may reference deleted `user_id` values. Auth now returns **401** (`User account not found. Please sign in again.`) instead of a 500 FK error on incident create. Sign out and log in again on the device.
+
 ## Dev: volunteer application upload (`Connection reset by peer`)
 
 `pnpm run dev` uses nodemon. Without `nodemon.json`, saving files under `uploads/` during `POST /api/responder-applications` restarted the server mid-request and the mobile app saw **Connection reset by peer**. Nodemon now watches only `src/` and ignores `uploads/**`. Restart the backend after pulling this change. Admin Field Responder / dept personnel create use JSON only — not affected.

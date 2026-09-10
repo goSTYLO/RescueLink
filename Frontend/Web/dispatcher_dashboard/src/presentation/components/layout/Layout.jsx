@@ -19,6 +19,7 @@ import { formatIncidentTypesLabel } from '@/core/utils/incidentDisplay';
 import { NotificationPromptBanner } from '@/presentation/components/common/NotificationPromptBanner';
 
 const SIDEBAR_STORAGE_KEY = 'rescuelink_sidebar_collapsed';
+const APP_BAR_HEIGHT = 'h-20';
 
 function formatNotificationTime(sentAt) {
   if (!sentAt) return '';
@@ -436,9 +437,9 @@ export function Layout({ children }) {
         } ${isCollapsed ? 'w-20' : 'w-64'}`}
       >
         {/* Header: logo + collapse */}
-        <div className={`flex items-center border-b border-border/80 transition-all duration-300 ${
+        <div className={`flex items-center shrink-0 border-b border-border/80 transition-all duration-300 ${APP_BAR_HEIGHT} ${
           isLight ? 'bg-white' : 'bg-secondary'
-        } ${isCollapsed ? 'justify-center p-4' : 'gap-3 p-5 pl-5'}`}>
+        } ${isCollapsed ? 'justify-center px-4' : 'gap-3 px-5'}`}>
           <BrandLogo iconOnly={isCollapsed} size={isCollapsed ? 'md' : 'lg'} />
           {!isCollapsed && (
             <button
@@ -548,7 +549,7 @@ export function Layout({ children }) {
 
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header: search (left), notifications + profile (right) */}
-        <header className={`flex-shrink-0 flex items-center gap-4 px-6 py-3.5 border-b border-border/80 shadow-sm ${
+        <header className={`flex-shrink-0 flex items-center gap-4 px-6 border-b border-border/80 shadow-sm ${APP_BAR_HEIGHT} ${
           isLight ? 'bg-white' : 'bg-card'
         }`}>
           <GlobalSearch />

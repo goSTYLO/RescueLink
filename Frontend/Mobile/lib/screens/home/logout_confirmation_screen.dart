@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../utils/responsive.dart';
 import '../../theme/app_theme.dart';
 
 class LogoutConfirmationScreen extends StatefulWidget {
@@ -79,8 +80,8 @@ class _LogoutConfirmationScreenState extends State<LogoutConfirmationScreen> {
                   ),
                   Image.asset(
                     'assets/logo/icon.png',
-                    width: 64,
-                    height: 64,
+                    width: Responsive.headerLogoSize,
+          height: Responsive.headerLogoSize,
                     fit: BoxFit.contain,
                     color: Colors.white,
                     colorBlendMode: BlendMode.srcIn,

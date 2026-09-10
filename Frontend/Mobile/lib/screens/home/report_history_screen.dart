@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../utils/responsive.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -538,8 +539,8 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
       children: [
         Image.asset(
           'assets/logo/icon.png',
-          width: 72,
-          height: 72,
+          width: Responsive.headerLogoSize,
+          height: Responsive.headerLogoSize,
           fit: BoxFit.contain,
           errorBuilder: (_, __, ___) => const Icon(
             Icons.health_and_safety,

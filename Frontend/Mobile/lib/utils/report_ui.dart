@@ -571,43 +571,50 @@ class DepartmentTeamEntry {
   });
 }
 
+bool _isEscalationDispatch(Map<dynamic, dynamic> dispatch) {
+  return (dispatch['responder_source'] ?? '').toString().toLowerCase() == 'escalation';
+}
+
 List<DepartmentTeamEntry> assignedDepartmentTeamEntries(Map<String, dynamic>? incident) {
   if (incident == null) return const [];
   final List<DepartmentTeamEntry> entries = [];
-  final seenDepts = <String>{};
+  final seenPrimaryKeys = <String>{};
+  final seenAssistingDepts = <String>{};
 
   final dispatches = incident['dispatches'];
   if (dispatches is List && dispatches.isNotEmpty) {
-    for (var i = 0; i < dispatches.length; i++) {
-      final d = dispatches[i];
-      if (d is Map) {
-        final deptName = (d['department_name'] ?? d['department_code'] ?? '').toString().trim();
-        if (deptName.isEmpty) continue;
-        final teamName = d['team_name']?.toString().trim();
-        final status = d['response_status']?.toString().trim();
-        entries.add(DepartmentTeamEntry(
-          departmentName: deptName,
-          teamName: (teamName != null && teamName.isNotEmpty) ? teamName : null,
-          isLead: i == 0,
-          status: status,
-        ));
-        seenDepts.add(deptName.toLowerCase());
-      }
+    for (final raw in dispatches) {
+      if (raw is! Map) continue;
+      final d = raw.cast<dynamic, dynamic>();
+      if (_isEscalationDispatch(d)) continue;
+      final deptName = (d['department_name'] ?? d['department_code'] ?? '').toString().trim();
+      if (deptName.isEmpty) continue;
+      final teamName = d['team_name']?.toString().trim();
+      final key = '${deptName.toLowerCase()}::${(teamName ?? '').toLowerCase()}';
+      if (seenPrimaryKeys.contains(key)) continue;
+      seenPrimaryKeys.add(key);
+      entries.add(DepartmentTeamEntry(
+        departmentName: deptName,
+        teamName: (teamName != null && teamName.isNotEmpty) ? teamName : null,
+        isLead: entries.isEmpty,
+        status: d['response_status']?.toString().trim(),
+      ));
     }
-  }
 
-  final assignedList = incident['assigned_departments'] ?? incident['assignedDepartments'];
-  if (assignedList is List) {
-    for (var i = 0; i < assignedList.length; i++) {
-      final deptName = assignedList[i]?.toString().trim() ?? '';
-      if (deptName.isNotEmpty && !seenDepts.contains(deptName.toLowerCase())) {
-        entries.add(DepartmentTeamEntry(
-          departmentName: deptName,
-          teamName: (i == 0) ? incident['assigned_team_name']?.toString().trim() : null,
-          isLead: i == 0,
-        ));
-        seenDepts.add(deptName.toLowerCase());
-      }
+    for (final raw in dispatches) {
+      if (raw is! Map) continue;
+      final d = raw.cast<dynamic, dynamic>();
+      if (!_isEscalationDispatch(d)) continue;
+      final deptName = (d['department_name'] ?? d['department_code'] ?? '').toString().trim();
+      if (deptName.isEmpty || seenAssistingDepts.contains(deptName.toLowerCase())) continue;
+      seenAssistingDepts.add(deptName.toLowerCase());
+      final teamName = d['team_name']?.toString().trim();
+      entries.add(DepartmentTeamEntry(
+        departmentName: deptName,
+        teamName: (teamName != null && teamName.isNotEmpty) ? teamName : null,
+        isLead: false,
+        status: d['response_status']?.toString().trim(),
+      ));
     }
   }
 
@@ -624,6 +631,61 @@ List<DepartmentTeamEntry> assignedDepartmentTeamEntries(Map<String, dynamic>? in
   }
 
   return entries;
+}
+
+class AssignedTeamMember {
+  final String name;
+  final String? responseStatus;
+
+  const AssignedTeamMember({required this.name, this.responseStatus});
+}
+
+List<AssignedTeamMember> assignedTeamRoster(Map<String, dynamic>? incident) {
+  if (incident == null) return const [];
+
+  final roster = incident['assigned_team_roster'];
+  if (roster is List && roster.isNotEmpty) {
+    return roster
+        .whereType<Map>()
+        .map((member) {
+          final name = (member['name'] ?? member['responder_name'] ?? 'Responder').toString().trim();
+          if (name.isEmpty) return null;
+          return AssignedTeamMember(
+            name: name,
+            responseStatus: member['response_status']?.toString().trim(),
+          );
+        })
+        .whereType<AssignedTeamMember>()
+        .toList();
+  }
+
+  final teamName = incident['assigned_team_name']?.toString().trim().toLowerCase();
+  final dispatches = incident['dispatches'];
+  if (dispatches is! List || dispatches.isEmpty) return const [];
+
+  final members = <AssignedTeamMember>[];
+  final seenIds = <String>{};
+  for (final raw in dispatches) {
+    if (raw is! Map) continue;
+    final d = raw.cast<dynamic, dynamic>();
+    if (_isEscalationDispatch(d)) continue;
+    final dispatchTeam = d['team_name']?.toString().trim().toLowerCase();
+    if (teamName != null && teamName.isNotEmpty && dispatchTeam != teamName) continue;
+    final responderId = d['responder_id']?.toString();
+    if (responderId != null && seenIds.contains(responderId)) continue;
+    if (responderId != null) seenIds.add(responderId);
+    final name = (d['responder_name'] ?? 'Responder').toString().trim();
+    if (name.isEmpty) continue;
+    members.add(AssignedTeamMember(
+      name: name,
+      responseStatus: d['response_status']?.toString().trim(),
+    ));
+  }
+  return members;
+}
+
+bool hasAssistingDepartments(Map<String, dynamic>? incident) {
+  return assignedDepartmentTeamEntries(incident).any((entry) => !entry.isLead);
 }
 
 /// Display name for assigned department: uses API assigned_department when present,

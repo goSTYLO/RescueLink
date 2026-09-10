@@ -1405,11 +1405,29 @@ async function getIncidentPreview(req, res) {
     );
     const classification = classRow.rows[0] || null;
 
+    let assignedTeamName = null;
+    try {
+      const teamRow = await pool.query(
+        `SELECT team_name
+           FROM dispatches
+          WHERE report_id = $1
+            AND COALESCE(team_name, '') <> ''
+            AND LOWER(COALESCE(responder_source, '')) <> 'escalation'
+          ORDER BY dispatched_at ASC
+          LIMIT 1`,
+        [reportId]
+      );
+      assignedTeamName = teamRow.rows[0]?.team_name
+        ? String(teamRow.rows[0].team_name).trim()
+        : null;
+    } catch (_) {}
+
     res.json({
       report_id: incident.report_id,
       incident_type: incident.incident_type,
       severity_level: incident.severity_level,
       status: incident.status,
+      assigned_team_name: assignedTeamName,
       barangay: incident.barangay,
       description: incident.description || 'No description provided.',
       transcription: incident.transcription || null,

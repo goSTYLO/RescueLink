@@ -39,7 +39,6 @@ const DEPARTMENT_SCOPED_ROLES = new Set([
   ROLES.DEPARTMENT_ADMIN,
   ROLES.DEPARTMENT_HEAD,
   'personnel',
-  ROLES.RESPONDER,
 ]);
 
 // Normalize role from various API formats
@@ -318,6 +317,26 @@ function init(server) {
     const incidentLat = data.latitude != null ? Number(data.latitude) : null;
     const incidentLon = data.longitude != null ? Number(data.longitude) : null;
 
+    let assignedPersonnelUserIds = null;
+    if (reportId) {
+      try {
+        const assignedRes = await pool.query(
+          `SELECT DISTINCT r.user_id
+             FROM dispatches d
+             INNER JOIN responders r ON r.responder_id = d.responder_id
+            WHERE d.report_id = $1
+              AND COALESCE(d.team_name, '') <> ''
+              AND r.user_id IS NOT NULL`,
+          [reportId]
+        );
+        assignedPersonnelUserIds = new Set(
+          assignedRes.rows.map((row) => Number(row.user_id)).filter((id) => Number.isFinite(id) && id > 0)
+        );
+      } catch (_) {
+        assignedPersonnelUserIds = new Set();
+      }
+    }
+
     for (const [ws, meta] of clients) {
       if (ws.readyState !== WebSocket.OPEN) continue;
 
@@ -422,6 +441,12 @@ function init(server) {
           toSend.push(ws);
           continue;
         }
+      }
+
+      // Team personnel: only incidents they are formally assigned to
+      if (role === ROLES.RESPONDER && assignedPersonnelUserIds?.has(Number(userId))) {
+        toSend.push(ws);
+        continue;
       }
 
       // Department-scoped: only if incident assigned to their department

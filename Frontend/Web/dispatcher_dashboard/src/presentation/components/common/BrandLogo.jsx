@@ -5,12 +5,11 @@ export function BrandLogo({ iconOnly = false, size = 'md', className = '' }) {
   const { theme } = useTheme();
   const isLight = theme === 'light';
 
-  // Standard sleek logo size configurations with balanced shield icon proportions
   const sizes = {
     sm: { icon: 'h-7 w-7', title: 'text-base', sub: 'text-[10px]' },
     md: { icon: 'h-9 w-9', title: 'text-xl', sub: 'text-[11px]' },
-    lg: { icon: 'h-11 w-11', title: 'text-2xl', sub: 'text-xs' },
-    xl: { icon: 'h-13 w-13', title: 'text-3xl', sub: 'text-xs' },
+    lg: { icon: 'h-10 w-10', title: 'text-2xl', sub: 'text-xs' },
+    xl: { icon: 'h-11 w-11', title: 'text-3xl', sub: 'text-xs' },
   };
 
   const s = sizes[size] || sizes.md;

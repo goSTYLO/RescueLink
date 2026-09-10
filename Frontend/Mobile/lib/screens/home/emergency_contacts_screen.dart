@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../utils/responsive.dart';
 import '../../utils/validators.dart';
 import '../../widgets/bottom_sheet_wrapper.dart';
 import '../../widgets/glass_card.dart';
@@ -148,8 +149,8 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
                   ),
                   Image.asset(
                     'assets/logo/icon.png',
-                    width: 64,
-                    height: 64,
+                    width: Responsive.headerLogoSize,
+          height: Responsive.headerLogoSize,
                     fit: BoxFit.contain,
                     color: Colors.white,
                     colorBlendMode: BlendMode.srcIn,

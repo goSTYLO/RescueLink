@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import '../../utils/responsive.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:latlong2/latlong.dart';
@@ -556,8 +557,8 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
                   transparentFade: true,
                   trailing: Image.asset(
                     'assets/logo/icon.png',
-                    width: 64,
-                    height: 64,
+                    width: Responsive.headerLogoSize,
+          height: Responsive.headerLogoSize,
                     fit: BoxFit.contain,
                     color: Colors.white,
                     colorBlendMode: BlendMode.srcIn,

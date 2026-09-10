@@ -913,6 +913,20 @@ const dispatchController = {
       const refreshed = await Incident.findById(validatedReportId);
       emitDispatchEvent(req, 'incident:status_updated', validatedReportId, refreshed);
       emitDispatchEvent(req, 'incident:note_added', validatedReportId, refreshed);
+      const wss = req?.app?.locals?.wss;
+      if (wss?.broadcast) {
+        Promise.resolve(wss.broadcast('responder:status_changed', {
+          report_id: validatedReportId,
+          reporter_id: refreshed?.user_id ?? null,
+          old_status: dispatch.response_status || null,
+          new_status: titleCase,
+          responder_status: isVolunteerAcceptor ? titleCase : (refreshed?.responder_status ?? null),
+          updated_by_user_id: userId,
+          updated_by_name: actorName,
+          source: 'team_member',
+          assigned_team_name: dispatch.team_name || refreshed?.assigned_team_name || null,
+        })).catch(() => {});
+      }
       return res.json({
         dispatch: updatedDispatch,
         incident_responder_status_updated: isVolunteerAcceptor,

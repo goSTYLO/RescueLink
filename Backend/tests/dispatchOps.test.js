@@ -143,6 +143,14 @@ describe('dispatch primary lock and member status', () => {
     await dispatchController.updateMyResponseStatus(req, res);
 
     expect(Dispatch.updateResponseStatus).toHaveBeenCalledWith(44, 'En Route');
+    expect(req.app.locals.wss.broadcast).toHaveBeenCalledWith(
+      'responder:status_changed',
+      expect.objectContaining({
+        report_id: 12,
+        new_status: 'En Route',
+        source: 'team_member',
+      })
+    );
     expect(IncidentCoordinationNote.create).toHaveBeenCalledWith(expect.objectContaining({
       report_id: 12,
       note: expect.stringMatching(/Ana Cruz set status to En Route/),
