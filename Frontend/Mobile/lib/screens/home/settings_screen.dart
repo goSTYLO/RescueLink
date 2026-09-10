@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import '../../services/auth_service.dart';
 import '../../services/theme_service.dart';
@@ -7,7 +9,9 @@ import '../../utils/responsive.dart';
 import '../../widgets/animated_collapse.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/biometric_password_dialog.dart';
+import '../../widgets/profile_avatar.dart';
 import '../../widgets/skeleton_placeholder.dart';
+import 'edit_profile_screen.dart';
 import 'responder_application/responder_onboarding_screen.dart';
 import 'responder_application/application_status_screen.dart';
 
@@ -52,6 +56,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _loadingProfile = true;
   String? _profileError;
   Map<String, dynamic>? _profile;
+  Uint8List? _photoBytes;
 
   final Set<String> _expandedSections = {'account'};
 
@@ -161,14 +166,44 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (!mounted) return;
 
     if (result['success'] == true) {
+      final user = (result['user'] as Map?)?.cast<String, dynamic>();
+      Uint8List? photo;
+      if (user?['has_profile_image'] == true) {
+        photo = await AuthService().fetchAvatarBytes();
+      }
+      if (!mounted) return;
       setState(() {
-        _profile = (result['user'] as Map?)?.cast<String, dynamic>();
+        _profile = user;
+        _photoBytes = photo;
         _loadingProfile = false;
       });
     } else {
       setState(() {
         _profileError = result['error']?.toString() ?? 'Failed to load profile';
         _loadingProfile = false;
+      });
+    }
+  }
+
+  Future<void> _openEditProfile() async {
+    final updated = await Navigator.push<Map<String, dynamic>>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => EditProfileScreen(
+          initialProfile: _profile,
+          initialPhotoBytes: _photoBytes,
+        ),
+      ),
+    );
+    if (updated != null && mounted) {
+      Uint8List? photo;
+      if (updated['has_profile_image'] == true) {
+        photo = await AuthService().fetchAvatarBytes();
+      }
+      if (!mounted) return;
+      setState(() {
+        _profile = updated;
+        _photoBytes = photo;
       });
     }
   }
@@ -393,67 +428,81 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 20),
           // User Profile card
-          GlassCard(
-            padding: const EdgeInsets.all(16),
-            borderRadius: 20,
-            blurSigma: 12,
-            child: Row(
-              children: [
-                ClipOval(
-                  child: Image.asset(
-                    'assets/images/profilepicture_illustration.png',
-                    width: 72,
-                    height: 72,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
-                      width: 72,
-                      height: 72,
-                      color: const Color(0xFFE5E7EB),
-                      child: const Icon(Icons.person, size: 36, color: Color(0xFF6B7280)),
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: _openEditProfile,
+              borderRadius: BorderRadius.circular(20),
+              child: GlassCard(
+                padding: const EdgeInsets.all(16),
+                borderRadius: 20,
+                blurSigma: 12,
+                child: Row(
+                  children: [
+                    ProfileAvatar(
+                      firstName: firstName,
+                      lastName: lastName,
+                      size: 72,
+                      photoBytes: _photoBytes,
                     ),
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        fullName,
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.onSurface,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        phone.isNotEmpty ? phone : 'Phone not set',
-                        style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant),
-                      ),
-                      const SizedBox(height: 6),
-                      Row(
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(
-                            phoneVerified ? Icons.check_circle : Icons.error_outline,
-                            color: phoneVerified ? const Color(0xFF22C55E) : const Color(0xFFF59E0B),
-                            size: 18,
-                          ),
-                          const SizedBox(width: 6),
                           Text(
-                            phoneVerified ? 'Verified Citizen' : 'Unverified',
+                            fullName,
                             style: TextStyle(
-                              fontSize: 12,
-                              color: phoneVerified ? const Color(0xFF22C55E) : const Color(0xFFF59E0B),
-                              fontWeight: FontWeight.w500,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Theme.of(context).colorScheme.onSurface,
                             ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            phone.isNotEmpty ? phone : 'Phone not set',
+                            style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                          ),
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              Icon(
+                                phoneVerified ? Icons.check_circle : Icons.error_outline,
+                                color: phoneVerified ? const Color(0xFF22C55E) : const Color(0xFFF59E0B),
+                                size: 18,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                phoneVerified ? 'Verified Citizen' : 'Unverified',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: phoneVerified ? const Color(0xFF22C55E) : const Color(0xFFF59E0B),
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
-                    ],
-                  ),
+                    ),
+                    Semantics(
+                      label: 'Edit profile',
+                      button: true,
+                      child: SizedBox(
+                        width: 48,
+                        height: 48,
+                        child: IconButton(
+                          onPressed: _openEditProfile,
+                          icon: Icon(
+                            Icons.edit_outlined,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
           const SizedBox(height: 24),

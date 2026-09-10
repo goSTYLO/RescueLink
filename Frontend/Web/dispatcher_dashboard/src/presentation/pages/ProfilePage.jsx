@@ -1,6 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Layout } from '@/presentation/components/layout/Layout';
-import { getMe, changePassword as changePasswordApi } from '@/data/api/auth.api';
+import {
+  getMe,
+  changePassword as changePasswordApi,
+  updateMe,
+  fetchAvatarBlob,
+  uploadAvatar,
+  deleteAvatar,
+} from '@/data/api/auth.api';
+import { ProfileAvatar } from '@/presentation/components/common/ProfileAvatar';
 import { clearAuthSession } from '@/core/auth/session';
 import { Button } from '@/presentation/components/ui/Button';
 import { Label } from '@/presentation/components/ui/Label';
@@ -25,6 +33,8 @@ import {
   EyeOff,
   UserCircle,
   Activity,
+  Pencil,
+  Camera,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Breadcrumb } from '@/presentation/components/common/Breadcrumb';
@@ -33,6 +43,22 @@ import { DEV_MODE } from '@/core/config/app.config';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
 
 const MIN_PASSWORD_LENGTH = 8;
+const MAX_NAME_LENGTH = 100;
+
+function syncSessionUser(user) {
+  try {
+    const stored = sessionStorage.getItem('user');
+    const prev = stored ? JSON.parse(stored) : {};
+    sessionStorage.setItem('user', JSON.stringify({
+      ...prev,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      name: [user.firstName, user.lastName].filter(Boolean).join(' '),
+      has_profile_image: user.has_profile_image,
+    }));
+    window.dispatchEvent(new CustomEvent('profile-updated'));
+  } catch (_) {}
+}
 
 export function ProfilePage() {
   const navigate = useNavigate();
@@ -48,6 +74,36 @@ export function ProfilePage() {
   const [profileLoading, setProfileLoading] = useState(true);
   const [profileError, setProfileError] = useState(null);
   const [passwordSubmitting, setPasswordSubmitting] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editFirstName, setEditFirstName] = useState('');
+  const [editLastName, setEditLastName] = useState('');
+  const [nameErrors, setNameErrors] = useState({});
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState(null);
+  const [pendingAvatarFile, setPendingAvatarFile] = useState(null);
+  const [removeAvatar, setRemoveAvatar] = useState(false);
+  const avatarInputRef = useRef(null);
+
+  const loadAvatar = async (hasImage) => {
+    if (!hasImage) {
+      setAvatarUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
+      return;
+    }
+    const blob = await fetchAvatarBlob();
+    if (!blob) return;
+    const url = URL.createObjectURL(blob);
+    setAvatarUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return url;
+    });
+  };
+
+  useEffect(() => () => {
+    if (avatarUrl) URL.revokeObjectURL(avatarUrl);
+  }, [avatarUrl]);
 
   useEffect(() => {
     const token = sessionStorage.getItem('token');
@@ -79,8 +135,12 @@ export function ProfilePage() {
     setProfileLoading(true);
     setProfileError(null);
     getMe()
-      .then((user) => {
-        if (!cancelled) setProfile(user);
+      .then(async (user) => {
+        if (cancelled) return;
+        setProfile(user);
+        setEditFirstName(user.firstName || '');
+        setEditLastName(user.lastName || '');
+        await loadAvatar(user.has_profile_image);
       })
       .catch((err) => {
         if (!cancelled) setProfileError(err.message || 'Failed to load profile');
@@ -169,6 +229,125 @@ export function ProfilePage() {
     }
   };
 
+  const validateNames = () => {
+    const err = {};
+    const first = editFirstName.trim();
+    const last = editLastName.trim();
+    if (!first) err.firstName = 'First name is required.';
+    else if (first.length > MAX_NAME_LENGTH) err.firstName = `First name must not exceed ${MAX_NAME_LENGTH} characters.`;
+    if (!last) err.lastName = 'Last name is required.';
+    else if (last.length > MAX_NAME_LENGTH) err.lastName = `Last name must not exceed ${MAX_NAME_LENGTH} characters.`;
+    setNameErrors(err);
+    return err;
+  };
+
+  const canSaveProfile = editFirstName.trim().length > 0
+    && editLastName.trim().length > 0
+    && editFirstName.trim().length <= MAX_NAME_LENGTH
+    && editLastName.trim().length <= MAX_NAME_LENGTH
+    && !profileSaving;
+
+  const startEditing = () => {
+    if (!profile) return;
+    setEditFirstName(profile.firstName || '');
+    setEditLastName(profile.lastName || '');
+    setPendingAvatarFile(null);
+    setRemoveAvatar(false);
+    setNameErrors({});
+    setIsEditing(true);
+  };
+
+  const cancelEditing = () => {
+    if (profile) {
+      setEditFirstName(profile.firstName || '');
+      setEditLastName(profile.lastName || '');
+    }
+    setPendingAvatarFile(null);
+    setRemoveAvatar(false);
+    setNameErrors({});
+    setIsEditing(false);
+    if (profile?.has_profile_image) {
+      loadAvatar(true);
+    } else {
+      loadAvatar(false);
+    }
+  };
+
+  const handleAvatarPick = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!/^image\/(jpeg|jpg|png)$/i.test(file.type)) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Invalid file',
+        text: 'Please choose a JPG or PNG image.',
+        confirmButtonColor: '#134178',
+      });
+      return;
+    }
+    setPendingAvatarFile(file);
+    setRemoveAvatar(false);
+    const preview = URL.createObjectURL(file);
+    setAvatarUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return preview;
+    });
+    e.target.value = '';
+  };
+
+  const handleRemoveAvatar = () => {
+    setPendingAvatarFile(null);
+    setRemoveAvatar(true);
+    setAvatarUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+  };
+
+  const handleSaveProfile = async () => {
+    const errors = validateNames();
+    if (Object.keys(errors).length > 0) return;
+
+    setProfileSaving(true);
+    try {
+      let user = await updateMe({
+        firstName: editFirstName.trim(),
+        lastName: editLastName.trim(),
+      });
+
+      if (removeAvatar) {
+        user = await deleteAvatar();
+      } else if (pendingAvatarFile) {
+        user = await uploadAvatar(pendingAvatarFile);
+      }
+
+      setProfile(user);
+      syncSessionUser(user);
+      setPendingAvatarFile(null);
+      setRemoveAvatar(false);
+      setIsEditing(false);
+      await loadAvatar(user.has_profile_image);
+
+      Swal.fire({
+        icon: 'success',
+        title: 'Profile updated',
+        timer: 1800,
+        showConfirmButton: false,
+        timerProgressBar: true,
+        customClass: { popup: 'rounded-2xl shadow-xl' },
+      });
+    } catch (err) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Could not save profile',
+        text: err.message || 'Please try again.',
+        confirmButtonColor: '#134178',
+      });
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+
   const closeChangePasswordModal = () => {
     setChangePasswordOpen(false);
     setCurrentPassword('');
@@ -212,6 +391,32 @@ export function ProfilePage() {
                 <UserCircle className="w-5 h-5" strokeWidth={2} />
               </span>
               <span className="font-medium text-foreground flex-1">Profile Information</span>
+              {!profileLoading && !profileError && profile && !isEditing && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="rounded-xl gap-2 shrink-0"
+                  onClick={startEditing}
+                >
+                  <Pencil className="w-4 h-4" strokeWidth={2} />
+                  Edit
+                </Button>
+              )}
+              {isEditing && (
+                <div className="flex gap-2 shrink-0">
+                  <Button
+                    type="button"
+                    className="rounded-xl bg-primary hover:bg-primary-hover text-white"
+                    disabled={!canSaveProfile}
+                    onClick={handleSaveProfile}
+                  >
+                    {profileSaving ? 'Saving...' : 'Save'}
+                  </Button>
+                  <Button type="button" variant="outline" className="rounded-xl" onClick={cancelEditing} disabled={profileSaving}>
+                    Cancel
+                  </Button>
+                </div>
+              )}
               {profile?.role && (
                 <span className="px-3 py-1.5 rounded-xl text-xs font-semibold uppercase bg-primary text-white border border-primary">
                   {profile.role === 'dispatcher' ? 'Operator' : (profile.role || '').toUpperCase()}
@@ -223,15 +428,84 @@ export function ProfilePage() {
               {profileError && <p className="text-red-500 text-sm">{profileError}</p>}
               {!profileLoading && !profileError && profile && (
                 <>
-                  <div className="flex items-center gap-5">
-                    <span className={`w-16 h-16 rounded-2xl flex items-center justify-center flex-shrink-0 ${isLight ? 'neumorphic-light-inset bg-gray-100 text-primary' : 'neumorphic-dark-inset bg-white/10 text-primary'}`}>
-                      <User className="w-8 h-8" strokeWidth={2} />
-                    </span>
-                    <div>
-                      <h3 className="text-lg font-semibold text-foreground">
-                        {[profile.firstName, profile.lastName].filter(Boolean).join(' ') || '—'}
-                      </h3>
-                      <p className="text-sm text-muted mt-0.5">Emergency Operations Center</p>
+                  <input
+                    ref={avatarInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/jpg"
+                    className="sr-only"
+                    onChange={handleAvatarPick}
+                  />
+                  <div className="flex flex-wrap items-center gap-5">
+                    <div className="relative">
+                      <ProfileAvatar
+                        firstName={isEditing ? editFirstName : profile.firstName}
+                        lastName={isEditing ? editLastName : profile.lastName}
+                        photoUrl={avatarUrl}
+                        size="md"
+                        rounded="rounded-2xl"
+                        onClick={isEditing ? () => avatarInputRef.current?.click() : undefined}
+                      />
+                      {isEditing && (
+                        <span className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center border-2 border-background">
+                          <Camera className="w-4 h-4" />
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-[200px]">
+                      {isEditing ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <Label htmlFor="edit-first-name">First name</Label>
+                            <Input
+                              id="edit-first-name"
+                              maxLength={MAX_NAME_LENGTH}
+                              value={editFirstName}
+                              onChange={(e) => {
+                                setEditFirstName(e.target.value);
+                                if (nameErrors.firstName) setNameErrors((p) => ({ ...p, firstName: undefined }));
+                              }}
+                              error={!!nameErrors.firstName}
+                              className="mt-1 rounded-xl"
+                            />
+                            {nameErrors.firstName && (
+                              <p className="text-red-500 text-sm mt-1" role="alert">{nameErrors.firstName}</p>
+                            )}
+                          </div>
+                          <div>
+                            <Label htmlFor="edit-last-name">Last name</Label>
+                            <Input
+                              id="edit-last-name"
+                              maxLength={MAX_NAME_LENGTH}
+                              value={editLastName}
+                              onChange={(e) => {
+                                setEditLastName(e.target.value);
+                                if (nameErrors.lastName) setNameErrors((p) => ({ ...p, lastName: undefined }));
+                              }}
+                              error={!!nameErrors.lastName}
+                              className="mt-1 rounded-xl"
+                            />
+                            {nameErrors.lastName && (
+                              <p className="text-red-500 text-sm mt-1" role="alert">{nameErrors.lastName}</p>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <h3 className="text-lg font-semibold text-foreground">
+                            {[profile.firstName, profile.lastName].filter(Boolean).join(' ') || '—'}
+                          </h3>
+                          <p className="text-sm text-muted mt-0.5">Emergency Operations Center</p>
+                        </>
+                      )}
+                      {isEditing && (avatarUrl || profile.has_profile_image) && (
+                        <button
+                          type="button"
+                          className="text-sm text-red-600 hover:underline mt-2"
+                          onClick={handleRemoveAvatar}
+                        >
+                          Remove photo
+                        </button>
+                      )}
                     </div>
                   </div>
                   <div className={`border-t pt-5 grid grid-cols-1 sm:grid-cols-2 gap-5 ${isLight ? 'border-gray-200' : 'border-white/10'}`}>

@@ -71,6 +71,37 @@ void main() {
     });
   });
 
+  group('ReportStatusUi.isResponderDetailReadOnly', () {
+    test('team assignment is read-only when incident is closed', () {
+      expect(
+        ReportStatusUi.isResponderDetailReadOnly(
+          {'status': 'closed', 'my_response_status': 'On Scene'},
+          isTeamAssignment: true,
+        ),
+        isTrue,
+      );
+    });
+
+    test('team assignment is read-only when member dispatch is resolved', () {
+      expect(
+        ReportStatusUi.isResponderDetailReadOnly(
+          {'status': 'in_progress', 'my_response_status': 'Resolved'},
+          isTeamAssignment: true,
+        ),
+        isTrue,
+      );
+    });
+
+    test('volunteer assignment is read-only when responder_status is resolved', () {
+      expect(
+        ReportStatusUi.isResponderDetailReadOnly(
+          {'status': 'in_progress', 'responder_status': 'Resolved'},
+        ),
+        isTrue,
+      );
+    });
+  });
+
   group('assignedTeamRoster', () {
     test('reads roster from assigned_team_roster payload', () {
       final roster = assignedTeamRoster({

@@ -1,10 +1,16 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../utils/app_config.dart';
 import 'api_service.dart';
 
 class AuthService {
@@ -303,16 +309,90 @@ class AuthService {
     }
   }
 
-  /// Update user profile (address/barangay)
-  Future<Map<String, dynamic>> updateProfile({String? address}) async {
+  /// Update user profile (partial: address and/or name)
+  Future<Map<String, dynamic>> updateProfile({
+    String? address,
+    String? firstName,
+    String? lastName,
+  }) async {
+    final token = getToken();
+    if (token == null || token.isEmpty) {
+      return {'success': false, 'error': 'Not authenticated'};
+    }
+    final body = <String, dynamic>{};
+    if (address != null) body['address'] = address;
+    if (firstName != null) body['firstName'] = firstName;
+    if (lastName != null) body['lastName'] = lastName;
+    if (body.isEmpty) {
+      return {'success': false, 'error': 'No fields to update'};
+    }
+    try {
+      final response = await _apiService.patch(
+        '/api/auth/me',
+        body: body,
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      return {'success': true, 'user': response['user'] ?? response};
+    } catch (e) {
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
+  Future<Uint8List?> fetchAvatarBytes() async {
+    final token = getToken();
+    if (token == null || token.isEmpty) return null;
+    try {
+      final uri = Uri.parse('${AppConfig.apiBaseUrl}/api/auth/me/avatar');
+      final response = await http.get(
+        uri,
+        headers: {'Authorization': 'Bearer $token'},
+      ).timeout(AppConfig.apiTimeout);
+      if (response.statusCode == 200) {
+        return response.bodyBytes;
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<Map<String, dynamic>> uploadAvatar(File file) async {
     final token = getToken();
     if (token == null || token.isEmpty) {
       return {'success': false, 'error': 'Not authenticated'};
     }
     try {
-      final response = await _apiService.patch(
-        '/api/auth/me',
-        body: {'address': address},
+      final uri = Uri.parse('${AppConfig.apiBaseUrl}/api/auth/me/avatar');
+      final request = http.MultipartRequest('POST', uri);
+      request.headers['Authorization'] = 'Bearer $token';
+      request.files.add(
+        await http.MultipartFile.fromPath('avatar', file.path),
+      );
+      final streamed = await request.send().timeout(AppConfig.apiTimeout);
+      final body = await streamed.stream.bytesToString();
+      if (streamed.statusCode >= 200 && streamed.statusCode < 300) {
+        final decoded = jsonDecode(body) as Map<String, dynamic>;
+        return {'success': true, 'user': decoded['user'] ?? decoded};
+      }
+      String message = 'Failed to upload photo';
+      try {
+        final err = jsonDecode(body) as Map<String, dynamic>;
+        message = err['message']?.toString() ?? message;
+      } catch (_) {}
+      return {'success': false, 'error': message};
+    } catch (e) {
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
+  Future<Map<String, dynamic>> deleteAvatar() async {
+    final token = getToken();
+    if (token == null || token.isEmpty) {
+      return {'success': false, 'error': 'Not authenticated'};
+    }
+    try {
+      final response = await _apiService.delete(
+        '/api/auth/me/avatar',
         headers: {'Authorization': 'Bearer $token'},
       );
       return {'success': true, 'user': response['user'] ?? response};

@@ -27,6 +27,7 @@ Added: 2026-09-10.
   - `accepted` → volunteer `ResponderIncidentDetailScreen`
   - `assigned` → personnel detail with `isTeamAssignment: true`
   - `both` → citizen view under Reported; responder/volunteer view under Assigned/Accepted
+- Resolved/closed assigned incidents stay on `ResponderIncidentDetailScreen` in **read-only** mode (`ReportStatusUi.isResponderDetailReadOnly`). Personnel deep links load via `GET /api/incidents/:id` when the incident is no longer in the active assigned list.
 - `ResponderIncidentPreviewScreen` is only for **unaccepted volunteer pool** incidents, not History.
 
 Added: 2026-08-16 — dual incident views after citizen-to-responder promotion. Updated: 2026-09-09 — personnel Assigned vs volunteer Accepted.
@@ -119,3 +120,13 @@ Added: 2026-09-08 — phone format normalization for seeded mobile login.
 - Migration `add_volunteer_role.sql` remaps non-team `responder` users to `volunteer`.
 
 Added: 2026-09-09 — split mobile field roles.
+
+## Edit profile (name + photo)
+
+- `users.profile_image` stores a server-side path; API exposes `has_profile_image` only.
+- `PATCH /api/auth/me` accepts optional `firstName`, `lastName`, `address` (partial update — saving name does not clear address).
+- Avatar: `POST/GET/DELETE /api/auth/me/avatar` (auth required; files under `uploads/avatars/`).
+- Mobile: Settings profile card → Edit Profile (name + photo). Phone/barangay stay in Account Information.
+- Web: Profile page inline Edit; header chip shows photo or initials (no hardcoded illustration).
+
+Added: 2026-09-10.

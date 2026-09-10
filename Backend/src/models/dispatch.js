@@ -459,7 +459,6 @@ const Dispatch = {
          INNER JOIN incident_reports ir ON ir.report_id = d.report_id
         WHERE r.user_id = $1
           AND COALESCE(d.team_name, '') <> ''
-          AND LOWER(COALESCE(ir.status, '')) NOT IN ('closed', 'archived')
         ORDER BY ir.report_id, d.dispatched_at DESC
         LIMIT $2 OFFSET $3`,
       [user_id, cappedLimit, Number(offset) || 0]

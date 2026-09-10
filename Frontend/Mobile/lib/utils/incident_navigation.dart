@@ -22,6 +22,10 @@ String? computeInvolvement(Map<String, dynamic> incident, int? userId) {
   if (isReporter && isAcceptor) return 'both';
   if (isReporter) return 'reported';
   if (isAcceptor) return 'accepted';
+  if (AuthService().isPersonnelResponder &&
+      (incident['my_response_status'] != null || incident['my_dispatch_id'] != null)) {
+    return 'assigned';
+  }
   return null;
 }
 
@@ -31,8 +35,31 @@ bool shouldOpenResponderDetail({
   String involvementFilter = 'all',
 }) {
   if (involvement == 'accepted' || involvement == 'assigned') return true;
-  if (involvement == 'both' && (involvementFilter == 'accepted' || involvementFilter == 'assigned')) return true;
+  if (involvement == 'both' && (involvementFilter == 'accepted' || involvementFilter == 'assigned')) {
+    return true;
+  }
   return false;
+}
+
+Future<void> _openPersonnelIncidentDetail(
+  BuildContext context, {
+  required int reportId,
+  required Map<String, dynamic> incident,
+}) async {
+  if (!context.mounted) return;
+  await Navigator.of(context, rootNavigator: true).push(
+    MaterialPageRoute<void>(
+      builder: (_) => ResponderIncidentDetailScreen(
+        reportId: reportId,
+        readOnly: ReportStatusUi.isResponderDetailReadOnly(
+          incident,
+          isTeamAssignment: true,
+        ),
+        isTeamAssignment: true,
+        initialIncident: incident,
+      ),
+    ),
+  );
 }
 
 /// Opens citizen or responder incident details based on involvement, not account role.
@@ -47,20 +74,23 @@ Future<void> openIncidentByInvolvement(
 
   final userId = AuthService().getUserId();
   final involvement = computeInvolvement(incident, userId);
+  final isTeamAssignment =
+      involvement == 'assigned' || involvementFilter == 'assigned';
 
   if (shouldOpenResponderDetail(
     involvement: involvement,
     involvementFilter: involvementFilter,
   )) {
-    final readOnly =
-        incident['responder_status']?.toString() == 'Resolved';
     if (!context.mounted) return;
     await Navigator.of(context, rootNavigator: true).push(
       MaterialPageRoute<void>(
         builder: (_) => ResponderIncidentDetailScreen(
           reportId: reportId,
-          readOnly: readOnly,
-          isTeamAssignment: involvement == 'assigned' || involvementFilter == 'assigned',
+          readOnly: ReportStatusUi.isResponderDetailReadOnly(
+            incident,
+            isTeamAssignment: isTeamAssignment,
+          ),
+          isTeamAssignment: isTeamAssignment,
           initialIncident: incident,
         ),
       ),
@@ -86,19 +116,31 @@ Future<void> openIncidentByReportId(
           .where((row) => parseInt(row['report_id']) == reportId)
           .toList();
       if (match.isNotEmpty) {
-        if (!context.mounted) return;
-        await Navigator.of(context, rootNavigator: true).push(
-          MaterialPageRoute<void>(
-            builder: (_) => ResponderIncidentDetailScreen(
-              reportId: reportId,
-              isTeamAssignment: true,
-              initialIncident: match.first,
-            ),
-          ),
+        await _openPersonnelIncidentDetail(
+          context,
+          reportId: reportId,
+          incident: match.first,
         );
         return;
       }
     } catch (_) {}
+
+    Map<String, dynamic>? incident = incidentHint;
+    if (incident == null || parseInt(incident['report_id']) != reportId) {
+      try {
+        incident = await IncidentService().getIncidentById(reportId);
+      } catch (_) {
+        incident = null;
+      }
+    }
+    if (incident != null) {
+      await _openPersonnelIncidentDetail(
+        context,
+        reportId: reportId,
+        incident: incident,
+      );
+      return;
+    }
   }
 
   Map<String, dynamic>? incident = incidentHint;

@@ -3,6 +3,7 @@ const router = express.Router();
 const authController = require('../controllers/auth');
 const notificationController = require('../controllers/notification');
 const authMiddleware = require('../middleware/auth');
+const { avatarUploadMiddleware } = require('../middleware/avatarUpload');
 
 router.post('/register', authController.register);
 router.post('/login', authController.login);
@@ -17,6 +18,9 @@ router.post('/forgot-password', authController.forgotPassword);
 router.post('/reset-password-with-token', authController.resetPasswordWithToken);
 router.get('/me', authMiddleware, authController.getMe);
 router.patch('/me', authMiddleware, authController.updateMe);
+router.post('/me/avatar', authMiddleware, avatarUploadMiddleware, authController.uploadAvatar);
+router.get('/me/avatar', authMiddleware, authController.getAvatar);
+router.delete('/me/avatar', authMiddleware, authController.deleteAvatar);
 router.post('/change-password', authMiddleware, authController.changePassword);
 router.post('/logout', authMiddleware, authController.logout);
 // Register OneSignal subscription ID for the current authenticated user

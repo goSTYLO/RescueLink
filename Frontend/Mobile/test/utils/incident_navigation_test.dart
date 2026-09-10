@@ -57,5 +57,13 @@ void main() {
         isFalse,
       );
     });
+
+    test('assigned opens responder detail', () {
+      expect(
+        shouldOpenResponderDetail(involvement: 'assigned'),
+        isTrue,
+      );
+    });
   });
+
 }

@@ -1,5 +1,5 @@
 import { API_URL } from '@/core/config/app.config';
-import { createRequestId, getAuthHeaders, parseErrorMessage, parseJsonOrEmpty } from '@/data/api/http';
+import { createRequestId, getAuthHeaders, getAuthToken, parseErrorMessage, parseJsonOrEmpty } from '@/data/api/http';
 
 /**
  * Login as dispatcher (email + password).
@@ -66,6 +66,83 @@ export async function getMe() {
     throw new Error(parseErrorMessage(data, 'Failed to fetch profile'));
   }
 
+  return data.user;
+}
+
+/**
+ * Partial profile update (name and/or address).
+ * @param {{ firstName?: string, lastName?: string, address?: string }} fields
+ */
+export async function updateMe(fields = {}) {
+  const requestId = createRequestId('web-auth-me-patch');
+  const body = {};
+  if (Object.prototype.hasOwnProperty.call(fields, 'firstName')) body.firstName = fields.firstName;
+  if (Object.prototype.hasOwnProperty.call(fields, 'lastName')) body.lastName = fields.lastName;
+  if (Object.prototype.hasOwnProperty.call(fields, 'address')) body.address = fields.address;
+
+  const response = await fetch(`${API_URL}/api/auth/me`, {
+    method: 'PATCH',
+    headers: getAuthHeaders({ requestId }),
+    body: JSON.stringify(body),
+  });
+
+  const data = await parseJsonOrEmpty(response);
+  if (!response.ok) {
+    throw new Error(parseErrorMessage(data, 'Failed to update profile'));
+  }
+  return data.user;
+}
+
+/** @returns {Promise<Blob|null>} */
+export async function fetchAvatarBlob() {
+  const requestId = createRequestId('web-auth-avatar-get');
+  const response = await fetch(`${API_URL}/api/auth/me/avatar`, {
+    method: 'GET',
+    headers: getAuthHeaders({ requestId, includeContentType: false }),
+  });
+  if (!response.ok) return null;
+  return response.blob();
+}
+
+/**
+ * @param {File} file
+ * @returns {Promise<object>} updated user
+ */
+export async function uploadAvatar(file) {
+  const requestId = createRequestId('web-auth-avatar-post');
+  const token = getAuthToken();
+  if (!token) throw new Error('No authentication token found');
+
+  const formData = new FormData();
+  formData.append('avatar', file);
+
+  const response = await fetch(`${API_URL}/api/auth/me/avatar`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'x-request-id': requestId,
+    },
+    body: formData,
+  });
+
+  const data = await parseJsonOrEmpty(response);
+  if (!response.ok) {
+    throw new Error(parseErrorMessage(data, 'Failed to upload profile photo'));
+  }
+  return data.user;
+}
+
+/** @returns {Promise<object>} updated user */
+export async function deleteAvatar() {
+  const requestId = createRequestId('web-auth-avatar-delete');
+  const response = await fetch(`${API_URL}/api/auth/me/avatar`, {
+    method: 'DELETE',
+    headers: getAuthHeaders({ requestId }),
+  });
+  const data = await parseJsonOrEmpty(response);
+  if (!response.ok) {
+    throw new Error(parseErrorMessage(data, 'Failed to remove profile photo'));
+  }
   return data.user;
 }
 

@@ -208,8 +208,11 @@ Handle user registration, login, password reset, and token management:
 - `POST /api/auth/onboard-phone` (public): Complete phone verification flow with Firebase token
 - `POST /api/auth/forgot-password` (public): Request password reset email
 - `POST /api/auth/reset-password-with-token` (public): Complete password reset with token
-- `GET /api/auth/me` (protected): Get current authenticated user profile
-- `PATCH /api/auth/me` (protected): Update current user profile (name, email, address)
+- `GET /api/auth/me` (protected): Get current authenticated user profile (`has_profile_image` boolean; no filesystem path)
+- `PATCH /api/auth/me` (protected): Partial profile update — optional `firstName`, `lastName`, `address` (only sent fields are updated; omitted fields are unchanged)
+- `POST /api/auth/me/avatar` (protected): Upload profile photo (multipart field `avatar`, JPG/PNG, max ~1MB)
+- `GET /api/auth/me/avatar` (protected): Download current user's profile photo (Bearer token required)
+- `DELETE /api/auth/me/avatar` (protected): Remove profile photo
 - `POST /api/auth/change-password` (protected): Change password for authenticated user
 - `POST /api/auth/logout` (protected): Invalidate token (adds to blacklist, prevents reuse)
 

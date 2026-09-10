@@ -274,6 +274,10 @@ class ResponderDashboardScreenState extends State<ResponderDashboardScreen> {
           MaterialPageRoute<void>(
             builder: (_) => ResponderIncidentDetailScreen(
               reportId: id,
+              readOnly: ReportStatusUi.isResponderDetailReadOnly(
+                inc,
+                isTeamAssignment: true,
+              ),
               isTeamAssignment: true,
               initialIncident: inc,
             ),

@@ -199,9 +199,14 @@ class _ResponderIncidentDetailScreenState
       if (mounted) {
         setState(() {
           if (found.isNotEmpty) _incident = found.first;
+          if (_incident == null && widget.initialIncident != null) {
+            _incident = Map<String, dynamic>.from(widget.initialIncident!);
+          }
           _loading = false;
-          if (found.isEmpty && _incident == null) {
-            _error = 'Incident not found in your active assignments.';
+          if (_incident == null) {
+            _error = widget.readOnly
+                ? 'Incident not found.'
+                : 'Incident not found in your active assignments.';
           }
         });
       }
@@ -224,6 +229,9 @@ class _ResponderIncidentDetailScreenState
 
   Future<void> _ensureEnRouteForTeamAssignment() async {
     if (!_isTeamAssignment || widget.readOnly) return;
+    if (ReportStatusUi.isResolvedOrClosed(_incident?['status'] as String?)) {
+      return;
+    }
     final status = _canonicalStatus(_incident?['my_response_status']?.toString());
     if (status != 'Assigned') return;
     try {

@@ -6,8 +6,9 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Home, Map, User, FileText, Settings, Shield, ShieldCheck, Building2, LogOut, PanelLeftClose, PanelLeft, Bell, HelpCircle, ChevronDown, AlertCircle, CheckCircle, Info, X, Users, Truck, ClipboardList, UserCheck } from 'lucide-react';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/infrastructure/firebase';
-import { logout as logoutApi } from '@/data/api/auth.api';
+import { logout as logoutApi, fetchAvatarBlob } from '@/data/api/auth.api';
 import { BrandLogo } from '@/presentation/components/common/BrandLogo';
+import { ProfileAvatar } from '@/presentation/components/common/ProfileAvatar';
 import { GlobalSearch } from '@/presentation/components/common/GlobalSearch';
 import Swal from 'sweetalert2';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
@@ -113,6 +114,7 @@ export function Layout({ children }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [profileOpen, setProfileOpen] = useState(false);
+  const [headerAvatarUrl, setHeaderAvatarUrl] = useState(null);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notificationsAuthError, setNotificationsAuthError] = useState(null);
   const profileRef = useRef(null);
@@ -145,6 +147,47 @@ export function Layout({ children }) {
   useEffect(() => {
     fetchApiNotifications();
   }, [fetchApiNotifications]);
+
+  useEffect(() => {
+    let objectUrl = null;
+    let cancelled = false;
+
+    const loadHeaderAvatar = async () => {
+      const token = sessionStorage.getItem('token');
+      if (!token) {
+        setHeaderAvatarUrl(null);
+        return;
+      }
+      try {
+        const blob = await fetchAvatarBlob();
+        if (cancelled) return;
+        if (blob) {
+          objectUrl = URL.createObjectURL(blob);
+          setHeaderAvatarUrl((prev) => {
+            if (prev) URL.revokeObjectURL(prev);
+            return objectUrl;
+          });
+        } else {
+          setHeaderAvatarUrl((prev) => {
+            if (prev) URL.revokeObjectURL(prev);
+            return null;
+          });
+        }
+      } catch (_) {
+        if (!cancelled) setHeaderAvatarUrl(null);
+      }
+    };
+
+    loadHeaderAvatar();
+    const onProfileUpdated = () => loadHeaderAvatar();
+    window.addEventListener('profile-updated', onProfileUpdated);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener('profile-updated', onProfileUpdated);
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, []);
 
   useEffect(() => {
     if (notificationsOpen) {
@@ -694,9 +737,12 @@ export function Layout({ children }) {
                 aria-expanded={profileOpen}
                 aria-haspopup="true"
               >
-                <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
-                  <User className="w-5 h-5 text-white" />
-                </div>
+                <ProfileAvatar
+                  firstName={currentUser.firstName}
+                  lastName={currentUser.lastName}
+                  photoUrl={headerAvatarUrl}
+                  size="sm"
+                />
                 <div className="hidden sm:block text-left">
                   <p className="text-sm font-medium text-foreground leading-tight">{userName}</p>
                   <p className="text-xs text-muted leading-tight">{userRole}</p>

@@ -46,6 +46,20 @@ class ReportStatusUi {
   static bool isClosed(String? status) => normalize(status) == 'closed';
   static bool isResolvedOrClosed(String? status) => isResolved(status) || isClosed(status);
 
+  /// Field/responder detail is view-only once the incident or assignment is finished.
+  static bool isResponderDetailReadOnly(
+    Map<String, dynamic>? incident, {
+    bool isTeamAssignment = false,
+  }) {
+    if (incident == null) return false;
+    if (isResolvedOrClosed(incident['status'] as String?)) return true;
+    if (isTeamAssignment) {
+      final mine = incident['my_response_status']?.toString().trim();
+      if (mine == 'Resolved') return true;
+    }
+    return incident['responder_status']?.toString().trim() == 'Resolved';
+  }
+
   static Color badgeBackground(String? status) {
     switch (normalize(status)) {
       case 'closed':

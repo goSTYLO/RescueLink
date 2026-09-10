@@ -96,7 +96,7 @@ const User = {
 
   async findById(user_id) {
     const res = await pool.query(
-      'SELECT user_id, email, phone_number, address, password, phone_verified, first_name, last_name, role, department_id, created_at FROM users WHERE user_id = $1',
+      'SELECT user_id, email, phone_number, address, password, phone_verified, first_name, last_name, role, department_id, profile_image, created_at FROM users WHERE user_id = $1',
       [user_id]
     );
     return decodeUserFields(res.rows[0]);
@@ -140,8 +140,24 @@ const User = {
 
   async updateAddress(user_id, address) {
     const res = await pool.query(
-      'UPDATE users SET address = $1 WHERE user_id = $2 RETURNING user_id, email, phone_number, address, phone_verified, first_name, last_name, role, created_at',
+      'UPDATE users SET address = $1 WHERE user_id = $2 RETURNING user_id, email, phone_number, address, phone_verified, first_name, last_name, role, profile_image, created_at',
       [address, user_id]
+    );
+    return decodeUserFields(res.rows[0]);
+  },
+
+  async updateNames(user_id, first_name, last_name) {
+    const res = await pool.query(
+      'UPDATE users SET first_name = $1, last_name = $2 WHERE user_id = $3 RETURNING user_id, email, phone_number, address, phone_verified, first_name, last_name, role, department_id, profile_image, created_at',
+      [first_name, last_name, user_id]
+    );
+    return decodeUserFields(res.rows[0]);
+  },
+
+  async updateProfileImage(user_id, profile_image) {
+    const res = await pool.query(
+      'UPDATE users SET profile_image = $1 WHERE user_id = $2 RETURNING user_id, email, phone_number, address, phone_verified, first_name, last_name, role, department_id, profile_image, created_at',
+      [profile_image, user_id]
     );
     return decodeUserFields(res.rows[0]);
   },

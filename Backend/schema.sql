@@ -58,6 +58,7 @@ CREATE TABLE IF NOT EXISTS department_personnel (
 );
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS department_id INTEGER REFERENCES departments(department_id) ON DELETE SET NULL;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_image VARCHAR(500);
 
 CREATE INDEX IF NOT EXISTS idx_departments_code ON departments(code);
 CREATE INDEX IF NOT EXISTS idx_departments_type ON departments(type);

@@ -66,6 +66,7 @@ const GUIDES = [
     summary: 'Manage your account and session.',
     steps: [
       'View your name, email, role, and member‑since date in Profile Information.',
+      'Select Edit to update your first name, last name, and profile photo (initials show when no photo is set).',
       'Use "Change Password" to update your password (you will need to log in again after).',
       'Use "Logout" to end your session securely.',
     ],

@@ -1,3 +1,5 @@
+const fs = require('fs').promises;
+const path = require('path');
 const jwt = require('jsonwebtoken');
 const User = require('../models/user');
 const { hashPassword, comparePassword } = require('../utils/hash');
@@ -25,6 +27,44 @@ const WEB_EMAIL_AUTH_ROLES = [
 
 function canUseWebEmailAuth(role) {
   return WEB_EMAIL_AUTH_ROLES.includes(role);
+}
+
+const AVATAR_DIR = path.join(process.cwd(), 'uploads', 'avatars');
+
+async function buildUserPayload(user) {
+  let department = null;
+  if (user.department_id) {
+    const dept = await Department.findById(user.department_id);
+    department = dept ? dept.name : null;
+  }
+  return {
+    user_id: user.user_id,
+    phone: user.phone_number,
+    email: user.email,
+    address: user.address,
+    phone_verified: user.phone_verified,
+    firstName: user.first_name,
+    lastName: user.last_name,
+    role: user.role,
+    department_id: user.department_id ?? null,
+    department: department ?? null,
+    created_at: user.created_at,
+    has_profile_image: Boolean(user.profile_image),
+  };
+}
+
+async function deleteAvatarFile(profileImagePath) {
+  if (!profileImagePath) return;
+  const absolute = path.isAbsolute(profileImagePath)
+    ? profileImagePath
+    : path.join(process.cwd(), profileImagePath);
+  try {
+    await fs.unlink(absolute);
+  } catch (err) {
+    if (err.code !== 'ENOENT') {
+      console.warn('⚠️ Failed to delete avatar file:', err.message);
+    }
+  }
 }
 
 // Register using phone_number
@@ -425,7 +465,7 @@ exports.dispatcherSignup = async (req, res) => {
   }
 };
 
-// Update current user's profile (address/barangay)
+// Update current user's profile (partial: address and/or name)
 exports.updateMe = async (req, res) => {
   try {
     const userId = req.user?.user_id;
@@ -433,43 +473,53 @@ exports.updateMe = async (req, res) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const { address } = req.body;
-    let validatedAddress = null;
-    try {
-      validatedAddress = validateAddress(address);
-    } catch (err) {
-      if (err.message?.includes('must be') || err.message?.includes('must not')) {
-        return res.status(400).json({ message: err.message });
-      }
+    const body = req.body || {};
+    const hasAddress = Object.prototype.hasOwnProperty.call(body, 'address');
+    const hasFirstName = Object.prototype.hasOwnProperty.call(body, 'firstName');
+    const hasLastName = Object.prototype.hasOwnProperty.call(body, 'lastName');
+
+    if (!hasAddress && !hasFirstName && !hasLastName) {
+      return res.status(400).json({ message: 'No profile fields to update' });
     }
 
-    await User.updateAddress(userId, validatedAddress);
-    const user = await User.findById(userId);
-    if (!user) {
+    const existing = await User.findById(userId);
+    if (!existing) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    let department = null;
-    if (user.department_id) {
-      const dept = await Department.findById(user.department_id);
-      department = dept ? dept.name : null;
+    if (hasAddress) {
+      let validatedAddress = null;
+      try {
+        validatedAddress = validateAddress(body.address);
+      } catch (err) {
+        if (err.message?.includes('must be') || err.message?.includes('must not')) {
+          return res.status(400).json({ message: err.message });
+        }
+      }
+      await User.updateAddress(userId, validatedAddress);
     }
 
-    res.json({
-      user: {
-        user_id: user.user_id,
-        phone: user.phone_number,
-        email: user.email,
-        address: user.address,
-        phone_verified: user.phone_verified,
-        firstName: user.first_name,
-        lastName: user.last_name,
-        role: user.role,
-        department_id: user.department_id ?? null,
-        department: department ?? null,
-        created_at: user.created_at,
-      },
-    });
+    if (hasFirstName || hasLastName) {
+      let firstName = existing.first_name;
+      let lastName = existing.last_name;
+      try {
+        if (hasFirstName) {
+          firstName = validateString(body.firstName, 'firstName', 1, 100);
+        }
+        if (hasLastName) {
+          lastName = validateString(body.lastName, 'lastName', 1, 100);
+        }
+      } catch (err) {
+        if (/must be|must not|at least/i.test(err.message || '')) {
+          return res.status(400).json({ message: err.message });
+        }
+        throw err;
+      }
+      await User.updateNames(userId, firstName, lastName);
+    }
+
+    const user = await User.findById(userId);
+    res.json({ user: await buildUserPayload(user) });
   } catch (err) {
     console.error('❌ Update profile error:', err.message);
     res.status(500).json({ message: 'Failed to update profile' });
@@ -489,30 +539,94 @@ exports.getMe = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    let department = null;
-    if (user.department_id) {
-      const dept = await Department.findById(user.department_id);
-      department = dept ? dept.name : null;
-    }
-
-    res.json({
-      user: {
-        user_id: user.user_id,
-        phone: user.phone_number,
-        email: user.email,
-        address: user.address,
-        phone_verified: user.phone_verified,
-        firstName: user.first_name,
-        lastName: user.last_name,
-        role: user.role,
-        department_id: user.department_id ?? null,
-        department: department ?? null,
-        created_at: user.created_at,
-      },
-    });
+    res.json({ user: await buildUserPayload(user) });
   } catch (err) {
     console.error('❌ Get profile error:', err.message);
     res.status(500).json({ message: 'Failed to fetch profile' });
+  }
+};
+
+exports.uploadAvatar = async (req, res) => {
+  try {
+    const userId = req.user?.user_id;
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const ext = path.extname(req.file.originalname || '').toLowerCase() || '.jpg';
+    await fs.mkdir(AVATAR_DIR, { recursive: true });
+    const filename = `${userId}${ext}`;
+    const relativePath = path.join('uploads', 'avatars', filename).replace(/\\/g, '/');
+    const absolutePath = path.join(AVATAR_DIR, filename);
+
+    await fs.writeFile(absolutePath, req.file.buffer);
+    if (user.profile_image && user.profile_image !== relativePath) {
+      await deleteAvatarFile(user.profile_image);
+    }
+
+    await User.updateProfileImage(userId, relativePath);
+    const updated = await User.findById(userId);
+    res.json({ user: await buildUserPayload(updated) });
+  } catch (err) {
+    console.error('❌ Upload avatar error:', err.message);
+    res.status(500).json({ message: 'Failed to upload avatar' });
+  }
+};
+
+exports.getAvatar = async (req, res) => {
+  try {
+    const userId = req.user?.user_id;
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const user = await User.findById(userId);
+    if (!user?.profile_image) {
+      return res.status(404).json({ message: 'No profile image' });
+    }
+
+    const absolutePath = path.isAbsolute(user.profile_image)
+      ? user.profile_image
+      : path.join(process.cwd(), user.profile_image);
+
+    res.sendFile(absolutePath, (err) => {
+      if (err && !res.headersSent) {
+        console.error('❌ Get avatar error:', err.message);
+        res.status(404).json({ message: 'Profile image not found' });
+      }
+    });
+  } catch (err) {
+    console.error('❌ Get avatar error:', err.message);
+    res.status(500).json({ message: 'Failed to fetch avatar' });
+  }
+};
+
+exports.deleteAvatar = async (req, res) => {
+  try {
+    const userId = req.user?.user_id;
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    if (user.profile_image) {
+      await deleteAvatarFile(user.profile_image);
+    }
+    await User.updateProfileImage(userId, null);
+    const updated = await User.findById(userId);
+    res.json({ user: await buildUserPayload(updated) });
+  } catch (err) {
+    console.error('❌ Delete avatar error:', err.message);
+    res.status(500).json({ message: 'Failed to delete avatar' });
   }
 };
 
