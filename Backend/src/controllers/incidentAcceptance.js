@@ -376,7 +376,7 @@ async function emitNearbyBackupAlert(req, reportId, backupRequestId, incident, r
   emitWs(req, 'responder:backup_alert', payload);
 
   const eligibleIds = await findEligibleNearbyVolunteerUserIds(reportId, backupRequestId, incident);
-  const alertMessage = `Backup needed for Incident #${reportId}. ${requestedByName} requested nearby volunteer support.`;
+  const alertMessage = `Backup needed for report #${reportId}. ${requestedByName} asked for nearby volunteer support.`;
   await notifyVolunteersBackupAlert(reportId, backupRequestId, alertMessage, eligibleIds);
 
   await pool.query(
@@ -522,7 +522,7 @@ async function acceptIncident(req, res) {
 
     // Load incident
     const incRow = await pool.query(
-      'SELECT report_id, accepted_by_user_id, status, latitude, longitude FROM incident_reports WHERE report_id = $1',
+      'SELECT report_id, user_id, accepted_by_user_id, status, latitude, longitude FROM incident_reports WHERE report_id = $1',
       [reportId]
     );
     if (!incRow.rows[0]) return res.status(404).json({ error: 'Incident not found.' });
@@ -570,15 +570,18 @@ async function acceptIncident(req, res) {
       [reportId, userId]
     );
 
-    // Notify reporter
-    await Notification.create({
-      user_id: incident.user_id || userId,
-      report_id: reportId,
-      message: 'A responder has accepted your incident report and is on the way.',
-      sent_via: 'websocket',
-      event_type: 'responder_assigned',
-      category: 'responder_alert',
-    }).catch(() => {});
+    // Notify reporter only (never the accepting volunteer)
+    const reporterId = incident.user_id != null ? Number(incident.user_id) : null;
+    if (reporterId && Number.isFinite(reporterId) && reporterId > 0) {
+      await Notification.create({
+        user_id: reporterId,
+        report_id: reportId,
+        message: 'A responder has accepted your report and is on the way.',
+        sent_via: 'websocket',
+        event_type: 'responder_assigned',
+        category: 'responder_alert',
+      }).catch(() => {});
+    }
 
     // WS broadcast
     const nameRow = await pool.query(
@@ -586,12 +589,6 @@ async function acceptIncident(req, res) {
       [userId]
     );
     const acceptedByName = nameRow.rows[0]?.full_name || 'Responder';
-    // WS broadcast — include reporter_id so the citizen receives the event
-    const reporterRow = await pool.query(
-      'SELECT user_id FROM incident_reports WHERE report_id = $1',
-      [reportId]
-    );
-    const reporterId = reporterRow.rows[0]?.user_id ?? null;
     emitWs(req, 'incident:accepted', {
       report_id: reportId,
       reporter_id: reporterId,
@@ -684,7 +681,7 @@ async function updateResponderStatus(req, res) {
     await Notification.create({
       user_id: (await pool.query('SELECT user_id FROM incident_reports WHERE report_id = $1', [reportId])).rows[0]?.user_id,
       report_id: reportId,
-      message: `Responder status updated to: ${newStatus}.`,
+      message: `Your responder is now ${String(newStatus).replace(/_/g, ' ')}.`,
       sent_via: 'websocket',
       event_type: 'responder_status_updated',
       category: 'responder_alert',
@@ -762,7 +759,7 @@ async function requestBackup(req, res) {
       [userId]
     );
     const requestedByName = nameRow.rows[0]?.full_name || 'Responder';
-    const notifyMessage = `Backup requested for Incident #${reportId}. Target: ${validTarget}.`;
+    const notifyMessage = `Backup requested for report #${reportId}.`;
     await notifyStaffBackupRequest(reportId, notifyMessage);
 
     emitWs(req, 'responder:backup_requested', {

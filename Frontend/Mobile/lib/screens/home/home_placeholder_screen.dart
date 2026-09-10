@@ -247,6 +247,7 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
   }
 
   void _onPushOpened(String reportId) {
+    _emergencyAlertCoordinator.dismissActiveAlert();
     final id = int.tryParse(reportId);
     if (id == null || id <= 0 || !mounted) return;
     _openIncidentByInvolvement(id);
@@ -830,7 +831,19 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
   }
 
   // ── Notifications nav ──────────────────────────────────────────────────────
+  Future<void> _markAllNotificationsRead() async {
+    try {
+      await NotificationService().markAllAsRead();
+    } catch (_) {}
+    if (!mounted) return;
+    setState(() {
+      _apiUnreadCount = 0;
+      _unreadReportsCount = 0;
+    });
+  }
+
   void _openNotifications(BuildContext context) {
+    unawaited(_markAllNotificationsRead());
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (ctx) => Scaffold(

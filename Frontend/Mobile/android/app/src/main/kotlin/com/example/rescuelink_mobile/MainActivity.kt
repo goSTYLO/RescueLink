@@ -1,9 +1,9 @@
 package com.example.rescuelink_mobile
 
+import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.media.AudioAttributes
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import io.flutter.embedding.android.FlutterFragmentActivity
@@ -12,6 +12,13 @@ class MainActivity : FlutterFragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         createNotificationChannels()
+        // User opened the app / tapped the tray — stop native amber player.
+        AmberAlertPlayerService.stop(this)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        AmberAlertPlayerService.stop(this)
     }
 
     private fun createNotificationChannels() {
@@ -22,28 +29,28 @@ class MainActivity : FlutterFragmentActivity() {
     }
 
     /**
-     * Must match Backend / OneSignal dashboard channel UUID + res/raw/emergency_alert.
-     * Sticky channels do not update sound/vibration — delete then recreate on cold start
-     * so killed-app tray amber keeps custom sound + vibe.
+     * Must match Backend existing_android_channel_id.
+     * Sticky channels — delete then recreate on cold start.
+     * Also remove OneSignal's OS_-prefixed dashboard clone if present.
+     * Sound/vibe for amber are played by [AmberAlertPlayerService] (channel is visual).
      */
     private fun createEmergencyChannel(manager: NotificationManager) {
         val channelId = "724e011a-e821-4e40-a810-9c175737a997"
         manager.deleteNotificationChannel(channelId)
+        manager.deleteNotificationChannel("OS_$channelId")
 
-        val soundUri = Uri.parse("android.resource://$packageName/raw/emergency_alert")
-        val attrs = AudioAttributes.Builder()
-            .setUsage(AudioAttributes.USAGE_ALARM)
-            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-            .build()
         val channel = NotificationChannel(
             channelId,
             "RescueLink Emergency",
-            NotificationManager.IMPORTANCE_HIGH,
+            NotificationManager.IMPORTANCE_MAX,
         ).apply {
             description = "Amber-style emergency dispatch alerts"
-            enableVibration(true)
-            vibrationPattern = longArrayOf(0, 400, 200, 400)
-            setSound(soundUri, attrs)
+            // Sound+vibe come from AmberAlertPlayerService (reliable when process was
+            // swiped away). Channel keeps MAX importance for heads-up tray only.
+            enableVibration(false)
+            setBypassDnd(true)
+            lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+            setSound(null, null)
         }
         manager.createNotificationChannel(channel)
     }

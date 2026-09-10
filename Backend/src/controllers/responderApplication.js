@@ -301,8 +301,8 @@ const responderApplicationController = {
 
       // Create notification for the applicant
       const notifyMessage = normalizedStatus === 'approved'
-        ? 'Congratulations! Your Volunteer First Responder application has been approved. Responder features are now unlocked.'
-        : `Your Volunteer First Responder application was not approved.${notes ? ` Reason: ${notes}` : ''}`;
+        ? 'Your volunteer first responder application was approved. Responder features are now available.'
+        : `Your volunteer first responder application was not approved.${notes ? ` Reason: ${notes}` : ''}`;
 
       await Notification.create({
         user_id: application.user_id,
@@ -436,7 +436,7 @@ const responderApplicationController = {
 
       await Responder.deleteByUserId(application.user_id, 'account');
 
-      const notifyMessage = `Your Volunteer First Responder status has been revoked. Reason: ${humanNotes} You may submit a new application at any time.`;
+      const notifyMessage = `Your volunteer first responder status has been removed. Reason: ${humanNotes} You may apply again at any time.`;
 
       await Notification.create({
         user_id: application.user_id,

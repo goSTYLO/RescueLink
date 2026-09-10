@@ -45,30 +45,38 @@ Backend sends:
 
 | Field | Value |
 |-------|--------|
-| `android_channel_id` | `724e011a-e821-4e40-a810-9c175737a997` |
+| `existing_android_channel_id` | `724e011a-e821-4e40-a810-9c175737a997` (app-created in `MainActivity`) |
 | `android_sound` | `emergency_alert` |
 | `priority` | `10` |
 
+Do **not** use REST `android_channel_id` for amber — that targets the OneSignal **dashboard** category (on-device often `OS_<uuid>`), which `MainActivity` does not repair. Killed/asleep sound+vibe then come from a sticky dashboard channel instead of the app channel.
+
 ### In OneSignal dashboard
 
+Dashboard category is optional for amber once REST uses `existing_android_channel_id`. If you keep a dashboard channel for manual test sends:
+
 1. Open your app → **Settings → Platforms → Google Android (FCM)**.
-2. Confirm the emergency **Notification Channel** already created:
-   - **Channel ID:** `724e011a-e821-4e40-a810-9c175737a997` (exact match — this is the ID RescueLink sends)
+2. Emergency **Notification Channel** (manual composer only):
+   - **Channel ID:** `724e011a-e821-4e40-a810-9c175737a997`
    - **Name:** RescueLink Emergency (or similar)
    - **Importance:** Urgent (or High)
    - **Sound:** Custom — enter **`emergency_alert`** with **no file extension** (not `emergency_alert.wav`; Android `res/raw` resource name has no extension)
-   - **Vibration:** Custom with ms pattern **`0,400,200,400`** (comma-separated milliseconds). Do **not** type the word `custom` as the pattern — that is invalid and yields a quiet/wrong channel.
+   - **Vibration:** Custom with ms pattern **`0,1000,5000,1000`** (0 delay, vibrate 1s, pause 5s, vibrate 1s — app channel repeats this for ~60s). Do **not** type the word `custom` as the pattern — that is invalid and yields a quiet/wrong channel.
    - Enable badges; enable bypass DND **if** the dashboard/OEM option exists (behavior varies by Android version)
 
-After changing Sound/Vibration, click **Update**, then **cold-start the app once** (or uninstall/reinstall). Sticky channels do not update in place; `MainActivity` delete+recreates the emergency channel on every cold start so killed-app tray amber keeps custom sound + vibe. Hot reload is not enough.
+After changing Sound/Vibration, click **Update**, then **cold-start the app once** (or uninstall/reinstall). Sticky channels do not update in place; `MainActivity` delete+recreates the emergency channel (and removes legacy `OS_724e011a-…`) on every cold start so killed-app tray amber keeps custom sound + vibe. Hot reload is not enough.
 
 ### In the app repo (already shipped)
 
-- Sound file: `Frontend/Mobile/android/app/src/main/res/raw/emergency_alert.wav` (tray) and `Frontend/Mobile/assets/sounds/emergency_alert.wav` (foreground modal loop)
-- Manifest: `POST_NOTIFICATIONS`, `VIBRATE`
-- `MainActivity` **deletes + recreates** channel `724e011a-…` on every cold start (`IMPORTANCE_HIGH`, `emergency_alert`, `USAGE_ALARM`, vibe `0,400,200,400`) so killed/not-running tray amber still sounds when subscribed
-- Also delete+recreates `rescuelink_updates` (`IMPORTANCE_HIGH`, default sound + vibration) for quiet / status trays
-- You may replace the WAV with a louder branded alert; **keep the filename** `emergency_alert.wav` (Android resource name = `emergency_alert`) and copy into both `res/raw` and `assets/sounds`.
+- Sound file: `Frontend/Mobile/android/app/src/main/res/raw/emergency_alert.wav` (tray) and `Frontend/Mobile/assets/sounds/emergency_alert.wav` (foreground modal) — ~**60s** real RIFF WAV; amber stops at 1 minute or when the user opens/dismisses / taps the notification
+- Manifest: `POST_NOTIFICATIONS`, `VIBRATE`, `USE_FULL_SCREEN_INTENT`
+- `MainActivity` **deletes + recreates** channel `724e011a-…` on every cold start (`IMPORTANCE_MAX` / Urgent, `setBypassDnd(true)`, public lockscreen, **visual-only** — no channel sound/vibe) and deletes `OS_724e011a-…` if present
+- `NotificationServiceExtension` (registered in `AndroidManifest`) intercepts critical pushes (`data.critical: true`), sets `CATEGORY_ALARM` + full-screen intent, and starts **`AmberAlertPlayerService`** when the app UI is not foreground — plays `res/raw/emergency_alert` via `USAGE_ALARM` + vibration for ~60s (needed when the app was **swiped away / process dead**; OEM tray channels often stay silent then even though the notification appears)
+- Also delete+recreates `rescuelink_updates` (`IMPORTANCE_HIGH`, default sound + vibration) for quiet / status trays; quiet REST uses `existing_android_channel_id: rescuelink_updates`
+- Sound uses the **Alarm** volume stream (`USAGE_ALARM`) — if Alarm volume is 0, amber is silent
+- Android 14+: Settings → Apps → RescueLink → Special app access → **Full screen intents** must be allowed (or the system may show a quiet heads-up instead of waking the lock screen)
+- Do **not** force-stop RescueLink from system Settings (that blocks FCM until the next manual open). Swiping from recents is OK.
+- You may replace the WAV with a louder branded alert; **keep the filename** `emergency_alert.wav` (Android resource name = `emergency_alert`) and copy into both `res/raw` and `assets/sounds`. Keep length around **one minute** so tray/foreground amber match.
 
 ---
 
@@ -125,11 +133,12 @@ Backend logs on dispatch: `[emitIncidentEvent] Push critical kind=… userIds=[�
 2. Confirm log `Linked user external ID: …` and OneSignal **Audience → Users** shows that External ID. Background the app.
 3. From web, dispatcher **Notify Dept** → CDRRMO on a pending incident.
 4. Expect **loud** OS tray push on the dept-admin device (and foreground blare modal if app is open). Backend log should show critical `userIds` including that admin, then `[oneSignalService] OneSignal ok … recipients=` ≥ 1 (not `0 recipients`).
-5. Field `responder` accounts in that department should also get amber on Notify Dept (same critical list).
-6. Assign **Rescue Alpha** from the mobile Assign team action (or web).
-7. Log in as `09003000003` / `responder123` → loud **team** amber + assigned list update.
-8. In OneSignal **Delivery** / message log, confirm the notification used channel `724e011a-e821-4e40-a810-9c175737a997` for those sends.
-9. Trigger a non-critical event (e.g. coordination note) → normal channel only.
+5. **Force-stop** RescueLink → lock screen / sleep the phone → Notify Dept again → expect custom sound + vibe (Alarm volume > 0). Cold-start the app once after installing this build so `IMPORTANCE_MAX` channel is recreated.
+6. Field `responder` accounts in that department should also get amber on Notify Dept (same critical list).
+7. Assign **Rescue Alpha** from the mobile Assign team action (or web).
+8. Log in as `09003000003` / `responder123` → loud **team** amber + assigned list update.
+9. In OneSignal **Delivery** / message log, confirm the notification used channel `724e011a-e821-4e40-a810-9c175737a997` for those sends.
+10. Trigger a non-critical event (e.g. coordination note) → normal channel only.
 
 Citizen / reporter accounts get quiet status pushes when they are recipients; they **never** receive amber critical dept/team alerts by design.
 
@@ -160,7 +169,8 @@ Permission is requested **after** login on home. After you tap Turn On / allow O
 | In-app list updates but no OS tray | DB/WebSocket path ≠ OneSignal push; check backend `[oneSignalService]` recipients log |
 | `[oneSignalService] HTTP 400` / `Remove url field when setting app_url or web_url` | Do not send `url` together with `web_url` — backend uses `web_url` only (fixed) |
 | Emulator subscribed but no reporter tray | Quiet payload needs high priority (backend sets `priority:10` + `android_sound:default`). Prove FCM with dashboard Send test to the **emulator** subscription while app is backgrounded; use Google Play AVD. Same External ID on phone+emulator is OK — watch the emulator sub |
-| Silent / quiet on Android | Channel ID mismatch; channel sound set to `emergency_alert.wav` instead of `emergency_alert`; vibration Custom field set to literal `custom` instead of `0,400,200,400` — fix dashboard → Update → cold-start app (MainActivity recreates sticky channel) |
+| Silent / quiet on Android | Channel ID mismatch; channel sound set to `emergency_alert.wav` instead of `emergency_alert`; vibration Custom field set to literal `custom` instead of `0,1000,5000,1000` — fix dashboard → Update → cold-start app (MainActivity recreates sticky channel) |
+| Tray appears but no sound/vibe when app swiped away / process dead | Needs `AmberAlertPlayerService` (rebuild with this fix); cold-start once; Alarm volume > 0; do not Force stop from Settings (blocks FCM). Confirm extension meta-data in APK |
 | In-app amber modal but no tray | WebSocket works; OS push is separate. Background/kill app; check `[oneSignalService] OneSignal ok` and dashboard test to that subscription |
 | Tray OK but weak/no custom vibe after channel edit | Sticky channel — cold-start app once after install so MainActivity delete+recreates; hot reload does not |
 | `invalid_aliases.external_id` (e.g. `["71","71","71"]`) | That `user_id` is not linked in OneSignal Audience — open app and login so `OneSignal.login` runs. Backend now dedupes ids; still cannot invent a subscription |

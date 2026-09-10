@@ -1276,7 +1276,15 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
     );
   }
 
+  Future<void> _markAllNotificationsRead() async {
+    try {
+      await NotificationService().markAllAsRead();
+    } catch (_) {}
+    if (mounted) setState(() => _apiUnreadCount = 0);
+  }
+
   void _openNotifications() {
+    unawaited(_markAllNotificationsRead());
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (ctx) => Scaffold(

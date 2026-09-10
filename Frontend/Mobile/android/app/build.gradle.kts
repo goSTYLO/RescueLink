@@ -47,3 +47,8 @@ kotlin {
 flutter {
     source = "../.."
 }
+
+// Match onesignal_flutter Android SDK so NotificationServiceExtension compiles in :app.
+dependencies {
+    implementation("com.onesignal:OneSignal:5.9.9")
+}

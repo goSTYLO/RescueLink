@@ -1,5 +1,63 @@
 # RescueLink Memory
 
+## Continuous amber WAV (2026-09-11)
+
+- Replaced gap-alternating two-tone (cut/continue) with continuous dual-tone 853+960 Hz for full 60s.
+- Native player holds alarm audio focus + MediaPlayer wake mode; skips restart if already playing.
+- Vibe uses short 400/200 pulse (no 5s silent gaps). Stops on interaction or 60s.
+
+Added: 2026-09-11 — continuous 1-minute amber blare.
+
+## Amber closed-app native player (2026-09-11)
+
+- Swiped-away / process-dead amber: tray often silent even when channel is correct; background+sleep still worked via tray.
+- Fix: `NotificationServiceExtension` starts `AmberAlertPlayerService` (MediaPlayer `USAGE_ALARM` + vibe, ~60s, short FGS + wake lock) when UI is not foreground.
+- Emergency channel is visual-only (no sound/vibe) to avoid double-blare; Flutter modal still owns foreground.
+- Stop player on `MainActivity` onCreate/onResume (notification tap / open app).
+
+Added: 2026-09-11 — native amber player for fully closed app.
+
+## Remade emergency_alert.wav (2026-09-11)
+
+- Regenerated loud WEA-style two-tone (853/960 Hz) ~60s mono PCM @ 22.05 kHz into `res/raw`, `assets/sounds`, and iOS `Runner`.
+- Regenerator: `Frontend/Mobile/tools/_make_emergency_alert_wav.py`. Cold-start app after install so sticky channel picks up the new raw resource.
+
+Added: 2026-09-11 — remake amber tray/foreground WAV.
+
+## Amber sleep / force-stop blare (2026-09-11)
+
+- Emergency channel now `IMPORTANCE_MAX` + `setBypassDnd(true)` + public lockscreen (HIGH alone often silent in sleep/Bedtime).
+- `NotificationServiceExtension` sets `CATEGORY_ALARM` + `setFullScreenIntent` for `data.critical` so tray still wakes when Flutter is dead.
+- App `build.gradle.kts` adds `com.onesignal:OneSignal:5.9.9` so the extension compiles in `:app` (matches onesignal_flutter).
+- Tray sound follows **Alarm** volume; Android 14+ may need Full screen intents special access.
+
+Added: 2026-09-11 — fix silent amber when app closed / phone asleep.
+
+## Amber alert max 1 minute (2026-09-11)
+
+- Foreground amber modal stops sound/haptics and auto-dismisses after **60s**, or immediately on Open / Dismiss / system notification tap (`dismissActiveAlert`).
+- Tray uses ~60s `emergency_alert.wav` + channel vibe `0,1000,5000` repeating (~60s); tapping the notification cancels tray playback (OS).
+
+Added: 2026-09-11 — amber duration cap + stop on notification click.
+
+## Amber killed-app channel routing fix (2026-09-11)
+
+- Critical OneSignal REST now uses `existing_android_channel_id` = MainActivity channel `724e011a-…` (not dashboard `android_channel_id` / `OS_<uuid>`).
+- Quiet pushes use `existing_android_channel_id: rescuelink_updates`.
+- `MainActivity` also deletes legacy `OS_724e011a-…` on cold start.
+- Replaced mislabeled ~61s MP3-as-`.wav` with a short real RIFF WAV in `res/raw`, `assets/sounds`, and iOS Runner.
+
+Added: 2026-09-11 — fix killed/asleep amber sound+vibe channel mismatch.
+
+## Notification copy + wrong-audience fix (2026-09-11)
+
+- Quiet `incident:dispatched` push never says "Your team…" even when `assigned_team_name` is set; only critical team audience gets that wording.
+- Accept inbox row now selects `user_id` and notifies the reporter only (no fallback to the accepting volunteer).
+- Push titles/bodies, in-app messages, backup/application copy, and amber modal text: plain language, no emojis, humanized statuses.
+- Opening the notification bell once marks all as read (mobile + web) and clears local WS unread badges.
+
+Added: 2026-09-11 — clean notification recipients, copy, and mark-all-on-bell.
+
 ## Dept admin mobile: responder-like queue + reassign/resolve (2026-09-11)
 
 - Department ops **Reports** tab shows the dept incident queue (responder-like list chrome); separate **Incidents** tab removed.

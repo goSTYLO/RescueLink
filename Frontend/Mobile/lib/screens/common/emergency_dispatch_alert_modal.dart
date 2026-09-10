@@ -7,6 +7,9 @@ import 'package:flutter/services.dart';
 /// Asset path for the amber foreground blare (must match pubspec + res/raw name).
 const String kEmergencyAlertAsset = 'sounds/emergency_alert.wav';
 
+/// Max amber blare / haptic duration (also matches tray sound length intent).
+const Duration kEmergencyAlertMaxDuration = Duration(minutes: 1);
+
 /// Blocking amber-style alert for department ops / team assignment.
 class EmergencyDispatchAlertModal extends StatefulWidget {
   final String title;
@@ -30,7 +33,9 @@ class EmergencyDispatchAlertModal extends StatefulWidget {
 class _EmergencyDispatchAlertModalState
     extends State<EmergencyDispatchAlertModal> {
   Timer? _hapticTimer;
+  Timer? _maxDurationTimer;
   final AudioPlayer _player = AudioPlayer();
+  bool _ending = false;
 
   @override
   void initState() {
@@ -39,29 +44,45 @@ class _EmergencyDispatchAlertModalState
     _hapticTimer = Timer.periodic(const Duration(milliseconds: 700), (_) {
       HapticFeedback.heavyImpact();
     });
+    _maxDurationTimer = Timer(kEmergencyAlertMaxDuration, () {
+      unawaited(_end(widget.onDismiss));
+    });
     unawaited(_startBlare());
   }
 
   Future<void> _startBlare() async {
     try {
-      await _player.setReleaseMode(ReleaseMode.loop);
+      // Continuous ~60s asset; hard-stop on Open/Dismiss or max-duration timer.
+      await _player.setReleaseMode(ReleaseMode.stop);
+      await _player.setPlayerMode(PlayerMode.mediaPlayer);
       await _player.play(AssetSource(kEmergencyAlertAsset));
     } catch (_) {
       // ponytail: asset/player failure → silent haptics-only; no tray fallback here
     }
   }
 
-  Future<void> _stop() async {
+  Future<void> _stopMedia() async {
     _hapticTimer?.cancel();
     _hapticTimer = null;
+    _maxDurationTimer?.cancel();
+    _maxDurationTimer = null;
     try {
       await _player.stop();
     } catch (_) {}
   }
 
+  Future<void> _end(VoidCallback action) async {
+    if (_ending) return;
+    _ending = true;
+    await _stopMedia();
+    if (!mounted) return;
+    action();
+  }
+
   @override
   void dispose() {
     _hapticTimer?.cancel();
+    _maxDurationTimer?.cancel();
     unawaited(_player.dispose());
     super.dispose();
   }
@@ -101,18 +122,12 @@ class _EmergencyDispatchAlertModalState
                   backgroundColor: Colors.white,
                   foregroundColor: const Color(0xFF7F1D1D),
                 ),
-                onPressed: () async {
-                  await _stop();
-                  widget.onOpen();
-                },
+                onPressed: () => unawaited(_end(widget.onOpen)),
                 child: const Text('Open incident'),
               ),
             ),
             TextButton(
-              onPressed: () async {
-                await _stop();
-                widget.onDismiss();
-              },
+              onPressed: () => unawaited(_end(widget.onDismiss)),
               child: const Text(
                 'Dismiss',
                 style: TextStyle(color: Colors.white70),

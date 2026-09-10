@@ -29,38 +29,61 @@ async function getIncidentAssignedDepartmentIds(reportId) {
   }
 }
 
+function humanizeStatus(status) {
+  if (!status) return 'updated';
+  const s = String(status).replace(/_/g, ' ').trim();
+  if (!s) return 'updated';
+  return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+}
+
 function formatNotificationMessage(event, data) {
   const reportId = data?.report_id ?? data?.reportId;
   const incidentType = data?.incident_type || 'Incident';
   const severity = data?.severity_level ? ` (${data.severity_level})` : '';
   const barangay = data?.barangay ? ` in ${data.barangay}` : '';
-  const status = data?.status ?? '';
+  const status = humanizeStatus(data?.status);
+  const typeBit = `${incidentType}${severity}`;
+  const toDeptName = data?.to_department_name || 'another department';
+  const urgencyPrefix =
+    data?.urgency && String(data.urgency).toLowerCase() === 'high' ? 'Urgent: ' : '';
 
   switch (event) {
     case 'incident:created':
-      return `New ${incidentType} incident${severity} reported${barangay}`;
+      return `New ${typeBit} reported${barangay}.`;
     case 'incident:status_updated':
       return reportId != null
-        ? `Incident #${reportId} status changed to ${status || 'updated'}${barangay ? ` (${data.barangay})` : ''}`
-        : `Status changed to ${status || 'updated'}${barangay ? ` (${data.barangay})` : ''}`;
+        ? `Report #${reportId} is now ${status}${barangay ? ` (${data.barangay})` : ''}.`
+        : `Status is now ${status}${barangay ? ` (${data.barangay})` : ''}.`;
     case 'incident:verified':
-      return `Incident #${reportId} verified${barangay ? ` (${data.barangay})` : ''}`;
+      return `Report #${reportId} has been verified${barangay ? ` (${data.barangay})` : ''}.`;
     case 'incident:dispatched':
-      return `Incident #${reportId} (${incidentType}${severity}) assigned to department${barangay ? ` in ${data.barangay}` : ''}`;
+      return `Responders have been assigned to report #${reportId} (${typeBit})${barangay}.`;
     case 'incident:resolution_confirmed':
-      return `Incident #${reportId} resolved${barangay ? ` (${data.barangay})` : ''}`;
+      return `Report #${reportId} has been resolved${barangay ? ` (${data.barangay})` : ''}.`;
     case 'incident:note_added':
-      return `Incident #${reportId}: New coordination note added${barangay ? ` (${data.barangay})` : ''}`;
+      return `A new note was added to report #${reportId}${barangay ? ` (${data.barangay})` : ''}.`;
     case 'incident:reclassified':
-      return `Incident #${reportId} reclassified${barangay ? ` (${data.barangay})` : ''}`;
+      return `Report #${reportId} is now listed as ${incidentType}${barangay}.`;
     case 'incident:duplicate_changed':
-      return `Incident #${reportId} duplicate status updated${barangay ? ` (${data.barangay})` : ''}`;
+      return `Report #${reportId} duplicate marking was updated${barangay ? ` (${data.barangay})` : ''}.`;
     case 'incident:archived':
-      return `Incident #${reportId} archived${barangay ? ` (${data.barangay})` : ''}`;
+      return `Report #${reportId} has been archived${barangay ? ` (${data.barangay})` : ''}.`;
     case 'incident:unarchived':
-      return `Incident #${reportId} restored from archive${barangay ? ` (${data.barangay})` : ''}`;
+      return `Report #${reportId} has been restored${barangay ? ` (${data.barangay})` : ''}.`;
+    case 'incident:escalated':
+      return `${urgencyPrefix}Help requested from ${toDeptName} for report #${reportId}${barangay}.`;
+    case 'incident:escalation_accepted':
+      return `${toDeptName} accepted the help request for report #${reportId}.`;
+    case 'incident:escalation_declined':
+      return `${toDeptName} declined the help request for report #${reportId}.`;
+    case 'incident:escalation_resolved':
+      return `Help from ${toDeptName} for report #${reportId} is resolved.`;
+    case 'incident:escalation_cancelled':
+      return `The help request for report #${reportId} was cancelled.`;
     default:
-      return reportId != null ? `Incident #${reportId} updated${barangay ? ` (${data.barangay})` : ''}` : 'Incident update';
+      return reportId != null
+        ? `Report #${reportId} was updated${barangay ? ` (${data.barangay})` : ''}.`
+        : 'An update is available.';
   }
 }
 

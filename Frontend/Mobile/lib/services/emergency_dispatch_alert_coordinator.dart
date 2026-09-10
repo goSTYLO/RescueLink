@@ -14,6 +14,7 @@ class EmergencyDispatchAlertCoordinator {
   bool _modalShowing = false;
   bool _started = false;
   BuildContext? _context;
+  BuildContext? _dialogContext;
   void Function(int reportId)? onOpenIncident;
   VoidCallback? onAlertDismissed;
 
@@ -31,6 +32,19 @@ class EmergencyDispatchAlertCoordinator {
     _started = false;
     _shown.clear();
     _modalShowing = false;
+    _dialogContext = null;
+  }
+
+  /// Stop active amber modal (e.g. user tapped the system notification).
+  void dismissActiveAlert() {
+    if (!_modalShowing) return;
+    final dialogCtx = _dialogContext;
+    if (dialogCtx != null && dialogCtx.mounted) {
+      Navigator.of(dialogCtx, rootNavigator: true).pop();
+    }
+    _modalShowing = false;
+    _dialogContext = null;
+    onAlertDismissed?.call();
   }
 
   void _onEvent(IncidentEvent event) {
@@ -60,14 +74,14 @@ class EmergencyDispatchAlertCoordinator {
 
     final title = kind == 'team'
         ? (isDeptOps
-            ? 'EMERGENCY — Team assigned'
-            : 'EMERGENCY — Your team was assigned')
-        : 'EMERGENCY — Department notified';
+            ? 'Emergency — Team assigned'
+            : 'Emergency — Your team was assigned')
+        : 'Emergency — Department notified';
     final type = (event.data['incident_type'] ?? 'Incident').toString();
     final barangay = (event.data['barangay'] ?? '').toString();
     final body = kind == 'team'
-        ? 'Team $teamName assigned to Incident #$reportId ($type)${barangay.isNotEmpty ? ' in $barangay' : ''}.'
-        : 'Incident #$reportId ($type) needs a team from your department${barangay.isNotEmpty ? ' · $barangay' : ''}.';
+        ? 'Team $teamName assigned to report #$reportId ($type)${barangay.isNotEmpty ? ' in $barangay' : ''}.'
+        : 'Report #$reportId ($type) needs a response from your department${barangay.isNotEmpty ? ' in $barangay' : ''}.';
 
     final ctx = _context ?? context;
     if (!ctx.mounted) return;
@@ -76,22 +90,28 @@ class EmergencyDispatchAlertCoordinator {
       context: ctx,
       barrierDismissible: false,
       useRootNavigator: true,
-      builder: (_) => EmergencyDispatchAlertModal(
-        title: title,
-        body: body,
-        onOpen: () {
-          Navigator.of(ctx, rootNavigator: true).pop();
-          _modalShowing = false;
-          onOpenIncident?.call(reportId);
-          onAlertDismissed?.call();
-        },
-        onDismiss: () {
-          Navigator.of(ctx, rootNavigator: true).pop();
-          _modalShowing = false;
-          onAlertDismissed?.call();
-        },
-      ),
+      builder: (dialogCtx) {
+        _dialogContext = dialogCtx;
+        return EmergencyDispatchAlertModal(
+          title: title,
+          body: body,
+          onOpen: () {
+            Navigator.of(ctx, rootNavigator: true).pop();
+            _modalShowing = false;
+            _dialogContext = null;
+            onOpenIncident?.call(reportId);
+            onAlertDismissed?.call();
+          },
+          onDismiss: () {
+            Navigator.of(ctx, rootNavigator: true).pop();
+            _modalShowing = false;
+            _dialogContext = null;
+            onAlertDismissed?.call();
+          },
+        );
+      },
     );
     _modalShowing = false;
+    _dialogContext = null;
   }
 }

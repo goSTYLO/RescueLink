@@ -14,35 +14,35 @@ const {
 describe('oneSignalService', () => {
   describe('formatPushTitle', () => {
     test('formats known incident event titles correctly', () => {
-      expect(formatPushTitle('incident:created')).toBe('🚨 New Incident Reported');
-      expect(formatPushTitle('incident:verified')).toBe('🔍 Incident Verified');
-      expect(formatPushTitle('incident:dispatched')).toBe('📋 Incident Assigned');
-      expect(formatPushTitle('incident:status_updated')).toBe('🔄 Incident Status Updated');
-      expect(formatPushTitle('incident:resolution_confirmed')).toBe('✅ Incident Resolved');
-      expect(formatPushTitle('incident:reclassified')).toBe('🔄 Incident Reclassified');
-      expect(formatPushTitle('incident:note_added')).toBe('📝 New Note Added');
-      expect(formatPushTitle('incident:archived')).toBe('📦 Incident Archived');
-      expect(formatPushTitle('incident:unarchived')).toBe('📦 Incident Restored');
-      expect(formatPushTitle('backup_request')).toBe('🆘 Backup Requested');
+      expect(formatPushTitle('incident:created')).toBe('New incident');
+      expect(formatPushTitle('incident:verified')).toBe('Incident verified');
+      expect(formatPushTitle('incident:dispatched')).toBe('Responders assigned');
+      expect(formatPushTitle('incident:status_updated')).toBe('Status update');
+      expect(formatPushTitle('incident:resolution_confirmed')).toBe('Incident resolved');
+      expect(formatPushTitle('incident:reclassified')).toBe('Incident type updated');
+      expect(formatPushTitle('incident:note_added')).toBe('New note');
+      expect(formatPushTitle('incident:archived')).toBe('Incident archived');
+      expect(formatPushTitle('incident:unarchived')).toBe('Incident restored');
+      expect(formatPushTitle('backup_request')).toBe('Backup needed');
     });
 
     test('formats escalation event titles correctly', () => {
-      expect(formatPushTitle('incident:escalated')).toBe('🤝 Assistance Requested');
-      expect(formatPushTitle('incident:escalation_accepted')).toBe('✅ Assistance Accepted');
-      expect(formatPushTitle('incident:escalation_declined')).toBe('❌ Assistance Declined');
-      expect(formatPushTitle('incident:escalation_resolved')).toBe('🏁 Assistance Resolved');
-      expect(formatPushTitle('incident:escalation_cancelled')).toBe('🚫 Assistance Cancelled');
+      expect(formatPushTitle('incident:escalated')).toBe('Help requested');
+      expect(formatPushTitle('incident:escalation_accepted')).toBe('Help accepted');
+      expect(formatPushTitle('incident:escalation_declined')).toBe('Help declined');
+      expect(formatPushTitle('incident:escalation_resolved')).toBe('Help resolved');
+      expect(formatPushTitle('incident:escalation_cancelled')).toBe('Help cancelled');
     });
 
     test('returns default fallback title for unknown events', () => {
-      expect(formatPushTitle('unknown:event')).toBe('🔔 RescueLink Update');
+      expect(formatPushTitle('unknown:event')).toBe('RescueLink update');
     });
   });
 
   describe('formatCriticalPushTitle', () => {
     test('formats dept and team emergency titles', () => {
-      expect(formatCriticalPushTitle('dept')).toBe('EMERGENCY — Department notified');
-      expect(formatCriticalPushTitle('team')).toBe('EMERGENCY — Your team was assigned');
+      expect(formatCriticalPushTitle('dept')).toBe('Emergency — Department notified');
+      expect(formatCriticalPushTitle('team')).toBe('Emergency — Your team was assigned');
     });
   });
 
@@ -56,6 +56,7 @@ describe('oneSignalService', () => {
       expect(body.priority).toBe(10);
       expect(body.android_visibility).toBe(1);
       expect(body.android_sound).toBe('default');
+      expect(body.existing_android_channel_id).toBe('rescuelink_updates');
       expect(body.android_channel_id).toBeUndefined();
       expect(body.ios_interruption_level).toBeUndefined();
       expect(body.web_url).toBe('http://localhost:5173/incidents/10');
@@ -68,14 +69,15 @@ describe('oneSignalService', () => {
 
     test('critical payload sets amber-style OneSignal fields', () => {
       const body = buildNotificationBody('app-1', ['42'], {
-        title: 'EMERGENCY — Department notified',
-        body: 'Incident #1 assigned to department',
+        title: 'Emergency — Department notified',
+        body: 'Report #1 needs a response from your department',
         critical: true,
         data: { report_id: 1, critical: true },
       });
       expect(body.priority).toBe(10);
       expect(body.android_visibility).toBe(1);
-      expect(body.android_channel_id).toBe(EMERGENCY_ANDROID_CHANNEL_ID);
+      expect(body.existing_android_channel_id).toBe(EMERGENCY_ANDROID_CHANNEL_ID);
+      expect(body.android_channel_id).toBeUndefined();
       expect(body.android_sound).toBe(EMERGENCY_SOUND);
       expect(body.ios_sound).toBe(`${EMERGENCY_SOUND}.wav`);
       expect(body.ios_interruption_level).toBe('time_sensitive');
@@ -172,7 +174,7 @@ describe('oneSignalService', () => {
         severity_level: 'critical',
         barangay: 'Pantal',
       });
-      expect(body).toBe('New Fire, Medical (critical) reported in Pantal');
+      expect(body).toBe('New Fire, Medical (critical) reported in Pantal.');
     });
 
     test('formats incident:verified', () => {
@@ -181,36 +183,77 @@ describe('oneSignalService', () => {
         incident_type: 'flood',
         barangay: 'Tapuac',
       });
-      expect(body).toBe('Incident #202 (Flood) has been verified in Tapuac');
+      expect(body).toBe('Report #202 (Flood) has been verified in Tapuac.');
     });
 
-    test('formats incident:dispatched', () => {
+    test('formats quiet incident:dispatched without Your team language', () => {
       const body = formatPushBody('incident:dispatched', {
         report_id: 303,
         incident_types: ['vehicular accident'],
         severity_level: 'high',
         barangay: 'Lucao',
       });
-      expect(body).toBe('Incident #303 (Vehicular accident (high)) assigned to department in Lucao');
+      expect(body).toBe(
+        'Responders have been assigned to report #303 (Vehicular accident (high)) in Lucao.'
+      );
+      expect(body).not.toMatch(/Your team/i);
     });
 
-    test('formats incident:status_updated', () => {
+    test('quiet dispatched with assigned_team_name still never says Your team', () => {
+      const body = formatPushBody('incident:dispatched', {
+        report_id: 303,
+        assigned_team_name: 'Alpha Unit',
+        incident_type: 'fire',
+        barangay: 'Lucao',
+      });
+      expect(body).toBe('Responders have been assigned to report #303 (Fire) in Lucao.');
+      expect(body).not.toMatch(/Your team/i);
+    });
+
+    test('team audience dispatched says Your team', () => {
+      const body = formatPushBody(
+        'incident:dispatched',
+        {
+          report_id: 303,
+          assigned_team_name: 'Alpha Unit',
+          incident_type: 'fire',
+          barangay: 'Lucao',
+        },
+        { audience: 'team' }
+      );
+      expect(body).toBe('Your team was assigned to report #303 (Fire) in Lucao.');
+    });
+
+    test('dept audience dispatched is department-facing', () => {
+      const body = formatPushBody(
+        'incident:dispatched',
+        { report_id: 303, incident_type: 'fire', barangay: 'Lucao' },
+        { audience: 'dept' }
+      );
+      expect(body).toBe(
+        'Report #303 (Fire) needs a response from your department in Lucao.'
+      );
+    });
+
+    test('formats incident:status_updated with humanized status', () => {
       const body = formatPushBody('incident:status_updated', {
         report_id: 404,
         status: 'in_progress',
         barangay: 'Bonuan Gueset',
       });
-      expect(body).toBe('Incident #404 is now in_progress (Bonuan Gueset)');
+      expect(body).toBe('Report #404 is now In progress (Bonuan Gueset).');
     });
 
-    test('formats incident:escalated', () => {
+    test('formats incident:escalated without bracket urgency tags', () => {
       const body = formatPushBody('incident:escalated', {
         report_id: 505,
         urgency: 'high',
         to_department_name: 'BFP Dagupan',
         barangay: 'Poblacion Oeste',
       });
-      expect(body).toBe('Incident #505 [HIGH]: Assistance requested from BFP Dagupan in Poblacion Oeste');
+      expect(body).toBe(
+        'Urgent: Help requested from BFP Dagupan for report #505 in Poblacion Oeste.'
+      );
     });
 
     test('formats incident:escalation_accepted and declined', () => {
@@ -219,14 +262,14 @@ describe('oneSignalService', () => {
           report_id: 606,
           to_department_name: 'PNP Dagupan',
         })
-      ).toBe('Incident #606: PNP Dagupan has accepted the assistance request');
+      ).toBe('PNP Dagupan accepted the help request for report #606.');
 
       expect(
         formatPushBody('incident:escalation_declined', {
           report_id: 606,
           to_department_name: 'PNP Dagupan',
         })
-      ).toBe('Incident #606: PNP Dagupan declined the assistance request');
+      ).toBe('PNP Dagupan declined the help request for report #606.');
     });
 
     test('formats backup_request and volunteer joined', () => {
@@ -235,14 +278,14 @@ describe('oneSignalService', () => {
           report_id: 707,
           barangay: 'Herrero-Perez',
         })
-      ).toBe('Backup requested for Incident #707 in Herrero-Perez');
+      ).toBe('Backup needed for report #707 in Herrero-Perez.');
 
       expect(
         formatPushBody('responder:backup_joined', {
           report_id: 707,
           volunteer_name: 'Juan Dela Cruz',
         })
-      ).toBe('Juan Dela Cruz joined as backup for Incident #707');
+      ).toBe('Juan Dela Cruz joined as backup for report #707.');
     });
   });
 

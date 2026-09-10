@@ -250,7 +250,7 @@ export function Layout({ children }) {
     if (!isDept) return;
     const d = lastDispatched.data;
     const reportId = d.report_id ?? d.reportId;
-    const title = reportId ? `Incident #${reportId} assigned to your department` : 'Incident assigned to your department';
+    const title = reportId ? `Report #${reportId} assigned to your department` : 'Report assigned to your department';
     const body = `${formatIncidentTypesLabel(d)} in ${d.barangay || 'your area'}`;
     Swal.fire({
       icon: 'info',
@@ -273,7 +273,7 @@ export function Layout({ children }) {
     const d = lastBackupRequested.data;
     const reportId = d.report_id ?? d.reportId;
     const requester = d.requested_by_name ? ` from ${d.requested_by_name}` : '';
-    const title = reportId ? `Backup requested — Incident #${reportId}` : 'Backup requested';
+    const title = reportId ? `Backup needed — Report #${reportId}` : 'Backup needed';
     const body = `${formatIncidentTypesLabel(d)}${requester}${d.barangay ? ` in ${d.barangay}` : ''}`;
     Swal.fire({
       icon: 'warning',
@@ -293,7 +293,7 @@ export function Layout({ children }) {
     const d = lastBackupJoined.data;
     const reportId = d.report_id ?? d.reportId;
     const joinerName = d.volunteer_name || 'A volunteer';
-    const title = reportId ? `Backup volunteer joined — Incident #${reportId}` : 'Backup volunteer joined';
+    const title = reportId ? `Backup volunteer joined — Report #${reportId}` : 'Backup volunteer joined';
     const body = `${joinerName} joined as backup${d.responder_status ? ` (${d.responder_status})` : ''}`;
     Swal.fire({
       icon: 'info',
@@ -314,12 +314,12 @@ export function Layout({ children }) {
     const reportId = data.report_id ?? data.reportId;
     const isEscalationRequest = eventName === 'incident:escalated';
     const title = isEscalationRequest
-      ? (reportId ? `Assistance Requested — Incident #${reportId}` : 'Assistance Requested')
-      : (reportId ? `Assistance Update — Incident #${reportId}` : 'Assistance Update');
+      ? (reportId ? `Help requested — Report #${reportId}` : 'Help requested')
+      : (reportId ? `Help update — Report #${reportId}` : 'Help update');
     const toDept = data.to_department_name || (data.to_department_id ? `Department #${data.to_department_id}` : '');
     const body = toDept
-      ? `${isEscalationRequest ? 'Target:' : 'Status with'} ${toDept}${data.urgency ? ` (${data.urgency})` : ''}`
-      : (data.barangay ? `In ${data.barangay}` : 'Assistance update received');
+      ? `${isEscalationRequest ? 'Requested from' : 'Status with'} ${toDept}${data.urgency ? ` (${data.urgency})` : ''}`
+      : (data.barangay ? `In ${data.barangay}` : 'Help update received');
 
     Swal.fire({
       icon: isEscalationRequest ? 'warning' : 'info',
@@ -602,7 +602,11 @@ export function Layout({ children }) {
             <div className="relative" ref={notificationsRef}>
               <button
                 type="button"
-                onClick={() => setNotificationsOpen((o) => !o)}
+                onClick={() => {
+                  const opening = !notificationsOpen;
+                  setNotificationsOpen(opening);
+                  if (opening) void handleMarkAllAsRead();
+                }}
                 className={`relative p-2 rounded-xl transition-all duration-200 ${
                   isLight ? 'hover:bg-gray-100 text-gray-600' : 'hover:bg-white/10 text-foreground/80'
                 } ${notificationsOpen ? (isLight ? 'bg-gray-100' : 'bg-white/10') : ''}`}

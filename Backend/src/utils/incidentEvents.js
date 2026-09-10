@@ -83,7 +83,7 @@ function emitIncidentEvent(req, event, incident) {
         if (kind && criticalIds.length > 0) {
           await sendPushToUsers(criticalIds, {
             title: formatCriticalPushTitle(kind),
-            body: formatPushBody(event, data),
+            body: formatPushBody(event, data, { audience: kind }),
             url: webUrl,
             data: { ...pushData, critical: true, alert_kind: kind },
             eventType,
