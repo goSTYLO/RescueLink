@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import '../../services/amber_alert_sound.dart';
 import '../../services/responder_service.dart';
 import '../../utils/report_ui.dart';
 import '../../services/websocket_service.dart';
@@ -47,11 +50,19 @@ class _IncidentAlertModalState extends State<IncidentAlertModal> {
     if (fromEvent != null && fromEvent.isNotEmpty) {
       _assignedTeamName = fromEvent;
     }
+    unawaited(AmberAlertSound.start());
+  }
+
+  @override
+  void dispose() {
+    unawaited(AmberAlertSound.stop());
+    super.dispose();
   }
 
   Future<void> _accept() async {
     final reportId = _reportId;
     if (reportId == null) return;
+    await AmberAlertSound.stop();
     setState(() { _loading = true; _error = null; });
     try {
       if (widget.isBackupAlert) {
@@ -90,6 +101,7 @@ class _IncidentAlertModalState extends State<IncidentAlertModal> {
 
   Future<void> _decline() async {
     final reportId = _reportId;
+    await AmberAlertSound.stop();
     setState(() { _loading = true; });
     try {
       if (widget.isBackupAlert) {
@@ -253,7 +265,12 @@ class _IncidentAlertModalState extends State<IncidentAlertModal> {
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
-                onPressed: _loading ? null : widget.onViewDetails,
+                onPressed: _loading
+                    ? null
+                    : () {
+                        unawaited(AmberAlertSound.stop());
+                        widget.onViewDetails?.call();
+                      },
                 icon: const Icon(Icons.open_in_new, size: 18),
                 label: const Text('View Details', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
                 style: OutlinedButton.styleFrom(

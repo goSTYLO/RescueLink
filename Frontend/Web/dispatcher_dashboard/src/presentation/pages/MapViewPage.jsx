@@ -10,6 +10,7 @@ import { useTheme } from '@/presentation/context/ThemeContext.jsx';
 import { getIncidents, normalizeIncidentStatus } from '@/data/api/incidents.api';
 import { isVolunteerResolved } from '@/core/utils/incidentDisplay';
 import { DEV_MODE } from '@/core/config/app.config';
+import { getAuthToken } from '@/core/auth/session';
 import { useIncidentWebSocketStatus } from '@/presentation/context/IncidentWebSocketContext';
 import { MapContainer, Marker, Popup, TileLayer, Tooltip } from 'react-leaflet';
 import L from 'leaflet';
@@ -91,7 +92,7 @@ export function MapViewPage() {
     if (Date.now() < rateLimitUntilRef.current) {
       return;
     }
-    const token = sessionStorage.getItem('token');
+    const token = getAuthToken();
     if (DEV_MODE && !token) {
       setIncidents(mockIncidents);
       setError(null);

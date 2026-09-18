@@ -6,9 +6,16 @@ import { BrandLogo } from '@/presentation/components/common/BrandLogo';
 import illustration from '@/presentation/assets/illustration.svg';
 import { DEV_MODE } from '@/core/config/app.config';
 import { getDefaultRouteByRole } from '@/core/constants';
+import { persistAuthToken, getStoredUser } from '@/core/auth/session';
 import { loginDispatcher, verifyDispatcherOtp } from '@/data/api/auth.api';
 import { AuthCardLayout } from '@/presentation/components/layout/AuthCardLayout';
 import { AuthFloatingInput } from '@/presentation/components/ui/AuthFloatingInput';
+
+function postLoginPath(role) {
+  const next = new URLSearchParams(window.location.search).get('next');
+  if (next && next.startsWith('/') && !next.startsWith('//')) return next;
+  return getDefaultRouteByRole(role);
+}
 
 export default function Login({ onSuccess, onForgotPasswordClick }) {
   const navigate = useNavigate();
@@ -37,7 +44,7 @@ export default function Login({ onSuccess, onForgotPasswordClick }) {
       setLoading(true);
       try {
         const data = await verifyDispatcherOtp(sessionToken, otp);
-        sessionStorage.setItem('token', data.token);
+        persistAuthToken(data.token);
         Swal.fire({
           icon: 'success',
           title: 'Welcome back!',
@@ -47,8 +54,7 @@ export default function Login({ onSuccess, onForgotPasswordClick }) {
           timerProgressBar: true,
         }).then(() => {
           onSuccess(data);
-          const user = JSON.parse(sessionStorage.getItem('user') || '{}');
-          navigate(getDefaultRouteByRole(user.role));
+          navigate(postLoginPath(getStoredUser().role));
         });
       } catch (err) {
         Swal.fire({
@@ -87,7 +93,7 @@ export default function Login({ onSuccess, onForgotPasswordClick }) {
           confirmButtonColor: '#134178',
         });
       } else {
-        sessionStorage.setItem('token', data.token);
+        persistAuthToken(data.token);
         Swal.fire({
           icon: 'success',
           title: 'Welcome back!',
@@ -97,8 +103,7 @@ export default function Login({ onSuccess, onForgotPasswordClick }) {
           timerProgressBar: true,
         }).then(() => {
           onSuccess(data);
-          const user = JSON.parse(sessionStorage.getItem('user') || '{}');
-          navigate(getDefaultRouteByRole(user.role));
+          navigate(postLoginPath(getStoredUser().role));
         });
       }
     } catch (err) {

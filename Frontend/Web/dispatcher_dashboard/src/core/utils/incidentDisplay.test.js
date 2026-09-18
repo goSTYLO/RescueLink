@@ -4,6 +4,8 @@ import {
   isIncidentClosed,
   hasOpenBackupUi,
   getBackupDialogCapabilities,
+  getAutoAssignmentBadge,
+  getSuggestedTeamName,
 } from '@/core/utils/incidentDisplay';
 import { ROLES } from '@/core/constants';
 
@@ -122,5 +124,26 @@ describe('getBackupDialogCapabilities', () => {
     expect(caps.canAcknowledge).toBe(false);
     expect(caps.canNotifyDepartment).toBe(false);
     expect(caps.canAssignTeam).toBe(false);
+  });
+});
+
+describe('getSuggestedTeamName', () => {
+  it('reads camelCase or snake_case and trims', () => {
+    expect(getSuggestedTeamName({ suggestedTeamName: '  Alpha  ' })).toBe('Alpha');
+    expect(getSuggestedTeamName({ suggested_team_name: 'Bravo' })).toBe('Bravo');
+    expect(getSuggestedTeamName({})).toBe('');
+  });
+});
+
+describe('getAutoAssignmentBadge', () => {
+  it('names the suggested team on the confirm badge', () => {
+    expect(getAutoAssignmentBadge({
+      autoAssignmentStatus: 'suggested',
+      suggestedTeamName: 'Rescue Alpha',
+    }).label).toBe('Needs confirm: Rescue Alpha');
+  });
+
+  it('falls back to Needs confirm when the team name is missing', () => {
+    expect(getAutoAssignmentBadge({ auto_assignment_status: 'suggested' }).label).toBe('Needs confirm');
   });
 });

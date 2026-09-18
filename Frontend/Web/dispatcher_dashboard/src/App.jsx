@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from '@/infrastructure/firebase';
 import { DEV_MODE } from '@/core/config/app.config';
@@ -27,7 +27,7 @@ import EnterCode from '@/presentation/pages/EnterCode';
 import CreateNewPassword from '@/presentation/pages/CreateNewPassword';
 import ResetPasswordPage from '@/presentation/pages/ResetPasswordPage';
 import { AccessDeniedNotice } from '@/presentation/components/common/AccessDeniedNotice';
-import { clearAuthSession, hasRoleAccess } from '@/core/auth/session';
+import { clearAuthSession, getAuthToken, getStoredUser, hasRoleAccess, persistAuthUser } from '@/core/auth/session';
 import { logout as logoutDispatcher } from '@/data/api/auth.api';
 import { initOneSignal, setOneSignalUser, logoutOneSignal } from '@/core/services/oneSignalWebService';
 
@@ -46,15 +46,15 @@ function ProtectedRoute({ children, allowedRoles = [] }) {
     // In dev mode, set a mock user and skip auth
     if (DEV_MODE) {
       // Set mock user in sessionStorage for Layout component (Super Admin by default)
-      if (!sessionStorage.getItem('user')) {
-        sessionStorage.setItem('user', JSON.stringify({
+      if (!getStoredUser().role) {
+        persistAuthUser({
           username: 'Super Admin',
           name: 'Super Admin',
           email: 'admin@rescuelink.dagupan.gov.ph',
           role: 'super-admin',
           department: 'All',
           departmentId: null
-        }));
+        });
       }
       setUser({ uid: 'dev-user' });
       setUserRole(ROLES.SUPER_ADMIN);
@@ -63,15 +63,10 @@ function ProtectedRoute({ children, allowedRoles = [] }) {
     }
 
     // Production mode - check JWT token in sessionStorage
-    const token = sessionStorage.getItem('token');
-    const storedUser = sessionStorage.getItem('user');
-    if (token && storedUser) {
-      try {
-        const parsedUser = JSON.parse(storedUser);
-        setUserRole(normalizeRole(parsedUser?.role));
-      } catch (_) {
-        setUserRole(ROLES.PERSONNEL);
-      }
+    const token = getAuthToken();
+    const storedUser = getStoredUser();
+    if (token && storedUser.role) {
+      setUserRole(normalizeRole(storedUser.role));
       setUser({ authenticated: true });
     } else {
       setUser(null);
@@ -108,6 +103,16 @@ function ProtectedRoute({ children, allowedRoles = [] }) {
   return children;
 }
 
+function OneSignalClickBridge() {
+  const navigate = useNavigate();
+  useEffect(() => {
+    initOneSignal((reportId) => {
+      navigate(`/incidents/${reportId}`);
+    });
+  }, [navigate]);
+  return null;
+}
+
 export default function App() {
   const [page, setPage] = useState('login');
   const [user, setUser] = useState(null);
@@ -115,15 +120,13 @@ export default function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    initOneSignal();
-
     if (DEV_MODE) {
       setLoading(false);
     }
 
     // If user already logged in from previous session, link OneSignal external user ID
     try {
-      const stored = JSON.parse(sessionStorage.getItem('user') || '{}');
+      const stored = getStoredUser();
       const uid = stored.userId || stored.user_id || stored.id;
       if (uid) {
         setOneSignalUser(uid, {
@@ -151,7 +154,7 @@ export default function App() {
     const departmentId = data.user?.departmentId ?? data.user?.department_id ?? null;
     const userId = data.user?.userId || data.user?.user_id || data.user?.id;
 
-    sessionStorage.setItem('user', JSON.stringify({
+    persistAuthUser({
       userId,
       user_id: userId,
       username: displayName,
@@ -162,7 +165,7 @@ export default function App() {
       role,
       department,
       departmentId,
-    }));
+    });
 
     if (userId) {
       setOneSignalUser(userId, {
@@ -194,6 +197,7 @@ export default function App() {
 
   return (
     <BrowserRouter>
+      <OneSignalClickBridge />
       <div className="min-h-screen bg-background">
         {/* Dev Mode Banner */}
         {DEV_MODE && (
@@ -301,10 +305,9 @@ export default function App() {
           } />
           <Route path="/" element={
             (() => {
-              if (!DEV_MODE && !sessionStorage.getItem('token')) return <Navigate to="/login" replace />;
+              if (!DEV_MODE && !getAuthToken()) return <Navigate to="/login" replace />;
               try {
-                const u = JSON.parse(sessionStorage.getItem('user') || '{}');
-                return <Navigate to={getDefaultRouteByRole(u.role)} replace />;
+                return <Navigate to={getDefaultRouteByRole(getStoredUser().role)} replace />;
               } catch (_) {}
               return <Navigate to="/dashboard" replace />;
             })()

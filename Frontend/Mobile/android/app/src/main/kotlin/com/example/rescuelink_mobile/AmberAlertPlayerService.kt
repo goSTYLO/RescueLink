@@ -250,6 +250,7 @@ class AmberAlertPlayerService : Service() {
     companion object {
         const val ACTION_START = "com.example.rescuelink_mobile.action.AMBER_START"
         const val ACTION_STOP = "com.example.rescuelink_mobile.action.AMBER_STOP"
+        const val EMERGENCY_CHANNEL_ID = "724e011a-e821-4e40-a810-9c175737a997"
         private const val FGS_ID = 72401
         private const val PLAYER_CHANNEL_ID = "rescuelink_amber_player"
         private const val MAX_MS = 60_000L
@@ -273,6 +274,33 @@ class AmberAlertPlayerService : Service() {
                 context.startService(intent)
             } catch (_: Exception) {
             }
+        }
+
+        /** Create the emergency tray channel if missing. Do not delete it here — NSE can run mid-post. */
+        fun ensureEmergencyChannel(context: Context) {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+            val manager = context.getSystemService(NotificationManager::class.java) ?: return
+            manager.deleteNotificationChannel("OS_$EMERGENCY_CHANNEL_ID")
+            if (manager.getNotificationChannel(EMERGENCY_CHANNEL_ID) != null) return
+            val attrs = AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_ALARM)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build()
+            val channel = NotificationChannel(
+                EMERGENCY_CHANNEL_ID,
+                "RescueLink Emergency",
+                NotificationManager.IMPORTANCE_MAX,
+            ).apply {
+                description = "Amber-style emergency dispatch alerts"
+                setSound(
+                    android.net.Uri.parse("android.resource://${context.packageName}/${R.raw.emergency_alert}"),
+                    attrs,
+                )
+                enableVibration(true)
+                setBypassDnd(true)
+                lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
+            }
+            manager.createNotificationChannel(channel)
         }
     }
 }

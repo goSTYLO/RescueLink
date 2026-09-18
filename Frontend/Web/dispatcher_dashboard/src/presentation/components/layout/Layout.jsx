@@ -15,7 +15,7 @@ import { useTheme } from '@/presentation/context/ThemeContext.jsx';
 import { ThemeToggle } from '@/presentation/components/common/ThemeToggle';
 import { getDefaultRouteByRole, ROLES, normalizeRole } from '@/core/constants';
 import { DEV_MODE } from '@/core/config/app.config';
-import { clearAuthSession } from '@/core/auth/session';
+import { clearAuthSession, getAuthToken, getStoredUser, persistAuthUser } from '@/core/auth/session';
 import { formatIncidentTypesLabel } from '@/core/utils/incidentDisplay';
 import { NotificationPromptBanner } from '@/presentation/components/common/NotificationPromptBanner';
 
@@ -126,7 +126,7 @@ export function Layout({ children }) {
   const [apiUnreadCount, setApiUnreadCount] = useState(0);
 
   const fetchApiNotifications = useCallback(async () => {
-    const token = sessionStorage.getItem('token');
+    const token = getAuthToken();
     if (DEV_MODE && !token) {
       setApiNotifications([]);
       setApiUnreadCount(0);
@@ -153,7 +153,7 @@ export function Layout({ children }) {
     let cancelled = false;
 
     const loadHeaderAvatar = async () => {
-      const token = sessionStorage.getItem('token');
+      const token = getAuthToken();
       if (!token) {
         setHeaderAvatarUrl(null);
         return;
@@ -245,7 +245,7 @@ export function Layout({ children }) {
 
   useEffect(() => {
     if (!lastDispatched?.data) return;
-    const roleNow = normalizeRole((JSON.parse(sessionStorage.getItem('user') || '{}') || {}).role);
+    const roleNow = normalizeRole(getStoredUser().role);
     const isDept = [ROLES.DEPARTMENT_ADMIN, ROLES.DEPARTMENT_HEAD, ROLES.PERSONNEL].includes(roleNow);
     if (!isDept) return;
     const d = lastDispatched.data;
@@ -267,7 +267,7 @@ export function Layout({ children }) {
 
   useEffect(() => {
     if (!lastBackupRequested?.data) return;
-    const roleNow = normalizeRole((JSON.parse(sessionStorage.getItem('user') || '{}') || {}).role);
+    const roleNow = normalizeRole(getStoredUser().role);
     const isDept = [ROLES.DEPARTMENT_ADMIN, ROLES.DEPARTMENT_HEAD, ROLES.PERSONNEL].includes(roleNow);
     if (!isDept) return;
     const d = lastBackupRequested.data;
@@ -347,12 +347,13 @@ export function Layout({ children }) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const currentUser = JSON.parse(sessionStorage.getItem('user') || JSON.stringify({
+  const storedUser = getStoredUser();
+  const currentUser = storedUser.role ? storedUser : {
     username: 'Super Admin',
     email: 'admin@rescuelink.dagupan.gov.ph',
     role: ROLES.SUPER_ADMIN,
     department: 'All'
-  }));
+  };
   const role = normalizeRole(currentUser.role);
   const isSuperAdmin = role === ROLES.SUPER_ADMIN;
   const isAdmin = isSuperAdmin; // legacy: Admin Actions / full access
@@ -411,7 +412,7 @@ export function Layout({ children }) {
     const value = e.target.value;
     const preset = DEV_ROLE_PRESETS.find((p) => p.value === value);
     if (!preset) return;
-      sessionStorage.setItem('user', JSON.stringify(preset.user));
+      persistAuthUser(preset.user);
     navigate(getDefaultRouteByRole(preset.value));
   };
 

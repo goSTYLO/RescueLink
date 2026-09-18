@@ -11,6 +11,12 @@ const { validateInteger, validateString, validateAllowedValue, validatePaginatio
 const { logDispatcherAction } = require('../utils/auditLog');
 const Notification = require('../models/notification');
 const { buildIncidentEventPayload, emitIncidentEvent } = require('../utils/incidentEvents');
+const {
+  sendPushToUsers,
+  formatPushTitle,
+  formatPushBody,
+  formatCriticalPushTitle,
+} = require('../services/oneSignalService');
 const { tryDecryptValue } = require('../utils/encryption');
 const User = require('../models/user');
 const Department = require('../models/department');
@@ -338,6 +344,35 @@ async function findEligibleNearbyVolunteerUserIds(reportId, backupRequestId, inc
   return eligible;
 }
 
+/** Amber OneSignal to nearby online volunteers (background / killed app). */
+function pushCriticalToNearbyVolunteers(userIds, incident, { isBackup = false } = {}) {
+  if (!Array.isArray(userIds) || userIds.length === 0) return;
+  const reportId = incident?.report_id ?? incident?.reportId;
+  if (reportId == null) return;
+  const webUrl = `${process.env.WEB_DASHBOARD_URL || process.env.FRONTEND_URL || 'http://localhost:5173'}/incidents/${reportId}`;
+  const kind = isBackup ? 'backup' : 'volunteer';
+  if (process.env.NODE_ENV !== 'test') {
+    console.log(
+      `[volunteerPush] critical kind=${kind} userIds=[${userIds.join(',')}] report=${reportId}`
+    );
+  }
+  sendPushToUsers(userIds, {
+    title: isBackup ? formatPushTitle('backup_request') : formatCriticalPushTitle('dept'),
+    body: isBackup
+      ? formatPushBody('backup_request', incident)
+      : formatPushBody('incident:created', incident),
+    url: webUrl,
+    data: {
+      screen: 'incident_detail',
+      report_id: reportId,
+      critical: true,
+      alert_kind: kind,
+    },
+    eventType: isBackup ? 'backup_alert' : 'volunteer_alert',
+    critical: true,
+  }, pool).catch((err) => console.error('[volunteerPush] failed:', err.message));
+}
+
 async function notifyVolunteersBackupAlert(reportId, backupRequestId, message, userIds) {
   await Promise.all(
     userIds.map((user_id) =>
@@ -378,6 +413,7 @@ async function emitNearbyBackupAlert(req, reportId, backupRequestId, incident, r
   const eligibleIds = await findEligibleNearbyVolunteerUserIds(reportId, backupRequestId, incident);
   const alertMessage = `Backup needed for report #${reportId}. ${requestedByName} asked for nearby volunteer support.`;
   await notifyVolunteersBackupAlert(reportId, backupRequestId, alertMessage, eligibleIds);
+  pushCriticalToNearbyVolunteers(eligibleIds, payload, { isBackup: true });
 
   await pool.query(
     `UPDATE backup_requests
@@ -1474,4 +1510,5 @@ module.exports = {
   isWithinVolunteerRadius,
   parseCoordinate,
   findEligibleNearbyVolunteerUserIds,
+  pushCriticalToNearbyVolunteers,
 };

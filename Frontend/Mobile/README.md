@@ -13,6 +13,8 @@ Users with role `responder` (promoted upon application approval) unlock a dedica
 - **Incident Alert Modal (`IncidentAlertModal`)**:
   - Automatically pops up on receiving a `responder:incident_alert` WebSocket event when responder is online.
   - Displays incident type, severity, and barangay location.
+  - Plays the same `emergency_alert.wav` amber as personnel (stops on Accept / Decline / View Details). UI is unchanged.
+  - Background / killed: same emergency-channel OneSignal as personnel (volunteer must be online and in range). Tray tap opens volunteer **preview** (Accept/Decline), not citizen incident details.
   - **Accept**: Assigns incident to responder and opens Responder Incident Detail screen.
   - **Decline**: Dismisses modal and logs action.
 - **Responder Incident Detail (`ResponderIncidentDetailScreen`)**:

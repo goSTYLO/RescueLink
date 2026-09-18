@@ -246,10 +246,18 @@ export function mapApiIncidentToDisplay(api) {
   };
 }
 
+export function getSuggestedTeamName(incident) {
+  return String(incident?.suggestedTeamName || incident?.suggested_team_name || '').trim();
+}
+
 export function getAutoAssignmentBadge(incident) {
   const status = String(incident?.autoAssignmentStatus || incident?.auto_assignment_status || '').toLowerCase();
   if (status === 'suggested') {
-    return { label: 'Needs confirm', className: 'bg-amber-500/20 text-amber-700 border-amber-500/40 dark:text-amber-300' };
+    const team = getSuggestedTeamName(incident);
+    return {
+      label: team ? `Needs confirm: ${team}` : 'Needs confirm',
+      className: 'bg-amber-500/20 text-amber-700 border-amber-500/40 dark:text-amber-300',
+    };
   }
   if (status === 'auto_applied') {
     return { label: 'Auto-assigned', className: 'bg-sky-500/20 text-sky-700 border-sky-500/40 dark:text-sky-300' };

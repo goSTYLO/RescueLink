@@ -17,6 +17,7 @@ const {
   incidentMatchesVolunteerSpecialization,
   isWithinVolunteerRadius,
   parseCoordinate,
+  findEligibleNearbyVolunteerUserIds,
 } = require('../src/controllers/incidentAcceptance');
 
 describe('responder active incidents', () => {
@@ -96,12 +97,13 @@ describe('responder active incidents', () => {
       pool.query
         .mockResolvedValueOnce({ rows: [] }) // ensurePhase3Schema
         .mockResolvedValueOnce({ rows: [{ latitude: 16.043, longitude: 120.333 }] })
-        .mockResolvedValueOnce({ rows });
+        .mockResolvedValueOnce({ rows })
+        .mockResolvedValueOnce({ rows: [] }); // backup merge
 
       const res = { json: jest.fn() };
       await getActiveAssigned({ user: { user_id: 4 } }, res);
 
-      expect(pool.query).toHaveBeenCalledTimes(3);
+      expect(pool.query).toHaveBeenCalledTimes(4);
       const [sql, params] = pool.query.mock.calls[2];
       expect(sql).toContain('accepted_by_user_id IS NULL');
       expect(sql).toContain('supported_incident_types');
@@ -129,12 +131,13 @@ describe('responder active incidents', () => {
         .mockResolvedValueOnce({ rows: [] })
         .mockResolvedValueOnce({ rows: [{ latitude: null, longitude: null }] })
         .mockRejectedValueOnce(missingColumnErr)
-        .mockResolvedValueOnce({ rows });
+        .mockResolvedValueOnce({ rows })
+        .mockResolvedValueOnce({ rows: [] }); // backup merge
 
       const res = { json: jest.fn() };
       await getActiveAssigned({ user: { user_id: 4 } }, res);
 
-      expect(pool.query).toHaveBeenCalledTimes(4);
+      expect(pool.query).toHaveBeenCalledTimes(5);
       const [fallbackSql] = pool.query.mock.calls[3];
       expect(fallbackSql).toContain('NULL::double precision AS latitude');
       expect(res.json).toHaveBeenCalledWith([
@@ -151,6 +154,30 @@ describe('responder active incidents', () => {
       await getActiveAssigned({ user: { user_id: 4 } }, res);
       expect(res.status).toHaveBeenCalledWith(500);
       expect(res.json).toHaveBeenCalledWith({ error: 'Internal server error.' });
+    });
+  });
+
+  describe('findEligibleNearbyVolunteerUserIds', () => {
+    it('keeps nearby matching volunteers and skips reporter, mismatch, and far users', async () => {
+      pool.query
+        .mockResolvedValueOnce({ rows: [{ user_id: 1 }] })
+        .mockResolvedValueOnce({
+          rows: [
+            { user_id: 1, latitude: 16.05, longitude: 120.34, supported_incident_types: ['medical'] },
+            { user_id: 2, latitude: 16.05, longitude: 120.34, supported_incident_types: ['medical'] },
+            { user_id: 3, latitude: 16.05, longitude: 120.34, supported_incident_types: ['fire'] },
+            { user_id: 4, latitude: 17.5, longitude: 121.5, supported_incident_types: ['medical'] },
+          ],
+        });
+
+      const ids = await findEligibleNearbyVolunteerUserIds(10, null, {
+        latitude: 16.05,
+        longitude: 120.34,
+        incident_type: 'medical',
+      });
+
+      expect(ids).toEqual([2]);
+      expect(pool.query.mock.calls.some(([sql]) => String(sql).includes('backup_responses'))).toBe(false);
     });
   });
 });

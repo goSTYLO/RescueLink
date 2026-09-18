@@ -14,6 +14,7 @@ import { getIncidents, verifyIncident, linkDuplicate, acknowledgeBackupRequest, 
 import { getDepartmentById, getDepartments } from '@/data/api/departments.api';
 import { DEV_MODE } from '@/core/config/app.config';
 import { normalizeRole, ROLES } from '@/core/constants';
+import { getAuthToken, getStoredUser } from '@/core/auth/session';
 
 // Feature flag — mirrors USE_BLOCKCHAIN in Backend/.env
 const USE_BLOCKCHAIN = import.meta.env.VITE_USE_BLOCKCHAIN === 'true';
@@ -149,7 +150,7 @@ export function DashboardPage() {
     if (Date.now() < rateLimitUntilRef.current) {
       return;
     }
-    const token = sessionStorage.getItem('token');
+    const token = getAuthToken();
     if (DEV_MODE && !token) {
       const filteredMock = mockIncidents.filter((inc) => {
         if (activeFilterType !== 'All' && inc.emergencyType !== activeFilterType) return false;
@@ -212,7 +213,7 @@ export function DashboardPage() {
     let cancelled = false;
     (async () => {
       try {
-        const user = JSON.parse(sessionStorage.getItem('user') || '{}');
+        const user = getStoredUser();
         const deptId = user.departmentId || user.department_id;
         if (deptId) {
           const dept = await getDepartmentById(deptId);
@@ -466,7 +467,7 @@ export function DashboardPage() {
     }
   };
 
-  const currentUser = JSON.parse(sessionStorage.getItem('user') || '{}');
+  const currentUser = getStoredUser();
   const normalizedRole = normalizeRole(currentUser.role);
   const backupDialogCapabilities = getBackupDialogCapabilities(backupDialogIncident, currentUser.role);
   const canVerify = (
@@ -588,7 +589,7 @@ export function DashboardPage() {
     setVerifyInProgress(true);
     try {
       const numericId = /^\d+$/.test(String(verifyIncidentTarget.id));
-      const token = sessionStorage.getItem('token');
+      const token = getAuthToken();
       if (numericId && token) {
         await verifyIncident(verifyIncidentTarget.id);
       }

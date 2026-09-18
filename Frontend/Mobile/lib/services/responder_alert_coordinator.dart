@@ -5,6 +5,7 @@ import '../screens/responder/incident_alert_modal.dart';
 import '../screens/responder/responder_incident_detail_screen.dart';
 import '../screens/responder/responder_incident_preview_screen.dart';
 import '../utils/report_ui.dart';
+import 'amber_alert_sound.dart';
 import 'auth_service.dart';
 import 'responder_service.dart';
 import 'websocket_service.dart';
@@ -15,9 +16,11 @@ typedef ResponderAlertDismissedCallback = void Function();
 class ResponderAlertCoordinator {
   StreamSubscription<IncidentEvent>? _subscription;
   final Set<String> _shownAlertIds = <String>{};
+  final Set<int> _openedFromPush = <int>{};
   bool _online = false;
   bool _started = false;
   bool _modalShowing = false;
+  BuildContext? _sheetContext;
 
   ResponderAlertDismissedCallback? onAlertDismissed;
 
@@ -49,7 +52,23 @@ class ResponderAlertCoordinator {
     _subscription = null;
     _started = false;
     _shownAlertIds.clear();
+    _openedFromPush.clear();
     _modalShowing = false;
+    _sheetContext = null;
+  }
+
+  /// Tray tap already opened this incident — skip the volunteer sheet (and pop it if up).
+  void consumeReport(int reportId) {
+    _openedFromPush.add(reportId);
+    _shownAlertIds.add('incident:$reportId');
+    unawaited(AmberAlertSound.stop());
+    if (!_modalShowing) return;
+    final sheetCtx = _sheetContext;
+    if (sheetCtx != null && sheetCtx.mounted) {
+      Navigator.of(sheetCtx).pop();
+    }
+    _modalShowing = false;
+    _sheetContext = null;
   }
 
   int? _parseReportId(IncidentEvent event) {
@@ -95,17 +114,19 @@ class ResponderAlertCoordinator {
       return;
     }
 
+    final reportId = _parseReportId(event);
+    if (reportId == null) return;
+    if (_openedFromPush.contains(reportId)) return;
+
     final alertKey = _alertKey(event);
     if (_shownAlertIds.contains(alertKey)) return;
     _shownAlertIds.add(alertKey);
-
-    final reportId = _parseReportId(event);
-    if (reportId == null) return;
 
     final ctx = _context ?? context;
     if (!ctx.mounted) return;
     await HapticFeedback.heavyImpact();
     if (!ctx.mounted) return;
+    if (_openedFromPush.contains(reportId)) return;
 
     _modalShowing = true;
     _online = true;
@@ -116,40 +137,49 @@ class ResponderAlertCoordinator {
       enableDrag: false,
       useRootNavigator: true,
       backgroundColor: Colors.transparent,
-      builder: (sheetContext) => IncidentAlertModal(
-        event: event,
-        onViewDetails: isBackupAlert
-            ? null
-            : () {
-                Navigator.of(sheetContext).pop();
-                _modalShowing = false;
-                if (!ctx.mounted) return;
-                Navigator.of(ctx, rootNavigator: true).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => ResponderIncidentPreviewScreen(reportId: reportId),
-                  ),
-                );
-              },
-        onAccepted: (acceptedId, initialIncident) {
-          Navigator.of(sheetContext).pop();
-          _modalShowing = false;
-          if (!ctx.mounted) return;
-          Navigator.of(ctx, rootNavigator: true).push(
-            MaterialPageRoute<void>(
-              builder: (_) => ResponderIncidentDetailScreen(
-                reportId: acceptedId,
-                initialIncident: initialIncident,
-                isBackupHelper: initialIncident['is_backup_assignment'] == true,
-                backupRequestId: parseInt(initialIncident['backup_request_id']),
+      builder: (sheetContext) {
+        if (_openedFromPush.contains(reportId)) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (sheetContext.mounted) Navigator.of(sheetContext).pop();
+          });
+          return const SizedBox.shrink();
+        }
+        _sheetContext = sheetContext;
+        return IncidentAlertModal(
+          event: event,
+          onViewDetails: isBackupAlert
+              ? null
+              : () {
+                  Navigator.of(sheetContext).pop();
+                  _modalShowing = false;
+                  if (!ctx.mounted) return;
+                  Navigator.of(ctx, rootNavigator: true).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => ResponderIncidentPreviewScreen(reportId: reportId),
+                    ),
+                  );
+                },
+          onAccepted: (acceptedId, initialIncident) {
+            Navigator.of(sheetContext).pop();
+            _modalShowing = false;
+            if (!ctx.mounted) return;
+            Navigator.of(ctx, rootNavigator: true).push(
+              MaterialPageRoute<void>(
+                builder: (_) => ResponderIncidentDetailScreen(
+                  reportId: acceptedId,
+                  initialIncident: initialIncident,
+                  isBackupHelper: initialIncident['is_backup_assignment'] == true,
+                  backupRequestId: parseInt(initialIncident['backup_request_id']),
+                ),
               ),
-            ),
-          );
-        },
-        onDeclined: () {
-          Navigator.of(sheetContext).pop();
-          _modalShowing = false;
-        },
-      ),
+            );
+          },
+          onDeclined: () {
+            Navigator.of(sheetContext).pop();
+            _modalShowing = false;
+          },
+        );
+      },
     );
     _modalShowing = false;
     _notifyDismissed();

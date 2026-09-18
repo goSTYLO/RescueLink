@@ -149,7 +149,7 @@ Each row is one incident. Use a **new report** per row. Record `report_id` in th
 | 1    | Force low confidence: unclear audio, or temporarily set `AI_LOW_CONFIDENCE_THRESHOLD=0.95` and restart backend |                                                                                            |
 | 2    | Submit audio report                                                                                            | `auto_assignment_status = suggested`, `status = pending`                                   |
 | 3    | Dispatches                                                                                                     | **No** team rows created                                                                   |
-| 4    | Web                                                                                                            | Badge **Needs confirm**; **Confirm suggested team** visible (if `suggested_team_name` set) |
+| 4    | Web                                                                                                            | Badge **Needs confirm: {team}**; **Confirm {team}** visible (if `suggested_team_name` set) |
 
 
 Restore threshold to `0.7` after this test.
@@ -241,8 +241,8 @@ Open incident in each state and verify action bar:
 
 | Step | Action                                               | Expected                                       |
 | ---- | ---------------------------------------------------- | ---------------------------------------------- |
-| 1    | Open `suggested` incident with `suggested_team_name` | Confirm button visible                         |
-| 2    | Click **Confirm suggested team**                     | 201, team assigned, `confirmed`, `in_progress` |
+| 1    | Open `suggested` incident with `suggested_team_name` | Badge, details card, and **Confirm {team}** name the team |
+| 2    | Click **Confirm {team}** and confirm the Swal        | 201, team assigned, `confirmed`, `in_progress` |
 | 3    | Repeat confirm on same incident                      | 409 `NO_SUGGESTION` or already teamed          |
 
 
@@ -347,6 +347,7 @@ With OneSignal configured:
 - [ ] Team member receives push: “Your team was assigned to Incident #…”
 - [ ] Tap opens assigned-incident detail (not citizen screen)
 - [ ] Cold start: `openIncidentByReportId` prefers assigned list
+- [ ] Volunteer **online**, app backgrounded or killed, nearby matching incident: emergency-channel alarm (not a quiet default tray). Popup UI stays the volunteer sheet when the app is open.
 
 ---
 

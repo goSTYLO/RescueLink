@@ -19,7 +19,7 @@ const { logDispatcherAction, logUserAction } = require('../utils/auditLog');
 const { ROLES } = require('../config/roles');
 const { isResourceOwner, getOwnershipFilter } = require('../utils/ownership');
 const { buildIncidentEventPayload, emitIncidentEvent } = require('../utils/incidentEvents');
-const { attachBackupVolunteers } = require('./incidentAcceptance');
+const { attachBackupVolunteers, findEligibleNearbyVolunteerUserIds, pushCriticalToNearbyVolunteers } = require('./incidentAcceptance');
 const path = require('path');
 const fs = require('fs').promises;
 
@@ -124,19 +124,26 @@ async function logIncidentAction(req, action, resourceId, details) {
   }
 }
 
-/** Notify online volunteer responders when a new actionable incident is created. */
+/** Notify nearby online volunteers: WS while the app is open, critical push when background/killed. */
 function emitResponderAlert(req, incident) {
   if (!incident) return;
   const status = String(incident.status || '').toLowerCase();
   if (!['pending', 'verified', 'in_progress'].includes(status)) return;
   if (incident.accepted_by_user_id) return;
 
-  const wss = req.app?.locals?.wss;
-  if (!wss?.broadcastToResponders) return;
   const data = buildIncidentEventPayload(incident);
-  wss.broadcastToResponders('responder:incident_alert', data).catch((err) => {
-    console.error('[emitResponderAlert] broadcast failed:', err.message);
-  });
+  const wss = req.app?.locals?.wss;
+  if (wss?.broadcastToResponders) {
+    wss.broadcastToResponders('responder:incident_alert', data).catch((err) => {
+      console.error('[emitResponderAlert] broadcast failed:', err.message);
+    });
+  }
+
+  const reportId = data.report_id ?? incident.report_id;
+  if (reportId == null) return;
+  findEligibleNearbyVolunteerUserIds(reportId, null, incident)
+    .then((userIds) => pushCriticalToNearbyVolunteers(userIds, data))
+    .catch((err) => console.error('[emitResponderAlert] volunteer push failed:', err.message));
 }
 
 async function runAutoDispatchThenAlert(req, incident, options) {
@@ -1341,10 +1348,10 @@ const incidentController = {
         actor_user_id: req.user?.user_id || null,
         actor_role: req.user?.role || null,
         allow_force_close: allowForceClose,
-        closure_notes: nextStatus === 'closed'
+        closure_notes: nextStatus === 'closed' || nextStatus === 'resolved'
           ? validateOptionalString(req.body?.closure_notes, 'closure_notes', 2000)
           : null,
-        closure_method: nextStatus === 'closed'
+        closure_method: nextStatus === 'closed' || nextStatus === 'resolved'
           ? validateOptionalString(req.body?.closure_method, 'closure_method', 80)
           : null,
       });

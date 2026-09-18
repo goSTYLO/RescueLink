@@ -1,3 +1,7 @@
+import { getAuthToken } from '@/core/auth/session';
+
+export { getAuthToken };
+
 const isProduction = (typeof process !== 'undefined' ? process.env?.NODE_ENV : '') === 'production';
 const recentLogMap = new Map();
 const LOG_DEDUPE_WINDOW_MS = 15000;
@@ -7,10 +11,6 @@ const LATENCY_EVENTS_LIMIT = 200;
 export function createRequestId(prefix = 'web') {
   const randomPart = Math.random().toString(16).slice(2, 10);
   return `${prefix}-${Date.now()}-${randomPart}`;
-}
-
-export function getAuthToken() {
-  return sessionStorage.getItem('token');
 }
 
 export function getAuthHeaders({ requestId, includeContentType = true } = {}) {

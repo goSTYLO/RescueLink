@@ -1,5 +1,25 @@
 # RescueLink Memory
 
+## Volunteer nearby amber when app is background/killed (2026-09-18)
+
+- Nearby volunteer alerts were WebSocket-only (`responder:incident_alert`). Background or killed app never got the emergency-channel OneSignal, so no outside-app alarm.
+- Same eligibility as the volunteer pool (`findEligibleNearbyVolunteerUserIds`: online, specialization, radius, not the reporter) now also gets critical push (`alert_kind: volunteer`). Backup nearby uses `alert_kind: backup`.
+- Volunteer popup stays `IncidentAlertModal`. Foreground still skips the OS tray so the sheet owns the WAV; background/killed uses NSE + emergency channel like personnel.
+- Volunteer tray tap opens `ResponderIncidentPreviewScreen` (not citizen GET `/incidents/:id`, which 403s before accept).
+
+Added: 2026-09-18 — volunteer outside-app amber.
+
+## Web push click auth + shorter copy + foreground amber (2026-09-18)
+
+- Web JWT is in `localStorage` and `sessionStorage` so a OneSignal `web_url` new tab can load `/incidents/:id` without `No authentication token found`. Logout still clears both. SPA click navigates in the open dashboard tab.
+- OneSignal titles/bodies shortened in `formatPushTitle` / `formatPushBody` / `formatCriticalPushTitle` (`Respond now`, `Your team is up`, `#123 Fire in Pantal — go now`).
+- Mobile app-open amber: OneSignal foreground listener starts `EmergencyDispatchAlertCoordinator` (not WebSocket-only). Emergency channel plays `emergency_alert` on Alarm volume again; FGS player remains backup.
+- App-open staff critical: `preventDefault` skips the tray so the red modal owns the WAV; Open/Dismiss also cancels emergency-channel notifications + FGS via `rescuelink/amber`. Volunteers keep `IncidentAlertModal` and play/stop the same helper. Tapping the tray consumes that `report_id` so WS reconnect does not stack the in-app modal under incident details, and `AmberAlertSound.stop()` invalidates in-flight `play()` so the WAV cannot outlive the modal.
+- Killed-app amber: NSE starts `AmberAlertPlayerService` when `RescueLinkUi.resumed` is false (FCM-woken process importance is not treated as UI). Ensures emergency channel + `setChannelId` so the tray is not the default/updates sound.
+- Suggested-team confirm UI names the team on the badge, details card, button, and Swal (`Needs confirm: Alpha`).
+
+Added: 2026-09-18 — push click auth, short copy, foreground sound, stop-on-interact, volunteer amber, suggested team label.
+
 ## Continuous amber WAV (2026-09-11)
 
 - Replaced gap-alternating two-tone (cut/continue) with continuous dual-tone 853+960 Hz for full 60s.
@@ -245,12 +265,12 @@ Added: 2026-08-18 — backup acknowledge lifecycle + volunteer response web tab 
 ## Incident close (dispatcher/admin force-close)
 
 - Lifecycle: `pending → verified → in_progress → resolved → closed`.
-- **Resolve** via department dispatch (`PATCH /status resolved`) or volunteer mobile (`PATCH /responder-status Resolved`, which also sets `status = resolved`).
-- **Standard close:** reporter confirms on mobile (`POST /confirm-resolution`) → auto `closed` with `closure_method: auto_from_reporter_confirmation`.
+- **Resolve** via department dispatch (`PATCH /status resolved`) or volunteer mobile (`PATCH /responder-status Resolved`, which also sets `status = resolved`). Web department admin/head fill the same Close Incident dialog as super admin; submit still marks `resolved` and waits for citizen confirmation.
+- **Standard close:** reporter confirms on mobile (`POST /confirm-resolution`) → auto `closed`. If department staff already saved `closure_method` / `closure_notes` at resolve time, those are kept (`COALESCE`); otherwise `closure_method` is `auto_from_reporter_confirmation`.
 - **Force close:** dispatcher or admin/super-admin on web when incident is **effectively resolved** — lifecycle `resolved` **or** volunteer `responder_status = Resolved` ([`isIncidentEffectivelyResolved`](Frontend/Web/dispatcher_dashboard/src/core/utils/incidentDisplay.js)). Uses `PATCH /status closed` with `allow_force_close`; backend normalizes desynced volunteer rows before closing.
-- Optional closure dialog fields persist as `closure_notes` + `closure_method`.
+- Optional closure dialog fields persist as `closure_notes` + `closure_method` on force-close **and** on department resolve.
 
-Added: 2026-08-18 — dispatcher close for resolved / volunteer-resolved incidents.
+Added: 2026-08-18 — dispatcher close for resolved / volunteer-resolved incidents. Updated: 2026-09-18 — department web Mark Resolved reuses the close dialog and persists notes while waiting for citizen confirm.
 
 ## Hybrid auto team assignment (2026-09-07)
 
@@ -279,7 +299,7 @@ Added: 2026-09-08 — phone format normalization for seeded mobile login.
 ## Responder vs volunteer RBAC (2026-09-09)
 
 - Team personnel keep `users.role = responder`. Approved applications promote to `volunteer`, not `responder`.
-- Volunteer-only: nearby `/incidents/responder/active`, preview, accept/decline, volunteer `responder-status`, backup join APIs, `responder:incident_alert` / `backup_alert` WS.
+- Volunteer-only: nearby `/incidents/responder/active`, preview, accept/decline, volunteer `responder-status`, backup join APIs, `responder:incident_alert` / `backup_alert` WS plus critical OneSignal for background/killed.
 - Personnel-only: `/responders/me/assigned-incidents`, `/me/team`, `PATCH /dispatches/me/status`. Phone login forces `responder_online = true`.
 - Super-admin Team **Field Responder** creates a mobile personnel account (phone + department). Dept Add Responder may attach email/password/phone for the same.
 - Migration `add_volunteer_role.sql` remaps non-team `responder` users to `volunteer`.

@@ -70,8 +70,9 @@ After changing Sound/Vibration, click **Update**, then **cold-start the app once
 
 - Sound file: `Frontend/Mobile/android/app/src/main/res/raw/emergency_alert.wav` (tray) and `Frontend/Mobile/assets/sounds/emergency_alert.wav` (foreground modal) — ~**60s** real RIFF WAV; amber stops at 1 minute or when the user opens/dismisses / taps the notification
 - Manifest: `POST_NOTIFICATIONS`, `VIBRATE`, `USE_FULL_SCREEN_INTENT`
-- `MainActivity` **deletes + recreates** channel `724e011a-…` on every cold start (`IMPORTANCE_MAX` / Urgent, `setBypassDnd(true)`, public lockscreen, **visual-only** — no channel sound/vibe) and deletes `OS_724e011a-…` if present
-- `NotificationServiceExtension` (registered in `AndroidManifest`) intercepts critical pushes (`data.critical: true`), sets `CATEGORY_ALARM` + full-screen intent, and starts **`AmberAlertPlayerService`** when the app UI is not foreground — plays `res/raw/emergency_alert` via `USAGE_ALARM` + vibration for ~60s (needed when the app was **swiped away / process dead**; OEM tray channels often stay silent then even though the notification appears)
+- `MainActivity` **deletes + recreates** channel `724e011a-…` on every cold start (`IMPORTANCE_MAX` / Urgent, `setBypassDnd(true)`, public lockscreen, **`emergency_alert` on the Alarm stream**) and deletes `OS_724e011a-…` if present
+- Foreground (app open): OneSignal `addForegroundWillDisplayListener` starts the same amber modal as WebSocket `incident:dispatched`. Critical staff pushes call `preventDefault` (no tray) so the modal owns the WAV; tapping Open/Dismiss stops `audioplayers` and cancels the emergency-channel tray / FGS. Volunteers keep the old `IncidentAlertModal` and play/stop the same `emergency_alert.wav`. Tapping a tray notification opens the incident and **consumes** that report so the in-app modal does not start again on resume.
+- `NotificationServiceExtension` intercepts critical pushes (`data.critical: true`), sets `CATEGORY_ALARM` + full-screen intent + emergency `channelId`/`emergency_alert`, and starts **`AmberAlertPlayerService`** when **MainActivity is not resumed** (not process importance — a killed-app FCM wake looks foreground and used to skip the player). FGS plays `res/raw/emergency_alert` via `USAGE_ALARM` + vibration for ~60s. NSE also creates the emergency channel if it is missing.
 - Also delete+recreates `rescuelink_updates` (`IMPORTANCE_HIGH`, default sound + vibration) for quiet / status trays; quiet REST uses `existing_android_channel_id: rescuelink_updates`
 - Sound uses the **Alarm** volume stream (`USAGE_ALARM`) — if Alarm volume is 0, amber is silent
 - Android 14+: Settings → Apps → RescueLink → Special app access → **Full screen intents** must be allowed (or the system may show a quiet heads-up instead of waking the lock screen)
@@ -109,17 +110,19 @@ Until Critical Alerts are approved, iOS will not fully match Amber/WEA DND overr
 | **Notify Dept** (no team yet) | All `department-admin`, `department-head`, and `responder` (field personnel) in that department | Same staff + reporter + global dispatchers/admins |
 | **Assign Team** (manual or auto) | Account-backed **team members** + **department-admin/head** in that department | Quiet fan-out minus the critical set (includes **reporter** + other staff) |
 | **Auto suggestion only** (`auto_assignment_status=suggested`) | None — no `incident:dispatched` until Confirm / Notify Dept | None for dispatch |
+| **Nearby volunteer alert** (`responder:incident_alert`) | Online nearby `volunteer`s matching specialization/radius (`alert_kind: volunteer`) | None for this path (WS + critical push only) |
+| **Nearby volunteer backup** (`responder:backup_alert`) | Same volunteer pool minus joined/declined (`alert_kind: backup`) | DB `backup_alert` rows for those volunteers |
 
-Citizens / reporters **never** get amber. Test amber on `09001000011` (dept admin) via **Notify Dept** or **Assign Team**, or a team member for team amber — not on the phone that filed the SOS.
+Citizens / reporters **never** get amber. Test amber on `09001000011` (dept admin) via **Notify Dept** or **Assign Team**, or a team member for team amber — not on the phone that filed the SOS. Volunteers: stay **online** on the Responder tab, background or kill the app, then file a nearby matching incident.
 
 If auto-dispatch assigns a team but no account-backed `user_id`s resolve, amber **falls through to dept** staff (same as Notify Dept) instead of sending zero critical pushes.
 
 Critical titles:
 
-- `EMERGENCY — Department notified` (dept-only assign)
-- `EMERGENCY — Your team was assigned` (team members)
+- `Respond now` (dept-only assign)
+- `Your team is up` (team members)
 
-Custom data includes `report_id`, `critical: true`, `alert_kind: dept|team`. Tap opens the mobile ops or assigned-incident detail.
+Custom data includes `report_id`, `critical: true`, `alert_kind: dept|team|volunteer|backup`. Volunteer tap opens pre-accept preview (not citizen incident details). Staff tap opens ops/assigned detail. The in-app sheet is skipped when the tap already opened the report.
 
 Quiet events (notes, status updates) **must not** use `724e011a-e821-4e40-a810-9c175737a997`.
 

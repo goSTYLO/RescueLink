@@ -48,6 +48,7 @@ const App = require('@/App').default;
 describe('App route guards', () => {
   beforeEach(() => {
     sessionStorage.clear();
+    localStorage.clear();
   });
 
   test('redirects unauthenticated root route to login', async () => {

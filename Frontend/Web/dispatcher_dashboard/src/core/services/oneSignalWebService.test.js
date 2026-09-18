@@ -19,6 +19,7 @@ describe('oneSignalWebService', () => {
 
   beforeEach(() => {
     sessionStorage.clear();
+    localStorage.clear();
     originalOneSignalDeferred = window.OneSignalDeferred;
     originalNotification = window.Notification;
     window.OneSignalDeferred = [];

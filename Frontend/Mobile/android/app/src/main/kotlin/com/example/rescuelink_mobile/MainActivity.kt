@@ -7,18 +7,59 @@ import android.media.AudioAttributes
 import android.os.Build
 import android.os.Bundle
 import io.flutter.embedding.android.FlutterFragmentActivity
+import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.plugin.common.MethodChannel
+
+/** True only while [MainActivity] is resumed — FCM waking NSE is not "UI foreground". */
+object RescueLinkUi {
+    @Volatile
+    var resumed: Boolean = false
+}
 
 class MainActivity : FlutterFragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         createNotificationChannels()
         // User opened the app / tapped the tray — stop native amber player.
-        AmberAlertPlayerService.stop(this)
+        stopAmberAndCancelEmergencyTrays()
     }
 
     override fun onResume() {
         super.onResume()
+        RescueLinkUi.resumed = true
+        stopAmberAndCancelEmergencyTrays()
+    }
+
+    override fun onPause() {
+        RescueLinkUi.resumed = false
+        super.onPause()
+    }
+
+    override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
+        super.configureFlutterEngine(flutterEngine)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "rescuelink/amber")
+            .setMethodCallHandler { call, result ->
+                if (call.method == "stop") {
+                    stopAmberAndCancelEmergencyTrays()
+                    result.success(null)
+                } else {
+                    result.notImplemented()
+                }
+            }
+    }
+
+    /** Stop FGS player and dismiss emergency-channel trays (that is the 60s WAV). */
+    private fun stopAmberAndCancelEmergencyTrays() {
         AmberAlertPlayerService.stop(this)
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
+        val manager = getSystemService(NotificationManager::class.java) ?: return
+        val channelId = AmberAlertPlayerService.EMERGENCY_CHANNEL_ID
+        for (sbn in manager.activeNotifications) {
+            val cid = sbn.notification.channelId
+            if (cid == channelId || cid == "OS_$channelId") {
+                manager.cancel(sbn.tag, sbn.id)
+            }
+        }
     }
 
     private fun createNotificationChannels() {
@@ -32,10 +73,11 @@ class MainActivity : FlutterFragmentActivity() {
      * Must match Backend existing_android_channel_id.
      * Sticky channels — delete then recreate on cold start.
      * Also remove OneSignal's OS_-prefixed dashboard clone if present.
-     * Sound/vibe for amber are played by [AmberAlertPlayerService] (channel is visual).
+     * Sound/vibe: channel plays emergency_alert (USAGE_ALARM); FGS player is backup
+     * when OEM tray is mute.
      */
     private fun createEmergencyChannel(manager: NotificationManager) {
-        val channelId = "724e011a-e821-4e40-a810-9c175737a997"
+        val channelId = AmberAlertPlayerService.EMERGENCY_CHANNEL_ID
         manager.deleteNotificationChannel(channelId)
         manager.deleteNotificationChannel("OS_$channelId")
 
@@ -45,12 +87,19 @@ class MainActivity : FlutterFragmentActivity() {
             NotificationManager.IMPORTANCE_MAX,
         ).apply {
             description = "Amber-style emergency dispatch alerts"
-            // Sound+vibe come from AmberAlertPlayerService (reliable when process was
-            // swiped away). Channel keeps MAX importance for heads-up tray only.
-            enableVibration(false)
+            // ponytail: channel sound + FGS can double-blare on some OEMs; silence
+            // is worse. FGS still covers killed-app when the tray stays mute.
+            val attrs = AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_ALARM)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build()
+            setSound(
+                android.net.Uri.parse("android.resource://$packageName/${R.raw.emergency_alert}"),
+                attrs,
+            )
+            enableVibration(true)
             setBypassDnd(true)
             lockscreenVisibility = Notification.VISIBILITY_PUBLIC
-            setSound(null, null)
         }
         manager.createNotificationChannel(channel)
     }

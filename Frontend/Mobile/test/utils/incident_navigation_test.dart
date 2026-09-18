@@ -66,4 +66,30 @@ void main() {
     });
   });
 
+  group('shouldOpenVolunteerPreview', () {
+    test('nearby volunteer with no involvement opens preview', () {
+      expect(
+        shouldOpenVolunteerPreview(isVolunteer: true, involvement: null),
+        isTrue,
+      );
+    });
+
+    test('reporter and accepted volunteer do not open preview', () {
+      expect(
+        shouldOpenVolunteerPreview(isVolunteer: true, involvement: 'reported'),
+        isFalse,
+      );
+      expect(
+        shouldOpenVolunteerPreview(isVolunteer: true, involvement: 'accepted'),
+        isFalse,
+      );
+    });
+
+    test('non-volunteer never opens preview', () {
+      expect(
+        shouldOpenVolunteerPreview(isVolunteer: false, involvement: null),
+        isFalse,
+      );
+    });
+  });
 }

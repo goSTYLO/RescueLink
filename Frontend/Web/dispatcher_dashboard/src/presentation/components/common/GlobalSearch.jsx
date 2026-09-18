@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Search, Loader2 } from 'lucide-react';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
 import { DEV_MODE } from '@/core/config/app.config';
+import { getAuthToken } from '@/core/auth/session';
 import { getIncidents } from '@/data/api/incidents.api';
 import { incidents as mockIncidents } from '@/data/mock/mockData';
 import { formatIncidentTypesLabel } from '@/core/utils/incidentDisplay';
@@ -72,7 +73,7 @@ export function GlobalSearch() {
     setError(null);
 
     try {
-      const token = sessionStorage.getItem('token');
+      const token = getAuthToken();
       if (DEV_MODE && !token) {
         setResults(searchMockIncidents(trimmed));
         return;

@@ -26,6 +26,7 @@ const { loginDispatcher, verifyDispatcherOtp } = require('@/data/api/auth.api');
 describe('Login page interactions', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    sessionStorage.clear();
     localStorage.clear();
   });
 
@@ -44,6 +45,7 @@ describe('Login page interactions', () => {
 
     await waitFor(() => expect(loginDispatcher).toHaveBeenCalled());
     expect(sessionStorage.getItem('token')).toBe('jwt-token');
+    expect(localStorage.getItem('token')).toBe('jwt-token');
     expect(onSuccess).toHaveBeenCalled();
   });
 
@@ -71,6 +73,7 @@ describe('Login page interactions', () => {
 
     await waitFor(() => expect(verifyDispatcherOtp).toHaveBeenCalledWith('session-otp-token', '123456'));
     expect(sessionStorage.getItem('token')).toBe('verified-jwt');
+    expect(localStorage.getItem('token')).toBe('verified-jwt');
     expect(onSuccess).toHaveBeenCalled();
   });
 });

@@ -1464,11 +1464,15 @@ Update incident lifecycle status (guarded transitions only).
 
 ```json
 {
-  "status": "verified" // allowed: verified, in_progress, resolved, closed
+  "status": "verified",
+  "closure_notes": "Units cleared scene.",
+  "closure_method": "Successful Response"
 }
 ```
 
+- `status` allowed: `verified`, `in_progress`, `resolved`, `closed`.
 - `closed`: Admin/dispatcher only; allows force-close without reporter confirmation. Department users must use reporter confirmation flow.
+- `resolved`: Department admin/head only. Optional `closure_notes` and `closure_method` persist and are kept when the reporter later confirms.
 
 **Response:** `200 OK`
 

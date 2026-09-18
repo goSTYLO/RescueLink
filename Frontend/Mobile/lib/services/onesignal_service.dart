@@ -3,6 +3,8 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:onesignal_flutter/onesignal_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'auth_service.dart';
+
 /// Pure rule for Settings / staff checks (unit-tested).
 /// Preference defaults to true when unset; SDK must allow when ready.
 bool effectivePushEnabled({
@@ -40,6 +42,9 @@ class OneSignalService {
   bool _optInInFlight = false;
   void Function(String reportId)? _onNotificationOpened;
   String? _pendingOpenedReportId;
+  void Function(String reportId, String? alertKind)? _onCriticalPush;
+  String? _pendingCriticalReportId;
+  String? _pendingCriticalKind;
 
   /// Register a deep-link handler after the app has a navigator (e.g. home screen).
   void setOnNotificationOpened(void Function(String reportId)? callback) {
@@ -57,6 +62,38 @@ class OneSignalService {
       cb(reportId);
     } else {
       _pendingOpenedReportId = reportId;
+    }
+  }
+
+  /// Foreground amber modal when a critical push arrives with the app open.
+  void setOnCriticalPush(void Function(String reportId, String? alertKind)? callback) {
+    _onCriticalPush = callback;
+    final pending = _pendingCriticalReportId;
+    if (callback != null && pending != null) {
+      _pendingCriticalReportId = null;
+      final kind = _pendingCriticalKind;
+      _pendingCriticalKind = null;
+      callback(pending, kind);
+    }
+  }
+
+  void _handleCriticalPush(String reportId, String? alertKind) {
+    final cb = _onCriticalPush;
+    if (cb != null) {
+      cb(reportId, alertKind);
+    } else {
+      _pendingCriticalReportId = reportId;
+      _pendingCriticalKind = alertKind;
+    }
+  }
+
+  /// Foreground critical: in-app modal owns the WAV (staff red dialog, volunteer sheet).
+  bool _inAppOwnsForegroundAmber() {
+    try {
+      final auth = AuthService();
+      return auth.isDepartmentOps || auth.isPersonnelResponder || auth.isVolunteer;
+    } catch (_) {
+      return false;
     }
   }
 
@@ -132,6 +169,25 @@ class OneSignalService {
         if (reportId != null && reportId.isNotEmpty) {
           _handleOpenedReportId(reportId);
         }
+      });
+
+      OneSignal.Notifications.addForegroundWillDisplayListener((event) {
+        final data = event.notification.additionalData;
+        final critical = data?['critical'] == true || data?['critical']?.toString() == 'true';
+        if (critical) {
+          // In-app modal owns the alarm. Showing the tray here plays the
+          // 60s channel WAV which does not stop when the modal is tapped.
+          event.preventDefault();
+          if (!_inAppOwnsForegroundAmber()) {
+            event.notification.display();
+          }
+          final reportId = data?['report_id']?.toString() ?? data?['reportId']?.toString();
+          if (reportId != null && reportId.isNotEmpty) {
+            _handleCriticalPush(reportId, data?['alert_kind']?.toString());
+          }
+          return;
+        }
+        event.notification.display();
       });
 
       // Always recover: permission often lands after login, leaving optedIn=false.

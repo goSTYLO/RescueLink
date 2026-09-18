@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../screens/department/department_ops_incident_detail_screen.dart';
 import '../screens/responder/responder_incident_detail_screen.dart';
+import '../screens/responder/responder_incident_preview_screen.dart';
 import '../services/auth_service.dart';
 import '../services/department_ops_service.dart';
 import '../services/incident_service.dart';
@@ -41,6 +42,26 @@ bool shouldOpenResponderDetail({
     return true;
   }
   return false;
+}
+
+/// Nearby volunteer (not yet accepted) uses preview, not citizen incident GET.
+bool shouldOpenVolunteerPreview({
+  required bool isVolunteer,
+  String? involvement,
+}) {
+  if (!isVolunteer) return false;
+  if (involvement == 'reported' || involvement == 'both') return false;
+  if (involvement == 'accepted' || involvement == 'assigned') return false;
+  return true;
+}
+
+Future<void> _openVolunteerPreview(BuildContext context, int reportId) async {
+  if (!context.mounted) return;
+  await Navigator.of(context, rootNavigator: true).push(
+    MaterialPageRoute<void>(
+      builder: (_) => ResponderIncidentPreviewScreen(reportId: reportId),
+    ),
+  );
 }
 
 Future<void> _openPersonnelIncidentDetail(
@@ -122,6 +143,14 @@ Future<void> openIncidentByInvolvement(
         ),
       ),
     );
+    return;
+  }
+
+  if (shouldOpenVolunteerPreview(
+    isVolunteer: AuthService().isVolunteer,
+    involvement: involvement,
+  )) {
+    await _openVolunteerPreview(context, reportId);
     return;
   }
 
@@ -213,6 +242,10 @@ Future<void> openIncidentByReportId(
       }
     } catch (_) {
       if (!context.mounted) return;
+      if (AuthService().isVolunteer) {
+        await _openVolunteerPreview(context, reportId);
+        return;
+      }
       onCitizenTap(reportId);
       return;
     }
@@ -220,6 +253,10 @@ Future<void> openIncidentByReportId(
 
   if (incident == null) {
     if (!context.mounted) return;
+    if (AuthService().isVolunteer) {
+      await _openVolunteerPreview(context, reportId);
+      return;
+    }
     onCitizenTap(reportId);
     return;
   }

@@ -15,14 +15,14 @@ describe('oneSignalService', () => {
   describe('formatPushTitle', () => {
     test('formats known incident event titles correctly', () => {
       expect(formatPushTitle('incident:created')).toBe('New incident');
-      expect(formatPushTitle('incident:verified')).toBe('Incident verified');
+      expect(formatPushTitle('incident:verified')).toBe('Verified');
       expect(formatPushTitle('incident:dispatched')).toBe('Responders assigned');
       expect(formatPushTitle('incident:status_updated')).toBe('Status update');
-      expect(formatPushTitle('incident:resolution_confirmed')).toBe('Incident resolved');
-      expect(formatPushTitle('incident:reclassified')).toBe('Incident type updated');
+      expect(formatPushTitle('incident:resolution_confirmed')).toBe('Resolved');
+      expect(formatPushTitle('incident:reclassified')).toBe('Type changed');
       expect(formatPushTitle('incident:note_added')).toBe('New note');
-      expect(formatPushTitle('incident:archived')).toBe('Incident archived');
-      expect(formatPushTitle('incident:unarchived')).toBe('Incident restored');
+      expect(formatPushTitle('incident:archived')).toBe('Archived');
+      expect(formatPushTitle('incident:unarchived')).toBe('Restored');
       expect(formatPushTitle('backup_request')).toBe('Backup needed');
     });
 
@@ -30,7 +30,7 @@ describe('oneSignalService', () => {
       expect(formatPushTitle('incident:escalated')).toBe('Help requested');
       expect(formatPushTitle('incident:escalation_accepted')).toBe('Help accepted');
       expect(formatPushTitle('incident:escalation_declined')).toBe('Help declined');
-      expect(formatPushTitle('incident:escalation_resolved')).toBe('Help resolved');
+      expect(formatPushTitle('incident:escalation_resolved')).toBe('Help done');
       expect(formatPushTitle('incident:escalation_cancelled')).toBe('Help cancelled');
     });
 
@@ -41,8 +41,8 @@ describe('oneSignalService', () => {
 
   describe('formatCriticalPushTitle', () => {
     test('formats dept and team emergency titles', () => {
-      expect(formatCriticalPushTitle('dept')).toBe('Emergency — Department notified');
-      expect(formatCriticalPushTitle('team')).toBe('Emergency — Your team was assigned');
+      expect(formatCriticalPushTitle('dept')).toBe('Respond now');
+      expect(formatCriticalPushTitle('team')).toBe('Your team is up');
     });
   });
 
@@ -174,7 +174,7 @@ describe('oneSignalService', () => {
         severity_level: 'critical',
         barangay: 'Pantal',
       });
-      expect(body).toBe('New Fire, Medical (critical) reported in Pantal.');
+      expect(body).toBe('Fire, Medical (critical) in Pantal');
     });
 
     test('formats incident:verified', () => {
@@ -183,7 +183,7 @@ describe('oneSignalService', () => {
         incident_type: 'flood',
         barangay: 'Tapuac',
       });
-      expect(body).toBe('Report #202 (Flood) has been verified in Tapuac.');
+      expect(body).toBe('#202 verified in Tapuac');
     });
 
     test('formats quiet incident:dispatched without Your team language', () => {
@@ -193,9 +193,7 @@ describe('oneSignalService', () => {
         severity_level: 'high',
         barangay: 'Lucao',
       });
-      expect(body).toBe(
-        'Responders have been assigned to report #303 (Vehicular accident (high)) in Lucao.'
-      );
+      expect(body).toBe('#303 Vehicular accident (high) in Lucao — assigned');
       expect(body).not.toMatch(/Your team/i);
     });
 
@@ -206,7 +204,7 @@ describe('oneSignalService', () => {
         incident_type: 'fire',
         barangay: 'Lucao',
       });
-      expect(body).toBe('Responders have been assigned to report #303 (Fire) in Lucao.');
+      expect(body).toBe('#303 Fire in Lucao — assigned');
       expect(body).not.toMatch(/Your team/i);
     });
 
@@ -221,7 +219,7 @@ describe('oneSignalService', () => {
         },
         { audience: 'team' }
       );
-      expect(body).toBe('Your team was assigned to report #303 (Fire) in Lucao.');
+      expect(body).toBe('#303 Fire in Lucao — go now');
     });
 
     test('dept audience dispatched is department-facing', () => {
@@ -230,9 +228,7 @@ describe('oneSignalService', () => {
         { report_id: 303, incident_type: 'fire', barangay: 'Lucao' },
         { audience: 'dept' }
       );
-      expect(body).toBe(
-        'Report #303 (Fire) needs a response from your department in Lucao.'
-      );
+      expect(body).toBe('#303 Fire in Lucao — your department');
     });
 
     test('formats incident:status_updated with humanized status', () => {
@@ -241,7 +237,7 @@ describe('oneSignalService', () => {
         status: 'in_progress',
         barangay: 'Bonuan Gueset',
       });
-      expect(body).toBe('Report #404 is now In progress (Bonuan Gueset).');
+      expect(body).toBe('#404 is now In progress');
     });
 
     test('formats incident:escalated without bracket urgency tags', () => {
@@ -251,9 +247,7 @@ describe('oneSignalService', () => {
         to_department_name: 'BFP Dagupan',
         barangay: 'Poblacion Oeste',
       });
-      expect(body).toBe(
-        'Urgent: Help requested from BFP Dagupan for report #505 in Poblacion Oeste.'
-      );
+      expect(body).toBe('Urgent: BFP Dagupan asked to help on #505');
     });
 
     test('formats incident:escalation_accepted and declined', () => {
@@ -262,14 +256,14 @@ describe('oneSignalService', () => {
           report_id: 606,
           to_department_name: 'PNP Dagupan',
         })
-      ).toBe('PNP Dagupan accepted the help request for report #606.');
+      ).toBe('PNP Dagupan accepted #606');
 
       expect(
         formatPushBody('incident:escalation_declined', {
           report_id: 606,
           to_department_name: 'PNP Dagupan',
         })
-      ).toBe('PNP Dagupan declined the help request for report #606.');
+      ).toBe('PNP Dagupan declined #606');
     });
 
     test('formats backup_request and volunteer joined', () => {
@@ -278,14 +272,14 @@ describe('oneSignalService', () => {
           report_id: 707,
           barangay: 'Herrero-Perez',
         })
-      ).toBe('Backup needed for report #707 in Herrero-Perez.');
+      ).toBe('Backup for #707 in Herrero-Perez');
 
       expect(
         formatPushBody('responder:backup_joined', {
           report_id: 707,
           volunteer_name: 'Juan Dela Cruz',
         })
-      ).toBe('Juan Dela Cruz joined as backup for report #707.');
+      ).toBe('Juan Dela Cruz joined #707');
     });
   });
 

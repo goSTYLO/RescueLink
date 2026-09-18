@@ -1155,11 +1155,11 @@ const Incident = {
 
     const resolvedByUserId = normalizedNext === 'resolved' ? actor_user_id : null;
     const actorRole = normalizeActorRole(actor_role);
-    const canResolve = [ROLES.DISPATCHER, ROLES.ADMIN, ROLES.DEPARTMENT_ADMIN].includes(actorRole);
+    const canResolve = [ROLES.DISPATCHER, ROLES.ADMIN, ROLES.DEPARTMENT_ADMIN, ROLES.DEPARTMENT_HEAD].includes(actorRole);
     if (normalizedNext === 'resolved' && (!actor_user_id || !canResolve)) {
       throw createIncidentStateError(
         'INCIDENT_RESOLVE_ROLE_REQUIRED',
-        'Only dispatcher, admin, or department admin can mark incident as resolved.',
+        'Only dispatcher, admin, department admin, or department head can mark incident as resolved.',
         403
       );
     }
@@ -1190,8 +1190,12 @@ const Incident = {
              resolved_at = CASE WHEN $3 IN ('resolved', 'closed') THEN COALESCE(resolved_at, CURRENT_TIMESTAMP) ELSE resolved_at END,
              closed_at = CASE WHEN $3 = 'closed' THEN COALESCE(closed_at, CURRENT_TIMESTAMP) ELSE closed_at END,
              closed_by_user_id = CASE WHEN $3 = 'closed' THEN COALESCE($7, closed_by_user_id) ELSE closed_by_user_id END,
-             closure_method = CASE WHEN $3 = 'closed' THEN COALESCE($5::varchar, closure_method, 'manual') ELSE closure_method END,
-             closure_notes = CASE WHEN $3 = 'closed' AND $6::text IS NOT NULL THEN $6::text ELSE closure_notes END,
+             closure_method = CASE
+               WHEN $3 = 'closed' THEN COALESCE($5::varchar, closure_method, 'manual')
+               WHEN $3 = 'resolved' AND $5::varchar IS NOT NULL THEN $5::varchar
+               ELSE closure_method
+             END,
+             closure_notes = CASE WHEN $3 IN ('resolved', 'closed') AND $6::text IS NOT NULL THEN $6::text ELSE closure_notes END,
              is_archived = CASE WHEN $3 = 'closed' THEN TRUE ELSE is_archived END,
              archived_at = CASE WHEN $3 = 'closed' THEN COALESCE(archived_at, CURRENT_TIMESTAMP) ELSE archived_at END,
              archived_by_user_id = CASE WHEN $3 = 'closed' THEN COALESCE(archived_by_user_id, $7) ELSE archived_by_user_id END

@@ -9,7 +9,7 @@ import {
   deleteAvatar,
 } from '@/data/api/auth.api';
 import { ProfileAvatar } from '@/presentation/components/common/ProfileAvatar';
-import { clearAuthSession } from '@/core/auth/session';
+import { clearAuthSession, getAuthToken, getStoredUser, persistAuthUser } from '@/core/auth/session';
 import { Button } from '@/presentation/components/ui/Button';
 import { Label } from '@/presentation/components/ui/Label';
 import { Input } from '@/presentation/components/ui/Input';
@@ -47,15 +47,13 @@ const MAX_NAME_LENGTH = 100;
 
 function syncSessionUser(user) {
   try {
-    const stored = sessionStorage.getItem('user');
-    const prev = stored ? JSON.parse(stored) : {};
-    sessionStorage.setItem('user', JSON.stringify({
-      ...prev,
+    persistAuthUser({
+      ...getStoredUser(),
       firstName: user.firstName,
       lastName: user.lastName,
       name: [user.firstName, user.lastName].filter(Boolean).join(' '),
       has_profile_image: user.has_profile_image,
-    }));
+    });
     window.dispatchEvent(new CustomEvent('profile-updated'));
   } catch (_) {}
 }
@@ -106,27 +104,22 @@ export function ProfilePage() {
   }, [avatarUrl]);
 
   useEffect(() => {
-    const token = sessionStorage.getItem('token');
+    const token = getAuthToken();
     if (!token && !DEV_MODE) {
       navigate('/login', { replace: true });
       return;
     }
     if (DEV_MODE && !token) {
-      const stored = sessionStorage.getItem('user');
-      if (stored) {
-        try {
-          const user = JSON.parse(stored);
-          setProfile({
-            firstName: user.firstName || user.username?.split(' ')[0],
-            lastName: user.lastName || user.username?.split(' ').slice(1).join(' '),
-            email: user.email || 'designer@rescuelink.com',
-            role: user.role?.toLowerCase() === 'admin' ? 'admin' : 'dispatcher',
-            phone: user.phone || '—',
-            created_at: user.created_at || new Date().toISOString(),
-          });
-        } catch (_) {
-          setProfileError('Could not load profile');
-        }
+      const user = getStoredUser();
+      if (user.role) {
+        setProfile({
+          firstName: user.firstName || user.username?.split(' ')[0],
+          lastName: user.lastName || user.username?.split(' ').slice(1).join(' '),
+          email: user.email || 'designer@rescuelink.com',
+          role: user.role?.toLowerCase() === 'admin' ? 'admin' : 'dispatcher',
+          phone: user.phone || '—',
+          created_at: user.created_at || new Date().toISOString(),
+        });
       }
       setProfileLoading(false);
       return;

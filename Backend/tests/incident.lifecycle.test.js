@@ -155,4 +155,46 @@ describe('incident lifecycle model transitions', () => {
     expect(updated.status).toBe('in_progress');
     expect(pool.query).toHaveBeenCalledTimes(2);
   });
+
+  it('persists closure notes on in_progress -> resolved', async () => {
+    pool.query
+      .mockResolvedValueOnce({
+        rows: [{ report_id: 109, status: 'in_progress', reporter_confirmed_at: null, responder_status: null }],
+      })
+      .mockResolvedValueOnce({
+        rows: [{ report_id: 109, status: 'resolved', closure_method: 'Successful Response', closure_notes: 'Handled on scene.' }],
+      });
+
+    const updated = await Incident.transitionStatus(109, {
+      next_status: 'resolved',
+      actor_user_id: 25,
+      actor_role: 'department_admin',
+      closure_method: 'Successful Response',
+      closure_notes: 'Handled on scene.',
+    });
+
+    expect(updated.status).toBe('resolved');
+    expect(pool.query.mock.calls[1][1][4]).toBe('Successful Response');
+    expect(pool.query.mock.calls[1][1][5]).toBe('Handled on scene.');
+  });
+
+  it('keeps resolve-time closure_method when reporter confirms', async () => {
+    pool.query
+      .mockResolvedValueOnce({
+        rows: [{ report_id: 110, user_id: 19, status: 'resolved', reporter_confirmed_at: null }],
+      })
+      .mockResolvedValueOnce({
+        rows: [{
+          report_id: 110,
+          status: 'closed',
+          reporter_confirmed_at: '2026-03-11T10:30:00.000Z',
+          closure_method: 'Successful Response',
+        }],
+      });
+
+    const updated = await Incident.confirmResolution(110, 19);
+
+    expect(updated.closure_method).toBe('Successful Response');
+    expect(pool.query.mock.calls[1][0]).toMatch(/COALESCE\(closure_method, 'auto_from_reporter_confirmation'\)/);
+  });
 });

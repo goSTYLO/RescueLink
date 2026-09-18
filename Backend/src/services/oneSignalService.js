@@ -291,8 +291,8 @@ async function sendPushToUsers(userIds, payload, pool = null) {
  * @param {'dept'|'team'} kind
  */
 function formatCriticalPushTitle(kind) {
-  if (kind === 'team') return 'Emergency — Your team was assigned';
-  return 'Emergency — Department notified';
+  if (kind === 'team') return 'Your team is up';
+  return 'Respond now';
 }
 
 /** Turn enum-like status into a short readable label (in_progress → In progress). */
@@ -325,23 +325,23 @@ function getIncidentTypeLabel(data) {
 function formatPushTitle(event) {
   const map = {
     'incident:created': 'New incident',
-    'incident:verified': 'Incident verified',
+    'incident:verified': 'Verified',
     'incident:dispatched': 'Responders assigned',
     'incident:status_updated': 'Status update',
-    'incident:resolution_confirmed': 'Incident resolved',
-    'incident:reclassified': 'Incident type updated',
+    'incident:resolution_confirmed': 'Resolved',
+    'incident:reclassified': 'Type changed',
     'incident:note_added': 'New note',
-    'incident:archived': 'Incident archived',
-    'incident:unarchived': 'Incident restored',
+    'incident:archived': 'Archived',
+    'incident:unarchived': 'Restored',
     'backup_request': 'Backup needed',
     'responder:backup_requested': 'Backup needed',
-    'responder:backup_joined': 'Backup volunteer joined',
-    'responder:status_changed': 'Volunteer status update',
-    'incident:accepted': 'Volunteer accepted',
+    'responder:backup_joined': 'Backup joined',
+    'responder:status_changed': 'Status update',
+    'incident:accepted': 'Accepted',
     'incident:escalated': 'Help requested',
     'incident:escalation_accepted': 'Help accepted',
     'incident:escalation_declined': 'Help declined',
-    'incident:escalation_resolved': 'Help resolved',
+    'incident:escalation_resolved': 'Help done',
     'incident:escalation_cancelled': 'Help cancelled',
   };
   return map[event] || 'RescueLink update';
@@ -357,6 +357,7 @@ function formatPushTitle(event) {
  */
 function formatPushBody(event, data, options = {}) {
   const reportId = data?.report_id ?? data?.reportId;
+  const idBit = reportId != null ? `#${reportId}` : 'Incident';
   const incidentType = getIncidentTypeLabel(data);
   const barangay = data?.barangay ? ` in ${data.barangay}` : '';
   const severity = data?.severity_level ? ` (${data.severity_level})` : '';
@@ -368,46 +369,46 @@ function formatPushBody(event, data, options = {}) {
 
   switch (event) {
     case 'incident:created':
-      return `New ${typeBit} reported${barangay}.`;
+      return `${typeBit}${barangay}`;
     case 'incident:verified':
-      return `Report #${reportId} (${incidentType}) has been verified${barangay}.`;
+      return `${idBit} verified${barangay}`;
     case 'incident:dispatched':
       if (audience === 'team') {
-        return `Your team was assigned to report #${reportId} (${typeBit})${barangay}.`;
+        return `${idBit} ${typeBit}${barangay} — go now`;
       }
       if (audience === 'dept') {
-        return `Report #${reportId} (${typeBit}) needs a response from your department${barangay}.`;
+        return `${idBit} ${typeBit}${barangay} — your department`;
       }
-      return `Responders have been assigned to report #${reportId} (${typeBit})${barangay}.`;
+      return `${idBit} ${typeBit}${barangay} — assigned`;
     case 'incident:status_updated':
-      return `Report #${reportId} is now ${humanizeStatus(data?.status)}${barangay ? ` (${data.barangay})` : ''}.`;
+      return `${idBit} is now ${humanizeStatus(data?.status)}`;
     case 'incident:resolution_confirmed':
-      return `Report #${reportId} has been resolved${barangay ? ` (${data.barangay})` : ''}.`;
+      return `${idBit} resolved`;
     case 'incident:reclassified':
-      return `Report #${reportId} is now listed as ${incidentType}${barangay}.`;
+      return `${idBit} is now ${incidentType}`;
     case 'incident:note_added':
-      return `A new note was added to report #${reportId}${barangay ? ` (${data.barangay})` : ''}.`;
+      return `New note on ${idBit}`;
     case 'incident:archived':
-      return `Report #${reportId} has been archived.`;
+      return `${idBit} archived`;
     case 'incident:unarchived':
-      return `Report #${reportId} has been restored.`;
+      return `${idBit} restored`;
     case 'backup_request':
     case 'responder:backup_requested':
-      return `Backup needed for report #${reportId}${barangay}.`;
+      return `Backup for ${idBit}${barangay}`;
     case 'responder:backup_joined':
-      return `${data?.volunteer_name || 'A volunteer'} joined as backup for report #${reportId}.`;
+      return `${data?.volunteer_name || 'A volunteer'} joined ${idBit}`;
     case 'incident:escalated':
-      return `${urgencyPrefix}Help requested from ${toDeptName} for report #${reportId}${barangay}.`;
+      return `${urgencyPrefix}${toDeptName} asked to help on ${idBit}`;
     case 'incident:escalation_accepted':
-      return `${toDeptName} accepted the help request for report #${reportId}.`;
+      return `${toDeptName} accepted ${idBit}`;
     case 'incident:escalation_declined':
-      return `${toDeptName} declined the help request for report #${reportId}.`;
+      return `${toDeptName} declined ${idBit}`;
     case 'incident:escalation_resolved':
-      return `Help from ${toDeptName} for report #${reportId} is resolved.`;
+      return `${toDeptName} finished ${idBit}`;
     case 'incident:escalation_cancelled':
-      return `The help request for report #${reportId} was cancelled.`;
+      return `Help request for ${idBit} cancelled`;
     default:
-      return reportId != null ? `Report #${reportId} was updated.` : 'An update is available.';
+      return reportId != null ? `${idBit} updated` : 'An update is available.';
   }
 }
 

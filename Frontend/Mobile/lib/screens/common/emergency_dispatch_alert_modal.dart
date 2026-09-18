@@ -1,14 +1,12 @@
 import 'dart:async';
 
-import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-/// Asset path for the amber foreground blare (must match pubspec + res/raw name).
-const String kEmergencyAlertAsset = 'sounds/emergency_alert.wav';
+import '../../services/amber_alert_sound.dart';
 
-/// Max amber blare / haptic duration (also matches tray sound length intent).
-const Duration kEmergencyAlertMaxDuration = Duration(minutes: 1);
+export '../../services/amber_alert_sound.dart'
+    show kEmergencyAlertAsset, kEmergencyAlertMaxDuration;
 
 /// Blocking amber-style alert for department ops / team assignment.
 class EmergencyDispatchAlertModal extends StatefulWidget {
@@ -34,7 +32,6 @@ class _EmergencyDispatchAlertModalState
     extends State<EmergencyDispatchAlertModal> {
   Timer? _hapticTimer;
   Timer? _maxDurationTimer;
-  final AudioPlayer _player = AudioPlayer();
   bool _ending = false;
 
   @override
@@ -47,18 +44,7 @@ class _EmergencyDispatchAlertModalState
     _maxDurationTimer = Timer(kEmergencyAlertMaxDuration, () {
       unawaited(_end(widget.onDismiss));
     });
-    unawaited(_startBlare());
-  }
-
-  Future<void> _startBlare() async {
-    try {
-      // Continuous ~60s asset; hard-stop on Open/Dismiss or max-duration timer.
-      await _player.setReleaseMode(ReleaseMode.stop);
-      await _player.setPlayerMode(PlayerMode.mediaPlayer);
-      await _player.play(AssetSource(kEmergencyAlertAsset));
-    } catch (_) {
-      // ponytail: asset/player failure → silent haptics-only; no tray fallback here
-    }
+    unawaited(AmberAlertSound.start());
   }
 
   Future<void> _stopMedia() async {
@@ -66,9 +52,7 @@ class _EmergencyDispatchAlertModalState
     _hapticTimer = null;
     _maxDurationTimer?.cancel();
     _maxDurationTimer = null;
-    try {
-      await _player.stop();
-    } catch (_) {}
+    await AmberAlertSound.stop();
   }
 
   Future<void> _end(VoidCallback action) async {
@@ -83,7 +67,7 @@ class _EmergencyDispatchAlertModalState
   void dispose() {
     _hapticTimer?.cancel();
     _maxDurationTimer?.cancel();
-    unawaited(_player.dispose());
+    unawaited(AmberAlertSound.stop());
     super.dispose();
   }
 

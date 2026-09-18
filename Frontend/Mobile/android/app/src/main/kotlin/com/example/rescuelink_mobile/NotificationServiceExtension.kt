@@ -1,8 +1,6 @@
 package com.example.rescuelink_mobile
 
-import android.app.ActivityManager
 import android.app.PendingIntent
-import android.content.Context
 import android.content.Intent
 import android.os.Build
 import androidx.annotation.Keep
@@ -12,9 +10,12 @@ import com.onesignal.notifications.INotificationServiceExtension
 
 /**
  * Runs when a push arrives even if the Flutter process is dead.
- * Critical amber: start [AmberAlertPlayerService] when UI is not foreground
+ * Critical amber: start [AmberAlertPlayerService] when MainActivity is not resumed
  * (sound+vibe) + CATEGORY_ALARM / full-screen intent. Tray channel alone is often
  * silent after the app was swiped away.
+ *
+ * Do not use process importance for "UI foreground" — FCM waking NSE for a killed
+ * app looks like a foreground process and used to skip the alarm player.
  */
 @Keep
 class NotificationServiceExtension : INotificationServiceExtension {
@@ -25,11 +26,12 @@ class NotificationServiceExtension : INotificationServiceExtension {
         if (!critical) return
 
         val context = event.context
-        if (!isAppUiForeground(context)) {
+        AmberAlertPlayerService.ensureEmergencyChannel(context)
+        if (!RescueLinkUi.resumed) {
             try {
                 AmberAlertPlayerService.start(context)
-            } catch (_: Exception) {
-                // Still show tray.
+            } catch (e: Exception) {
+                android.util.Log.e("RescueLinkAmber", "AmberAlertPlayerService start failed", e)
             }
         }
 
@@ -59,21 +61,17 @@ class NotificationServiceExtension : INotificationServiceExtension {
                 flags,
             )
             builder
+                .setChannelId(AmberAlertPlayerService.EMERGENCY_CHANNEL_ID)
+                .setSound(
+                    android.net.Uri.parse(
+                        "android.resource://${context.packageName}/${R.raw.emergency_alert}",
+                    ),
+                    android.media.AudioManager.STREAM_ALARM,
+                )
                 .setCategory(NotificationCompat.CATEGORY_ALARM)
                 .setPriority(NotificationCompat.PRIORITY_MAX)
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setFullScreenIntent(fullScreen, true)
-        }
-    }
-
-    /** True when RescueLink UI is visible — Flutter modal owns the blare. */
-    private fun isAppUiForeground(context: Context): Boolean {
-        val am = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
-            ?: return false
-        val pkg = context.packageName
-        return am.runningAppProcesses.orEmpty().any {
-            it.processName == pkg &&
-                it.importance <= ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND
         }
     }
 }

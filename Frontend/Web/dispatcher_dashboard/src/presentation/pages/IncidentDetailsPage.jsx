@@ -34,9 +34,10 @@ import { getResponders, getResponderTeams, updateResponderStatus, updateResponde
 import { createDispatch, undoDepartmentNotification, confirmSuggestion, reassignTeam } from '@/data/api/dispatches.api';
 import { getDepartments } from '@/data/api/departments.api';
 import { DEV_MODE } from '@/core/config/app.config';
+import { getAuthToken } from '@/core/auth/session';
 import { ROLES, normalizeRole, getRoleDisplayLabel } from '@/core/constants';
 import { normalizeIncidentTaskType, doesTeamSupportIncidentType } from '@/core/utils/incidentClassification';
-import { formatIncidentTypeLabel, incidentTypesFromApi, formatIncidentTypesLabel, isIncidentEffectivelyResolved, isIncidentClosed, hasOpenBackupUi, getBackupDialogCapabilities, getAutoAssignmentBadge } from '@/core/utils/incidentDisplay';
+import { formatIncidentTypeLabel, incidentTypesFromApi, formatIncidentTypesLabel, isIncidentEffectivelyResolved, isIncidentClosed, hasOpenBackupUi, getBackupDialogCapabilities, getAutoAssignmentBadge, getSuggestedTeamName } from '@/core/utils/incidentDisplay';
 import { IncidentTypeChips } from '@/presentation/components/common/IncidentTypeChips';
 import { Loader2 } from 'lucide-react';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
@@ -251,6 +252,10 @@ export function IncidentDetailsPage() {
     const { silent = false } = opts;
     const numericId = /^\d+$/.test(String(id));
     if (numericId) {
+      if (!getAuthToken()) {
+        navigate(`/login?next=${encodeURIComponent(`/incidents/${id}`)}`, { replace: true });
+        return;
+      }
       if (!silent) setLoading(true);
       setError(null);
       try {
@@ -262,6 +267,10 @@ export function IncidentDetailsPage() {
           setIncident(mapApiToIncidentDetails(fallbackData));
         }
       } catch (err) {
+        if (err?.message === 'No authentication token found') {
+          navigate(`/login?next=${encodeURIComponent(`/incidents/${id}`)}`, { replace: true });
+          return;
+        }
         setError(err.message || 'Failed to fetch incident');
         setIncident(null);
       } finally {
@@ -273,7 +282,7 @@ export function IncidentDetailsPage() {
       setLoading(false);
       setError(mockIncident ? null : 'Incident not found');
     }
-  }, [id]);
+  }, [id, navigate]);
 
   useEffect(() => {
     fetchIncident();
@@ -694,7 +703,7 @@ export function IncidentDetailsPage() {
   }, [focusAssign, incident, detailsTab, showSelectTeamButton, assignedDepartmentCodeForTeamActions, responderTeams]);
 
   useEffect(() => {
-    const token = sessionStorage.getItem('token');
+    const token = getAuthToken();
     if (!token) return;
 
     let cancelled = false;
@@ -790,7 +799,7 @@ export function IncidentDetailsPage() {
       setEscalations(escalationHistory[id || ''] || []);
       return;
     }
-    const token = sessionStorage.getItem('token');
+    const token = getAuthToken();
     if (!token || !canRequestEscalation) {
       setEscalations([]);
       return;
@@ -973,7 +982,7 @@ export function IncidentDetailsPage() {
   const tryCreateDispatchAssignment = async (departmentCode, teamName) => {
     const numericId = /^\d+$/.test(String(id));
     if (!numericId || !departmentCode || !teamName) return null;
-    const token = sessionStorage.getItem('token');
+    const token = getAuthToken();
     if (!token) return null;
 
     const departmentMeta = departmentList.find((d) => String(d.code || '').toLowerCase() === String(departmentCode || '').toLowerCase());
@@ -991,7 +1000,7 @@ export function IncidentDetailsPage() {
   const tryCreateDepartmentOnlyAssignment = async (departmentCode) => {
     const numericId = /^\d+$/.test(String(id));
     if (!numericId || !departmentCode) return null;
-    const token = sessionStorage.getItem('token');
+    const token = getAuthToken();
     if (!token) return null;
 
     const departmentMeta = departmentList.find((d) => String(d.code || '').toLowerCase() === String(departmentCode || '').toLowerCase());
@@ -1125,18 +1134,33 @@ export function IncidentDetailsPage() {
   };
 
   const handleConfirmSuggestion = async () => {
+    const teamName = getSuggestedTeamName(incident) || assignTeamName;
+    const departmentCode = incident?.suggestedDepartmentCode || assignedDepartmentCodeForTeamActions || '';
+    const departmentName = departmentNameByCode[String(departmentCode).toLowerCase()] || departmentCode;
+    const proceed = await Swal.fire({
+      icon: 'question',
+      title: 'Confirm suggested team?',
+      text: teamName
+        ? `Assign ${teamName}${departmentName ? ` (${departmentName})` : ''} to this incident.`
+        : 'Assign the suggested team to this incident.',
+      showCancelButton: true,
+      confirmButtonText: teamName ? `Confirm ${teamName}` : 'Confirm',
+      cancelButtonText: 'Cancel',
+      confirmButtonColor: '#134178',
+    });
+    if (!proceed.isConfirmed) return;
     try {
       await confirmSuggestion({
         report_id: Number(id),
-        department_code: incident?.suggestedDepartmentCode || assignedDepartmentCodeForTeamActions || undefined,
-        team_name: incident?.suggestedTeamName || assignTeamName || undefined,
+        department_code: departmentCode || undefined,
+        team_name: teamName || undefined,
       });
       await fetchIncident();
       window.dispatchEvent(new CustomEvent('incident:updated', { detail: { incidentId: id } }));
       await Swal.fire({
         icon: 'success',
         title: 'Suggestion confirmed',
-        text: `${incident?.suggestedTeamName || 'Team'} has been assigned.`,
+        text: `${teamName || 'Team'} has been assigned.`,
         timer: 2200,
         showConfirmButton: false,
         timerProgressBar: true,
@@ -1511,11 +1535,30 @@ export function IncidentDetailsPage() {
     }
     setResolveLoading(true);
     try {
-      await updateIncidentStatus(id, 'resolved');
+      await updateIncidentStatus(id, 'resolved', {
+        closure_notes: closureOutcome.trim(),
+        closure_method: closureClassification.trim(),
+      });
+      setClosureDialogOpen(false);
+      setClosureOutcome('');
+      setClosureClassification('');
       await fetchIncident();
       window.dispatchEvent(new CustomEvent('incident:updated', { detail: { incidentId: id } }));
+      await Swal.fire({
+        icon: 'success',
+        title: 'Marked resolved',
+        text: 'Waiting for the citizen to confirm before this incident closes.',
+        timer: 1800,
+        showConfirmButton: false,
+        timerProgressBar: true,
+      });
     } catch (err) {
-      alert(err.message || 'Failed to mark incident as resolved');
+      await Swal.fire({
+        icon: 'error',
+        title: 'Failed to mark incident as resolved',
+        text: err.message || 'Could not mark incident as resolved.',
+        confirmButtonColor: '#134178',
+      });
     } finally {
       setResolveLoading(false);
     }
@@ -1685,7 +1728,9 @@ export function IncidentDetailsPage() {
           onClick={handleConfirmSuggestion}
         >
           <Users className="w-4 h-4" />
-          Confirm suggested team
+          {getSuggestedTeamName(incident)
+            ? `Confirm ${getSuggestedTeamName(incident)}`
+            : 'Confirm suggested team'}
         </Button>
       )}
       {canConfirmOrReassign && isAutoApplied && !incidentIsClosed && (
@@ -1734,7 +1779,7 @@ export function IncidentDetailsPage() {
       {canMarkResolved && incident.status === 'In Progress' && Boolean(incident?.assignedTeamName) && (
         <Button
           className={`gap-2 bg-severity-resolved hover:bg-severity-resolved/90 ${compact ? 'h-8 px-3 text-xs rounded-lg' : ''}`}
-          onClick={handleMarkResolved}
+          onClick={() => setClosureDialogOpen(true)}
           disabled={resolveLoading}
         >
           {resolveLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
@@ -2294,7 +2339,7 @@ export function IncidentDetailsPage() {
                   </div>
 
                   {/* TEAM & RESPONDER STATUS SECTION */}
-                  {(incident?.assignedDepartment || incident?.assignedDepartmentId || incident?.assignedTeamName) && (
+                  {(incident?.assignedDepartment || incident?.assignedDepartmentId || incident?.assignedTeamName || (isSuggested && (incident?.suggestedTeamName || incident?.suggestedDepartmentCode))) && (
                     <div className={`p-4 rounded-xl border ${isLight ? 'bg-blue-50/70 border-blue-200/80' : 'bg-blue-500/10 border-blue-500/30'}`}>
                       <div className="flex items-start gap-2 mb-3">
                         <Users className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
@@ -2303,8 +2348,21 @@ export function IncidentDetailsPage() {
                       <div className="space-y-3">
                         <div>
                           <p className="text-xs text-muted mb-1">Department</p>
-                          <p className="text-sm font-medium text-foreground">{incident?.assignedDepartment || '—'}</p>
+                          <p className="text-sm font-medium text-foreground">
+                            {incident?.assignedDepartment
+                              || departmentNameByCode[String(incident?.suggestedDepartmentCode || '').toLowerCase()]
+                              || incident?.suggestedDepartmentCode
+                              || '—'}
+                          </p>
                         </div>
+                        {isSuggested && getSuggestedTeamName(incident) && !incident?.assignedTeamName && (
+                          <div>
+                            <p className="text-xs text-muted mb-1">Suggested Team</p>
+                            <div className={`p-2 rounded-lg border ${isLight ? 'bg-amber-50 border-amber-200/80' : 'bg-amber-500/10 border-amber-500/30'}`}>
+                              <p className="text-sm font-medium text-foreground">{getSuggestedTeamName(incident)}</p>
+                            </div>
+                          </div>
+                        )}
                         {incident?.assignedTeamName && (
                           <div>
                             <p className="text-xs text-muted mb-1">Assigned Team</p>
@@ -2345,7 +2403,7 @@ export function IncidentDetailsPage() {
                             </p>
                           </div>
                         )}
-                        {!incident?.assignedTeamName && assignedDepartmentCodeForTeamActions && !incidentIsClosed && (
+                        {!incident?.assignedTeamName && !getSuggestedTeamName(incident) && assignedDepartmentCodeForTeamActions && !incidentIsClosed && (
                           <p className="text-xs text-muted">No team assigned yet. Use the top action bar to select a team.</p>
                         )}
                         {canUpdateResponderStatuses && incident?.assignedTeamName && !incidentIsClosed && (
@@ -2688,7 +2746,9 @@ export function IncidentDetailsPage() {
               <DialogHeader>
                 <DialogTitle>Close Incident</DialogTitle>
                 <DialogDescription>
-                  Provide final closure details for this incident. This action is permanent.
+                  {canMarkResolved
+                    ? 'Provide outcome details. The incident stays open until the citizen confirms.'
+                    : 'Provide final closure details for this incident. This action is permanent.'}
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
@@ -2731,10 +2791,12 @@ export function IncidentDetailsPage() {
               <DialogFooter>
                 <Button
                   className="bg-green-600 hover:bg-green-700"
-                  onClick={handleCloseIncident}
-                  disabled={!closureOutcome || !closureClassification || closeLoading}
+                  onClick={canMarkResolved ? handleMarkResolved : handleCloseIncident}
+                  disabled={!closureOutcome || !closureClassification || closeLoading || resolveLoading}
                 >
-                  {closeLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Close Incident'}
+                  {canMarkResolved
+                    ? (resolveLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Mark Resolved')
+                    : (closeLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Close Incident')}
                 </Button>
                 <Button variant="outline" onClick={() => setClosureDialogOpen(false)}>
                   Cancel

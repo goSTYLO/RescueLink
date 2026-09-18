@@ -153,6 +153,12 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
       _restartShakeListening();
       _checkAndPromptNotifications();
       OneSignalService().setOnNotificationOpened(_onPushOpened);
+      OneSignalService().setOnCriticalPush((reportId, kind) {
+        unawaited(_emergencyAlertCoordinator.handleCriticalPush(
+          reportId,
+          alertKind: kind,
+        ));
+      });
     });
   }
 
@@ -247,9 +253,12 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
   }
 
   void _onPushOpened(String reportId) {
-    _emergencyAlertCoordinator.dismissActiveAlert();
     final id = int.tryParse(reportId);
     if (id == null || id <= 0 || !mounted) return;
+    // Tray tap = already opening the incident. Don't stack the in-app amber
+    // (or volunteer sheet) underneath details after WS reconnect.
+    _emergencyAlertCoordinator.consumeReport(id);
+    _responderAlertCoordinator.consumeReport(id);
     _openIncidentByInvolvement(id);
   }
 
@@ -309,6 +318,7 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
     WidgetsBinding.instance.removeObserver(this);
     _stopShakeListening();
     OneSignalService().setOnNotificationOpened(null);
+    OneSignalService().setOnCriticalPush(null);
     _wsSubscription?.cancel();
     _responderAlertCoordinator.stop();
     _emergencyAlertCoordinator.stop();

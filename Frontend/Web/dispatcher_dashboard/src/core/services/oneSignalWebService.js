@@ -1,5 +1,5 @@
 import { API_URL, ONESIGNAL_APP_ID } from '@/core/config/app.config';
-import { getAuthHeaders } from '@/data/api/http';
+import { getAuthHeaders, getAuthToken } from '@/data/api/http';
 
 let isInitialized = false;
 
@@ -183,7 +183,7 @@ export async function requestPushPermission() {
  */
 export async function syncOneSignalSubscriptionToBackend(subscriptionId) {
   try {
-    const token = sessionStorage.getItem('token');
+    const token = getAuthToken();
     if (!token || !subscriptionId) return;
 
     await fetch(`${API_URL}/api/auth/onesignal-subscription`, {

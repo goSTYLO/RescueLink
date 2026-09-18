@@ -176,7 +176,7 @@ export async function changePassword(currentPassword, newPassword) {
  * @returns {Promise<void>}
  */
 export async function logout() {
-  if (!sessionStorage.getItem('token')) return;
+  if (!getAuthToken()) return;
   try {
     const requestId = createRequestId('web-auth-logout');
     const response = await fetch(`${API_URL}/api/auth/logout`, {
