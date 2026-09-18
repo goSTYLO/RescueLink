@@ -158,8 +158,15 @@ Available to users with role `responder` (promoted upon application approval).
 - Live incident map with department and barangay filters
 - Closest-unit / ETA suggestions
 - Geofence and area alerting
-- Heatmap / hotspot layers for incident density
-- WebSocket-driven refresh on incident updates
+- Heatmap / hotspot layers for incident density (live last-N points; not a date-range report)
+
+### Insights (period analytics)
+
+- Separate from the live ops dashboard/queue. Period KPIs for a date range at `/insights` (Super Admin + Department Admin), near-real-time via incident WebSocket + backup poll; Live / last-updated header.
+- City-wide default with Super Admin department picker (**All departments**, **Volunteers** virtual scope via `department_id=volunteers`, then PNP/DRRMO); Department Admin locked to their department.
+- SQL aggregates: unique incident counts, first-action / dispatch / arrival / resolution clocks (p50/p90/p95), internal 8-min dispatch and 10-min arrival SLAs, unserved/overdue, demand (types / barangays / choropleth / channels), exceptions, escalation funnel, outcomes, CSV + print PDF.
+- CAD/EOC-style UI: semantic colors (severity, type, channel, SLA bars), Lucide KPI icons, type progress bars, funnel steps, exception headline breakdown, donut center totals, shared choropleth ramp (`insightsColors.js`); barangay table/map show top incident types; chart remount animations on filter/tab change (respects reduced motion).
+- Metric `?` explainers on every KPI and chart. Silent background refresh on `incident:updated` (debounced) and interval poll; filter changes still show normal loading state.
 
 ### Dispatch, Departments, Teams & Admin
 
@@ -265,10 +272,11 @@ Mounted routes: `/api/auth`, `/api/incidents`, `/api/dispatches`, `/api/responde
 ### Admin, Audit & Metrics
 
 - User management: list, create, role update, deactivate, delete
-- System-wide statistics
+- System-wide statistics (user counts by role)
 - Dispatcher audit logs (action, resource, actor, timestamp)
 - Request timing middleware and metrics routes
 - Health check endpoint
+- **Insights** (`/insights`): scrollable period KPIs, SLA/unserved/overdue, demand map, operations funnel/outcomes, CSV/PDF — Super Admin any department, Department Admin own department only
 
 ### AI & Blockchain Integration
 

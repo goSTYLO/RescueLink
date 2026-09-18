@@ -118,6 +118,12 @@ const endpoints = [
   { method: 'delete', path: '/api/admin/users/1' },
   { method: 'get', path: '/api/admin/stats' },
 
+  // Insights / analytics
+  { method: 'get', path: '/api/analytics/overview' },
+  { method: 'get', path: '/api/analytics/incidents' },
+  { method: 'get', path: '/api/analytics/export.csv' },
+  { method: 'get', path: '/api/analytics/barangays.geojson' },
+
   // Departments
   { method: 'get', path: '/api/departments' },
   { method: 'get', path: '/api/departments/1' },

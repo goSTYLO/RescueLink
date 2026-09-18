@@ -428,10 +428,11 @@ const Dispatch = {
   },
 
   async updateResponseStatus(dispatch_id, response_status) {
-    const res = await pool.query(
-      'UPDATE dispatches SET response_status = $1 WHERE dispatch_id = $2 RETURNING *',
-      [response_status, dispatch_id]
-    );
+    const onScene = String(response_status || '').trim().toLowerCase() === 'on scene';
+    const sql = onScene
+      ? `UPDATE dispatches SET response_status = $1, actual_arrival_at = COALESCE(actual_arrival_at, CURRENT_TIMESTAMP) WHERE dispatch_id = $2 RETURNING *`
+      : 'UPDATE dispatches SET response_status = $1 WHERE dispatch_id = $2 RETURNING *';
+    const res = await pool.query(sql, [response_status, dispatch_id]);
     return res.rows[0] || null;
   },
 

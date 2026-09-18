@@ -93,15 +93,36 @@ export async function updateMe(fields = {}) {
   return data.user;
 }
 
+let avatarInflight = null;
+let avatarKnownMissing = false;
+
+export function invalidateAvatarCache() {
+  avatarKnownMissing = false;
+}
+
 /** @returns {Promise<Blob|null>} */
 export async function fetchAvatarBlob() {
-  const requestId = createRequestId('web-auth-avatar-get');
-  const response = await fetch(`${API_URL}/api/auth/me/avatar`, {
-    method: 'GET',
-    headers: getAuthHeaders({ requestId, includeContentType: false }),
+  if (avatarKnownMissing) return null;
+  if (avatarInflight) return avatarInflight;
+
+  avatarInflight = (async () => {
+    const requestId = createRequestId('web-auth-avatar-get');
+    const response = await fetch(`${API_URL}/api/auth/me/avatar`, {
+      method: 'GET',
+      headers: getAuthHeaders({ requestId, includeContentType: false }),
+    });
+    if (response.status === 404) {
+      avatarKnownMissing = true;
+      return null;
+    }
+    if (!response.ok) return null;
+    avatarKnownMissing = false;
+    return response.blob();
+  })().finally(() => {
+    avatarInflight = null;
   });
-  if (!response.ok) return null;
-  return response.blob();
+
+  return avatarInflight;
 }
 
 /**
@@ -129,6 +150,7 @@ export async function uploadAvatar(file) {
   if (!response.ok) {
     throw new Error(parseErrorMessage(data, 'Failed to upload profile photo'));
   }
+  invalidateAvatarCache();
   return data.user;
 }
 
@@ -143,6 +165,7 @@ export async function deleteAvatar() {
   if (!response.ok) {
     throw new Error(parseErrorMessage(data, 'Failed to remove profile photo'));
   }
+  invalidateAvatarCache();
   return data.user;
 }
 

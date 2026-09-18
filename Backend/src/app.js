@@ -13,6 +13,7 @@ const auditLogRoutes = require('./routes/auditLog');
 const adminRoutes = require('./routes/admin');
 const departmentRoutes = require('./routes/department');
 const metricsRoutes = require('./routes/metrics');
+const analyticsRoutes = require('./routes/analytics');
 const requestTimingMiddleware = require('./middleware/requestTiming');
 const { startRetryService } = require('./services/retryAiClassification');
 const { startFileScanRetryService } = require('./services/retryFileScan');
@@ -139,6 +140,7 @@ app.use('/api/audit-logs', auditLogRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/departments', departmentRoutes);
 app.use('/api/metrics', metricsRoutes);
+app.use('/api/analytics', analyticsRoutes);
 // Phase 2 placeholder — Responder Applications (returns 501 until implemented)
 app.use('/api/responder-applications', responderApplicationRoutes);
 

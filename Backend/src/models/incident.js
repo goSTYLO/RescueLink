@@ -2,6 +2,7 @@ const pool = require('../config/db');
 const { encrypt, decrypt } = require('../utils/encryption');
 const { ROLES } = require('../config/roles');
 const { incidentTypesFromRow } = require('../utils/incidentTypeNormalize');
+const { departmentMembershipSql } = require('../utils/incidentDepartmentScope');
 
 const OPEN_BACKUP_STATUS_SQL = `COALESCE(br.status, 'pending') IN ('pending', 'acknowledged')`;
 
@@ -384,16 +385,7 @@ const Incident = {
 
     if (department_code) {
       paramCount++;
-      query += ` AND (
-        ir.report_id IN (SELECT report_id FROM dispatches WHERE LOWER(department_code) = LOWER($${paramCount}))
-        OR
-        ir.report_id IN (
-          SELECT ie.report_id FROM incident_escalations ie
-          JOIN departments d ON (ie.to_department_id = d.department_id OR ie.from_department_id = d.department_id)
-          WHERE LOWER(d.code) = LOWER($${paramCount})
-            AND ie.status IN ('pending', 'accepted')
-        )
-      )`;
+      query += ` AND ${departmentMembershipSql('ir.report_id', paramCount, { historical: false })}`;
       params.push(department_code);
     }
 
@@ -626,16 +618,7 @@ const Incident = {
 
     if (department_code) {
       paramCount++;
-      query += ` AND (
-        report_id IN (SELECT report_id FROM dispatches WHERE LOWER(department_code) = LOWER($${paramCount}))
-        OR
-        report_id IN (
-          SELECT ie.report_id FROM incident_escalations ie
-          JOIN departments d ON (ie.to_department_id = d.department_id OR ie.from_department_id = d.department_id)
-          WHERE LOWER(d.code) = LOWER($${paramCount})
-            AND ie.status IN ('pending', 'accepted')
-        )
-      )`;
+      query += ` AND ${departmentMembershipSql('report_id', paramCount, { historical: false })}`;
       params.push(department_code);
     }
 

@@ -380,7 +380,20 @@ System administration and user management (admin-only):
 - `PUT /api/admin/users/:id/role` (admin): Update user role
 - `PUT /api/admin/users/:id/deactivate` (admin): Deactivate user account (soft delete)
 - `GET /api/admin/stats` (admin): Get system-wide statistics
-  - Total users by role, incidents created, response times, system health
+  - Total users by role (not incident response times — those live on Insights)
+
+### Insights (`/api/analytics/*`)
+
+Period-based incident analytics (admin and department-admin). Department admin is forced to their own `department_id`. Timestamps use `Asia/Manila` for hour/weekday.
+
+- `GET /api/analytics/overview` — KPIs, clocks (p50/p90/p95 + n, first action / dispatch / arrival / resolve), SLA 8/10, unserved/overdue, demand, choropleth inputs, exceptions, escalation funnel, outcomes, timeseries, heatmap
+- `GET /api/analytics/incidents` — paginated lean incident rows (`x-total-count`)
+- `GET /api/analytics/export.csv` — PII-safe CSV of the current filter slice (ids, type, severity, status, barangay, timestamps — no descriptions/phones)
+- `GET /api/analytics/barangays.geojson` — Dagupan barangay polygons (`NAME_3`) for the Insights map
+
+Query params: `from`, `to` (ISO, max 366 days), `department_id` (admin: numeric id or `volunteers`), `incident_type`, `severity_level`, `status`, `barangay`, `exclude_duplicates`, `include_archived` (default true).
+
+See [backend/API_DOCUMENTATION.md](./backend/API_DOCUMENTATION.md) for response shape.
 
 ### Audit Logging (`/api/audit-logs/*`)
 

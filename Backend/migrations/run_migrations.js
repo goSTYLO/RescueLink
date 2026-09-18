@@ -52,6 +52,7 @@ const MIGRATION_ORDER = [
   'add_auto_team_assignment.sql',
   'add_volunteer_role.sql',
   'add_user_profile_image.sql',
+  'add_analytics_created_at_index.sql',
 ];
 
 async function runMigrations() {

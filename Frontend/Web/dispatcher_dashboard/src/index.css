@@ -140,6 +140,67 @@
   animation: pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
+.insights-bar-fill {
+  transition: width 500ms ease-out, background-color 300ms ease-out;
+}
+
+.insights-heatmap-cell {
+  transition: background-color 400ms ease-out, color 200ms ease-out;
+}
+
+.insights-funnel-step {
+  transition: width 500ms ease-out;
+}
+
+/* Leaflet panes default to z-index 400+ and bleed over sidebar / sibling cards when scrolling */
+.insights-choropleth {
+  contain: layout paint;
+}
+.insights-choropleth .leaflet-container {
+  position: relative;
+  z-index: 0;
+  font: inherit;
+}
+.insights-choropleth .leaflet-pane,
+.insights-choropleth .leaflet-map-pane,
+.insights-choropleth .leaflet-tile-pane,
+.insights-choropleth .leaflet-overlay-pane {
+  z-index: 1 !important;
+}
+.insights-choropleth .leaflet-shadow-pane {
+  z-index: 2 !important;
+}
+.insights-choropleth .leaflet-marker-pane {
+  z-index: 3 !important;
+}
+.insights-choropleth .leaflet-tooltip-pane {
+  z-index: 4 !important;
+}
+.insights-choropleth .leaflet-control-container {
+  z-index: 5 !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .insights-bar-fill,
+  .insights-heatmap-cell,
+  .insights-funnel-step {
+    transition: none !important;
+  }
+  .animate-fade-in {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media print {
+  .insights-bar-fill,
+  .insights-heatmap-cell,
+  .insights-funnel-step {
+    transition: none !important;
+  }
+}
+
 /* Glassmorphism */
 .glass {
   background: rgba(255, 255, 255, 0.08);
@@ -176,4 +237,40 @@
   --swal2-validation-message-color: var(--color-foreground);
   --swal2-dark-theme-black: var(--color-card);
   --swal2-dark-theme-white: var(--color-foreground);
+}
+
+@media print {
+  :root, [data-theme="dark"], [data-theme="light"] {
+    --color-background: #ffffff;
+    --color-card: #ffffff;
+    --color-foreground: #111827;
+    --color-muted: #4b5563;
+  }
+  body {
+    background: #fff !important;
+    color: #111827 !important;
+  }
+  .print\:hidden,
+  nav,
+  aside,
+  header:has(img),
+  .insights-filters {
+    display: none !important;
+  }
+  .insights-root {
+    padding: 0 !important;
+  }
+  .insights-root::before {
+    content: "RescueLink · Dagupan Insights (for official use)";
+    display: block;
+    font-weight: 600;
+    margin-bottom: 12px;
+  }
+  .insights-root h1 {
+    font-size: 18px;
+  }
+  .metric-help,
+  .metric-help-dialog {
+    display: none !important;
+  }
 }

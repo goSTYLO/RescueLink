@@ -1,6 +1,6 @@
 import { Layout } from '@/presentation/components/layout/Layout';
 import { Breadcrumb } from '@/presentation/components/common/Breadcrumb';
-import { HelpCircle, Mail, Phone, MessageCircle, FileText, Search, BookOpen, LayoutDashboard, Map, AlertTriangle, Building2, ScrollText, User, Settings, Shield, ChevronRight } from 'lucide-react';
+import { HelpCircle, Mail, Phone, MessageCircle, FileText, Search, BookOpen, LayoutDashboard, Map, AlertTriangle, Building2, ScrollText, User, Settings, Shield, ChevronRight, BarChart3 } from 'lucide-react';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
 
 const GUIDES = [
@@ -10,9 +10,20 @@ const GUIDES = [
     title: 'Dashboard',
     summary: 'View overview stats and manage incidents from the main dashboard.',
     steps: [
-      'Use the stat cards at the top to see active incidents, available units, and response times.',
+      'Use the stat cards at the top to see active incidents, available units, and queue totals.',
       'Apply filters (status, severity, barangay, date range) to narrow the incidents table.',
       'Click an incident row to open its details, or use actions to assign units and update status.',
+    ],
+  },
+  {
+    id: 'insights',
+    icon: BarChart3,
+    title: 'Insights',
+    summary: 'Period-based analytics for Super Admin (any department) and Department Admin (own department).',
+    steps: [
+      'Open Insights from the sidebar. Super Admin starts city-wide and can pick a department; Department Admin is locked to their own.',
+      'Use date presets, type, severity, status, and barangay filters (the URL is shareable). On a phone, open the Filters disclosure first.',
+      'Read headline clocks and SLA cards, then scroll: response matrix, demand map, operations, incident table. Each ? explains the metric. Export CSV or print to PDF.',
     ],
   },
   {

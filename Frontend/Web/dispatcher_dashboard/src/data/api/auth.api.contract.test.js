@@ -8,6 +8,7 @@ jest.mock('@/core/config/app.config', () => ({
 describe('auth.api contract', () => {
   beforeEach(() => {
     sessionStorage.clear();
+    localStorage.clear();
     global.fetch = jest.fn();
   });
 
@@ -63,5 +64,28 @@ describe('auth.api contract', () => {
   test('logout is no-op without token', async () => {
     await logout();
     expect(fetch).not.toHaveBeenCalled();
+  });
+
+  test('fetchAvatarBlob shares in-flight GET and caches 404', async () => {
+    const { fetchAvatarBlob, invalidateAvatarCache } = require('@/data/api/auth.api');
+    invalidateAvatarCache();
+    sessionStorage.setItem('token', 'secure-token');
+    let resolveFetch;
+    fetch.mockImplementationOnce(() => new Promise((resolve) => {
+      resolveFetch = resolve;
+    }));
+
+    const first = fetchAvatarBlob();
+    const second = fetchAvatarBlob();
+    expect(fetch).toHaveBeenCalledTimes(1);
+
+    resolveFetch({
+      ok: false,
+      status: 404,
+    });
+    await expect(Promise.all([first, second])).resolves.toEqual([null, null]);
+
+    await fetchAvatarBlob();
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 });

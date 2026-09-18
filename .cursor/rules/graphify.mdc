@@ -21,7 +21,7 @@ Only use Read/Grep/Glob directly when:
 
 **Keeping the graph current — use separate update commands:**
 
-- **After modifying code files:** `graphify update . --code-only` (AST-only, no API cost)
+- **After modifying code files:** `graphify extract . --update --code-only` (AST-only, no API cost)
 - **After modifying documentation:** `graphify ./Documentation --update --allow-partial` (semantic extraction; `--allow-partial` avoids rate-limit failures on large doc batches)
 
 Do not run a full `graphify update .` without flags — split code and docs updates as above.

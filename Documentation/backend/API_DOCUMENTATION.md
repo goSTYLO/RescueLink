@@ -2095,6 +2095,34 @@ Retrieve system-wide statistics including user counts by role.
 
 ---
 
+### Insights analytics
+
+Period-based Insights for **admin** and **department-admin**. City-wide counts unique incidents. Department scope is historical: any dispatch **or any escalation** to/from that department (not only open escalations). Hour-of-day uses `Asia/Manila`. CSV never includes description, transcription, or reporter phone.
+
+**GET** `/api/analytics/overview`
+
+Query: `from`, `to` (ISO; default last 30 days; `from` must be before `to`; max 366 days), `department_id` (admin only: numeric department id **or** the sentinel `volunteers` for primary volunteer-accepted incidents), `incident_type`, `severity_level`, `status`, `barangay`, `exclude_duplicates`, `include_archived` (default `true`).
+
+Department-admin: `department_id` is taken from the JWT user; passing another id or `volunteers` returns `403`.
+
+**Response:** `200 OK` — `generated_at`, `timezone` (`Asia/Manila`), `department` (`null`, `{ id, code, name }`, or `{ id: "volunteers", code: "volunteers", name: "Volunteers" }`), `kpis` (unique `incidents` plus `count_check` equal to `COUNT(*)` for the same filters; `critical`; `volunteer_share`; `unserved` / `unserved_pct`; `overdue` / `overdue_pct`; `dispatch_sla` ≤ 8 min; `arrival_sla` ≤ 10 min), `clocks.first_action|dispatch|arrival|resolve` (`p50_seconds`, `p90_seconds`, `p95_seconds`, `n`; dispatch/arrival also `pct_within_target` and `target_seconds`), `concurrent` (`max`, `avg`, `granularity` hour if range ≤ 90 days else day), `peak`, `exceptions`, `escalation_funnel`, `utilization`, `outcomes`, `demand.types|barangays` (each barangay includes `types[]` top 3)|`type_barangay|channels`, `timeseries`, `heatmap`, `breakdowns` (including `severity_clocks` and city-wide `department_clocks` with a **Volunteers** row). Arrival is `created_at` → first On Scene. Unserved = no dispatch, no escalation, no `accepted_at`. Overdue = still open at range end and created > 30 minutes earlier. SLA/overdue targets are internal, not NFPA.
+
+**GET** `/api/analytics/incidents`
+
+Same filters plus `limit`, `offset`, `search` (report id or barangay), `sort`, `direction`. Headers: `x-total-count`, `x-limit`, `x-offset`.
+
+**GET** `/api/analytics/export.csv`
+
+Same filters. Attachment. Formula-sanitized (`=`, `+`, `-`, `@` prefixed). Cap 10,000 rows (`400` if over).
+
+CSV columns (no PII blobs): `report_id`, `incident_type`, `severity_level`, `status`, `barangay`, `department_codes`, `created_at`, `resolved_at`, `closed_at`, `is_duplicate`, `is_archived`. Description, transcription, and reporter phone are never exported. Summary block above the rows includes headline KPIs, types, barangays, and type×barangay.
+
+**GET** `/api/analytics/barangays.geojson`
+
+Same auth as Insights. Read-only Dagupan barangay polygons (`properties.NAME_3`) from `Backend/src/goelogical_polygon/dagupan_barangays.geojson`. Cached 24h. Used by the Insights choropleth.
+
+---
+
 ## Notes
 
 1. **Full Updates Required**: PUT endpoints require all fields to be provided. This ensures data consistency and prevents partial updates that might leave records in an incomplete state.

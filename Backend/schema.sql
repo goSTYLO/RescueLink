@@ -125,6 +125,9 @@ CREATE INDEX IF NOT EXISTS idx_incident_reports_location ON incident_reports(lat
 -- Index for filtering by severity level
 CREATE INDEX IF NOT EXISTS idx_incident_reports_severity ON incident_reports(severity_level);
 
+-- Date-range scans for Insights / analytics
+CREATE INDEX IF NOT EXISTS idx_incident_reports_created_at ON incident_reports(created_at DESC);
+
 -- Migration SQL for existing databases (run these if table already exists)
 -- Add AI/audio columns to incident_reports
 ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS transcription TEXT;

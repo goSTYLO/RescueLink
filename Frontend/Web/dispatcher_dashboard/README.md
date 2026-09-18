@@ -108,6 +108,8 @@ Config source is centralized in:
   - **Departments 403 fix**: `getDepartments()` only called for Super Admin and Dispatcher; department users skip the call to avoid 403.
   - **Incident closed resource refresh**: `DepartmentPersonnelPage` and `DepartmentDashboardPage` refetch teams, responders, and units on `incident:updated` so status returns to "available" after incident is closed/resolved.
   - **MapViewPage**: fixed `wsConnected` reference (destructure from `useIncidentWebSocketStatus`).
+  - **Insights (`/insights`)**: near-real-time analytics — debounced silent refetch on `incident:updated`, 60s/120s backup poll (`core/utils/insightsRealtime.js`); Live / last-updated header. Analytics GETs share in-flight requests.
+  - **OneSignal / avatar**: init+login queued once (login after init); avatar GET coalesced and 404s are not retried until profile-updated.
 
 ## Backend contract and sync docs
 

@@ -1,5 +1,15 @@
 # RescueLink Memory
 
+## Insights / analytics (2026-09-19)
+
+- Web `/insights` is period analytics (not the live ops queue) but **auto-refreshes**: debounced refetch on incident WebSocket events (~2s) plus backup poll (60s, 120s when WS connected); header shows Live / last updated. Analytics GET helpers share in-flight requests so React Strict Mode remounts do not double-hit overview/incidents/geojson. Super Admin defaults to all departments with a picker; **`department_id=volunteers`** scopes to incidents with a primary volunteer acceptor (`accepted_by_user_id`), not a DB department row. City-wide department comparison includes a **Volunteers** row. Department Admin is locked to `users.department_id` (cannot pick Volunteers).
+- Headline clocks: first action (LEAST of first dispatch, `accepted_at`, first escalation, first coordination note), dispatch (`created_at` → first dispatch, dept-scoped when picked), arrival (`created_at` → first On Scene), resolution (`created_at` → `COALESCE(resolved_at, closed_at)`). p50/p90/p95 + n. Null clocks excluded.
+- Internal SLAs (not NFPA): dispatch ≤ 8 min, arrival ≤ 10 min. Overdue: still open at range end and created > 30 min earlier. Unserved: no dispatch, no escalation, no volunteer `accepted_at`.
+- Demand: types / barangays (each row includes top 3 incident types) / type×barangay / channels, Leaflet choropleth from `GET /api/analytics/barangays.geojson` (`NAME_3`). Operations: exceptions from real events only, escalation funnel, unit usage counts (no deployment duration), outcomes donut.
+- Concurrent: hour buckets if range ≤ 90 days, else day. City-wide department clocks mark primary vs supporting. CSV is PII-safe; PDF is browser print. Each metric has a `?` definition.
+
+Added: 2026-09-19 — Insights v2 scrollable dashboard.
+
 ## Volunteer nearby amber when app is background/killed (2026-09-18)
 
 - Nearby volunteer alerts were WebSocket-only (`responder:incident_alert`). Background or killed app never got the emergency-channel OneSignal, so no outside-app alarm.

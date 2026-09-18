@@ -8,6 +8,7 @@ import Login from '@/presentation/pages/Login';
 import Dashboard from '@/presentation/pages/Dashboard';
 import { DashboardPage } from '@/presentation/pages/DashboardPage';
 import { IncidentDetailsPage } from '@/presentation/pages/IncidentDetailsPage';
+import { InsightsPage } from '@/presentation/pages/InsightsPage';
 import { MapViewPage } from '@/presentation/pages/MapViewPage';
 import { DepartmentsPage } from '@/presentation/pages/DepartmentsPage';
 import { DepartmentDetailsPage } from '@/presentation/pages/DepartmentDetailsPage';
@@ -109,6 +110,17 @@ function OneSignalClickBridge() {
     initOneSignal((reportId) => {
       navigate(`/incidents/${reportId}`);
     });
+    try {
+      const stored = getStoredUser();
+      const uid = stored.userId || stored.user_id || stored.id;
+      if (uid) {
+        setOneSignalUser(uid, {
+          role: stored.role,
+          departmentId: stored.departmentId,
+          departmentCode: stored.departmentCode,
+        });
+      }
+    } catch (_) {}
   }, [navigate]);
   return null;
 }
@@ -123,19 +135,6 @@ export default function App() {
     if (DEV_MODE) {
       setLoading(false);
     }
-
-    // If user already logged in from previous session, link OneSignal external user ID
-    try {
-      const stored = getStoredUser();
-      const uid = stored.userId || stored.user_id || stored.id;
-      if (uid) {
-        setOneSignalUser(uid, {
-          role: stored.role,
-          departmentId: stored.departmentId,
-          departmentCode: stored.departmentCode,
-        });
-      }
-    } catch (_) {}
 
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
@@ -225,6 +224,11 @@ export default function App() {
           <Route path="/dashboard" element={
             <ProtectedRoute allowedRoles={DASHBOARD_OPERATIONS_ROLES}>
               <DashboardPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/insights" element={
+            <ProtectedRoute allowedRoles={DEPARTMENT_AND_UP}>
+              <InsightsPage />
             </ProtectedRoute>
           } />
           <Route path="/map" element={

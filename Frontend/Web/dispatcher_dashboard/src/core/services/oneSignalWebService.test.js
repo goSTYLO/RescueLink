@@ -11,6 +11,7 @@ import {
   requestPushPermission,
   getPushNotificationState,
   syncOneSignalSubscriptionToBackend,
+  resetOneSignalWebServiceForTests,
 } from './oneSignalWebService';
 
 describe('oneSignalWebService', () => {
@@ -20,6 +21,7 @@ describe('oneSignalWebService', () => {
   beforeEach(() => {
     sessionStorage.clear();
     localStorage.clear();
+    resetOneSignalWebServiceForTests();
     originalOneSignalDeferred = window.OneSignalDeferred;
     originalNotification = window.Notification;
     window.OneSignalDeferred = [];
@@ -152,5 +154,41 @@ describe('oneSignalWebService', () => {
     await queuedFn(mockOneSignal);
 
     expect(mockOneSignal.User.PushSubscription.optIn).toHaveBeenCalled();
+  });
+
+  test('initOneSignal queues only once (Strict Mode remount)', async () => {
+    await initOneSignal();
+    await initOneSignal();
+    expect(window.OneSignalDeferred).toHaveLength(1);
+  });
+
+  test('setOneSignalUser queues init before login and ignores duplicate user id', async () => {
+    await setOneSignalUser(42, { role: 'dispatcher' });
+    await setOneSignalUser(42, { role: 'dispatcher' });
+    expect(window.OneSignalDeferred).toHaveLength(2);
+    const mockOneSignal = {
+      init: jest.fn().mockResolvedValue(undefined),
+      login: jest.fn().mockResolvedValue(undefined),
+      Notifications: { addEventListener: jest.fn() },
+      User: {
+        addTags: jest.fn().mockResolvedValue(undefined),
+        PushSubscription: { addEventListener: jest.fn(), optIn: jest.fn(), id: null },
+      },
+    };
+    await window.OneSignalDeferred[0](mockOneSignal);
+    await window.OneSignalDeferred[1](mockOneSignal);
+    expect(mockOneSignal.init).toHaveBeenCalledTimes(1);
+    expect(mockOneSignal.login).toHaveBeenCalledWith('42');
+  });
+
+  test('init treats already-initialized as success', async () => {
+    await initOneSignal();
+    const mockOneSignal = {
+      init: jest.fn().mockRejectedValue(new Error('SDK already initialized')),
+      Notifications: { addEventListener: jest.fn() },
+      User: { PushSubscription: { addEventListener: jest.fn(), id: null } },
+    };
+    await window.OneSignalDeferred[0](mockOneSignal);
+    expect(mockOneSignal.Notifications.addEventListener).toHaveBeenCalled();
   });
 });

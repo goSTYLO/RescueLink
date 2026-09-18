@@ -713,6 +713,18 @@ async function updateResponderStatus(req, res) {
       [reportId, userId, currentStatus, newStatus]
     );
 
+    if (newStatus === 'On Scene') {
+      await pool.query(
+        `UPDATE dispatches d
+            SET actual_arrival_at = COALESCE(d.actual_arrival_at, CURRENT_TIMESTAMP)
+           FROM responders r
+          WHERE d.responder_id = r.responder_id
+            AND d.report_id = $1
+            AND r.user_id = $2`,
+        [reportId, userId]
+      );
+    }
+
     // Notify reporter of status change
     await Notification.create({
       user_id: (await pool.query('SELECT user_id FROM incident_reports WHERE report_id = $1', [reportId])).rows[0]?.user_id,

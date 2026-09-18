@@ -3,10 +3,10 @@ import { useIncidentWebSocket } from '@/data/api/useIncidentWebSocket';
 import { getNotifications, getUnreadCount, markAllAsRead, markNotificationAsRead } from '@/data/api/notifications.api';
 import { IncidentWebSocketContext } from '@/presentation/context/IncidentWebSocketContext';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Home, Map, User, FileText, Settings, Shield, ShieldCheck, Building2, LogOut, PanelLeftClose, PanelLeft, Bell, HelpCircle, ChevronDown, AlertCircle, CheckCircle, Info, X, Users, Truck, ClipboardList, UserCheck } from 'lucide-react';
+import { Home, Map, User, FileText, Settings, Shield, ShieldCheck, Building2, LogOut, PanelLeftClose, PanelLeft, Bell, HelpCircle, ChevronDown, AlertCircle, CheckCircle, Info, X, Users, Truck, ClipboardList, UserCheck, BarChart3 } from 'lucide-react';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/infrastructure/firebase';
-import { logout as logoutApi, fetchAvatarBlob } from '@/data/api/auth.api';
+import { logout as logoutApi, fetchAvatarBlob, invalidateAvatarCache } from '@/data/api/auth.api';
 import { BrandLogo } from '@/presentation/components/common/BrandLogo';
 import { ProfileAvatar } from '@/presentation/components/common/ProfileAvatar';
 import { GlobalSearch } from '@/presentation/components/common/GlobalSearch';
@@ -38,6 +38,7 @@ const NAV_SUPER_ADMIN = [
   { title: 'OVERVIEW', items: [
     { icon: Home, label: 'Dashboard', path: '/dashboard' },
     { icon: Map, label: 'Map View', path: '/map' },
+    { icon: BarChart3, label: 'Insights', path: '/insights' },
   ]},
   { title: 'OPERATIONS', items: [
     { icon: UserCheck, label: 'Responder Applications', path: '/responder-applications' },
@@ -55,6 +56,7 @@ const NAV_SUPER_ADMIN = [
 const NAV_DEPARTMENT_ADMIN = [
   { title: 'DEPARTMENT', items: [
     { icon: Home, label: 'Dashboard', path: '/department/dashboard' },
+    { icon: BarChart3, label: 'Insights', path: '/insights' },
     { icon: Users, label: 'Personnel', path: '/department/personnel' },
   ]},
   { title: 'GENERAL', items: [
@@ -179,7 +181,10 @@ export function Layout({ children }) {
     };
 
     loadHeaderAvatar();
-    const onProfileUpdated = () => loadHeaderAvatar();
+    const onProfileUpdated = () => {
+      invalidateAvatarCache();
+      loadHeaderAvatar();
+    };
     window.addEventListener('profile-updated', onProfileUpdated);
 
     return () => {
@@ -476,7 +481,7 @@ export function Layout({ children }) {
     <IncidentWebSocketContext.Provider value={{ status: wsStatus, isConnected: wsStatus === 'connected' }}>
     <div className="flex min-h-screen h-full flex-1 bg-background">
       <aside
-        className={`flex flex-col overflow-hidden transition-[width] duration-300 ease-out border-r border-border border-l-2 border-l-primary/40 shadow-sm ${
+        className={`relative z-30 flex flex-col overflow-hidden transition-[width] duration-300 ease-out border-r border-border border-l-2 border-l-primary/40 shadow-sm ${
           isLight ? 'bg-white' : 'bg-secondary'
         } ${isCollapsed ? 'w-20' : 'w-64'}`}
       >

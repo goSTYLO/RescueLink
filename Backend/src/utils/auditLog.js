@@ -145,10 +145,30 @@ async function logSystemAction(req, action, resourceType, resourceId = null, det
   }
 }
 
+async function logAnalyticsAction(req, action, details = null) {
+  if (!req.user || !['admin', 'department-admin'].includes(String(req.user.role || '').toLowerCase())) return;
+  const ip = req.ip || req.get?.('X-Forwarded-For') || null;
+  const userAgent = req.get?.('User-Agent') || null;
+  try {
+    await AuditLog.create({
+      user_id: req.user.user_id,
+      action,
+      resource_type: 'analytics',
+      resource_id: null,
+      details,
+      ip_address: ip,
+      user_agent: userAgent,
+    });
+  } catch (err) {
+    console.error('Audit log write failed:', err.message);
+  }
+}
+
 module.exports = { 
   logDispatcherAction, 
   logDispatcherActionByUser,
   logAdminAction,
   logUserAction,
-  logSystemAction
+  logSystemAction,
+  logAnalyticsAction,
 };

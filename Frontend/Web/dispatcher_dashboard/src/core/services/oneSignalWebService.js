@@ -2,6 +2,14 @@ import { API_URL, ONESIGNAL_APP_ID } from '@/core/config/app.config';
 import { getAuthHeaders, getAuthToken } from '@/data/api/http';
 
 let isInitialized = false;
+let initQueued = false;
+let lastLoginUserId = null;
+let lastSyncedSubscriptionId = null;
+let subscriptionSyncInflight = null;
+
+function isAlreadyInitializedError(err) {
+  return /already initialized/i.test(String(err?.message || err || ''));
+}
 
 /**
  * Get current push notification state for the browser/user.
@@ -20,8 +28,9 @@ export async function getPushNotificationState() {
  * @param {Function} [onNotificationClick] Optional callback when user clicks a notification
  */
 export async function initOneSignal(onNotificationClick) {
-  if (isInitialized || !ONESIGNAL_APP_ID) return;
+  if (initQueued || isInitialized || !ONESIGNAL_APP_ID) return;
   if (typeof window === 'undefined') return;
+  initQueued = true;
 
   window.OneSignalDeferred = window.OneSignalDeferred || [];
   window.OneSignalDeferred.push(async function (OneSignal) {
@@ -33,38 +42,39 @@ export async function initOneSignal(onNotificationClick) {
         serviceWorkerParam: { scope: '/' },
         serviceWorkerPath: '/OneSignalSDKWorker.js',
       });
-
-      isInitialized = true;
-
-      // Handle notification clicks — deep-link to incident detail
-      OneSignal.Notifications.addEventListener('click', (event) => {
-        const data = event?.notification?.additionalData;
-        const reportId = data?.report_id || data?.reportId;
-        if (reportId) {
-          if (typeof onNotificationClick === 'function') {
-            onNotificationClick(reportId);
-          } else {
-            const tab = data?.tab ? `?tab=${data.tab}` : '';
-            window.location.href = `/incidents/${reportId}${tab}`;
-          }
-        }
-      });
-
-      // Sync subscription ID to backend whenever it changes or is established
-      OneSignal.User.PushSubscription.addEventListener('change', async (changeEvent) => {
-        const subscriptionId = changeEvent?.current?.id;
-        if (subscriptionId) {
-          await syncOneSignalSubscriptionToBackend(subscriptionId);
-        }
-      });
-
-      // If subscription ID already exists, sync it
-      const currentSubId = OneSignal.User.PushSubscription?.id;
-      if (currentSubId) {
-        await syncOneSignalSubscriptionToBackend(currentSubId);
-      }
     } catch (err) {
-      console.warn('[OneSignal Web] Initialization error:', err?.message);
+      if (!isAlreadyInitializedError(err)) {
+        initQueued = false;
+        console.warn('[OneSignal Web] Initialization error:', err?.message);
+        return;
+      }
+    }
+
+    isInitialized = true;
+
+    OneSignal.Notifications.addEventListener('click', (event) => {
+      const data = event?.notification?.additionalData;
+      const reportId = data?.report_id || data?.reportId;
+      if (reportId) {
+        if (typeof onNotificationClick === 'function') {
+          onNotificationClick(reportId);
+        } else {
+          const tab = data?.tab ? `?tab=${data.tab}` : '';
+          window.location.href = `/incidents/${reportId}${tab}`;
+        }
+      }
+    });
+
+    OneSignal.User.PushSubscription.addEventListener('change', async (changeEvent) => {
+      const subscriptionId = changeEvent?.current?.id;
+      if (subscriptionId) {
+        await syncOneSignalSubscriptionToBackend(subscriptionId);
+      }
+    });
+
+    const currentSubId = OneSignal.User.PushSubscription?.id;
+    if (currentSubId) {
+      await syncOneSignalSubscriptionToBackend(currentSubId);
     }
   });
 }
@@ -78,12 +88,17 @@ export async function initOneSignal(onNotificationClick) {
  */
 export async function setOneSignalUser(userId, metadata = {}) {
   if (!userId || typeof window === 'undefined' || !ONESIGNAL_APP_ID) return;
+  const externalId = String(userId);
+  if (lastLoginUserId === externalId) return;
+  lastLoginUserId = externalId;
+
+  await initOneSignal();
 
   window.OneSignalDeferred = window.OneSignalDeferred || [];
   window.OneSignalDeferred.push(async function (OneSignal) {
     try {
-      // 1. Bind External User ID
-      await OneSignal.login(String(userId));
+      if (typeof OneSignal.login !== 'function') return;
+      await OneSignal.login(externalId);
 
       // 2. Apply user tags for targeted segment broadcasts
       const tags = {};
@@ -113,6 +128,7 @@ export async function setOneSignalUser(userId, metadata = {}) {
         await syncOneSignalSubscriptionToBackend(subscriptionId);
       }
     } catch (err) {
+      lastLoginUserId = null;
       console.warn('[OneSignal Web] Login/tag error:', err?.message);
     }
   });
@@ -126,6 +142,9 @@ export async function logoutOneSignal() {
   if (typeof window === 'undefined' || !ONESIGNAL_APP_ID) return;
 
   window.OneSignalDeferred = window.OneSignalDeferred || [];
+  lastLoginUserId = null;
+  lastSyncedSubscriptionId = null;
+
   window.OneSignalDeferred.push(async function (OneSignal) {
     try {
       await OneSignal.logout();
@@ -185,13 +204,31 @@ export async function syncOneSignalSubscriptionToBackend(subscriptionId) {
   try {
     const token = getAuthToken();
     if (!token || !subscriptionId) return;
+    if (lastSyncedSubscriptionId === subscriptionId) return;
+    if (subscriptionSyncInflight) return subscriptionSyncInflight;
 
-    await fetch(`${API_URL}/api/auth/onesignal-subscription`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ onesignal_player_id: subscriptionId }),
+    subscriptionSyncInflight = (async () => {
+      const response = await fetch(`${API_URL}/api/auth/onesignal-subscription`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ onesignal_player_id: subscriptionId }),
+      });
+      if (response.ok) lastSyncedSubscriptionId = subscriptionId;
+    })().finally(() => {
+      subscriptionSyncInflight = null;
     });
+
+    await subscriptionSyncInflight;
   } catch (err) {
     console.warn('[OneSignal Web] Failed to sync subscription to backend:', err?.message);
   }
+}
+
+/** @internal */
+export function resetOneSignalWebServiceForTests() {
+  isInitialized = false;
+  initQueued = false;
+  lastLoginUserId = null;
+  lastSyncedSubscriptionId = null;
+  subscriptionSyncInflight = null;
 }
