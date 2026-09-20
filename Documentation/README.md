@@ -62,6 +62,9 @@ This folder is the consolidated entry point for project documentation.
 
 ## Academic & Standards
 
+- [User Manual](academic/USER_MANUAL.md) — Non-technical Mobile + Dashboard how-to and common fixes
+- [Technical Manual](academic/TECHNICAL_MANUAL.md) — Mobile services and Dashboard API contracts (inputs → outputs)
+- [Thesis vs System Inconsistencies](academic/THESIS_SYSTEM_INCONSISTENCIES.md)
 - [ITE 401 Final Manuscript](academic/ITE%20401_%20Platform%20Technologies%20_%20Final%20Manuscript.md)
 - [UDPS Standards](academic/Universal%20Digital%20Product%20Standards%20(UDPS).md)
 

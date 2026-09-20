@@ -1,5 +1,21 @@
 # RescueLink Memory
 
+## Responder applications Phase-2 columns only (2026-09-20)
+
+- `GET /api/responder-applications/me` 500'd because the model `COALESCE`d Phase-1 aliases (`reviewed_by_user_id`, `application_id`, `created_at`) that Postgres still validates even when Phase-2 columns exist.
+- Model now queries Phase-2 names only (`id`, `submitted_at`, `reviewed_by`). `ensureTable` no longer hard-fails on missing `full_name`.
+- Regression: `responderApplication.submit.test.js` covers `GET /me` after submit.
+
+Added: 2026-09-20 — fix responder application /me schema mismatch.
+
+## Academic User & Technical Manuals (2026-09-20)
+
+- Added thesis-oriented manuals under `Documentation/academic/`: `USER_MANUAL.md` (non-technical Mobile + Dashboard + common fixes) and `TECHNICAL_MANUAL.md` (Flutter service + React API module contracts, RBAC routes).
+- Linked from `Documentation/README.md` Academic section. Scope is client surfaces only; backend/AI/blockchain remain in existing API/security docs.
+- Feature claims follow implemented system (OneSignal push, OSM, optional blockchain) — not outdated thesis external-service lists.
+
+Added: 2026-09-20 — academic manuals.
+
 ## Insights / analytics (2026-09-19)
 
 - Web `/insights` is period analytics (not the live ops queue) but **auto-refreshes**: debounced refetch on incident WebSocket events (~2s) plus backup poll (60s, 120s when WS connected); header shows Live / last updated. Analytics GET helpers share in-flight requests so React Strict Mode remounts do not double-hit overview/incidents/geojson. Super Admin defaults to all departments with a picker; **`department_id=volunteers`** scopes to incidents with a primary volunteer acceptor (`accepted_by_user_id`), not a DB department row. City-wide department comparison includes a **Volunteers** row. Department Admin is locked to `users.department_id` (cannot pick Volunteers).
