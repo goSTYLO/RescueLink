@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
+import '../../utils/app_config.dart';
 import '../../utils/responsive.dart';
 import '../../services/auth_service.dart';
-
-/// Set to true to skip real GPS/API check and use fixed Dagupan coords (for testing outside area).
-const bool _bypassLocationCheck = true;
+import '../../widgets/app_map_tile_layer.dart';
 
 class VerifyDagupanResidencyScreen extends StatefulWidget {
   final Function(double lat, double lng)? onVerificationComplete;
@@ -26,6 +27,9 @@ class VerifyDagupanResidencyScreen extends StatefulWidget {
 
 class _VerifyDagupanResidencyScreenState
     extends State<VerifyDagupanResidencyScreen> {
+  static const _dagupanCenter = LatLng(16.043, 120.334);
+
+  final MapController _mapController = MapController();
   bool _isVerifying = false;
   bool _isVerified = false;
   bool _isInsideDagupan = false;
@@ -39,10 +43,27 @@ class _VerifyDagupanResidencyScreenState
     _verifyLocation();
   }
 
+  @override
+  void dispose() {
+    _mapController.dispose();
+    super.dispose();
+  }
+
+  void _moveMapToCurrent() {
+    final lat = _currentLat;
+    final lng = _currentLng;
+    if (lat == null || lng == null) return;
+    try {
+      _mapController.move(LatLng(lat, lng), 15);
+    } catch (_) {
+      // Map not ready yet; initialCenter covers first frame.
+    }
+  }
+
   Future<void> _verifyLocation() async {
     setState(() => _isVerifying = true);
 
-    if (_bypassLocationCheck) {
+    if (AppConfig.bypassLocationCheck) {
       await Future.delayed(const Duration(milliseconds: 500));
       if (!mounted) return;
       setState(() {
@@ -53,6 +74,7 @@ class _VerifyDagupanResidencyScreenState
         _verificationMessage = 'Location verified (bypass mode for testing).';
         _isVerifying = false;
       });
+      WidgetsBinding.instance.addPostFrameCallback((_) => _moveMapToCurrent());
       return;
     }
 
@@ -111,6 +133,7 @@ class _VerifyDagupanResidencyScreenState
         _verificationMessage = message;
         _isVerifying = false;
       });
+      WidgetsBinding.instance.addPostFrameCallback((_) => _moveMapToCurrent());
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -133,40 +156,151 @@ class _VerifyDagupanResidencyScreenState
     widget.onRefreshGps?.call();
   }
 
-  Widget _buildLogo() {
+  Widget _buildLogo(double width) {
+    final logoSize = Responsive.logoSize(width);
+    final titleSize = Responsive.brandTitleSize(width);
+    final subtitleSize = Responsive.brandSubtitleSize(width);
+    final compact = Responsive.isCompact(width);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Row(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Image.asset('assets/logo/icon.png', width: Responsive.logoSize(MediaQuery.sizeOf(context).width), height: Responsive.logoSize(MediaQuery.sizeOf(context).width), fit: BoxFit.contain),
-        const SizedBox(width: 0),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            RichText(
-              text: TextSpan(
-                style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-                children: [
-                  TextSpan(
+        Image.asset(
+          'assets/logo/icon.png',
+          width: logoSize,
+          height: logoSize,
+          fit: BoxFit.contain,
+        ),
+        SizedBox(width: compact ? 8 : 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text.rich(
+                TextSpan(
+                  style: TextStyle(
+                      fontSize: titleSize, fontWeight: FontWeight.bold),
+                  children: [
+                    TextSpan(
                       text: 'Rescue',
                       style: TextStyle(
-                          color: Theme.of(context).brightness == Brightness.dark
-                              ? Colors.white
-                              : const Color(0xFF0F172A))),
-                  const TextSpan(
+                          color: isDark ? Colors.white : const Color(0xFF0F172A)),
+                    ),
+                    const TextSpan(
                       text: 'Link',
-                      style: TextStyle(color: Color(0xFFFF6B6B))),
-                ],
+                      style: TextStyle(color: Color(0xFFFF6B6B)),
+                    ),
+                  ],
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
-            ),
-            const Text(
-              'Emergency Response and Safety',
-              style: TextStyle(color: Color(0xFF6B7280), fontSize: 13),
-            ),
-          ],
+              Text(
+                'Emergency Response and Safety',
+                style: TextStyle(
+                    color: const Color(0xFF6B7280), fontSize: subtitleSize),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
         ),
       ],
+    );
+  }
+
+  Widget _buildMap(double width) {
+    final barangay = widget.selectedBarangay ?? 'Barangay Poblacion Oeste';
+    final center = (_currentLat != null && _currentLng != null)
+        ? LatLng(_currentLat!, _currentLng!)
+        : _dagupanCenter;
+    final markers = <Marker>[];
+    if (_currentLat != null && _currentLng != null) {
+      markers.add(
+        Marker(
+          point: LatLng(_currentLat!, _currentLng!),
+          width: 40,
+          height: 40,
+          child: const Icon(Icons.location_on, color: Color(0xFFEF4444), size: 36),
+        ),
+      );
+    }
+
+    return Container(
+      height: Responsive.isCompact(width) ? 200 : 240,
+      decoration: BoxDecoration(
+        color: const Color(0xFFF3F4F6),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
+        children: [
+          FlutterMap(
+            mapController: _mapController,
+            options: MapOptions(
+              initialCenter: center,
+              initialZoom: 14,
+              interactionOptions: const InteractionOptions(
+                flags: InteractiveFlag.pinchZoom |
+                    InteractiveFlag.drag |
+                    InteractiveFlag.doubleTapZoom,
+              ),
+              onMapReady: _moveMapToCurrent,
+            ),
+            children: [
+              AppMapTileLayer(),
+              if (markers.isNotEmpty) MarkerLayer(markers: markers),
+            ],
+          ),
+          if (_isVerifying)
+            Container(
+              color: Colors.white54,
+              child: const Center(
+                child: CircularProgressIndicator(color: Color(0xFFEF4444)),
+              ),
+            ),
+          Positioned(
+            left: 10,
+            right: 10,
+            bottom: 10,
+            child: Material(
+              elevation: 2,
+              borderRadius: BorderRadius.circular(8),
+              color: Colors.white,
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                child: Row(
+                  children: [
+                    const Icon(Icons.map_outlined,
+                        size: 18, color: Color(0xFF6B7280)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        barangay,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF111827),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'Dagupan City',
+                      style: TextStyle(fontSize: 11, color: Color(0xFF6B7280)),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -327,131 +461,45 @@ class _VerifyDagupanResidencyScreenState
   @override
   Widget build(BuildContext context) {
     final barangay = widget.selectedBarangay ?? 'Barangay Poblacion Oeste';
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final horizontalPadding = Responsive.horizontalPadding(screenWidth);
+    final compact = Responsive.isCompact(screenWidth);
+    final headingSize = compact ? 24.0 : 28.0;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
+          padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              const SizedBox(height: 16),
+              _buildLogo(screenWidth),
               const SizedBox(height: 20),
-              _buildLogo(),
-              const SizedBox(height: 20),
-              SizedBox(
-                height: 160,
-                child: Image.asset(
-                  'assets/images/verifynumber_illustration.png',
-                  fit: BoxFit.contain,
-                ),
-              ),
-              const SizedBox(height: 24),
               Text(
                 'Verify Dagupan Residency',
+                textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: 28,
+                  fontSize: headingSize,
                   fontWeight: FontWeight.bold,
                   color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               Text(
-                'Confirm your identity and location',
-                style: TextStyle(fontSize: 14, color: Theme.of(context).colorScheme.onSurfaceVariant),
-              ),
-              const SizedBox(height: 24),
-              // Map placeholder
-              Container(
-                height: 220,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF3F4F6),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFE5E7EB)),
-                ),
-                child: Stack(
-                  children: [
-                    Center(
-                      child: Image.asset(
-                        'assets/images/maps_illustration.png',
-                        fit: BoxFit.cover,
-                        width: double.infinity,
-                        height: double.infinity,
-                      ),
-                    ),
-                    Positioned(
-                      top: 12,
-                      left: 12,
-                      right: 12,
-                      child: Row(
-                        children: [
-                          const Icon(Icons.location_on,
-                              color: Color(0xFFEF4444), size: 24),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'Poblacion Oeste, Barangay Hall',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: Theme.of(context).colorScheme.onSurface,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Positioned(
-                      bottom: 12,
-                      left: 12,
-                      right: 12,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(8),
-                          boxShadow: [
-                            BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.08),
-                                blurRadius: 8)
-                          ],
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(Icons.map_outlined,
-                                size: 18, color: Theme.of(context).colorScheme.onSurfaceVariant),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                'Dagupan City Boundaries',
-                                style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                    color: Theme.of(context).colorScheme.onSurface),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            Flexible(
-                              child: Text(
-                                'Pangasinan, Philippines',
-                                style: TextStyle(
-                                    fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
+                'Confirm you are inside Dagupan City',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
               const SizedBox(height: 20),
-              // Status card with dynamic verification result
+              _buildMap(screenWidth),
+              const SizedBox(height: 16),
               _buildStatusCard(),
               const SizedBox(height: 12),
-              // Selected Barangay card
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -459,46 +507,37 @@ class _VerifyDagupanResidencyScreenState
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: const Color(0xFFE5E7EB)),
                 ),
-                child: Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Selected Barangay',
-                            style: TextStyle(
-                                fontSize: 12, color: Color(0xFF6B7280)),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            barangay,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF111827),
-                            ),
-                          ),
-                          if (_currentLat != null && _currentLng != null)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 8.0),
-                              child: Text(
-                                'Lat: ${_currentLat!.toStringAsFixed(4)}, Lng: ${_currentLng!.toStringAsFixed(4)}',
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  color: Color(0xFF9CA3AF),
-                                  fontStyle: FontStyle.italic,
-                                ),
-                              ),
-                            ),
-                        ],
+                    const Text(
+                      'Selected Barangay',
+                      style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      barangay,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF111827),
                       ),
                     ),
+                    if (_currentLat != null && _currentLng != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(
+                          'Lat: ${_currentLat!.toStringAsFixed(5)}, Lng: ${_currentLng!.toStringAsFixed(5)}',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Color(0xFF9CA3AF),
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ),
-              const SizedBox(height: 24),
-              // Refresh GPS button
+              const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
@@ -525,7 +564,6 @@ class _VerifyDagupanResidencyScreenState
                 ),
               ),
               const SizedBox(height: 12),
-              // Verification button (only enabled if verified and inside Dagupan)
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
@@ -550,7 +588,7 @@ class _VerifyDagupanResidencyScreenState
                     _isVerifying
                         ? 'Verifying...'
                         : (_isVerified && _isInsideDagupan
-                            ? 'Continue to Create Account'
+                            ? 'Continue'
                             : 'Awaiting Verification'),
                     style: const TextStyle(
                       color: Colors.white,
@@ -560,7 +598,6 @@ class _VerifyDagupanResidencyScreenState
                   ),
                 ),
               ),
-              // Go Back button (shown when verification failed)
               if (_isVerified &&
                   !_isInsideDagupan &&
                   widget.onLocationVerificationFailed != null) ...[
@@ -586,7 +623,7 @@ class _VerifyDagupanResidencyScreenState
                   ),
                 ),
               ],
-              const SizedBox(height: 40),
+              const SizedBox(height: 32),
             ],
           ),
         ),

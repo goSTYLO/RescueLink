@@ -4,9 +4,11 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../bloc/auth/auth_bloc.dart';
 import '../../bloc/auth/auth_event.dart';
 import '../../bloc/auth/auth_state.dart';
+import '../../utils/app_config.dart';
 import '../../utils/responsive.dart';
+import '../../widgets/recaptcha_webview.dart';
 
-/// Second step: Enter OTP Code + Verify & Continue.
+/// Enter OTP after registration; verify/resend via RescueLink backend (IPROG).
 class VerificationOtpScreen extends StatefulWidget {
   final String phoneNumber;
   final Function(Map<String, dynamic>)? onVerifyAndContinue;
@@ -14,10 +16,10 @@ class VerificationOtpScreen extends StatefulWidget {
   final String? selectedBarangay;
   final String? cityRegion;
 
-  /// When false (signup flow), backend sets phone_verified but app does not store token; navigate to Login.
+  /// When false (signup flow), app does not store token; navigate to Login.
   final bool storeTokenAfterVerify;
 
-  /// Called when OTP verified and storeTokenAfterVerify is false (signup flow); navigate to Login.
+  /// Called when OTP verified and storeTokenAfterVerify is false (signup flow).
   final VoidCallback? onPhoneVerified;
 
   const VerificationOtpScreen({
@@ -27,7 +29,7 @@ class VerificationOtpScreen extends StatefulWidget {
     this.onBack,
     this.selectedBarangay,
     this.cityRegion,
-    this.storeTokenAfterVerify = true,
+    this.storeTokenAfterVerify = false,
     this.onPhoneVerified,
   });
 
@@ -41,8 +43,7 @@ class _VerificationOtpScreenState extends State<VerificationOtpScreen> {
   final List<FocusNode> _focusNodes = List.generate(6, (_) => FocusNode());
   int _resendCountdown = 30;
   bool _canResend = false;
-  static const double _defaultLat = 16.043;
-  static const double _defaultLng = 120.334;
+  bool _resendInFlight = false;
 
   @override
   void initState() {
@@ -94,17 +95,88 @@ class _VerificationOtpScreenState extends State<VerificationOtpScreen> {
       return;
     }
     context.read<AuthBloc>().add(OtpVerified(
+          phone: widget.phoneNumber,
           otp: _otpCode,
-          latitude: _defaultLat,
-          longitude: _defaultLng,
           storeToken: widget.storeTokenAfterVerify,
         ));
   }
 
-  void _resendOtp(BuildContext context) {
-    if (!_canResend) return;
-    context.read<AuthBloc>().add(ResendOtpRequested(widget.phoneNumber));
-    _startResendTimer();
+  Future<String?> _obtainCaptchaToken(BuildContext context) async {
+    if (AppConfig.recaptchaSiteKey.isEmpty) {
+      return '';
+    }
+    return showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => PopScope(
+        canPop: true,
+        child: Dialog(
+          insetPadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 400, maxHeight: 480),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  child: Row(
+                    children: [
+                      const Text(
+                        "Verify you're human",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF111827),
+                        ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        onPressed: () => Navigator.of(ctx).pop(),
+                        icon: const Icon(Icons.close, color: Color(0xFF6B7280)),
+                      ),
+                    ],
+                  ),
+                ),
+                Flexible(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: RecaptchaWebView(
+                      siteKey: AppConfig.recaptchaSiteKey,
+                      onSuccess: (token) {
+                        if (!ctx.mounted) return;
+                        Navigator.of(ctx).pop(token);
+                      },
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _resendOtp(BuildContext context) async {
+    if (!_canResend || _resendInFlight) return;
+    final authBloc = context.read<AuthBloc>();
+    setState(() => _resendInFlight = true);
+    try {
+      final token = await _obtainCaptchaToken(context);
+      if (!mounted) return;
+      if (token == null) {
+        setState(() => _resendInFlight = false);
+        return;
+      }
+      authBloc.add(ResendOtpRequested(
+            phone: widget.phoneNumber,
+            captchaToken: token,
+          ));
+      _startResendTimer();
+    } finally {
+      if (mounted) setState(() => _resendInFlight = false);
+    }
   }
 
   Widget _buildLogo(double width) {
@@ -162,16 +234,28 @@ class _VerificationOtpScreenState extends State<VerificationOtpScreen> {
   Widget build(BuildContext context) {
     return BlocConsumer<AuthBloc, AuthState>(
       listener: (context, state) {
-        if (state is AuthError) {
+        if (state is OtpError || state is AuthError) {
+          final message = state is OtpError
+              ? state.message
+              : (state as AuthError).message;
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(state.message),
+              content: Text(message),
               backgroundColor: const Color(0xFFEF4444),
               duration: const Duration(seconds: 4),
               behavior: SnackBarBehavior.floating,
               margin: const EdgeInsets.all(16),
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8)),
+            ),
+          );
+        }
+        if (state is OtpSent) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('A new verification code has been sent.'),
+              backgroundColor: Color(0xFF22C55E),
+              behavior: SnackBarBehavior.floating,
             ),
           );
         }
@@ -188,6 +272,7 @@ class _VerificationOtpScreenState extends State<VerificationOtpScreen> {
         final horizontalPadding = Responsive.horizontalPadding(screenWidth);
         final headingSize = compact ? 24.0 : 26.0;
         final otpBoxWidth = compact ? 38.0 : 44.0;
+        final canTapResend = _canResend && !isVerifying && !_resendInFlight;
 
         return Scaffold(
           backgroundColor: Colors.white,
@@ -202,7 +287,7 @@ class _VerificationOtpScreenState extends State<VerificationOtpScreen> {
                     Align(
                       alignment: Alignment.centerLeft,
                       child: IconButton(
-                        onPressed: widget.onBack,
+                        onPressed: isVerifying ? null : widget.onBack,
                         icon: const Icon(Icons.arrow_back,
                             color: Color(0xFF374151)),
                       ),
@@ -230,12 +315,11 @@ class _VerificationOtpScreenState extends State<VerificationOtpScreen> {
                   ),
                   const SizedBox(height: 6),
                   const Text(
-                    'Confirm your identity and location',
+                    'Enter the code sent to your phone',
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
                   ),
                   const SizedBox(height: 24),
-                  // Location Verified card (compact)
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
@@ -313,7 +397,6 @@ class _VerificationOtpScreenState extends State<VerificationOtpScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  // Enter OTP Code card
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
@@ -369,6 +452,7 @@ class _VerificationOtpScreenState extends State<VerificationOtpScreen> {
                               child: TextField(
                                 controller: _controllers[i],
                                 focusNode: _focusNodes[i],
+                                enabled: !isVerifying,
                                 keyboardType: TextInputType.number,
                                 textAlign: TextAlign.center,
                                 maxLength: 1,
@@ -410,11 +494,8 @@ class _VerificationOtpScreenState extends State<VerificationOtpScreen> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             IconButton(
-                              onPressed: _canResend
-                                  ? () {
-                                      // Resend OTP
-                                      _startResendTimer();
-                                    }
+                              onPressed: canTapResend
+                                  ? () => _resendOtp(context)
                                   : null,
                               icon: const Icon(Icons.refresh,
                                   color: Color(0xFFEF4444), size: 20),
@@ -423,15 +504,16 @@ class _VerificationOtpScreenState extends State<VerificationOtpScreen> {
                             ),
                             const SizedBox(width: 6),
                             TextButton(
-                              onPressed:
-                                  _canResend ? () => _resendOtp(context) : null,
+                              onPressed: canTapResend
+                                  ? () => _resendOtp(context)
+                                  : null,
                               child: Text(
-                                _canResend
+                                canTapResend
                                     ? 'Resend OTP'
                                     : 'Resend OTP in ${_resendCountdown}s',
                                 style: TextStyle(
                                   fontSize: 13,
-                                  color: _canResend
+                                  color: canTapResend
                                       ? const Color(0xFFEF4444)
                                       : const Color(0xFF6B7280),
                                   fontWeight: FontWeight.w500,

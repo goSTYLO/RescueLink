@@ -15,6 +15,8 @@ const { sendOtpEmail } = require('../services/email');
 const { ROLES } = require('../config/roles');
 const Department = require('../models/department');
 const pool = require('../config/db');
+const { verifyRecaptchaToken } = require('../services/recaptcha');
+const iprogOtp = require('../services/iprogOtp');
 
 const WEB_EMAIL_AUTH_ROLES = [
   ROLES.DISPATCHER,
@@ -70,14 +72,24 @@ async function deleteAvatarFile(profileImagePath) {
   }
 }
 
-// Register using phone_number
+// Register: validate + CAPTCHA + hold pending payload + IPROG OTP.
+// User row is created only after POST /api/auth/verify-otp succeeds.
 exports.register = async (req, res) => {
   console.log('📝 Registration attempt');
   try {
-    const { phone, firstName, lastName, email, address, password, latitude, longitude } = req.body;
-    if (!phone || !firstName || !lastName || !password) return res.status(400).json({ message: 'Phone, firstName, lastName, and password are required' });
+    const { phone, firstName, lastName, email, address, password, latitude, longitude, captchaToken } = req.body;
+    if (!phone || !firstName || !lastName || !password) {
+      return res.status(400).json({ message: 'Phone, firstName, lastName, and password are required' });
+    }
+    if (!captchaToken) {
+      return res.status(400).json({ message: 'CAPTCHA verification is required' });
+    }
 
-    // Validate and sanitize inputs
+    const captchaOk = await verifyRecaptchaToken(captchaToken);
+    if (!captchaOk) {
+      return res.status(400).json({ message: 'CAPTCHA verification failed. Please try again.' });
+    }
+
     const validatedPhone = validatePhone(phone);
     const validatedFirstName = validateString(firstName, 'firstName', 1, 100);
     const validatedLastName = validateString(lastName, 'lastName', 1, 100);
@@ -85,38 +97,192 @@ exports.register = async (req, res) => {
     const validatedAddress = validateAddress(address);
     const validatedPassword = validatePassword(password);
 
-    // Validate location if provided
+    // Validate location if provided (Mobile may use fixed Dagupan coords when testing)
     if (latitude !== undefined && longitude !== undefined) {
       const validatedLatitude = validateLatitude(latitude);
       const validatedLongitude = validateLongitude(longitude);
-      
-      // Check if location is within Dagupan
+
       const inDagupan = isPointInDagupan(validatedLatitude, validatedLongitude);
       if (!inDagupan) {
-        return res.status(403).json({ 
+        return res.status(403).json({
           message: 'Your location is outside Dagupan City. Only residents of Dagupan can register.',
-          locationOutside: true
+          locationOutside: true,
         });
       }
     }
 
     const existing = await User.findByPhone(validatedPhone);
-    if (existing) return res.status(400).json({ message: 'Registration could not be completed. If you already have an account, please sign in.' });
+    if (existing) {
+      return res.status(400).json({
+        message: 'Registration could not be completed. If you already have an account, please sign in.',
+      });
+    }
 
-    // Hash the password
     const passwordHash = await hashPassword(validatedPassword);
 
-    const user = await User.create({ phone_number: validatedPhone, email: validatedEmail, address: validatedAddress, password: passwordHash, phone_verified: false, first_name: validatedFirstName, last_name: validatedLastName });
+    iprogOtp.setPending(validatedPhone, {
+      firstName: validatedFirstName,
+      lastName: validatedLastName,
+      email: validatedEmail,
+      address: validatedAddress,
+      passwordHash,
+    });
 
-    const token = jwt.sign({ user_id: user.user_id, phone: user.phone_number, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
-    console.log('✅ Registration successful:', { user_id: user.user_id });
-    res.status(201).json({ user: { user_id: user.user_id, phone: user.phone_number, firstName: user.first_name, lastName: user.last_name, role: user.role }, token });
+    await iprogOtp.sendOtp(validatedPhone);
+
+    console.log('✅ Registration OTP sent (pending, no user yet):', { phone: validatedPhone });
+    return res.status(200).json({
+      success: true,
+      verificationRequired: true,
+      message: 'A verification code has been sent to your phone.',
+    });
   } catch (err) {
     console.error('❌ Registration error:', err.message);
     if (err.message.includes('must be') || err.message.includes('Invalid') || err.message.includes('required') || err.message.includes('at least')) {
       return res.status(400).json({ message: err.message });
     }
-    res.status(500).json({ message: 'Registration failed' });
+    if (err.message.includes('CAPTCHA is not configured') || err.message.includes('IPROG SMS is not configured')) {
+      return res.status(503).json({ message: err.message });
+    }
+    if (err.message.includes('CAPTCHA')) {
+      return res.status(400).json({ message: err.message });
+    }
+    // IPROG / network failures — do not create user
+    return res.status(502).json({
+      message: 'Unable to send verification code. Please try again.',
+    });
+  }
+};
+
+// Confirm IPROG OTP and create the user (phone_verified=true).
+exports.verifyRegistrationOtp = async (req, res) => {
+  console.log('📱 Registration OTP verify attempt');
+  try {
+    const { phone, otp } = req.body;
+    if (!phone || !otp) {
+      return res.status(400).json({ message: 'Phone and otp are required' });
+    }
+
+    const validatedPhone = validatePhone(phone);
+    const code = String(otp).trim();
+    if (!/^\d{6}$/.test(code)) {
+      return res.status(400).json({ message: 'OTP must be 6 digits' });
+    }
+
+    const pending = iprogOtp.getPending(validatedPhone);
+    if (!pending) {
+      return res.status(400).json({
+        message: 'Verification code has expired. Please register again.',
+      });
+    }
+
+    const existing = await User.findByPhone(validatedPhone);
+    if (existing) {
+      iprogOtp.clearPending(validatedPhone);
+      return res.status(400).json({
+        message: 'Registration could not be completed. If you already have an account, please sign in.',
+      });
+    }
+
+    const result = await iprogOtp.verifyOtp(validatedPhone, code);
+    if (!result.ok) {
+      if (result.expired) {
+        return res.status(401).json({ message: 'Verification code has expired.' });
+      }
+      return res.status(401).json({ message: 'Invalid verification code.' });
+    }
+
+    const user = await User.create({
+      phone_number: validatedPhone,
+      email: pending.email,
+      address: pending.address,
+      password: pending.passwordHash,
+      phone_verified: true,
+      first_name: pending.firstName,
+      last_name: pending.lastName,
+    });
+    iprogOtp.clearPending(validatedPhone);
+
+    const token = jwt.sign(
+      { user_id: user.user_id, phone: user.phone_number, role: user.role },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    console.log('✅ Registration OTP verified, user created:', { user_id: user.user_id });
+    return res.status(201).json({
+      success: true,
+      user: {
+        user_id: user.user_id,
+        phone: user.phone_number,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        role: user.role,
+      },
+      token,
+    });
+  } catch (err) {
+    console.error('❌ Registration OTP verify error:', err.message);
+    if (err.message.includes('must be') || err.message.includes('Invalid') || err.message.includes('required')) {
+      return res.status(400).json({ message: err.message });
+    }
+    if (err.message.includes('IPROG SMS is not configured')) {
+      return res.status(503).json({ message: err.message });
+    }
+    return res.status(500).json({ message: 'Unable to verify your code. Please try again.' });
+  }
+};
+
+// Resend IPROG OTP for a pending registration (requires fresh CAPTCHA).
+exports.resendRegistrationOtp = async (req, res) => {
+  console.log('📱 Registration OTP resend attempt');
+  try {
+    const { phone, captchaToken } = req.body;
+    if (!phone) {
+      return res.status(400).json({ message: 'Phone is required' });
+    }
+    if (!captchaToken) {
+      return res.status(400).json({ message: 'CAPTCHA verification is required' });
+    }
+
+    const captchaOk = await verifyRecaptchaToken(captchaToken);
+    if (!captchaOk) {
+      return res.status(400).json({ message: 'CAPTCHA verification failed. Please try again.' });
+    }
+
+    const validatedPhone = validatePhone(phone);
+    const pending = iprogOtp.getPending(validatedPhone);
+    if (!pending) {
+      return res.status(400).json({
+        message: 'No pending registration found. Please start registration again.',
+      });
+    }
+
+    // Refresh TTL
+    iprogOtp.setPending(validatedPhone, {
+      firstName: pending.firstName,
+      lastName: pending.lastName,
+      email: pending.email,
+      address: pending.address,
+      passwordHash: pending.passwordHash,
+    });
+
+    await iprogOtp.sendOtp(validatedPhone);
+
+    console.log('✅ Registration OTP resent:', { phone: validatedPhone });
+    return res.status(200).json({
+      success: true,
+      message: 'A new verification code has been sent.',
+    });
+  } catch (err) {
+    console.error('❌ Registration OTP resend error:', err.message);
+    if (err.message.includes('must be') || err.message.includes('Invalid') || err.message.includes('required')) {
+      return res.status(400).json({ message: err.message });
+    }
+    if (err.message.includes('CAPTCHA is not configured') || err.message.includes('IPROG SMS is not configured')) {
+      return res.status(503).json({ message: err.message });
+    }
+    return res.status(502).json({ message: 'Unable to resend code. Please try again.' });
   }
 };
 

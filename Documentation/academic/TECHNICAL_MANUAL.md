@@ -92,14 +92,13 @@ Session, Firebase phone verification, profile, location helpers used during onbo
 | `updateProfile({...})` | name/address fields | `PATCH /api/auth/me` | `Map` user |
 | `fetchAvatarBytes` / `uploadAvatar` / `deleteAvatar` | `File` for upload | `/api/auth/me/avatar` | bytes / `Map` |
 | `changePassword({currentPassword, newPassword})` | passwords | `POST /api/auth/change-password` | `Map` |
-| `register({...})` | registration fields | `POST /api/auth/register` | `Map` (token/user) |
+| `register({..., captchaToken})` | registration + reCAPTCHA token | `POST /api/auth/register` | `Map` (`verificationRequired`; no account until OTP) |
 | `login({phone, password})` | credentials | `POST /api/auth/login` | `Map` (token/user) |
-| `initializePhoneVerification(phone)` | phone | Firebase verify flow | `Map` status |
-| `verifyOtpAndLocation({otp, ...})` | OTP + location context | Firebase + `POST /api/auth/onboard-phone` | `Map` |
-| `verifyOtpAndGetIdToken(otp)` | OTP | Firebase | `Map` with idToken |
+| `initializePhoneVerification(phone)` | phone | Firebase verify (forgot-password only) | `Map` status |
+| `verifyOtp({phone, otp})` | phone + OTP | `POST /api/auth/verify-otp` (backend/IPROG) | `Map` |
+| `verifyOtpAndGetIdToken(otp)` | OTP | Firebase (forgot-password) | `Map` with idToken |
 | `resetPassword(idToken, newPassword)` | Firebase idToken, password | `POST /api/auth/reset-password` | `Map` |
-| `verifyPhoneCode({...})` | code payload | `POST /api/auth/verify-phone` | `Map` |
-| `resendOtp(phoneNumber)` | phone | Firebase resend | `Map` |
+| `resendOtp({phone, captchaToken})` | phone + fresh CAPTCHA | `POST /api/auth/resend-otp` | `Map` |
 | `getCurrentLocation({...})` | optional accuracy | Device GPS | `{success, latitude, longitude, error?}` |
 | `getBarangayFromCoordinates(lat, lng)` | coords | `GET /api/location/barangay` | `String?` |
 | `reverseGeocode(lat, lng)` | coords | `GET /api/location/reverse` | address `Map` |
