@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../bloc/auth/auth_bloc.dart';
-import '../../bloc/auth/auth_event.dart';
 import '../../bloc/auth/auth_state.dart';
 import '../../utils/app_config.dart';
 import '../../utils/responsive.dart';
@@ -142,7 +141,9 @@ class _VerificationScreenState extends State<VerificationScreen> {
   }
 
   void _requestOtp(BuildContext context) {
-    context.read<AuthBloc>().add(OtpRequested(widget.phone));
+    // Signup OTP is requested by POST /register (backend/IPROG). This screen
+    // is only used for optional post-login demo paths via [onRequestOtp].
+    widget.onRequestOtp?.call();
   }
 
   @override

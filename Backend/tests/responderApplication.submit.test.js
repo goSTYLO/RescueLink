@@ -98,4 +98,25 @@ describe('POST /api/responder-applications', () => {
     expect(res.body.application).toBeDefined();
     expect(res.body.application.status).toBe('pending');
   });
+
+  // Regression: Phase-2 schema has reviewed_by / submitted_at / id — not Phase-1 aliases.
+  it('GET /me returns own application without legacy column errors', async () => {
+    const submit = await request(app)
+      .post('/api/responder-applications')
+      .set('Authorization', `Bearer ${userToken}`)
+      .field('specialization_fields', JSON.stringify(['medical']))
+      .field('personal_details', JSON.stringify({ full_name: 'Test Applicant' }))
+      .attach('gov_id', JPEG, 'gov_id.jpg')
+      .attach('proof_medical', JPEG, 'proof_medical.jpg');
+    expect(submit.status).toBe(201);
+
+    const me = await request(app)
+      .get('/api/responder-applications/me')
+      .set('Authorization', `Bearer ${userToken}`);
+
+    expect(me.status).toBe(200);
+    expect(me.body.hasApplication).toBe(true);
+    expect(me.body.application.status).toBe('pending');
+    expect(me.body.application.id).toBeDefined();
+  });
 });

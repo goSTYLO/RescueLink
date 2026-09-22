@@ -39,6 +39,8 @@ import 'screens/home/about_screen.dart';
 import 'services/incident_service.dart';
 import 'services/websocket_service.dart';
 import 'services/onesignal_service.dart';
+import 'utils/app_config.dart';
+import 'widgets/recaptcha_webview.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -104,20 +106,18 @@ class _AuthNavigatorState extends State<AuthNavigator> with WidgetsBindingObserv
   String _forgotPhoneNumber = '';
   String? _forgotPasswordIdToken;
 
-  // Sign-up flow: form first, then Verify Dagupan on Create Account
+  // Sign-up flow: form → Dagupan → CAPTCHA → register → OTP → Login
   Map<String, String>? _pendingSignUpData;
   bool _showVerifyDagupanForSignup = false;
+  bool _signupRegisterInFlight = false;
 
-  // After signup (BLoC RegisterSuccess): show Account Created
-  bool _showAccountCreated = false;
+  // After register returns verificationRequired: OTP screen
   String _registeredPhone = '';
   String _registeredBarangay = 'Barangay Poblacion Oeste';
-
-  // After Account Created -> Continue to verify phone: Request OTP -> Enter OTP
-  bool _showVerificationRequestOtp = false;
   bool _showVerificationOtp = false;
 
-  // After OTP verified (PhoneVerified): show Login
+  // After OTP verified: Account Created → Login
+  bool _showAccountCreated = false;
   bool _showLoginAfterPhoneVerified = false;
 
   // After login (BLoC LoginSuccess): dashboard
@@ -200,6 +200,7 @@ class _AuthNavigatorState extends State<AuthNavigator> with WidgetsBindingObserv
       _forgotFlowScreen = null;
       _pendingSignUpData = null;
       _showVerifyDagupanForSignup = false;
+      _signupRegisterInFlight = false;
     });
   }
 
@@ -216,11 +217,11 @@ class _AuthNavigatorState extends State<AuthNavigator> with WidgetsBindingObserv
       _showSignUp = false;
       _pendingSignUpData = null;
       _showVerifyDagupanForSignup = false;
-      _showAccountCreated = false;
+      _signupRegisterInFlight = false;
       _registeredPhone = '';
       _registeredBarangay = 'Barangay Poblacion Oeste';
-      _showVerificationRequestOtp = false;
       _showVerificationOtp = false;
+      _showAccountCreated = false;
       _showLoginAfterPhoneVerified = false;
       _showResidencyCheck = false;
       _showDashboard = false;
@@ -320,6 +321,64 @@ class _AuthNavigatorState extends State<AuthNavigator> with WidgetsBindingObserv
     }
   }
 
+  Future<String?> _obtainSignupCaptchaToken() async {
+    if (AppConfig.recaptchaSiteKey.isEmpty) {
+      return '';
+    }
+    if (!mounted) return null;
+    return showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => PopScope(
+        canPop: true,
+        child: Dialog(
+          insetPadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 400, maxHeight: 480),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  child: Row(
+                    children: [
+                      const Text(
+                        "Verify you're human",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF111827),
+                        ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        onPressed: () => Navigator.of(ctx).pop(),
+                        icon: const Icon(Icons.close, color: Color(0xFF6B7280)),
+                      ),
+                    ],
+                  ),
+                ),
+                Flexible(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: RecaptchaWebView(
+                      siteKey: AppConfig.recaptchaSiteKey,
+                      onSuccess: (token) {
+                        if (!ctx.mounted) return;
+                        Navigator.of(ctx).pop(token);
+                      },
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // Listen to AuthBloc for sign-up and login flow
@@ -329,16 +388,28 @@ class _AuthNavigatorState extends State<AuthNavigator> with WidgetsBindingObserv
           setState(() {
             _registeredPhone = state.phone;
             _showSignUp = false;
-            _showAccountCreated =
-                true; // Account Created first; OTP when they tap "Continue to verify phone"
+            _showVerifyDagupanForSignup = false;
+            _signupRegisterInFlight = false;
+            _pendingSignUpData = null; // clears password from memory
+            _showVerificationOtp = true;
           });
           context.read<AuthBloc>().add(const AuthReset());
         }
-        if (state is OtpSent) {
+        if (state is RegisterError) {
+          // Stay on Dagupan (with pending form data) so user can Continue → CAPTCHA again.
+          // Do NOT dump back to an empty SignUp form.
           setState(() {
-            _showVerificationRequestOtp = false;
-            _showVerificationOtp = true;
+            _signupRegisterInFlight = false;
+            _showSignUp = true;
+            _showVerifyDagupanForSignup = _pendingSignUpData != null;
           });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(state.message),
+              backgroundColor: const Color(0xFFEF4444),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
           context.read<AuthBloc>().add(const AuthReset());
         }
         if (state is LoginSuccess) {
@@ -594,15 +665,27 @@ class _AuthNavigatorState extends State<AuthNavigator> with WidgetsBindingObserv
       );
     }
 
-    // Sign-up flow: Verify Dagupan (only after Create Account from form)
+    // Sign-up flow: Verify Dagupan → CAPTCHA → register (OTP sent by backend)
     if (_showSignUp &&
         _showVerifyDagupanForSignup &&
         _pendingSignUpData != null) {
       return VerifyDagupanResidencyScreen(
-        onVerificationComplete: (double lat, double lng) {
+        onVerificationComplete: (double lat, double lng) async {
           final data = _pendingSignUpData!;
+          final authBloc = context.read<AuthBloc>();
           _registeredBarangay = data['address'] ?? 'Barangay Poblacion Oeste';
-          context.read<AuthBloc>().add(RegisterRequested(
+          _registeredPhone = data['phone'] ?? '';
+          final captchaToken = await _obtainSignupCaptchaToken();
+          if (!mounted) return;
+          if (captchaToken == null) {
+            // User closed CAPTCHA; stay on Dagupan screen with pending data.
+            return;
+          }
+          setState(() {
+            _signupRegisterInFlight = true;
+            _showVerifyDagupanForSignup = false;
+          });
+          authBloc.add(RegisterRequested(
                 firstName: data['firstName']!,
                 lastName: data['lastName']!,
                 phone: data['phone']!,
@@ -610,11 +693,8 @@ class _AuthNavigatorState extends State<AuthNavigator> with WidgetsBindingObserv
                 password: data['password']!,
                 latitude: lat,
                 longitude: lng,
+                captchaToken: captchaToken,
               ));
-          setState(() {
-            _showVerifyDagupanForSignup = false;
-            _pendingSignUpData = null;
-          });
         },
         onRefreshGps: () => setState(() {}),
         onLocationVerificationFailed: () {
@@ -630,20 +710,13 @@ class _AuthNavigatorState extends State<AuthNavigator> with WidgetsBindingObserv
       );
     }
 
-    // Request OTP screen (sign-up flow; after Account Created -> "Continue to verify phone")
-    if (_showVerificationRequestOtp) {
-      return VerificationScreen(
-        phone: _registeredPhone,
-        onBack: () => setState(() {
-          _showVerificationRequestOtp = false;
-          _showAccountCreated = true; // back to Account Created
-        }),
-        selectedBarangay: _registeredBarangay,
-        cityRegion: 'Dagupan City, Pangasinan',
+    if (_signupRegisterInFlight) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
       );
     }
 
-    // Enter OTP screen (sign-up flow; after OTP verified go to Login, do not store token)
+    // Enter OTP (after register returns verificationRequired)
     if (_showVerificationOtp) {
       return VerificationOtpScreen(
         phoneNumber: _registeredPhone,
@@ -652,22 +725,36 @@ class _AuthNavigatorState extends State<AuthNavigator> with WidgetsBindingObserv
           setState(() {
             _showVerificationOtp = false;
             _showSignUp = false;
-            _showAccountCreated = false;
-            _showLoginAfterPhoneVerified =
-                true; // go to Login after OTP success
+            _showAccountCreated = true;
           });
           context.read<AuthBloc>().add(const AuthReset());
         },
-        onBack: () => setState(() {
-          _showVerificationOtp = false;
-          _showVerificationRequestOtp = true;
-        }),
+        onBack: () {
+          context.read<AuthBloc>().add(const AuthReset());
+          _backToLogin();
+        },
         selectedBarangay: _registeredBarangay,
         cityRegion: 'Dagupan City, Pangasinan',
       );
     }
 
-    // Sign-up form (no location check here; Verify Dagupan is shown after Create Account)
+    // Account created (after OTP success) → then Login
+    if (_showAccountCreated) {
+      return AccountCreatedScreen(
+        registeredPhone: _registeredPhone,
+        subtitle:
+            'Your phone is verified. You can now sign in with your account.',
+        onDone: () {
+          context.read<AuthBloc>().add(const AuthReset());
+          setState(() {
+            _showAccountCreated = false;
+            _showLoginAfterPhoneVerified = true;
+          });
+        },
+      );
+    }
+
+    // Sign-up form (Verify Dagupan after Create Account)
     if (_showSignUp) {
       return SignUpScreen(
         onLoginTap: _toggleView,
@@ -682,27 +769,6 @@ class _AuthNavigatorState extends State<AuthNavigator> with WidgetsBindingObserv
               'password': password,
             };
             _showVerifyDagupanForSignup = true;
-          });
-        },
-      );
-    }
-
-    // Account Created (optional; e.g. if user navigates from OTP back to login and re-enters)
-    if (_showAccountCreated) {
-      return AccountCreatedScreen(
-        onBackToLogin: () {
-          context.read<AuthBloc>().add(const AuthReset());
-          _backToLogin();
-        },
-        onDone: () {
-          context.read<AuthBloc>().add(const AuthReset());
-          _backToLogin();
-        },
-        registeredPhone: _registeredPhone,
-        onContinueToVerifyPhone: () {
-          setState(() {
-            _showAccountCreated = false;
-            _showVerificationRequestOtp = true;
           });
         },
       );

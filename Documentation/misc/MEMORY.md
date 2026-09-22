@@ -12,6 +12,82 @@ Added: 2026-09-22 — Ant Design conversion outside Insights.
 
 Added: 2026-09-22 — analytics-ready seed-db.
 
+## IPROG Submitted ≠ delivered (2026-09-21)
+
+- IPROG dashboard **Completed / Submitted** means handed to the provider (credits charged), not handset delivery.
+- We call `/otp/send_otp` (sender **IPROGOTP** — all networks including Smart/TNT). Shared `iprogSMS` / fallback `iprogtech` do **not** deliver to Smart/TNT.
+- Dashboard may display phones as `+63…` even when we POST `63XXXXXXXXXX` (no `+`).
+- While testing delivery, OTP text is visible under IPROG Recent sends; escalate with message code + recipient + time to admin+sms@iprogtech.com.
+- Backend logs safe `send_otp` response (`status`, `message`, `message_id`, returned `phone_number`) — never `otp_code`.
+
+Added: 2026-09-21 — IPROG delivery caveats.
+
+## IPROG OTP phone is 63… without + (2026-09-21)
+
+- `toIprogPhone` in `iprogOtp.js` is self-contained (digits only → `63XXXXXXXXXX`). Never sends `+63…` or `09…` to IPROG.
+- Pending registration / DB storage stay local `09…`.
+- Backend console logs `IPROG send_otp phone_number=` with `JSON.stringify` so a stray `+` is visible.
+- Regression: `tests/registrationOtp.test.js` (`toIprogPhone` + axios body assertion).
+
+Added: 2026-09-21 — IPROG phone format without +.
+
+## Mobile Dagupan bypass is env-driven (2026-09-21)
+
+- Removed hardcoded `_bypassLocationCheck = true` from `verify_dagupan_residency_screen.dart`.
+- Uses `AppConfig.bypassLocationCheck` from `BYPASS_LOCATION_CHECK` in `.env` / `--dart-define` (default false).
+- Documented in `Frontend/Mobile/.env.example` and `HOW_TO_RUN.md`.
+- RegisterError (e.g. CAPTCHA fail) returns to Dagupan Continue → CAPTCHA retry, not an empty SignUp form.
+- After OTP success → Account Created screen → Login (account exists only post-OTP).
+- CAPTCHA “always fail”: Backend had the **site key** pasted as `RECAPTCHA_SECRET_KEY`; siteverify needs the Google **Secret** key. Server now logs `error-codes` / detects site==secret.
+- `incorrect-captcha-sol`: WebView used `baseUrl` google.com (hostname not in Domains). Now uses `https://localhost/` — add **localhost** to the reCAPTCHA site’s Domains list.
+- Verify Dagupan uses OpenStreetMap (`FlutterMap` + `AppMapTileLayer`) instead of static map art; logo overflow / CTA copy fixed on residency + account-created screens.
+
+Added: 2026-09-21 — location bypass via env.
+
+## Backend citizen register defers user until IPROG OTP (2026-09-21)
+
+- Root cause of “user created, no SMS”: `POST /api/auth/register` still created the row immediately; no IPROG call, no CAPTCHA check, no `/verify-otp`.
+- No citizen OTP bypass flag existed — the old create-user path was the entire gap.
+- Now: CAPTCHA → pending in-memory → IPROG `send_otp` → `{ verificationRequired: true }`; `POST /verify-otp` creates `phone_verified` user; `POST /resend-otp` + fresh CAPTCHA.
+- IPROG API phone: `toIprogPhone` sends `63XXXXXXXXXX` (not `09…` or `+63…`); pending/DB stay local `09…`.
+- Mobile Dagupan `_bypassLocationCheck` left alone.
+- Regression: `tests/registrationOtp.test.js`.
+
+Added: 2026-09-21 — backend IPROG registration OTP.
+
+## Backend .env.example includes IPROG OTP (2026-09-21)
+
+- Added `Backend/.env.example` with `IPROG_API_TOKEN`, `IPROG_API_BASE_URL`, `IPROG_OTP_EXPIRES_IN_MINUTES`, optional `IPROG_OTP_MESSAGE`, plus `RECAPTCHA_SECRET_KEY` for server-side CAPTCHA.
+- `.gitignore` now allows committing `.env.example` (`!.env.example`).
+- `HOW_TO_RUN.md` Backend env section updated to match.
+
+Added: 2026-09-21 — backend IPROG env template.
+
+## Flutter signup uses backend IPROG OTP (not Firebase) (2026-09-21)
+
+- Citizen registration flow is now: SignUp → Dagupan GPS → reCAPTCHA (real token) → `POST /api/auth/register` → OTP screen → `POST /api/auth/verify-otp` → Login.
+- Flutter never calls IPROG; never stores CAPTCHA secret. Resend uses `POST /api/auth/resend-otp` + a fresh CAPTCHA token.
+- Account is treated as incomplete until verify-otp succeeds (no JWT stored from register). Forgot-password still uses Firebase Phone Auth.
+- Backend must implement captcha validation + IPROG send/verify + deferred user creation for end-to-end SMS.
+
+Added: 2026-09-21 — mobile IPROG OTP registration client.
+
+## Responder applications Phase-2 columns only (2026-09-20)
+
+- `GET /api/responder-applications/me` 500'd because the model `COALESCE`d Phase-1 aliases (`reviewed_by_user_id`, `application_id`, `created_at`) that Postgres still validates even when Phase-2 columns exist.
+- Model now queries Phase-2 names only (`id`, `submitted_at`, `reviewed_by`). `ensureTable` no longer hard-fails on missing `full_name`.
+- Regression: `responderApplication.submit.test.js` covers `GET /me` after submit.
+
+Added: 2026-09-20 — fix responder application /me schema mismatch.
+
+## Academic User & Technical Manuals (2026-09-20)
+
+- Added thesis-oriented manuals under `Documentation/academic/`: `USER_MANUAL.md` (non-technical Mobile + Dashboard + common fixes) and `TECHNICAL_MANUAL.md` (Flutter service + React API module contracts, RBAC routes).
+- Linked from `Documentation/README.md` Academic section. Scope is client surfaces only; backend/AI/blockchain remain in existing API/security docs.
+- Feature claims follow implemented system (OneSignal push, OSM, optional blockchain) — not outdated thesis external-service lists.
+
+Added: 2026-09-20 — academic manuals.
+
 ## Insights / analytics (2026-09-19)
 
 - Web `/insights` is one scrollable CAD layout (its own Ant Design cards, stats, progress, and tables; other dispatcher pages use Ant Design too). It **auto-refreshes**: debounced refetch on incident WebSocket events (~2s) plus backup poll (60s, 120s when WS connected); header shows Live / last updated. Analytics GET helpers share in-flight requests so React Strict Mode remounts do not double-hit overview/incidents/geojson. Super Admin defaults to all departments with a picker; **`department_id=volunteers`** scopes to incidents with a primary volunteer acceptor (`accepted_by_user_id`), not a DB department row. City-wide department comparison includes a **Volunteers** row. Department Admin is locked to `users.department_id` (cannot pick Volunteers).

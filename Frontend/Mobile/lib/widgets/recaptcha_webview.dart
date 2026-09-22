@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 /// Loads Google reCAPTCHA v2 in a WebView and returns the token via [onSuccess].
-/// Uses [webview_flutter] to avoid dependency conflicts with Firebase.
+///
+/// Uses [baseUrl] `https://localhost` so the token hostname is `localhost`
+/// (must be listed under Domains in the reCAPTCHA admin console). Loading HTML
+/// with a google.com baseUrl causes siteverify `incorrect-captcha-sol`.
 class RecaptchaWebView extends StatefulWidget {
   final String siteKey;
   final void Function(String token) onSuccess;
@@ -22,6 +25,8 @@ class _RecaptchaWebViewState extends State<RecaptchaWebView> {
   bool _loading = true;
 
   static String _buildHtml(String siteKey) {
+    // Escape for HTML attribute context
+    final safeKey = siteKey.replaceAll('"', '&quot;');
     return '''
 <!DOCTYPE html>
 <html>
@@ -30,12 +35,12 @@ class _RecaptchaWebViewState extends State<RecaptchaWebView> {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <script src="https://www.google.com/recaptcha/api.js" async defer></script>
   <style>
-    body { margin: 0; padding: 16px; display: flex; justify-content: center; align-items: center; min-height: 120px; }
+    body { margin: 0; padding: 16px; display: flex; justify-content: center; align-items: center; min-height: 120px; background: #fff; }
     .g-recaptcha { transform: scale(0.95); transform-origin: 0 0; }
   </style>
 </head>
 <body>
-  <div class="g-recaptcha" data-sitekey="$siteKey" data-callback="onRecaptchaSuccess"></div>
+  <div class="g-recaptcha" data-sitekey="$safeKey" data-callback="onRecaptchaSuccess"></div>
   <script>
     function onRecaptchaSuccess(token) {
       RecaptchaFlutter.postMessage(token);
@@ -64,9 +69,10 @@ class _RecaptchaWebViewState extends State<RecaptchaWebView> {
           },
         ),
       )
+      // Hostname in the issued token becomes "localhost" — add it in reCAPTCHA Domains.
       ..loadHtmlString(
         _buildHtml(widget.siteKey),
-        baseUrl: 'https://www.google.com/recaptcha/',
+        baseUrl: 'https://localhost/',
       );
   }
 

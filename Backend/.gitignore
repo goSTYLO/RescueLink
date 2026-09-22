@@ -9,6 +9,7 @@ yarn.lock
 # Env files
 .env
 .env.*
+!.env.example
 
 # Firebase service account (do NOT commit service account keys)
 serviceAccountKey.json

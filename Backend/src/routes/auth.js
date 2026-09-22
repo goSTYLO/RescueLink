@@ -6,6 +6,8 @@ const authMiddleware = require('../middleware/auth');
 const { avatarUploadMiddleware } = require('../middleware/avatarUpload');
 
 router.post('/register', authController.register);
+router.post('/verify-otp', authController.verifyRegistrationOtp);
+router.post('/resend-otp', authController.resendRegistrationOtp);
 router.post('/login', authController.login);
 router.post('/dispatcher/login', authController.dispatcherLogin);
 router.post('/dispatcher/verify-otp', authController.dispatcherVerifyOtp);

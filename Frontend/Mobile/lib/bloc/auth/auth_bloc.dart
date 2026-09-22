@@ -7,7 +7,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   AuthBloc(this._authService) : super(const AuthInitial()) {
     on<LocationCheckRequested>(_onLocationCheckRequested);
     on<RegisterRequested>(_onRegisterRequested);
-    on<OtpRequested>(_onOtpRequested);
     on<OtpVerified>(_onOtpVerified);
     on<ResendOtpRequested>(_onResendOtpRequested);
     on<LoginRequested>(_onLoginRequested);
@@ -56,13 +55,11 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         password: event.password,
         latitude: event.latitude,
         longitude: event.longitude,
+        captchaToken: event.captchaToken,
         storeToken: false,
       );
       if (result['success'] == true) {
-        final data = result['data'] as Map<String, dynamic>?;
-        final user = data?['user'] as Map<String, dynamic>?;
-        final phone = user?['phone'] as String? ?? event.phone;
-        emit(RegisterSuccess(phone));
+        emit(RegisterSuccess(event.phone));
       } else {
         final error = result['error'] as String? ?? 'Registration failed';
         emit(RegisterError(error));
@@ -72,35 +69,15 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     }
   }
 
-  Future<void> _onOtpRequested(
-    OtpRequested event,
-    Emitter<AuthState> emit,
-  ) async {
-    emit(const AuthLoading());
-    try {
-      final result =
-          await _authService.initializePhoneVerification(event.phone);
-      if (result['success'] == true) {
-        emit(const OtpSent());
-      } else {
-        final error = result['error'] as String? ?? 'Failed to send OTP';
-        emit(OtpError(error));
-      }
-    } catch (e) {
-      emit(OtpError(e.toString()));
-    }
-  }
-
   Future<void> _onOtpVerified(
     OtpVerified event,
     Emitter<AuthState> emit,
   ) async {
     emit(const AuthLoading());
     try {
-      final result = await _authService.verifyOtpAndLocation(
+      final result = await _authService.verifyOtp(
+        phone: event.phone,
         otp: event.otp,
-        latitude: event.latitude,
-        longitude: event.longitude,
         storeToken: event.storeToken,
       );
       if (result['success'] == true) {
@@ -114,10 +91,10 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         }
       } else {
         final error = result['error'] as String? ?? 'Verification failed';
-        emit(AuthError(error));
+        emit(OtpError(error));
       }
     } catch (e) {
-      emit(AuthError(e.toString()));
+      emit(OtpError(e.toString()));
     }
   }
 
@@ -127,7 +104,10 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   ) async {
     emit(const AuthLoading());
     try {
-      final result = await _authService.resendOtp(event.phone);
+      final result = await _authService.resendOtp(
+        phone: event.phone,
+        captchaToken: event.captchaToken,
+      );
       if (result['success'] == true) {
         emit(const OtpSent());
       } else {

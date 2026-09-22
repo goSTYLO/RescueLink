@@ -81,8 +81,19 @@ DB_NAME=rescuelink_dev
 JWT_SECRET=<generate-random-32-char-string>
 JWT_EXPIRE=7d
 DISPATCHER_MFA_ENABLED=true
+
+# IPROG SMS OTP (citizen registration) — server-side only; never put these in Flutter
+# Docs: https://www.iprogsms.com/api/v1/documentation
+IPROG_API_TOKEN=your_iprog_api_token
+IPROG_API_BASE_URL=https://www.iprogsms.com/api/v1
+IPROG_OTP_EXPIRES_IN_MINUTES=5
+# Optional: IPROG_OTP_MESSAGE=Your RescueLink code is :otp. Valid for 5 minutes. Do not share it.
+
 PHONE_OTP_LENGTH=6
-PHONE_OTP_EXPIRY=900
+PHONE_OTP_EXPIRY=300
+
+# Google reCAPTCHA v2 secret (validates Mobile captchaToken; pair with RECAPTCHA_SITE_KEY)
+RECAPTCHA_SECRET_KEY=your_recaptcha_secret_key
 
 # Password Policy
 PASSWORD_MIN_LENGTH=12
@@ -124,6 +135,17 @@ PORT=3000
 **Key Secrets (Must Generate):**
 - `JWT_SECRET`: Use `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` to generate
 - `DB_PASSWORD`: Match PostgreSQL password set during installation
+- `IPROG_API_TOKEN`: From the IPROG SMS dashboard (API token / credit token). Required for citizen registration OTP.
+- `RECAPTCHA_SECRET_KEY`: From Google reCAPTCHA admin (secret); Mobile uses only the site key.
+
+**IPROG OTP delivery notes:**
+- Backend posts `phone_number` as `63XXXXXXXXXX` (no `+`, no leading `0`). IPROG’s UI may still show `+63…`.
+- Dashboard **Completed / Submitted** = queued to the provider, **not** proof the phone received SMS.
+- OTP API uses sender **IPROGOTP** (Smart/TNT + Globe/TM/DITO). If IPROG falls back to `iprogtech` / shared `iprogSMS`, Smart/TNT often never gets the SMS.
+- While debugging, copy the OTP from IPROG Recent sends. For undelivered messages, email admin+sms@iprogtech.com with message code, recipient, and send time.
+- Backend console: `IPROG send_otp phone_number=` and `IPROG send_otp response=` (never logs `otp_code`).
+
+A committed template lives at `Backend/.env.example` (copy to `Backend/.env`).
 
 ### RescueLink AI/.env
 
@@ -211,13 +233,23 @@ VITE_ENV=development
 
 ### Mobile Frontend/.env or flutter parameters (Optional)
 
-Mobile app configuration (Flutter):
+Mobile app configuration (Flutter). Prefer `Frontend/Mobile/.env` (see `.env.example`):
+
+```env
+API_BASE_URL=http://10.0.2.2:3000
+RECAPTCHA_SITE_KEY=your_recaptcha_site_key
+# Dev/test only — skip GPS and use fixed Dagupan coords
+BYPASS_LOCATION_CHECK=false
+ONESIGNAL_APP_ID=
+```
+
+reCAPTCHA Domains (Google admin): include **`localhost`** — the Flutter WebView issues tokens for that hostname.
+
+Or pass at run time:
 
 ```bash
-# Typically passed as dart-define at run time
 --dart-define=API_BASE_URL=http://192.168.1.X:3000
---dart-define=AI_BASE_URL=http://192.168.1.X:8000
---dart-define=ENV=development
+--dart-define=BYPASS_LOCATION_CHECK=true
 ```
 
 ---

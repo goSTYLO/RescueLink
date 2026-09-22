@@ -10,6 +10,8 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../utils/app_config.dart';
+import '../utils/constants.dart';
+import '../utils/otp_error_messages.dart';
 import 'api_service.dart';
 
 /// Parses API `user_id` (int or numeric string). Used for prefs + OneSignal External ID.
@@ -44,7 +46,6 @@ class AuthService {
   static const _keyDepartmentCode = 'user_department_code';
   static const _keyDepartmentName = 'user_department_name';
   String? _verificationId;
-  int? _forceResendingToken;
 
   // Initialize shared preferences
   Future<void> init() async {
@@ -520,7 +521,8 @@ class AuthService {
       }
     }
 
-  // Register user with backend (now includes location validation)
+  /// Submit registration + CAPTCHA. Backend validates CAPTCHA, sends IPROG OTP,
+  /// and holds pending registration — account is created only after verify-otp.
   Future<Map<String, dynamic>> register({
     required String firstName,
     required String lastName,
@@ -529,11 +531,12 @@ class AuthService {
     required String password,
     required double latitude,
     required double longitude,
-    bool storeToken = true,
+    required String captchaToken,
+    bool storeToken = false,
   }) async {
     try {
       final response = await _apiService.post(
-        '/api/auth/register',
+        AppConstants.endpointRegister,
         body: {
           'firstName': firstName,
           'lastName': lastName,
@@ -542,15 +545,22 @@ class AuthService {
           'password': password,
           'latitude': latitude,
           'longitude': longitude,
+          'captchaToken': captchaToken,
         },
       );
 
-      // Only store token if requested (signup flow uses storeToken: false)
-      if (storeToken && response['token'] != null) {
+      // Signup must never persist a session before OTP completes.
+      final verificationRequired = response['verificationRequired'] != false;
+      if (!verificationRequired && storeToken && response['token'] != null) {
         await _storeToken(response['token']);
       }
 
-      return {'success': true, 'data': response};
+      return {
+        'success': true,
+        'verificationRequired': verificationRequired,
+        'message': response['message'] as String?,
+        'data': response,
+      };
     } catch (e) {
       String errorMessage = 'Registration could not be completed. Please try again.';
       final msg = e.toString().toLowerCase();
@@ -566,6 +576,8 @@ class AuthService {
             apiMsg.contains('account already exists') ||
             apiMsg.contains('already registered')) {
           errorMessage = 'An account with this phone number already exists. Please sign in instead.';
+        } else if (apiMsg.contains('captcha')) {
+          errorMessage = 'CAPTCHA verification failed. Please try again.';
         } else {
           errorMessage = e.message;
         }
@@ -689,7 +701,6 @@ class AuthService {
         },
         codeSent: (String verificationId, int? forceResendingToken) {
           _verificationId = verificationId;
-          _forceResendingToken = forceResendingToken;
           debugPrint('✅ OTP code sent! Verification ID: ${verificationId.substring(0, 20)}...');
           if (!completer.isCompleted) {
             completer.complete({'success': true});
@@ -710,119 +721,35 @@ class AuthService {
     }
   }
 
-  // Verify OTP with Firebase and onboard phone
-  Future<Map<String, dynamic>> verifyOtpAndLocation({
+  /// Verify registration OTP via RescueLink backend (IPROG on server).
+  /// Signup flow uses [storeToken]: false and navigates to Login.
+  Future<Map<String, dynamic>> verifyOtp({
+    required String phone,
     required String otp,
-    required double latitude,
-    required double longitude,
-    bool storeToken = true,
+    bool storeToken = false,
   }) async {
     try {
-      if (_verificationId == null) {
-        debugPrint('❌ Verification ID is null');
-        return {
-          'success': false,
-          'error': 'Verification ID not found. Please request OTP again.',
-        };
-      }
-
-      debugPrint('🔐 Attempting to verify OTP: $otp with verificationId: $_verificationId');
-
-      // Sign in with OTP to get Firebase ID token
-      final credential = PhoneAuthProvider.credential(
-        verificationId: _verificationId!,
-        smsCode: otp,
+      final response = await _apiService.post(
+        AppConstants.endpointVerifyOtp,
+        body: {
+          'phone': phone,
+          'otp': otp,
+        },
       );
 
-      debugPrint('📱 Firebase credential created, signing in with credential...');
-      final userCredential =
-          await _firebaseAuth.signInWithCredential(credential);
-      final user = userCredential.user;
-      
-      if (user == null) {
-        debugPrint('❌ Firebase sign in returned null user');
-        return {
-          'success': false,
-          'error': 'Firebase sign in failed.',
-        };
+      if (storeToken && response['token'] != null) {
+        await _storeToken(response['token']);
       }
-      
-      debugPrint('✅ Firebase sign in successful. User UID: ${user.uid}');
-      debugPrint('🔑 Getting Firebase ID token...');
-      
-      final idToken = await user.getIdToken();
-
-      if (idToken == null || idToken.isEmpty) {
-        debugPrint('❌ Failed to get Firebase ID token - token is null or empty');
-        return {
-          'success': false,
-          'error': 'Failed to get Firebase ID token.',
-        };
-      }
-
-      debugPrint('✅ Firebase ID token obtained: ${idToken.substring(0, 50)}...');
-
-      // Get current token to send to backend
-      String? currentToken = getToken();
-      if (currentToken == null) {
-        debugPrint('⚠️ Registration token not found in SharedPreferences - trying without auth header');
-        // Continue without auth header for now
-      } else {
-        debugPrint('✅ Registration token found');
-      }
-
-      debugPrint('🌐 Making API call to /api/auth/onboard-phone');
-      debugPrint('📤 Request body: { idToken: "${idToken.substring(0, 50)}..." }');
-      debugPrint('📤 Authorization header: ${currentToken != null ? "Bearer $currentToken" : "NONE"}');
-
-      // Call backend onboard-phone endpoint with only idToken (password is optional)
-      Map<String, String> headers = {};
-      if (currentToken != null) {
-        headers['Authorization'] = 'Bearer $currentToken';
-      }
-      
-      final onboardResponse = await _apiService.post(
-        '/api/auth/onboard-phone',
-        body: {'idToken': idToken},
-        headers: headers,
-      );
-
-      debugPrint('✅ Backend responded successfully');
-      debugPrint('📊 Backend response: $onboardResponse');
-
-      if (onboardResponse['token'] == null) {
-        debugPrint('❌ Backend did not return token. Response: $onboardResponse');
-        final message = onboardResponse['message'] ?? onboardResponse['error'] ?? 'Failed to complete phone verification.';
-        return {
-          'success': false,
-          'error': message,
-        };
-      }
-
-      // Only store token if requested (signup flow uses storeToken: false, then navigate to Login)
-      if (storeToken) {
-        await _storeToken(onboardResponse['token']);
-        debugPrint('✅ JWT token stored successfully');
-      }
-      debugPrint('✅ Phone verification complete!');
 
       return {
         'success': true,
-        'data': onboardResponse,
-      };
-    } on FirebaseAuthException catch (e) {
-      debugPrint('❌ Firebase Auth Exception: ${e.code}');
-      debugPrint('❌ Firebase error message: ${e.message}');
-      return {
-        'success': false,
-        'error': e.message ?? 'Firebase authentication error (${e.code})',
+        'data': response,
       };
     } catch (e) {
-      debugPrint('❌ Unexpected error during OTP verification: $e');
-      debugPrint('❌ Error type: ${e.runtimeType}');
+      final message = e is ApiException ? e.message : null;
       return {
         'success': false,
-        'error': 'Verification error: ${e.toString()}',
+        'error': mapOtpVerifyError(e, message: message),
       };
     }
   }
@@ -953,81 +880,29 @@ class AuthService {
     }
   }
 
-  // Resend OTP
-  Future<Map<String, dynamic>> resendOtp(String phoneNumber) async {
-    try {
-      final Completer<Map<String, dynamic>> completer = Completer();
-
-      await _firebaseAuth.verifyPhoneNumber(
-        phoneNumber: phoneNumber,
-        timeout: const Duration(seconds: 60),
-        forceResendingToken: _forceResendingToken,
-        verificationCompleted: (PhoneAuthCredential credential) {
-          debugPrint('Phone verification auto-completed');
-        },
-        verificationFailed: (FirebaseAuthException e) {
-          debugPrint('Phone verification failed: ${e.message}');
-          if (!completer.isCompleted) {
-            completer.complete({
-              'success': false,
-              'error': e.message ?? 'Phone verification failed',
-            });
-          }
-        },
-        codeSent: (String verificationId, int? forceResendingToken) {
-          _verificationId = verificationId;
-          _forceResendingToken = forceResendingToken;
-          if (!completer.isCompleted) {
-            completer.complete({'success': true});
-          }
-        },
-        codeAutoRetrievalTimeout: (String verificationId) {
-          _verificationId = verificationId;
-        },
-      );
-
-      return await completer.future;
-    } catch (e) {
-      return {
-        'success': false,
-        'error': e.toString(),
-      };
-    }
-  }
-
-  // Verify phone code via backend
-  Future<Map<String, dynamic>> verifyPhoneCode({
+  /// Resend registration OTP via backend. Requires a fresh CAPTCHA token.
+  Future<Map<String, dynamic>> resendOtp({
     required String phone,
-    required String code,
+    required String captchaToken,
   }) async {
     try {
       final response = await _apiService.post(
-        '/api/auth/verify-phone',
+        AppConstants.endpointResendOtp,
         body: {
           'phone': phone,
-          'code': code,
+          'captchaToken': captchaToken,
         },
       );
-
-      if (response['success'] == true) {
-        // Store the token if provided
-        if (response['token'] != null) {
-          await _storeToken(response['token']);
-        }
-        return {
-          'success': true,
-          'data': response,
-        };
-      } else {
-        return {
-          'success': false,
-          'message': response['message'] ?? 'Verification failed',
-        };
-      }
+      return {
+        'success': true,
+        'message': response['message'] as String? ??
+            'A new verification code has been sent.',
+      };
     } catch (e) {
+      final message = e is ApiException ? e.message : null;
       return {
         'success': false,
-        'error': e.toString(),
+        'error': mapOtpResendError(e, message: message),
       };
     }
   }
