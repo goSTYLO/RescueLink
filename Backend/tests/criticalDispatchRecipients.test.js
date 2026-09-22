@@ -98,4 +98,21 @@ describe('getRecipientUserIds reporter fallback', () => {
     expect(reporterSql).toMatch(/FROM incident_reports/);
     expect(reporterSql).not.toMatch(/FROM incidents\b/);
   });
+
+  test('incident:dispatched does not quiet-push unassigned department responders', async () => {
+    pool.query
+      .mockResolvedValueOnce({ rows: [] }) // reporter lookup
+      .mockResolvedValueOnce({ rows: [{ user_id: 31 }] }) // dispatch team members
+      .mockResolvedValueOnce({ rows: [{ user_id: 11 }] }) // dept staff
+      .mockResolvedValueOnce({ rows: [{ user_id: 2 }] }); // global roles
+
+    await getRecipientUserIds('incident:dispatched', {
+      report_id: 400,
+      assigned_department_ids: [2],
+    });
+
+    const deptStaffSql = pool.query.mock.calls[2][0];
+    expect(deptStaffSql).toMatch(/department-admin/);
+    expect(deptStaffSql).not.toMatch(/'responder'/);
+  });
 });

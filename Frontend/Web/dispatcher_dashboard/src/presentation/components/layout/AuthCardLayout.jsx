@@ -19,7 +19,7 @@ export function AuthCardLayout({ children, illustration, tagline = 'One Tap. One
     'neumorphic-light dark:neumorphic-dark',
   ].join(' ');
 
-  const formPanelClass = 'bg-white dark:bg-card';
+  const formPanelClass = 'auth-form-panel bg-white dark:bg-card';
   const brandPanelClass = [
     'border-l',
     'bg-gradient-to-br from-primary/15 via-primary/10 to-secondary/20 border-gray-200/80',

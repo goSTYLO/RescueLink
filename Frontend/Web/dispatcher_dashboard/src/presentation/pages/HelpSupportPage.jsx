@@ -1,7 +1,24 @@
 import { Layout } from '@/presentation/components/layout/Layout';
 import { Breadcrumb } from '@/presentation/components/common/Breadcrumb';
-import { HelpCircle, Mail, Phone, MessageCircle, FileText, Search, BookOpen, LayoutDashboard, Map, AlertTriangle, Building2, ScrollText, User, Settings, Shield, ChevronRight, BarChart3 } from 'lucide-react';
-import { useTheme } from '@/presentation/context/ThemeContext.jsx';
+import { Card } from 'antd';
+import {
+  HelpCircle,
+  Mail,
+  Phone,
+  MessageCircle,
+  FileText,
+  Search,
+  BookOpen,
+  LayoutDashboard,
+  Map,
+  AlertTriangle,
+  Building2,
+  ScrollText,
+  User,
+  Settings,
+  Shield,
+  BarChart3,
+} from 'lucide-react';
 
 const GUIDES = [
   {
@@ -106,152 +123,128 @@ const GUIDES = [
   },
 ];
 
+const CONTACT_CARDS = [
+  {
+    icon: Mail,
+    title: 'Contact support',
+    body: (
+      <>
+        <p style={{ margin: '0 0 4px', opacity: 0.75 }}>support@rescuelink.com</p>
+        <p style={{ margin: 0, opacity: 0.75 }}>We typically respond within 24 hours on business days.</p>
+      </>
+    ),
+  },
+  {
+    icon: Phone,
+    title: 'Emergency hotline',
+    body: (
+      <p style={{ margin: 0, opacity: 0.75 }}>
+        For urgent dispatch or system issues, contact your department supervisor or use the designated emergency line.
+      </p>
+    ),
+  },
+  {
+    icon: FileText,
+    title: 'Documentation',
+    body: (
+      <p style={{ margin: 0, opacity: 0.75 }}>
+        Guides for incidents, departments, audit log, and map view. Check Settings for notification and permission options.
+      </p>
+    ),
+  },
+  {
+    icon: MessageCircle,
+    title: 'Feedback',
+    body: (
+      <>
+        <p style={{ margin: '0 0 4px', opacity: 0.75 }}>feedback@rescuelink.com</p>
+        <p style={{ margin: 0, opacity: 0.75 }}>Suggestions and bug reports welcome.</p>
+      </>
+    ),
+  },
+];
+
 export function HelpSupportPage() {
-  const { theme } = useTheme();
-  const isLight = theme === 'light';
-
-  const cardBase = 'rounded-2xl border transition-all duration-300 overflow-hidden';
-  const glassCard = `${cardBase} glass`;
-  const neumorphicCard = isLight
-    ? `${cardBase} bg-card neumorphic-light hover:shadow-[10px_10px_20px_rgba(209,213,219,0.85),-10px_-10px_20px_rgba(255,255,255,0.95)]`
-    : `${cardBase} bg-card/80 neumorphic-dark hover:shadow-[10px_10px_24px_rgba(0,0,0,0.4),-6px_-6px_16px_rgba(19,65,120,0.3)]`;
-
-  const heroCardClass = `rounded-3xl border overflow-hidden transition-all duration-300 ${isLight ? 'glass neumorphic-light bg-white/80 border-gray-200/80 shadow-[8px_8px_24px_rgba(209,213,219,0.5),-8px_-8px_24px_rgba(255,255,255,0.9)]' : 'glass neumorphic-dark bg-card/60 border-white/10 shadow-[8px_8px_24px_rgba(0,0,0,0.35),-6px_-6px_20px_rgba(19,65,120,0.2)]'}`;
-  const heroIconClass = `w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isLight ? 'neumorphic-light-inset bg-gray-100 text-primary' : 'neumorphic-dark-inset bg-white/10 text-primary'}`;
-
   return (
     <Layout>
-      <div className="p-8 min-h-full max-w-7xl mx-auto">
+      <div className="p-4 max-w-7xl mx-auto">
         <Breadcrumb items={[{ label: 'Home', path: '/dashboard' }, { label: 'Help & Support' }]} />
-        <div className={`${heroCardClass} mb-6`}>
-          <div className="p-8 flex flex-wrap items-center gap-6">
-            <div className={heroIconClass}>
-              <HelpCircle className="w-5 h-5" strokeWidth={2} />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold text-foreground">Help & Support</h1>
-              <p className="text-muted mt-1">Get assistance and resources for using RescueLink</p>
-              <p className="text-foreground/90 text-sm max-w-2xl mt-2">
-                Use the search bar in the header to find incidents, services, or agents quickly. For urgent dispatch issues, contact your department supervisor.
-              </p>
-            </div>
-          </div>
-        </div>
+        <Card
+          size="small"
+          style={{ marginTop: 12, marginBottom: 12 }}
+          title={(
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+              <HelpCircle size={18} />
+              Help & Support
+            </span>
+          )}
+        >
+          <p style={{ margin: 0, opacity: 0.75 }}>
+            Get assistance and resources for using RescueLink. Use the search bar in the header to find incidents,
+            services, or agents quickly. For urgent dispatch issues, contact your department supervisor.
+          </p>
+        </Card>
 
-        {/* Guides & instructions */}
-        <div className="mb-10">
-          <div className="flex items-center gap-3 mb-6">
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
-              isLight ? 'neumorphic-light-inset bg-gray-100 text-primary' : 'neumorphic-dark-inset bg-white/10 text-primary'
-            }`}>
-              <BookOpen className="w-5 h-5" strokeWidth={2} />
-            </div>
-            <div>
-              <h2 className="text-xl font-semibold text-foreground tracking-tight">Guides & instructions</h2>
-              <p className="text-sm text-muted">Step-by-step instructions for using RescueLink</p>
-            </div>
-          </div>
-          <div className="space-y-4">
+        <Card
+          size="small"
+          style={{ marginBottom: 12 }}
+          title={(
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+              <BookOpen size={16} />
+              Guides & instructions
+            </span>
+          )}
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {GUIDES.map((guide) => {
               const Icon = guide.icon;
               return (
-                <div key={guide.id} className={`${neumorphicCard} p-5`}>
-                  <div className="flex items-start gap-4">
-                    <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                      isLight ? 'neumorphic-light-inset bg-gray-50 text-primary' : 'neumorphic-dark-inset bg-white/10 text-primary'
-                    }`}>
-                      <Icon className="w-5 h-5" strokeWidth={2} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-foreground mb-0.5">{guide.title}</h3>
-                      <p className="text-sm text-muted mb-3">{guide.summary}</p>
-                      <ol className="space-y-1.5">
-                        {guide.steps.map((step, i) => (
-                          <li key={i} className="flex gap-2 text-sm text-foreground/90">
-                            <span className="flex-shrink-0 w-5 h-5 rounded-md flex items-center justify-center text-xs font-semibold bg-primary/20 text-primary">
-                              {i + 1}
-                            </span>
-                            <span>{step}</span>
-                          </li>
-                        ))}
-                      </ol>
-                    </div>
-                    <ChevronRight className="w-5 h-5 text-muted flex-shrink-0 mt-0.5" strokeWidth={2} />
-                  </div>
-                </div>
+                <Card key={guide.id} size="small" type="inner" title={(
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                    <Icon size={16} />
+                    {guide.title}
+                  </span>
+                )}>
+                  <p style={{ marginTop: 0, opacity: 0.75 }}>{guide.summary}</p>
+                  <ol style={{ margin: 0, paddingLeft: 20 }}>
+                    {guide.steps.map((step, i) => (
+                      <li key={i} style={{ marginBottom: 4 }}>{step}</li>
+                    ))}
+                  </ol>
+                </Card>
               );
             })}
           </div>
+        </Card>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12, marginBottom: 12 }}>
+          {CONTACT_CARDS.map((card) => {
+            const Icon = card.icon;
+            return (
+              <Card
+                key={card.title}
+                size="small"
+                title={(
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                    <Icon size={16} />
+                    {card.title}
+                  </span>
+                )}
+              >
+                {card.body}
+              </Card>
+            );
+          })}
         </div>
 
-        {/* Cards grid: neumorphism + glass mix */}
-        <div className="grid gap-6 md:grid-cols-2">
-          <div className={`${neumorphicCard} p-6`}>
-            <div className="flex items-start gap-4">
-              <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                isLight ? 'neumorphic-light-inset bg-gray-50 text-primary' : 'neumorphic-dark-inset bg-secondary/50 text-primary'
-              }`}>
-                <Mail className="w-6 h-6" strokeWidth={2} />
-              </div>
-              <div>
-                <h3 className="font-semibold text-foreground text-lg mb-1">Contact support</h3>
-                <p className="text-muted text-sm mb-2">support@rescuelink.com</p>
-                <p className="text-muted text-sm">We typically respond within 24 hours on business days.</p>
-              </div>
-            </div>
+        <Card size="small">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <Search size={20} />
+            <p style={{ margin: 0 }}>
+              <strong>Quick tip:</strong> Use the search bar in the header to find incidents, services, or agents quickly.
+            </p>
           </div>
-
-          <div className={`${neumorphicCard} p-6`}>
-            <div className="flex items-start gap-4">
-              <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                isLight ? 'neumorphic-light-inset bg-gray-50 text-primary' : 'neumorphic-dark-inset bg-secondary/50 text-primary'
-              }`}>
-                <Phone className="w-6 h-6" strokeWidth={2} />
-              </div>
-              <div>
-                <h3 className="font-semibold text-foreground text-lg mb-1">Emergency hotline</h3>
-                <p className="text-muted text-sm">For urgent dispatch or system issues, contact your department supervisor or use the designated emergency line.</p>
-              </div>
-            </div>
-          </div>
-
-          <div className={`${neumorphicCard} p-6`}>
-            <div className="flex items-start gap-4">
-              <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                isLight ? 'neumorphic-light-inset bg-gray-50 text-primary' : 'neumorphic-dark-inset bg-secondary/50 text-primary'
-              }`}>
-                <FileText className="w-6 h-6" strokeWidth={2} />
-              </div>
-              <div>
-                <h3 className="font-semibold text-foreground text-lg mb-1">Documentation</h3>
-                <p className="text-muted text-sm">Guides for incidents, departments, audit log, and map view. Check Settings for notification and permission options.</p>
-              </div>
-            </div>
-          </div>
-
-          <div className={`${neumorphicCard} p-6`}>
-            <div className="flex items-start gap-4">
-              <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                isLight ? 'neumorphic-light-inset bg-gray-50 text-primary' : 'neumorphic-dark-inset bg-secondary/50 text-primary'
-              }`}>
-                <MessageCircle className="w-6 h-6" strokeWidth={2} />
-              </div>
-              <div>
-                <h3 className="font-semibold text-foreground text-lg mb-1">Feedback</h3>
-                <p className="text-muted text-sm mb-2">feedback@rescuelink.com</p>
-                <p className="text-muted text-sm">Suggestions and bug reports welcome.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Bottom tip: glass */}
-        <div className={`${glassCard} mt-10 p-5 rounded-2xl flex items-center gap-4`}>
-          <Search className="w-6 h-6 text-primary flex-shrink-0" strokeWidth={2} />
-          <p className="text-sm text-foreground/90">
-            <strong>Quick tip:</strong> Use the search bar in the header to find incidents, services, or agents quickly.
-          </p>
-        </div>
+        </Card>
       </div>
     </Layout>
   );

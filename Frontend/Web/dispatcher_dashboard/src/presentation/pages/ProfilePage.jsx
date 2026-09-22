@@ -10,17 +10,7 @@ import {
 } from '@/data/api/auth.api';
 import { ProfileAvatar } from '@/presentation/components/common/ProfileAvatar';
 import { clearAuthSession, getAuthToken, getStoredUser, persistAuthUser } from '@/core/auth/session';
-import { Button } from '@/presentation/components/ui/Button';
-import { Label } from '@/presentation/components/ui/Label';
-import { Input } from '@/presentation/components/ui/Input';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from '@/presentation/components/ui/Dialog';
+import { Button, Card, Form, Input, Modal, Tag } from 'antd';
 import {
   User,
   Mail,
@@ -38,9 +28,8 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Breadcrumb } from '@/presentation/components/common/Breadcrumb';
-import Swal from 'sweetalert2';
+import { alertUser } from '@/presentation/feedback/alertUser';
 import { DEV_MODE } from '@/core/config/app.config';
-import { useTheme } from '@/presentation/context/ThemeContext.jsx';
 
 const MIN_PASSWORD_LENGTH = 8;
 const MAX_NAME_LENGTH = 100;
@@ -145,7 +134,7 @@ export function ProfilePage() {
   }, [navigate]);
 
   const handleLogout = () => {
-    Swal.fire({
+    alertUser({
       title: 'Log out?',
       text: 'Are you sure you want to end your session?',
       icon: 'question',
@@ -154,13 +143,6 @@ export function ProfilePage() {
       cancelButtonColor: '#6b7280',
       confirmButtonText: 'Logout',
       cancelButtonText: 'Cancel',
-      customClass: {
-        popup: 'rounded-2xl shadow-xl',
-        title: 'text-foreground text-xl',
-        htmlContainer: 'text-muted',
-        confirmButton: 'rounded-xl px-5 py-2.5 font-medium',
-        cancelButton: 'rounded-xl px-5 py-2.5 font-medium',
-      },
     }).then((result) => {
       if (result.isConfirmed) {
         clearAuthSession();
@@ -179,16 +161,14 @@ export function ProfilePage() {
     return err;
   };
 
-  const handleChangePasswordSubmit = async (e) => {
-    e.preventDefault();
+  const handleChangePasswordSubmit = async () => {
     const errors = validateChangePassword();
     if (Object.keys(errors).length > 0) {
-      Swal.fire({
+      alertUser({
         icon: 'error',
         title: 'Validation failed',
         text: Object.values(errors).join(' '),
         confirmButtonColor: '#134178',
-        customClass: { popup: 'rounded-2xl shadow-xl' },
       });
       return;
     }
@@ -198,24 +178,22 @@ export function ProfilePage() {
       closeChangePasswordModal();
       setChangePasswordOpen(false);
       clearAuthSession();
-      Swal.fire({
+      alertUser({
         icon: 'success',
         title: 'Password updated',
         text: 'Please log in again with your new password.',
         timer: 2500,
         showConfirmButton: false,
         timerProgressBar: true,
-        customClass: { popup: 'rounded-2xl shadow-xl' },
       }).then(() => {
         navigate('/login');
       });
     } catch (err) {
-      Swal.fire({
+      alertUser({
         icon: 'error',
         title: 'Could not update password',
         text: err.message || 'Current password may be incorrect. Please try again.',
         confirmButtonColor: '#134178',
-        customClass: { popup: 'rounded-2xl shadow-xl' },
       });
     } finally {
       setPasswordSubmitting(false);
@@ -270,7 +248,7 @@ export function ProfilePage() {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!/^image\/(jpeg|jpg|png)$/i.test(file.type)) {
-      Swal.fire({
+      alertUser({
         icon: 'error',
         title: 'Invalid file',
         text: 'Please choose a JPG or PNG image.',
@@ -321,16 +299,15 @@ export function ProfilePage() {
       setIsEditing(false);
       await loadAvatar(user.has_profile_image);
 
-      Swal.fire({
+      alertUser({
         icon: 'success',
         title: 'Profile updated',
         timer: 1800,
         showConfirmButton: false,
         timerProgressBar: true,
-        customClass: { popup: 'rounded-2xl shadow-xl' },
       });
     } catch (err) {
-      Swal.fire({
+      alertUser({
         icon: 'error',
         title: 'Could not save profile',
         text: err.message || 'Please try again.',
@@ -349,396 +326,308 @@ export function ProfilePage() {
     setPasswordErrors({});
   };
 
-  const { theme } = useTheme();
-  const isLight = theme === 'light';
-  const heroCardClass = `rounded-3xl border overflow-hidden transition-all duration-300 ${isLight ? 'glass neumorphic-light bg-white/80 border-gray-200/80 shadow-[8px_8px_24px_rgba(209,213,219,0.5),-8px_-8px_24px_rgba(255,255,255,0.9)]' : 'glass neumorphic-dark bg-card/60 border-white/10 shadow-[8px_8px_24px_rgba(0,0,0,0.35),-6px_-6px_20px_rgba(19,65,120,0.2)]'}`;
-  const heroIconClass = `w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isLight ? 'neumorphic-light-inset bg-gray-100 text-primary' : 'neumorphic-dark-inset bg-white/10 text-primary'}`;
-  const panelClass = `rounded-2xl border overflow-hidden transition-all duration-300 ${isLight ? 'glass neumorphic-light bg-white/80' : 'glass neumorphic-dark bg-card/60'}`;
-  const headerClass = `flex items-center gap-3 px-4 py-3 border-b ${isLight ? 'border-gray-200/80 bg-gray-50/50' : 'border-white/10 bg-white/5'}`;
-  const iconBoxClass = (accent = 'primary') =>
-    `w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isLight ? 'neumorphic-light-inset bg-gray-100' : 'neumorphic-dark-inset bg-white/10'} ${accent === 'primary' ? 'text-primary' : 'text-foreground'}`;
-  const iconSmClass = () =>
-    `w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${isLight ? 'neumorphic-light-inset bg-gray-100 text-primary' : 'neumorphic-dark-inset bg-white/10 text-primary'}`;
-
   return (
     <Layout>
-      <div className="p-8 max-w-4xl mx-auto relative min-h-[calc(100vh-8rem)]">
+      <div className="p-4 max-w-4xl mx-auto">
         <Breadcrumb items={[{ label: 'Home', path: '/dashboard' }, { label: 'Profile' }]} />
-        <div className={`${heroCardClass} mb-8`}>
-          <div className="p-8 flex flex-wrap items-center gap-6">
-            <div className={heroIconClass}>
-              <User className="w-5 h-5" strokeWidth={2} />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold text-foreground">User Profile</h1>
-              <p className="text-muted mt-1">Manage your account settings and information</p>
-            </div>
-          </div>
-        </div>
+        <Card
+          size="small"
+          style={{ marginTop: 12, marginBottom: 12 }}
+          title={(
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+              <User size={18} />
+              User Profile
+            </span>
+          )}
+        >
+          <p style={{ margin: 0, opacity: 0.75 }}>Manage your account settings and information</p>
+        </Card>
 
-        <div className="space-y-6">
-          {/* Profile Information */}
-          <div className={panelClass}>
-            <div className={headerClass}>
-              <span className={iconBoxClass('primary')}>
-                <UserCircle className="w-5 h-5" strokeWidth={2} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <Card
+            size="small"
+            title={(
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                <UserCircle size={16} />
+                Profile Information
               </span>
-              <span className="font-medium text-foreground flex-1">Profile Information</span>
-              {!profileLoading && !profileError && profile && !isEditing && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="rounded-xl gap-2 shrink-0"
-                  onClick={startEditing}
-                >
-                  <Pencil className="w-4 h-4" strokeWidth={2} />
-                  Edit
-                </Button>
-              )}
-              {isEditing && (
-                <div className="flex gap-2 shrink-0">
-                  <Button
-                    type="button"
-                    className="rounded-xl bg-primary hover:bg-primary-hover text-white"
-                    disabled={!canSaveProfile}
-                    onClick={handleSaveProfile}
-                  >
-                    {profileSaving ? 'Saving...' : 'Save'}
-                  </Button>
-                  <Button type="button" variant="outline" className="rounded-xl" onClick={cancelEditing} disabled={profileSaving}>
-                    Cancel
-                  </Button>
-                </div>
-              )}
-              {profile?.role && (
-                <span className="px-3 py-1.5 rounded-xl text-xs font-semibold uppercase bg-primary text-white border border-primary">
-                  {profile.role === 'dispatcher' ? 'Operator' : (profile.role || '').toUpperCase()}
-                </span>
-              )}
-            </div>
-            <div className="p-6 space-y-6">
-              {profileLoading && <p className="text-muted">Loading profile...</p>}
-              {profileError && <p className="text-red-500 text-sm">{profileError}</p>}
-              {!profileLoading && !profileError && profile && (
-                <>
-                  <input
-                    ref={avatarInputRef}
-                    type="file"
-                    accept="image/jpeg,image/png,image/jpg"
-                    className="sr-only"
-                    onChange={handleAvatarPick}
-                  />
-                  <div className="flex flex-wrap items-center gap-5">
-                    <div className="relative">
-                      <ProfileAvatar
-                        firstName={isEditing ? editFirstName : profile.firstName}
-                        lastName={isEditing ? editLastName : profile.lastName}
-                        photoUrl={avatarUrl}
-                        size="md"
-                        rounded="rounded-2xl"
-                        onClick={isEditing ? () => avatarInputRef.current?.click() : undefined}
-                      />
-                      {isEditing && (
-                        <span className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center border-2 border-background">
-                          <Camera className="w-4 h-4" />
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-[200px]">
-                      {isEditing ? (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <div>
-                            <Label htmlFor="edit-first-name">First name</Label>
+            )}
+            extra={(
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {!profileLoading && !profileError && profile && !isEditing && (
+                  <Button icon={<Pencil size={14} />} onClick={startEditing}>Edit</Button>
+                )}
+                {isEditing && (
+                  <>
+                    <Button type="primary" disabled={!canSaveProfile} onClick={handleSaveProfile}>
+                      {profileSaving ? 'Saving...' : 'Save'}
+                    </Button>
+                    <Button onClick={cancelEditing} disabled={profileSaving}>Cancel</Button>
+                  </>
+                )}
+                {profile?.role && (
+                  <Tag color="blue">
+                    {profile.role === 'dispatcher' ? 'Operator' : (profile.role || '').toUpperCase()}
+                  </Tag>
+                )}
+              </div>
+            )}
+          >
+            {profileLoading && <p>Loading profile...</p>}
+            {profileError && <p style={{ color: '#dc2626' }}>{profileError}</p>}
+            {!profileLoading && !profileError && profile && (
+              <>
+                <input
+                  ref={avatarInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/jpg"
+                  className="sr-only"
+                  onChange={handleAvatarPick}
+                />
+                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 20, marginBottom: 16 }}>
+                  <div style={{ position: 'relative' }}>
+                    <ProfileAvatar
+                      firstName={isEditing ? editFirstName : profile.firstName}
+                      lastName={isEditing ? editLastName : profile.lastName}
+                      photoUrl={avatarUrl}
+                      size="md"
+                      rounded="rounded-2xl"
+                      onClick={isEditing ? () => avatarInputRef.current?.click() : undefined}
+                    />
+                    {isEditing && (
+                      <span style={{
+                        position: 'absolute', bottom: -4, right: -4, width: 28, height: 28,
+                        borderRadius: '50%', background: '#134178', color: '#fff',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        <Camera size={14} />
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 200 }}>
+                    {isEditing ? (
+                      <Form layout="vertical" style={{ maxWidth: 480 }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                          <Form.Item
+                            label="First name"
+                            validateStatus={nameErrors.firstName ? 'error' : undefined}
+                            help={nameErrors.firstName}
+                            style={{ marginBottom: 0 }}
+                          >
                             <Input
-                              id="edit-first-name"
                               maxLength={MAX_NAME_LENGTH}
                               value={editFirstName}
                               onChange={(e) => {
                                 setEditFirstName(e.target.value);
                                 if (nameErrors.firstName) setNameErrors((p) => ({ ...p, firstName: undefined }));
                               }}
-                              error={!!nameErrors.firstName}
-                              className="mt-1 rounded-xl"
                             />
-                            {nameErrors.firstName && (
-                              <p className="text-red-500 text-sm mt-1" role="alert">{nameErrors.firstName}</p>
-                            )}
-                          </div>
-                          <div>
-                            <Label htmlFor="edit-last-name">Last name</Label>
+                          </Form.Item>
+                          <Form.Item
+                            label="Last name"
+                            validateStatus={nameErrors.lastName ? 'error' : undefined}
+                            help={nameErrors.lastName}
+                            style={{ marginBottom: 0 }}
+                          >
                             <Input
-                              id="edit-last-name"
                               maxLength={MAX_NAME_LENGTH}
                               value={editLastName}
                               onChange={(e) => {
                                 setEditLastName(e.target.value);
                                 if (nameErrors.lastName) setNameErrors((p) => ({ ...p, lastName: undefined }));
                               }}
-                              error={!!nameErrors.lastName}
-                              className="mt-1 rounded-xl"
                             />
-                            {nameErrors.lastName && (
-                              <p className="text-red-500 text-sm mt-1" role="alert">{nameErrors.lastName}</p>
-                            )}
-                          </div>
+                          </Form.Item>
                         </div>
-                      ) : (
-                        <>
-                          <h3 className="text-lg font-semibold text-foreground">
-                            {[profile.firstName, profile.lastName].filter(Boolean).join(' ') || '—'}
-                          </h3>
-                          <p className="text-sm text-muted mt-0.5">Emergency Operations Center</p>
-                        </>
-                      )}
-                      {isEditing && (avatarUrl || profile.has_profile_image) && (
-                        <button
-                          type="button"
-                          className="text-sm text-red-600 hover:underline mt-2"
-                          onClick={handleRemoveAvatar}
-                        >
-                          Remove photo
-                        </button>
-                      )}
+                      </Form>
+                    ) : (
+                      <>
+                        <h3 style={{ margin: 0 }}>
+                          {[profile.firstName, profile.lastName].filter(Boolean).join(' ') || '—'}
+                        </h3>
+                        <p style={{ margin: '4px 0 0', opacity: 0.7, fontSize: 13 }}>Emergency Operations Center</p>
+                      </>
+                    )}
+                    {isEditing && (avatarUrl || profile.has_profile_image) && (
+                      <Button type="link" danger onClick={handleRemoveAvatar} style={{ paddingLeft: 0 }}>
+                        Remove photo
+                      </Button>
+                    )}
+                  </div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, borderTop: '1px solid rgba(0,0,0,0.06)', paddingTop: 16 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <Mail size={16} />
+                    <div>
+                      <div style={{ fontSize: 11, opacity: 0.7 }}>Email Address</div>
+                      <div style={{ fontWeight: 500 }}>{profile.email || '—'}</div>
                     </div>
                   </div>
-                  <div className={`border-t pt-5 grid grid-cols-1 sm:grid-cols-2 gap-5 ${isLight ? 'border-gray-200' : 'border-white/10'}`}>
-                    <div className="flex items-center gap-3">
-                      <span className={iconSmClass()}>
-                        <Mail className="w-4 h-4" strokeWidth={2} />
-                      </span>
-                      <div>
-                        <p className="text-xs text-muted">Email Address</p>
-                        <p className="text-sm font-medium text-foreground">{profile.email || '—'}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className={iconSmClass()}>
-                        <Shield className="w-4 h-4" strokeWidth={2} />
-                      </span>
-                      <div>
-                        <p className="text-xs text-muted">Role</p>
-                        <p className="text-sm font-medium text-foreground">
-                          {profile.role === 'dispatcher' ? 'Operator' : profile.role || '—'}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className={iconSmClass()}>
-                        <Phone className="w-4 h-4" strokeWidth={2} />
-                      </span>
-                      <div>
-                        <p className="text-xs text-muted">Phone Number</p>
-                        <p className="text-sm font-medium text-foreground">{profile.phone || '—'}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className={iconSmClass()}>
-                        <Clock className="w-4 h-4" strokeWidth={2} />
-                      </span>
-                      <div>
-                        <p className="text-xs text-muted">Member since</p>
-                        <p className="text-sm font-medium text-foreground">
-                          {profile.created_at ? new Date(profile.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : '—'}
-                        </p>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <Shield size={16} />
+                    <div>
+                      <div style={{ fontSize: 11, opacity: 0.7 }}>Role</div>
+                      <div style={{ fontWeight: 500 }}>
+                        {profile.role === 'dispatcher' ? 'Operator' : profile.role || '—'}
                       </div>
                     </div>
                   </div>
-                </>
-              )}
-            </div>
-          </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <Phone size={16} />
+                    <div>
+                      <div style={{ fontSize: 11, opacity: 0.7 }}>Phone Number</div>
+                      <div style={{ fontWeight: 500 }}>{profile.phone || '—'}</div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <Clock size={16} />
+                    <div>
+                      <div style={{ fontSize: 11, opacity: 0.7 }}>Member since</div>
+                      <div style={{ fontWeight: 500 }}>
+                        {profile.created_at
+                          ? new Date(profile.created_at).toLocaleString('en-US', {
+                            month: 'short', day: 'numeric', year: 'numeric',
+                            hour: 'numeric', minute: '2-digit', hour12: true,
+                          })
+                          : '—'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+          </Card>
 
-          {/* Change Password */}
-          <div className={panelClass}>
-            <div className={headerClass}>
-              <span className={iconBoxClass('primary')}>
-                <KeyRound className="w-5 h-5" strokeWidth={2} />
+          <Card
+            size="small"
+            title={(
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                <KeyRound size={16} />
+                Change Password
               </span>
-              <div className="flex-1">
-                <p className="font-medium text-foreground">Change Password</p>
-                <p className="text-sm text-muted mt-0.5">Update your account password</p>
-              </div>
-              <Button className="rounded-xl gap-2 bg-primary hover:bg-primary-hover text-white shrink-0" onClick={() => setChangePasswordOpen(true)}>
-                <KeyRound className="w-4 h-4" strokeWidth={2} />
+            )}
+            extra={(
+              <Button type="primary" icon={<KeyRound size={14} />} onClick={() => setChangePasswordOpen(true)}>
                 Change Password
               </Button>
-            </div>
-          </div>
+            )}
+          >
+            <p style={{ margin: 0, opacity: 0.75 }}>Update your account password</p>
+          </Card>
 
-          {/* Session Information */}
-          <div className={panelClass}>
-            <div className={headerClass}>
-              <span className={iconBoxClass('primary')}>
-                <Activity className="w-5 h-5" strokeWidth={2} />
+          <Card
+            size="small"
+            title={(
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                <Activity size={16} />
+                Session Information
               </span>
-              <span className="font-medium text-foreground">Session Information</span>
-            </div>
-            <div className="p-6 space-y-2">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-medium text-foreground">Current Session</p>
-                  <p className="text-sm text-muted mt-0.5">Last activity: Just now</p>
-                </div>
-                <span className="px-3 py-1.5 rounded-lg text-sm font-medium bg-primary/20 text-primary border border-primary/40">
-                  Active
-                </span>
+            )}
+          >
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <div>
+                <div style={{ fontWeight: 500 }}>Current Session</div>
+                <div style={{ fontSize: 13, opacity: 0.7 }}>Last activity: Just now</div>
               </div>
-              {profile?.created_at && (
-                <p className="text-sm text-muted pt-1">Member since {new Date(profile.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}</p>
-              )}
+              <Tag color="blue">Active</Tag>
             </div>
-          </div>
+            {profile?.created_at && (
+              <p style={{ marginTop: 8, marginBottom: 0, fontSize: 13, opacity: 0.7 }}>
+                Member since {new Date(profile.created_at).toLocaleString('en-US', {
+                  month: 'short', day: 'numeric', year: 'numeric',
+                  hour: 'numeric', minute: '2-digit', hour12: true,
+                })}
+              </p>
+            )}
+          </Card>
 
-          {/* Sign Out */}
-          <div className={panelClass}>
-            <div className="p-6 flex flex-row flex-wrap items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <span className={iconBoxClass('primary')}>
-                  <LogOut className="w-5 h-5" strokeWidth={2} />
-                </span>
+          <Card size="small">
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <LogOut size={18} />
                 <div>
-                  <h3 className="text-lg font-semibold text-foreground">Sign Out</h3>
-                  <p className="text-sm text-muted mt-0.5">End your current session</p>
+                  <div style={{ fontWeight: 600 }}>Sign Out</div>
+                  <div style={{ fontSize: 13, opacity: 0.7 }}>End your current session</div>
                 </div>
               </div>
-              <Button variant="outline" className="rounded-xl gap-2 border-2 border-primary text-primary hover:bg-primary hover:text-white" onClick={handleLogout}>
-                <LogOut className="w-4 h-4" strokeWidth={2} />
-                Logout
-              </Button>
+              <Button icon={<LogOut size={14} />} onClick={handleLogout}>Logout</Button>
             </div>
-          </div>
+          </Card>
         </div>
-
       </div>
 
-      {/* Change Password Modal */}
-      <Dialog
+      <Modal
         open={changePasswordOpen}
-        onOpenChange={(open) => {
-          setChangePasswordOpen(open);
-          if (!open) {
-            setCurrentPassword('');
-            setNewPassword('');
-            setConfirmPassword('');
-            setPasswordErrors({});
-          }
-        }}
-        className="max-w-md w-full"
+        title="Change Password"
+        onCancel={closeChangePasswordModal}
+        footer={[
+          <Button key="cancel" onClick={closeChangePasswordModal}>Cancel</Button>,
+          <Button key="submit" type="primary" loading={passwordSubmitting} onClick={handleChangePasswordSubmit}>
+            {passwordSubmitting ? 'Updating...' : 'Update Password'}
+          </Button>,
+        ]}
       >
-        <DialogContent className="rounded-2xl shadow-xl border border-border bg-card p-6">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-semibold text-foreground">
-              Change Password
-            </DialogTitle>
-            <DialogDescription className="text-muted mt-0.5">
-              Update your account password
-            </DialogDescription>
-          </DialogHeader>
-          <form className="space-y-4 mt-6" onSubmit={handleChangePasswordSubmit}>
-            <div>
-              <Label htmlFor="current-password">Current Password</Label>
-              <div className="relative mt-1.5">
-                <Input
-                  id="current-password"
-                  type={showCurrentPassword ? 'text' : 'password'}
-                  placeholder="Enter current password"
-                  className={`pr-10 rounded-xl border-2 py-2.5 ${isLight ? 'border-gray-200 bg-gray-50/80' : 'border-border bg-white/5'}`}
-                  value={currentPassword}
-                  onChange={(e) => {
-                    setCurrentPassword(e.target.value);
-                    if (passwordErrors.currentPassword) setPasswordErrors((p) => ({ ...p, currentPassword: undefined }));
-                  }}
-                  error={!!passwordErrors.currentPassword}
-                />
-                <button
-                  type="button"
-                  aria-label={showCurrentPassword ? 'Hide password' : 'Show password'}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-foreground focus:outline-none"
-                  onClick={() => setShowCurrentPassword((v) => !v)}
-                >
-                  {showCurrentPassword ? <EyeOff className="w-5 h-5" strokeWidth={2} /> : <Eye className="w-5 h-5" strokeWidth={2} />}
-                </button>
-              </div>
-              {passwordErrors.currentPassword && (
-                <p className="text-red-500 text-sm mt-1">{passwordErrors.currentPassword}</p>
-              )}
-            </div>
-            <div>
-              <Label htmlFor="new-password">New Password</Label>
-              <div className="relative mt-1.5">
-                <Input
-                  id="new-password"
-                  type={showNewPassword ? 'text' : 'password'}
-                  placeholder="Enter new password"
-                  className={`pr-10 rounded-xl border-2 py-2.5 ${isLight ? 'border-gray-200 bg-gray-50/80' : 'border-border bg-white/5'}`}
-                  value={newPassword}
-                  onChange={(e) => {
-                    setNewPassword(e.target.value);
-                    if (passwordErrors.newPassword) setPasswordErrors((p) => ({ ...p, newPassword: undefined }));
-                  }}
-                  error={!!passwordErrors.newPassword}
-                />
-                <button
-                  type="button"
-                  aria-label={showNewPassword ? 'Hide password' : 'Show password'}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-foreground focus:outline-none"
-                  onClick={() => setShowNewPassword((v) => !v)}
-                >
-                  {showNewPassword ? <EyeOff className="w-5 h-5" strokeWidth={2} /> : <Eye className="w-5 h-5" strokeWidth={2} />}
-                </button>
-              </div>
-              {passwordErrors.newPassword && (
-                <p className="text-red-500 text-sm mt-1">{passwordErrors.newPassword}</p>
-              )}
-            </div>
-            <div>
-              <Label htmlFor="confirm-password">Confirm New Password</Label>
-              <div className="relative mt-1.5">
-                <Input
-                  id="confirm-password"
-                  type={showConfirmPassword ? 'text' : 'password'}
-                  placeholder="Confirm new password"
-                  className={`pr-10 rounded-xl border-2 py-2.5 ${isLight ? 'border-gray-200 bg-gray-50/80' : 'border-border bg-white/5'}`}
-                  value={confirmPassword}
-                  onChange={(e) => {
-                    setConfirmPassword(e.target.value);
-                    if (passwordErrors.confirmPassword) setPasswordErrors((p) => ({ ...p, confirmPassword: undefined }));
-                  }}
-                  error={!!passwordErrors.confirmPassword}
-                />
-                <button
-                  type="button"
-                  aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-foreground focus:outline-none"
-                  onClick={() => setShowConfirmPassword((v) => !v)}
-                >
-                  {showConfirmPassword ? <EyeOff className="w-5 h-5" strokeWidth={2} /> : <Eye className="w-5 h-5" strokeWidth={2} />}
-                </button>
-              </div>
-              {passwordErrors.confirmPassword && (
-                <p className="text-red-500 text-sm mt-1">{passwordErrors.confirmPassword}</p>
-              )}
-            </div>
-            <DialogFooter className="justify-between mt-6 gap-3">
-              <Button
-                type="submit"
-                disabled={passwordSubmitting}
-                className="rounded-xl gap-2 bg-primary hover:bg-primary-hover text-white"
-              >
-                {passwordSubmitting ? 'Updating...' : 'Update Password'}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="rounded-xl gap-2 text-foreground hover:bg-muted/50 hover:text-foreground"
-                onClick={closeChangePasswordModal}
-              >
-                Cancel
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+        <p style={{ opacity: 0.75, marginTop: 0 }}>Update your account password</p>
+        <Form layout="vertical">
+          <Form.Item
+            label="Current Password"
+            validateStatus={passwordErrors.currentPassword ? 'error' : undefined}
+            help={passwordErrors.currentPassword}
+          >
+            <Input.Password
+              placeholder="Enter current password"
+              value={currentPassword}
+              visibilityToggle={{
+                visible: showCurrentPassword,
+                onVisibleChange: setShowCurrentPassword,
+              }}
+              iconRender={(visible) => (visible ? <EyeOff size={16} /> : <Eye size={16} />)}
+              onChange={(e) => {
+                setCurrentPassword(e.target.value);
+                if (passwordErrors.currentPassword) setPasswordErrors((p) => ({ ...p, currentPassword: undefined }));
+              }}
+            />
+          </Form.Item>
+          <Form.Item
+            label="New Password"
+            validateStatus={passwordErrors.newPassword ? 'error' : undefined}
+            help={passwordErrors.newPassword}
+          >
+            <Input.Password
+              placeholder="Enter new password"
+              value={newPassword}
+              visibilityToggle={{
+                visible: showNewPassword,
+                onVisibleChange: setShowNewPassword,
+              }}
+              iconRender={(visible) => (visible ? <EyeOff size={16} /> : <Eye size={16} />)}
+              onChange={(e) => {
+                setNewPassword(e.target.value);
+                if (passwordErrors.newPassword) setPasswordErrors((p) => ({ ...p, newPassword: undefined }));
+              }}
+            />
+          </Form.Item>
+          <Form.Item
+            label="Confirm New Password"
+            validateStatus={passwordErrors.confirmPassword ? 'error' : undefined}
+            help={passwordErrors.confirmPassword}
+          >
+            <Input.Password
+              placeholder="Confirm new password"
+              value={confirmPassword}
+              visibilityToggle={{
+                visible: showConfirmPassword,
+                onVisibleChange: setShowConfirmPassword,
+              }}
+              iconRender={(visible) => (visible ? <EyeOff size={16} /> : <Eye size={16} />)}
+              onChange={(e) => {
+                setConfirmPassword(e.target.value);
+                if (passwordErrors.confirmPassword) setPasswordErrors((p) => ({ ...p, confirmPassword: undefined }));
+              }}
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
     </Layout>
   );
 }

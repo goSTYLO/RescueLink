@@ -165,7 +165,7 @@ Available to users with role `responder` (promoted upon application approval).
 - Separate from the live ops dashboard/queue. Period KPIs for a date range at `/insights` (Super Admin + Department Admin), near-real-time via incident WebSocket + backup poll; Live / last-updated header.
 - City-wide default with Super Admin department picker (**All departments**, **Volunteers** virtual scope via `department_id=volunteers`, then PNP/DRRMO); Department Admin locked to their department.
 - SQL aggregates: unique incident counts, first-action / dispatch / arrival / resolution clocks (p50/p90/p95), internal 8-min dispatch and 10-min arrival SLAs, unserved/overdue, demand (types / barangays / choropleth / channels), exceptions, escalation funnel, outcomes, CSV + print PDF.
-- CAD/EOC-style UI: semantic colors (severity, type, channel, SLA bars), Lucide KPI icons, type progress bars, funnel steps, exception headline breakdown, donut center totals, shared choropleth ramp (`insightsColors.js`); barangay table/map show top incident types; chart remount animations on filter/tab change (respects reduced motion).
+- CAD/EOC-style UI on one scroll (no demand tabs): Ant Design KPI cards, SLA progress, response table, and type×barangay intensity matrix; Recharts line (current vs previous), type bars, channel and outcome donuts; map plus ranked barangays; exception stacked bar and escalation funnel. Semantic colors in `insightsColors.js`.
 - Metric `?` explainers on every KPI and chart. Silent background refresh on `incident:updated` (debounced) and interval poll; filter changes still show normal loading state.
 
 ### Dispatch, Departments, Teams & Admin

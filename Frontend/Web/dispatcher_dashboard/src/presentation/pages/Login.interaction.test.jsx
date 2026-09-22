@@ -10,7 +10,6 @@ jest.mock('@/core/config/app.config', () => ({
   API_URL: 'http://localhost:3000',
   DEV_MODE: false,
 }));
-jest.mock('sweetalert2', () => ({ fire: jest.fn(() => Promise.resolve()) }));
 jest.mock('@/data/api/auth.api', () => ({
   loginDispatcher: jest.fn(),
   verifyDispatcherOtp: jest.fn(),

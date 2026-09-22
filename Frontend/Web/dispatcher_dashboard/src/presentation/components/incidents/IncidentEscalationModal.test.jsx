@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { IncidentEscalationModal } from './IncidentEscalationModal';
 import { getResponderTeams } from '@/data/api/responders.api';
@@ -7,6 +7,19 @@ import { getResponderTeams } from '@/data/api/responders.api';
 jest.mock('@/data/api/responders.api', () => ({
   getResponderTeams: jest.fn(),
 }));
+
+/** antd Select combobox associated with a visible <label htmlFor>. */
+function getSelectByLabel(label) {
+  return screen.getByRole('combobox', { name: label });
+}
+
+/** antd Select: open dropdown then pick an option (renders in a portal). */
+function selectOption(combobox, optionText) {
+  fireEvent.mouseDown(combobox);
+  const dropdown = document.querySelector('.ant-select-dropdown:not(.ant-select-dropdown-hidden)');
+  const option = within(dropdown).getByText(optionText);
+  fireEvent.click(option);
+}
 
 describe('IncidentEscalationModal', () => {
   const mockDepartments = [
@@ -38,8 +51,8 @@ describe('IncidentEscalationModal', () => {
     );
 
     expect(screen.getByText('Request Inter-Department Assistance')).toBeInTheDocument();
-    expect(screen.getByLabelText(/Target Department/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/Urgency Level/i)).toBeInTheDocument();
+    expect(getSelectByLabel(/Target Department/i)).toBeInTheDocument();
+    expect(getSelectByLabel(/Urgency Level/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/Justification \/ Notes/i)).toBeInTheDocument();
     await waitFor(() => expect(getResponderTeams).toHaveBeenCalled());
   });
@@ -57,14 +70,13 @@ describe('IncidentEscalationModal', () => {
 
     await waitFor(() => expect(getResponderTeams).toHaveBeenCalled());
 
-    // Open target department dropdown
-    const trigger = screen.getByLabelText(/Target Department/i);
-    fireEvent.click(trigger);
+    fireEvent.mouseDown(getSelectByLabel(/Target Department/i));
 
-    // Should contain PNP and CDRRMO, but not BFP (own department)
-    expect(screen.getByText('PNP Dagupan · Police')).toBeInTheDocument();
-    expect(screen.getByText('CDRRMO · Rescue')).toBeInTheDocument();
-    expect(screen.queryByText('BFP Dagupan · Fire')).not.toBeInTheDocument();
+    const dropdown = document.querySelector('.ant-select-dropdown:not(.ant-select-dropdown-hidden)');
+    expect(dropdown).toBeTruthy();
+    expect(within(dropdown).getByText('PNP Dagupan · Police')).toBeInTheDocument();
+    expect(within(dropdown).getByText('CDRRMO · Rescue')).toBeInTheDocument();
+    expect(within(dropdown).queryByText('BFP Dagupan · Fire')).not.toBeInTheDocument();
   });
 
   it('displays available teams when a department is selected', async () => {
@@ -78,10 +90,7 @@ describe('IncidentEscalationModal', () => {
       />
     );
 
-    // Select target department
-    const deptTrigger = screen.getByLabelText(/Target Department/i);
-    fireEvent.click(deptTrigger);
-    fireEvent.click(screen.getByText('PNP Dagupan · Police'));
+    selectOption(getSelectByLabel(/Target Department/i), 'PNP Dagupan · Police');
 
     await waitFor(() => {
       expect(screen.getByText(/PNP Dagupan Resources/i)).toBeInTheDocument();
@@ -104,10 +113,7 @@ describe('IncidentEscalationModal', () => {
       />
     );
 
-    // Select target department
-    const deptTrigger = screen.getByLabelText(/Target Department/i);
-    fireEvent.click(deptTrigger);
-    fireEvent.click(screen.getByText('CDRRMO · Rescue'));
+    selectOption(getSelectByLabel(/Target Department/i), 'CDRRMO · Rescue');
 
     await waitFor(() => {
       expect(screen.getByText(/No registered responder teams found for this department/i)).toBeInTheDocument();
@@ -128,16 +134,11 @@ describe('IncidentEscalationModal', () => {
       />
     );
 
-    // Select target department
-    const deptTrigger = screen.getByLabelText(/Target Department/i);
-    fireEvent.click(deptTrigger);
-    fireEvent.click(screen.getByText('PNP Dagupan · Police'));
+    selectOption(getSelectByLabel(/Target Department/i), 'PNP Dagupan · Police');
 
-    // Fill notes
     const textarea = screen.getByPlaceholderText(/Describe why assistance is needed/i);
     fireEvent.change(textarea, { target: { value: 'Need police traffic management urgently.' } });
 
-    // Submit
     const sendButton = screen.getByRole('button', { name: /Send Request/i });
     expect(sendButton).not.toBeDisabled();
     fireEvent.click(sendButton);

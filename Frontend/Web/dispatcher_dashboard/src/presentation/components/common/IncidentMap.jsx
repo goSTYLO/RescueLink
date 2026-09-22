@@ -26,7 +26,7 @@ export function IncidentMap({ latitude, longitude, className = '' }) {
   }
 
   return (
-    <div className={`relative ${className}`} style={{ minHeight: 192, borderRadius: 8, overflow: 'hidden' }}>
+    <div className={`incident-leaflet-map relative ${className}`} style={{ minHeight: 192, borderRadius: 8, overflow: 'hidden' }}>
       <MapContainer
         center={[latitude, longitude]}
         zoom={14}

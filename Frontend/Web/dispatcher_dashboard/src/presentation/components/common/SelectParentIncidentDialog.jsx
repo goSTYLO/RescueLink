@@ -4,12 +4,8 @@
  */
 import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/presentation/components/ui/Dialog';
-import { Button } from '@/presentation/components/ui/Button';
-import { Badge } from '@/presentation/components/ui/Badge';
+import { Modal, Button, Select, Input, Tag, Table } from 'antd';
 import { IncidentTypeChips } from '@/presentation/components/common/IncidentTypeChips';
-import { Input } from '@/presentation/components/ui/Input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/presentation/components/ui/Select';
 import { Search, ChevronLeft, ChevronRight, Merge, Loader2, LayoutList } from 'lucide-react';
 import { getIncidents } from '@/data/api/incidents.api';
 import { mapApiIncidentToDisplay } from '@/core/utils/incidentDisplay';
@@ -58,6 +54,12 @@ const SEVERITY_OPTIONS = [
   { value: 'Low', label: 'Low' },
 ];
 
+function severityTagColor(severity) {
+  if (severity === 'Critical') return 'error';
+  if (severity === 'Warning') return 'warning';
+  return 'success';
+}
+
 export function SelectParentIncidentDialog({
   open,
   onOpenChange,
@@ -78,7 +80,6 @@ export function SelectParentIncidentDialog({
   const [filterBarangay, setFilterBarangay] = useState('All');
   const [page, setPage] = useState(1);
   const [pageSize] = useState(8);
-  const [selectOpen, setSelectOpen] = useState({ type: false, status: false, severity: false, barangay: false });
 
   useEffect(() => {
     const t = setTimeout(() => setSearchDebounced(search.trim()), 300);
@@ -129,192 +130,149 @@ export function SelectParentIncidentDialog({
   const panelClass = isLight ? 'bg-gray-50/80 border-gray-200/80' : 'bg-white/5 border-white/10';
   const borderClass = isLight ? 'border-gray-200/80' : 'border-white/10';
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <LayoutList className="w-5 h-5" />
-            Select parent incident
-          </DialogTitle>
-          <DialogDescription>
-            Browse incidents to link this report as a duplicate. Use search and filters to find the related incident.
-          </DialogDescription>
-        </DialogHeader>
+  const columns = [
+    {
+      title: 'Incident',
+      key: 'incident',
+      render: (_, inc) => (
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Link
+              to={`/incidents/${inc.id}`}
+              className="font-medium text-primary hover:underline"
+              onClick={() => onOpenChange?.(false)}
+            >
+              Report #{inc.id}
+            </Link>
+            <IncidentTypeChips incidentTypes={inc.incidentTypes} compact className="inline-flex" />
+            <Tag color={severityTagColor(inc.severity)}>{inc.severity}</Tag>
+            <Tag>{inc.status}</Tag>
+          </div>
+          <p className="text-sm text-muted mt-0.5">{inc.barangay} · {inc.reporterName}</p>
+          <p className="text-xs text-muted mt-0.5">{inc.timeReported}</p>
+        </div>
+      ),
+    },
+    {
+      title: 'Action',
+      key: 'action',
+      width: 180,
+      align: 'right',
+      render: (_, inc) => (
+        <Button
+          onClick={() => onSelect(inc.id)}
+          disabled={linkLoading}
+          icon={linkLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Merge className="w-3 h-3" />}
+        >
+          Link as duplicate
+        </Button>
+      ),
+    },
+  ];
 
-        <div className="flex flex-col gap-4 flex-1 min-h-0">
-          {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
-            <Input
-              placeholder="Search by report ID, description, or barangay..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9"
+  return (
+    <Modal
+      open={open}
+      onCancel={() => onOpenChange(false)}
+      title={(
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+          <LayoutList className="w-5 h-5" />
+          Select parent incident
+        </span>
+      )}
+      footer={null}
+      width={768}
+      destroyOnClose
+      styles={{ body: { maxHeight: '70vh', overflowY: 'auto' } }}
+    >
+      <p style={{ marginBottom: 16, color: 'var(--ant-color-text-secondary)' }}>
+        Browse incidents to link this report as a duplicate. Use search and filters to find the related incident.
+      </p>
+
+      <div className="flex flex-col gap-4">
+        <Input
+          prefix={<Search className="w-4 h-4 text-muted" />}
+          placeholder="Search by report ID, description, or barangay..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          allowClear
+        />
+
+        <div className={`grid grid-cols-2 sm:grid-cols-4 gap-2 p-3 rounded-xl border ${borderClass} ${panelClass}`}>
+          <div>
+            <label className="text-xs font-medium text-muted block mb-1">Type</label>
+            <Select
+              className="w-full"
+              value={filterType}
+              onChange={(v) => { setFilterType(v); setPage(1); }}
+              options={TYPE_OPTIONS}
             />
           </div>
-
-          {/* Filters */}
-          <div className={`grid grid-cols-2 sm:grid-cols-4 gap-2 p-3 rounded-xl border ${borderClass} ${panelClass}`}>
-            <div>
-              <label className="text-xs font-medium text-muted block mb-1">Type</label>
-              <Select value={filterType} onValueChange={(v) => { setFilterType(v); setPage(1); }} open={selectOpen.type} onOpenChange={(o) => setSelectOpen((s) => ({ ...s, type: o }))}>
-                {({ value, dropdownRect }) => (
-                  <>
-                    <SelectTrigger isOpen={selectOpen.type} onClick={() => setSelectOpen((s) => ({ ...s, type: !s.type }))} className="h-8 text-sm">
-                      <SelectValue value={value} options={TYPE_OPTIONS} placeholder="All Types" />
-                    </SelectTrigger>
-                    <SelectContent isOpen={selectOpen.type} dropdownRect={dropdownRect}>
-                      {TYPE_OPTIONS.map((o) => (
-                        <SelectItem key={o.value} value={o.value} onSelect={(v) => { setFilterType(v); setPage(1); setSelectOpen((s) => ({ ...s, type: false })); }}>{o.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </>
-                )}
-              </Select>
-            </div>
-            <div>
-              <label className="text-xs font-medium text-muted block mb-1">Status</label>
-              <Select value={filterStatus} onValueChange={(v) => { setFilterStatus(v); setPage(1); }} open={selectOpen.status} onOpenChange={(o) => setSelectOpen((s) => ({ ...s, status: o }))}>
-                {({ value, dropdownRect }) => (
-                  <>
-                    <SelectTrigger isOpen={selectOpen.status} onClick={() => setSelectOpen((s) => ({ ...s, status: !s.status }))} className="h-8 text-sm">
-                      <SelectValue value={value} options={STATUS_OPTIONS} placeholder="All Status" />
-                    </SelectTrigger>
-                    <SelectContent isOpen={selectOpen.status} dropdownRect={dropdownRect}>
-                      {STATUS_OPTIONS.map((o) => (
-                        <SelectItem key={o.value} value={o.value} onSelect={(v) => { setFilterStatus(v); setPage(1); setSelectOpen((s) => ({ ...s, status: false })); }}>{o.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </>
-                )}
-              </Select>
-            </div>
-            <div>
-              <label className="text-xs font-medium text-muted block mb-1">Severity</label>
-              <Select value={filterSeverity} onValueChange={(v) => { setFilterSeverity(v); setPage(1); }} open={selectOpen.severity} onOpenChange={(o) => setSelectOpen((s) => ({ ...s, severity: o }))}>
-                {({ value, dropdownRect }) => (
-                  <>
-                    <SelectTrigger isOpen={selectOpen.severity} onClick={() => setSelectOpen((s) => ({ ...s, severity: !s.severity }))} className="h-8 text-sm">
-                      <SelectValue value={value} options={SEVERITY_OPTIONS} placeholder="All Severity" />
-                    </SelectTrigger>
-                    <SelectContent isOpen={selectOpen.severity} dropdownRect={dropdownRect}>
-                      {SEVERITY_OPTIONS.map((o) => (
-                        <SelectItem key={o.value} value={o.value} onSelect={(v) => { setFilterSeverity(v); setPage(1); setSelectOpen((s) => ({ ...s, severity: false })); }}>{o.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </>
-                )}
-              </Select>
-            </div>
-            <div>
-              <label className="text-xs font-medium text-muted block mb-1">Barangay</label>
-              <Select value={filterBarangay} onValueChange={(v) => { setFilterBarangay(v); setPage(1); }} open={selectOpen.barangay} onOpenChange={(o) => setSelectOpen((s) => ({ ...s, barangay: o }))}>
-                {({ value, dropdownRect }) => (
-                  <>
-                    <SelectTrigger isOpen={selectOpen.barangay} onClick={() => setSelectOpen((s) => ({ ...s, barangay: !s.barangay }))} className="h-8 text-sm">
-                      <SelectValue value={value} options={[{ value: 'All', label: 'All Barangays' }, ...barangays.map((b) => ({ value: b, label: b }))]} placeholder="All Barangays" />
-                    </SelectTrigger>
-                    <SelectContent isOpen={selectOpen.barangay} dropdownRect={dropdownRect}>
-                      <SelectItem value="All" onSelect={(v) => { setFilterBarangay(v); setPage(1); setSelectOpen((s) => ({ ...s, barangay: false })); }}>All Barangays</SelectItem>
-                      {barangays.map((b) => (
-                        <SelectItem key={b} value={b} onSelect={(v) => { setFilterBarangay(v); setPage(1); setSelectOpen((s) => ({ ...s, barangay: false })); }}>{b}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </>
-                )}
-              </Select>
-            </div>
+          <div>
+            <label className="text-xs font-medium text-muted block mb-1">Status</label>
+            <Select
+              className="w-full"
+              value={filterStatus}
+              onChange={(v) => { setFilterStatus(v); setPage(1); }}
+              options={STATUS_OPTIONS}
+            />
           </div>
-
-          {/* Results */}
-          <div className={`flex-1 min-h-0 overflow-y-auto rounded-xl border ${borderClass} ${panelClass}`}>
-            {loading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="w-8 h-8 animate-spin text-muted" />
-              </div>
-            ) : filteredIncidents.length === 0 ? (
-              <div className="py-12 text-center text-muted">
-                <p>No incidents found. Try adjusting filters or search.</p>
-              </div>
-            ) : (
-              <div className="divide-y divide-border">
-                {filteredIncidents.map((inc) => (
-                  <div
-                    key={inc.id}
-                    className={`flex items-center justify-between gap-4 p-3 hover:bg-white/5 transition-colors ${borderClass}`}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <Link
-                          to={`/incidents/${inc.id}`}
-                          className="font-medium text-primary hover:underline"
-                          onClick={() => onOpenChange?.(false)}
-                        >
-                          Report #{inc.id}
-                        </Link>
-                        <IncidentTypeChips incidentTypes={inc.incidentTypes} compact className="inline-flex" />
-                        <Badge
-                          variant="outline"
-                          className={`text-xs ${
-                            inc.severity === 'Critical' ? 'border-red-500/50 text-red-600' :
-                            inc.severity === 'Warning' ? 'border-amber-500/50 text-amber-600' :
-                            'border-green-500/50 text-green-600'
-                          }`}
-                        >
-                          {inc.severity}
-                        </Badge>
-                        <Badge variant="outline" className="text-xs">{inc.status}</Badge>
-                      </div>
-                      <p className="text-sm text-muted mt-0.5">{inc.barangay} · {inc.reporterName}</p>
-                      <p className="text-xs text-muted mt-0.5">{inc.timeReported}</p>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="gap-2 shrink-0"
-                      disabled={linkLoading}
-                      onClick={() => onSelect(inc.id)}
-                    >
-                      {linkLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Merge className="w-3 h-3" />}
-                      Link as duplicate
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
+          <div>
+            <label className="text-xs font-medium text-muted block mb-1">Severity</label>
+            <Select
+              className="w-full"
+              value={filterSeverity}
+              onChange={(v) => { setFilterSeverity(v); setPage(1); }}
+              options={SEVERITY_OPTIONS}
+            />
           </div>
-
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between gap-2 pt-2 border-t border-border">
-              <p className="text-sm text-muted">
-                Page {page} of {totalPages} · {totalCount} total
-              </p>
-              <div className="flex items-center gap-1">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page <= 1}
-                  className="h-8 w-8 p-0"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={page >= totalPages}
-                  className="h-8 w-8 p-0"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </Button>
-              </div>
-            </div>
-          )}
+          <div>
+            <label className="text-xs font-medium text-muted block mb-1">Barangay</label>
+            <Select
+              className="w-full"
+              value={filterBarangay}
+              onChange={(v) => { setFilterBarangay(v); setPage(1); }}
+              options={[
+                { value: 'All', label: 'All Barangays' },
+                ...barangays.map((b) => ({ value: b, label: b })),
+              ]}
+            />
+          </div>
         </div>
-      </DialogContent>
-    </Dialog>
+
+        <Table
+          size="small"
+          rowKey="id"
+          columns={columns}
+          dataSource={filteredIncidents}
+          loading={loading}
+          pagination={false}
+          locale={{ emptyText: 'No incidents found. Try adjusting filters or search.' }}
+          className={`rounded-xl border ${borderClass}`}
+        />
+
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between gap-2 pt-2 border-t border-border">
+            <p className="text-sm text-muted">
+              Page {page} of {totalPages} · {totalCount} total
+            </p>
+            <div className="flex items-center gap-1">
+              <Button
+                type="text"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1}
+                icon={<ChevronLeft className="w-4 h-4" />}
+              />
+              <Button
+                type="text"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages}
+                icon={<ChevronRight className="w-4 h-4" />}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+    </Modal>
   );
 }

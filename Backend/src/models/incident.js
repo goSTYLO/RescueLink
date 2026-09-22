@@ -76,12 +76,10 @@ function decodeReporterFields(row, options = {}) {
     accepted_by_first_name: tryDecryptValue(row.accepted_by_first_name),
     accepted_by_last_name: tryDecryptValue(row.accepted_by_last_name),
     accepted_by_phone: tryDecryptValue(row.accepted_by_phone),
-    accepted_by_name: row.accepted_by_name
-      ? tryDecryptValue(row.accepted_by_name)
-      : [tryDecryptValue(row.accepted_by_first_name), tryDecryptValue(row.accepted_by_last_name)]
-          .filter(Boolean)
-          .join(' ')
-          .trim() || null,
+    accepted_by_name: [tryDecryptValue(row.accepted_by_first_name), tryDecryptValue(row.accepted_by_last_name)]
+      .filter(Boolean)
+      .join(' ')
+      .trim() || null,
     description: includeDescription ? tryDecryptValue(row.description) : row.description,
     transcription: includeTranscription ? tryDecryptValue(row.transcription) : row.transcription,
     barangay: tryDecryptValue(row.barangay),

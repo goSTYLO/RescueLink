@@ -194,39 +194,29 @@ Future<void> openIncidentByReportId(
   }
 
   if (AuthService().isPersonnelResponder) {
+    Map<String, dynamic>? incident = incidentHint;
     try {
       final assigned = await ResponderService().getAssignedIncidents();
       final match = assigned
           .where((row) => parseInt(row['report_id']) == reportId)
           .toList();
-      if (match.isNotEmpty) {
-        if (!context.mounted) return;
-        await _openPersonnelIncidentDetail(
-          context,
-          reportId: reportId,
-          incident: match.first,
-        );
-        return;
-      }
+      if (match.isNotEmpty) incident = match.first;
     } catch (_) {}
 
-    Map<String, dynamic>? incident = incidentHint;
     if (incident == null || parseInt(incident['report_id']) != reportId) {
       try {
         incident = await IncidentService().getIncidentById(reportId);
       } catch (_) {
-        incident = null;
+        incident = {'report_id': reportId};
       }
     }
-    if (incident != null) {
-      if (!context.mounted) return;
-      await _openPersonnelIncidentDetail(
-        context,
-        reportId: reportId,
-        incident: incident,
-      );
-      return;
-    }
+    if (!context.mounted) return;
+    await _openPersonnelIncidentDetail(
+      context,
+      reportId: reportId,
+      incident: incident,
+    );
+    return;
   }
 
   Map<String, dynamic>? incident = incidentHint;

@@ -1,8 +1,20 @@
 # RescueLink Memory
 
+## Dispatcher web UI (2026-09-22)
+
+- Dispatcher pages use Ant Design (shell, compact `Card`/`Table`, forms, modals). Insights chart panels and the incidents table use the same compact cards and shared `buildAntdTheme`; filter controls still use the legacy UI `Select`/`Input` kit. The shared sidebar/header is Ant Design for every role. Brand color stays `#134178` with the existing light/dark mode. Feedback dialogs go through `alertUser` (`modal` / `message` / `notification`) instead of SweetAlert2. The shell is pinned to the viewport (only the page scrolls). Light mode uses grey chrome (`#e5e7eb`) and a grey page (`#f3f4f6`); dark mode keeps navy containers. Selected tabs use amber (`#b45309`). Responder and team availability tags share one map: available green, standby gold, busy red, off-duty grey. Volunteer on-incident labels use the same helper (assigned blue, en route gold, on scene orange, resolved green).
+
+Added: 2026-09-22 — Ant Design conversion outside Insights.
+
+## Seed-db analytics demo (2026-09-22)
+
+- `npm run seed-db` (Backend) seeds ~300 incidents over ~90 days with lifecycles for Insights: dispatches + on-scene history, resolve/close timestamps, SOS/voice/text mix, volunteer `accepted_at`, escalation funnel rows, exception slices (reassign, mismatch, backup, declined), duplicate cluster, `ai_classifications`, coordination note, `department_units` / personnel, and `incident_unit_usage`. Flags: `--count=N`, `--days=N`. Voice rows still need sample audio under `RescueLink AI/test` or `Backend/uploads/incidents`.
+
+Added: 2026-09-22 — analytics-ready seed-db.
+
 ## Insights / analytics (2026-09-19)
 
-- Web `/insights` is period analytics (not the live ops queue) but **auto-refreshes**: debounced refetch on incident WebSocket events (~2s) plus backup poll (60s, 120s when WS connected); header shows Live / last updated. Analytics GET helpers share in-flight requests so React Strict Mode remounts do not double-hit overview/incidents/geojson. Super Admin defaults to all departments with a picker; **`department_id=volunteers`** scopes to incidents with a primary volunteer acceptor (`accepted_by_user_id`), not a DB department row. City-wide department comparison includes a **Volunteers** row. Department Admin is locked to `users.department_id` (cannot pick Volunteers).
+- Web `/insights` is one scrollable CAD layout (its own Ant Design cards, stats, progress, and tables; other dispatcher pages use Ant Design too). It **auto-refreshes**: debounced refetch on incident WebSocket events (~2s) plus backup poll (60s, 120s when WS connected); header shows Live / last updated. Analytics GET helpers share in-flight requests so React Strict Mode remounts do not double-hit overview/incidents/geojson. Super Admin defaults to all departments with a picker; **`department_id=volunteers`** scopes to incidents with a primary volunteer acceptor (`accepted_by_user_id`), not a DB department row. City-wide department comparison includes a **Volunteers** row. Department Admin is locked to `users.department_id` (cannot pick Volunteers).
 - Headline clocks: first action (LEAST of first dispatch, `accepted_at`, first escalation, first coordination note), dispatch (`created_at` → first dispatch, dept-scoped when picked), arrival (`created_at` → first On Scene), resolution (`created_at` → `COALESCE(resolved_at, closed_at)`). p50/p90/p95 + n. Null clocks excluded.
 - Internal SLAs (not NFPA): dispatch ≤ 8 min, arrival ≤ 10 min. Overdue: still open at range end and created > 30 min earlier. Unserved: no dispatch, no escalation, no volunteer `accepted_at`.
 - Demand: types / barangays (each row includes top 3 incident types) / type×barangay / channels, Leaflet choropleth from `GET /api/analytics/barangays.geojson` (`NAME_3`). Operations: exceptions from real events only, escalation funnel, unit usage counts (no deployment duration), outcomes donut.
@@ -328,7 +340,8 @@ Added: 2026-09-10.
 
 ## Amber-style OneSignal + dept-admin mobile (2026-09-10)
 
-- `incident:dispatched` sends a **critical** OneSignal push to dept-admin/head (dept-only notify) or assigned team members (team assign), then a quiet push to everyone else.
+- `incident:dispatched` sends a **critical** OneSignal push to dept-admin/head **and department `responder`s** (dept-only notify) or assigned team members + dept-admin/head (team assign). Quiet push goes to everyone else **except** unassigned field responders (a silent tray tap was 403).
+- Field `responder` GET `/api/incidents/:id` is allowed when they have a dispatch row **or** their department has a dispatch on the incident (dept-only notify). Mobile personnel push-tap always opens team incident detail, never citizen GET.
 - Critical payload: Android channel `724e011a-e821-4e40-a810-9c175737a997`, sound `emergency_alert`, `ios_interruption_level: time_sensitive`.
 - Mobile: `department-admin` / `department-head` get the dept queue on the **Reports** tab (assign / reassign / resolve). Foreground blare modal on WS dispatch for ops/personnel. Staff roles auto-request push permission.
 - Setup checklist: [Documentation/guides/ONESIGNAL_AMBER_ALERT_SETUP.md](../guides/ONESIGNAL_AMBER_ALERT_SETUP.md).

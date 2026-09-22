@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Swal from 'sweetalert2';
-import { AtSign, Eye, EyeOff } from 'lucide-react';
+import { Button, Form, Input } from 'antd';
+import { AtSign } from 'lucide-react';
+import { alertUser } from '@/presentation/feedback/alertUser';
 import { BrandLogo } from '@/presentation/components/common/BrandLogo';
 import illustration from '@/presentation/assets/illustration.svg';
 import { DEV_MODE } from '@/core/config/app.config';
@@ -9,7 +10,6 @@ import { getDefaultRouteByRole } from '@/core/constants';
 import { persistAuthToken, getStoredUser } from '@/core/auth/session';
 import { loginDispatcher, verifyDispatcherOtp } from '@/data/api/auth.api';
 import { AuthCardLayout } from '@/presentation/components/layout/AuthCardLayout';
-import { AuthFloatingInput } from '@/presentation/components/ui/AuthFloatingInput';
 
 function postLoginPath(role) {
   const next = new URLSearchParams(window.location.search).get('next');
@@ -23,17 +23,12 @@ export default function Login({ onSuccess, onForgotPasswordClick }) {
   const [password, setPassword] = useState('');
   const [otp, setOtp] = useState('');
   const [sessionToken, setSessionToken] = useState(null);
-  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const inputBase =
-    'w-full px-4 py-3 border-2 border-border rounded-xl bg-card text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background focus:border-primary transition-all duration-300 hover:border-primary/50';
-
-  const handleLogin = async (e) => {
-    e.preventDefault();
+  const handleLogin = async () => {
     if (sessionToken) {
       if (!otp || otp.length !== 6) {
-        Swal.fire({
+        alertUser({
           icon: 'warning',
           title: 'Invalid code',
           text: 'Please enter the 6-digit code from your email.',
@@ -45,7 +40,7 @@ export default function Login({ onSuccess, onForgotPasswordClick }) {
       try {
         const data = await verifyDispatcherOtp(sessionToken, otp);
         persistAuthToken(data.token);
-        Swal.fire({
+        alertUser({
           icon: 'success',
           title: 'Welcome back!',
           text: 'You have successfully logged in.',
@@ -57,7 +52,7 @@ export default function Login({ onSuccess, onForgotPasswordClick }) {
           navigate(postLoginPath(getStoredUser().role));
         });
       } catch (err) {
-        Swal.fire({
+        alertUser({
           icon: 'error',
           title: 'Verification failed',
           text: err.message || 'Invalid or expired code. Please try again.',
@@ -70,7 +65,7 @@ export default function Login({ onSuccess, onForgotPasswordClick }) {
     }
 
     if (!email || !password) {
-      Swal.fire({
+      alertUser({
         icon: 'warning',
         title: 'Missing fields',
         text: 'Please enter your email and password.',
@@ -86,7 +81,7 @@ export default function Login({ onSuccess, onForgotPasswordClick }) {
       if (data.sessionToken) {
         setSessionToken(data.sessionToken);
         setOtp('');
-        Swal.fire({
+        alertUser({
           icon: 'info',
           title: 'Check your email',
           text: data.message || 'Enter the 6-digit code sent to your email.',
@@ -94,7 +89,7 @@ export default function Login({ onSuccess, onForgotPasswordClick }) {
         });
       } else {
         persistAuthToken(data.token);
-        Swal.fire({
+        alertUser({
           icon: 'success',
           title: 'Welcome back!',
           text: 'You have successfully logged in.',
@@ -107,7 +102,7 @@ export default function Login({ onSuccess, onForgotPasswordClick }) {
         });
       }
     } catch (err) {
-      Swal.fire({
+      alertUser({
         icon: 'error',
         title: 'Login failed',
         text: err.message || 'Invalid credentials. Please try again.',
@@ -131,90 +126,68 @@ export default function Login({ onSuccess, onForgotPasswordClick }) {
         </p>
       </div>
 
-      <form onSubmit={handleLogin} className="space-y-6">
+      <Form layout="vertical" onFinish={handleLogin} requiredMark={false}>
         {sessionToken ? (
           <>
-            <div>
-              <div className="relative flex items-center rounded-xl border-2 border-border bg-card transition-all duration-200 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 focus-within:ring-offset-2 focus-within:ring-offset-background">
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  pattern="\d*"
-                  maxLength={6}
-                  placeholder="Enter 6-digit code"
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
-                  className={`${inputBase} text-center tracking-widest text-xl`}
-                />
-              </div>
-              <p className="text-sm text-muted mt-2">Check your email for the code.</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => { setSessionToken(null); setOtp(''); }}
-              className="text-sm font-semibold text-foreground hover:text-muted transition-colors"
-            >
-              &larr; Back to login
-            </button>
+            <Form.Item>
+              <Input
+                inputMode="numeric"
+                maxLength={6}
+                placeholder="Enter 6-digit code"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+                className="text-center tracking-widest text-xl"
+              />
+              <p className="text-sm text-muted mt-2 mb-0">Check your email for the code.</p>
+            </Form.Item>
+            <Form.Item>
+              <Button type="link" onClick={() => { setSessionToken(null); setOtp(''); }} className="!px-0">
+                &larr; Back to login
+              </Button>
+            </Form.Item>
           </>
         ) : (
           <>
-            <AuthFloatingInput
-              label="Email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              rightIcon={<AtSign className="w-5 h-5" strokeWidth={2} />}
-            />
-            <AuthFloatingInput
-              label="Password"
-              type={showPassword ? 'text' : 'password'}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              rightAction={
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="p-1.5 rounded-lg text-muted hover:text-foreground transition-colors"
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
-                >
-                  {showPassword ? <EyeOff className="w-5 h-5" strokeWidth={2} /> : <Eye className="w-5 h-5" strokeWidth={2} />}
-                </button>
-              }
-            />
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={() => navigate('/forgot-password')}
-                className="text-sm font-semibold text-foreground hover:text-muted transition-colors"
-              >
+            <Form.Item label="Email" htmlFor="login-email">
+              <Input
+                id="login-email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                suffix={<AtSign className="w-5 h-5 text-muted" strokeWidth={2} />}
+                autoComplete="email"
+              />
+            </Form.Item>
+            <Form.Item label="Password" htmlFor="login-password">
+              <Input.Password
+                id="login-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
+              />
+            </Form.Item>
+            <div className="flex justify-end -mt-2 mb-4">
+              <Button type="link" onClick={() => navigate('/forgot-password')} className="!px-0">
                 Forgot Password?
-              </button>
+              </Button>
             </div>
           </>
         )}
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full bg-primary text-white py-3 rounded-xl font-bold text-lg hover:bg-primary-hover disabled:bg-muted/40 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] shadow-card hover:shadow-primary/20 focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background"
-        >
-          {loading ? (sessionToken ? 'Verifying...' : 'Logging in...') : (sessionToken ? 'Verify' : 'Login')}
-        </button>
-      </form>
+        <Form.Item className="mb-0">
+          <Button type="primary" htmlType="submit" block loading={loading}>
+            {sessionToken ? 'Verify' : 'Login'}
+          </Button>
+        </Form.Item>
+      </Form>
 
       {DEV_MODE && (
         <div className="mt-8 bg-card/80 border border-border rounded-xl p-4">
           <p className="text-sm font-semibold text-amber-500 dark:text-amber-400 mb-3">🚧 Development Mode - Quick Navigation:</p>
           <div className="grid grid-cols-2 gap-2">
             {['/dashboard', '/map', '/departments', '/audit', '/adminactions', '/profile', '/settings', '/forgot-password', '/enter-code', '/create-password'].map((path) => (
-              <button
-                key={path}
-                type="button"
-                onClick={() => navigate(path)}
-                className="text-xs px-3 py-2 bg-background/80 border border-border rounded-lg hover:bg-primary/10 text-foreground transition-colors"
-              >
+              <Button key={path} type="default" onClick={() => navigate(path)} className="text-xs">
                 {path.slice(1) || 'Dashboard'}
-              </button>
+              </Button>
             ))}
           </div>
         </div>

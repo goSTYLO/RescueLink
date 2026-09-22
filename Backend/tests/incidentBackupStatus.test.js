@@ -4,6 +4,7 @@ jest.mock('../src/config/db', () => ({
 
 jest.mock('../src/models/dispatch', () => ({
   findAll: jest.fn().mockResolvedValue([]),
+  findByReportAndUser: jest.fn().mockResolvedValue(null),
 }));
 
 jest.mock('../src/models/user', () => ({
@@ -76,6 +77,9 @@ describe('incidentController.getById acceptor access', () => {
     jest.clearAllMocks();
     isResourceOwner.mockReturnValue(false);
     pool.query.mockResolvedValue({ rows: [] });
+    const Dispatch = require('../src/models/dispatch');
+    Dispatch.findByReportAndUser.mockResolvedValue(null);
+    Dispatch.findAll.mockResolvedValue([]);
   });
 
   it('allows responder who accepted the incident to read by id', async () => {
@@ -129,5 +133,48 @@ describe('incidentController.getById acceptor access', () => {
     expect(res.json).toHaveBeenCalledWith({
       error: 'Forbidden. You can only access your own incidents.',
     });
+  });
+
+  it('allows field responder assigned on a dispatch to read by id', async () => {
+    const Dispatch = require('../src/models/dispatch');
+    Incident.findById = jest.fn().mockResolvedValue({
+      report_id: 55,
+      user_id: 1,
+      accepted_by_user_id: null,
+      status: 'in_progress',
+    });
+    Dispatch.findByReportAndUser.mockResolvedValue({ dispatch_id: 9, report_id: 55 });
+
+    const req = { params: { id: '55' }, user: { user_id: 31, role: 'responder' } };
+    const res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
+
+    await incidentController.getById(req, res);
+
+    expect(res.status).not.toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalled();
+  });
+
+  it('allows field responder to read a dept-notified incident with no personal dispatch', async () => {
+    const Dispatch = require('../src/models/dispatch');
+    const User = require('../src/models/user');
+    const Department = require('../src/models/department');
+    Incident.findById = jest.fn().mockResolvedValue({
+      report_id: 56,
+      user_id: 1,
+      accepted_by_user_id: null,
+      status: 'verified',
+    });
+    Dispatch.findByReportAndUser.mockResolvedValue(null);
+    User.findById.mockResolvedValue({ user_id: 31, department_id: 2 });
+    Department.findById.mockResolvedValue({ department_id: 2, code: 'drrmo' });
+    Dispatch.findAll.mockResolvedValue([{ dispatch_id: 1, department_code: 'drrmo' }]);
+
+    const req = { params: { id: '56' }, user: { user_id: 31, role: 'responder' } };
+    const res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
+
+    await incidentController.getById(req, res);
+
+    expect(res.status).not.toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalled();
   });
 });

@@ -8,8 +8,19 @@ const { encrypt } = require('../src/utils/encryption');
 const { validatePhone } = require('../src/utils/validation');
 const fs = require('fs/promises');
 const path = require('path');
+const {
+  parseSeedCli,
+  departmentCodeForType,
+  teamNameForDepartmentAndType,
+  channelKindForIndex,
+  statusProfileForIndex,
+  incidentScenarioForIndex,
+  seedCreatedAt,
+  buildDispatchTimeline,
+} = require('./lib/seedAnalyticsFixtures');
 
 const DATABASE_URL = process.env.DATABASE_URL;
+const { incidentCount: INCIDENT_SEED_COUNT, spanDays: SEED_SPAN_DAYS } = parseSeedCli();
 const RESPONDER_PASSWORD = 'responder123';
 
 if (!DATABASE_URL) {
@@ -100,7 +111,6 @@ const DEPARTMENTS = [
 ];
 
 const AUDIO_EXTENSIONS = new Set(['.wav', '.mp3', '.m4a', '.flac', '.ogg']);
-const INCIDENT_SEED_COUNT = 72;
 
 const DAGUPAN_LOCATION_FIXTURES = [
   { barangay: 'Poblacion Oeste', latitude: 16.043037, longitude: 120.3323573, label: 'Dagupan City Police Station' },
@@ -120,6 +130,9 @@ const DAGUPAN_LOCATION_FIXTURES = [
   { barangay: 'Poblacion Sur', latitude: 16.0429, longitude: 120.3336, label: 'Poblacion Sur Hall' },
 ];
 
+const DEPARTMENT_NAME_BY_CODE = Object.fromEntries(DEPARTMENTS.map((d) => [d.code, d.name]));
+const DUPLICATE_CLUSTER_BASE = DAGUPAN_LOCATION_FIXTURES[0];
+
 const INCIDENT_TEMPLATES = [
   { type: 'fire', severity: 'high', description: 'Residential fire with visible smoke and trapped occupants.' },
   { type: 'fire', severity: 'medium', description: 'Electrical fire reported in a commercial establishment.' },
@@ -133,6 +146,9 @@ const INCIDENT_TEMPLATES = [
   { type: 'disaster', severity: 'high', description: 'Flooding reported with stranded residents and rising water.' },
   { type: 'disaster', severity: 'medium', description: 'Strong winds damaged structures and power lines.' },
   { type: 'disaster', severity: 'low', description: 'Localized water accumulation affecting side streets.' },
+  { type: 'accident', severity: 'high', description: 'Multi-vehicle collision with injuries reported on main road.' },
+  { type: 'accident', severity: 'medium', description: 'Motorcycle accident with rider down, traffic backing up.' },
+  { type: 'accident', severity: 'low', description: 'Minor fender-bender; no injuries, lane partially blocked.' },
 ];
 
 /** 12 teams × 2 account-backed members each (24 mobile-testable responder logins). */
@@ -388,6 +404,334 @@ async function insertResponder(client, { userId, name, organization, contactNumb
   }
 }
 
+function pickDispatcherId(userIdsByRole, departmentCode) {
+  const dispatchers = userIdsByRole[ROLES.DISPATCHER] || [];
+  if (dispatchers.length === 0) return null;
+  return departmentCode === 'pnp' ? dispatchers[1] || dispatchers[0] : dispatchers[0];
+}
+
+function iso(ms) {
+  return new Date(ms).toISOString();
+}
+
+async function insertDispatchRow(client, row) {
+  await client.query(
+    `INSERT INTO dispatches(
+       report_id, responder_id, response_status, department_code, department_name,
+       team_name, dispatched_at, actual_arrival_at, assigned_by_user_id, responder_source
+     ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'account')`,
+    [
+      row.reportId,
+      row.responderId,
+      row.responseStatus || 'On Scene',
+      row.departmentCode,
+      row.departmentName,
+      row.teamName,
+      iso(row.dispatchedMs),
+      row.arrivalMs ? iso(row.arrivalMs) : null,
+      row.assignedByUserId,
+    ]
+  );
+}
+
+async function insertOnSceneHistory(client, { reportId, userId, arrivalMs }) {
+  await client.query(
+    `INSERT INTO responder_status_history(report_id, updated_by_user_id, old_status, new_status, updated_at)
+     VALUES($1,$2,'En Route','On Scene',$3)`,
+    [reportId, userId, iso(arrivalMs)]
+  );
+}
+
+async function seedDepartmentUnitsAndPersonnel(client, departmentIdByCode) {
+  const unitFixtures = {
+    pnp: [
+      { name: 'Patrol Car Alpha', type: 'vehicle', status: 'Available' },
+      { name: 'Patrol Car Bravo', type: 'vehicle', status: 'Available' },
+      { name: 'Traffic Motorcycle 1', type: 'motorcycle', status: 'Available' },
+      { name: 'QRT Van', type: 'vehicle', status: 'Operational' },
+    ],
+    drrmo: [
+      { name: 'Ambulance 1', type: 'ambulance', status: 'Available' },
+      { name: 'Ambulance 2', type: 'ambulance', status: 'Available' },
+      { name: 'Fire Engine 1', type: 'fire_truck', status: 'Available' },
+      { name: 'Rescue Boat', type: 'boat', status: 'Operational' },
+      { name: 'SAR Truck', type: 'vehicle', status: 'Available' },
+    ],
+  };
+  const unitIdByDept = { pnp: [], drrmo: [] };
+  for (const [code, units] of Object.entries(unitFixtures)) {
+    const deptId = departmentIdByCode[code];
+    if (!deptId) continue;
+    for (const unit of units) {
+      const res = await client.query(
+        `INSERT INTO department_units(department_id, name, type, status, maintenance_status, active_task_count)
+         VALUES($1,$2,$3,$4,'Operational',0)
+         RETURNING unit_id`,
+        [deptId, unit.name, unit.type, unit.status]
+      );
+      unitIdByDept[code].push(res.rows[0].unit_id);
+      await client.query(
+        `INSERT INTO department_personnel(department_id, unit_id, name, role, status)
+         VALUES($1,$2,$3,$4,'Available')`,
+        [deptId, res.rows[0].unit_id, `${unit.name} Crew`, 'Field']
+      );
+    }
+  }
+  return unitIdByDept;
+}
+
+async function seedAnalyticsIncidents(client, ctx) {
+  const {
+    incidentColumnMeta,
+    seedUploadsDir,
+    reporterIds,
+    audioFiles,
+    userIdsByRole,
+    departmentIdByCode,
+    responderIdByTeamKey,
+    incidentCount,
+    spanDays,
+  } = ctx;
+
+  let duplicatePrimaryId = null;
+  const dispatchedReportIds = [];
+  let voiceAudioIndex = 0;
+
+  await client.query('BEGIN');
+  try {
+  for (let i = 0; i < incidentCount; i += 1) {
+    const scenario = incidentScenarioForIndex(i, incidentCount);
+    const channel = channelKindForIndex(i);
+    const statusProfile = statusProfileForIndex(i);
+    const isDuplicateChild = scenario === 'duplicate' && duplicatePrimaryId != null;
+
+    let locationFixture = DAGUPAN_LOCATION_FIXTURES[i % DAGUPAN_LOCATION_FIXTURES.length];
+    let template = INCIDENT_TEMPLATES[i % INCIDENT_TEMPLATES.length];
+    let createdAt = seedCreatedAt(i, incidentCount, spanDays);
+
+    if (scenario === 'duplicate') {
+      locationFixture = DUPLICATE_CLUSTER_BASE;
+      const clusterStart = seedCreatedAt(Math.max(0, incidentCount - 6), incidentCount, spanDays);
+      createdAt = new Date(clusterStart.getTime() + (i - (incidentCount - 6)) * 2 * 60 * 1000);
+      template = { type: 'police', severity: 'medium', description: 'Repeated disturbance reports at same location (duplicate cluster).' };
+    }
+
+    const reporterId = reporterIds[i % reporterIds.length];
+    let incidentType = channel === 'sos' ? 'sos' : template.type;
+    let baseDescription = `${template.description} Location reference: ${locationFixture.label}, ${locationFixture.barangay}, Dagupan City.`;
+    if (channel === 'text') {
+      baseDescription = `[Text report] ${baseDescription}`;
+    } else if (channel === 'sos') {
+      baseDescription = `[SOS] Emergency button activation. ${baseDescription}`;
+    }
+
+    const status = isDuplicateChild ? 'verified' : statusProfile.status;
+    const verified = status !== 'pending';
+
+    const inserted = await client.query(
+      `INSERT INTO incident_reports(
+        user_id, incident_type, severity_level, description, latitude, longitude, barangay,
+        status, transcription, verified, ai_pending, ai_attempted, scan_status, quarantined,
+        created_at, primary_confidence, is_duplicate, parent_report_id, auto_assignment_mismatch
+      )
+      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,FALSE,FALSE,'clean',FALSE,$11,$12,$13,$14,$15)
+      RETURNING report_id`,
+      [
+        reporterId,
+        incidentType,
+        template.severity,
+        maybeEncrypt(baseDescription, incidentColumnMeta.description),
+        maybeEncrypt(locationFixture.latitude, incidentColumnMeta.latitude),
+        maybeEncrypt(locationFixture.longitude, incidentColumnMeta.longitude),
+        maybeEncrypt(locationFixture.barangay, incidentColumnMeta.barangay),
+        status,
+        maybeEncrypt(channel === 'voice' ? 'Seeded voice transcription placeholder.' : null, incidentColumnMeta.transcription),
+        verified,
+        createdAt.toISOString(),
+        0.55 + (i % 45) / 100,
+        isDuplicateChild,
+        isDuplicateChild ? duplicatePrimaryId : null,
+        scenario === 'mismatch',
+      ]
+    );
+
+    const reportId = inserted.rows[0].report_id;
+    if (scenario === 'duplicate' && duplicatePrimaryId == null) {
+      duplicatePrimaryId = reportId;
+    }
+
+    if (channel === 'voice') {
+      const sourceAudio = audioFiles[voiceAudioIndex % audioFiles.length];
+      voiceAudioIndex += 1;
+      const copiedAudioName = `incident_${reportId}_audio${sourceAudio.ext}`;
+      const copiedAudioAbsolute = path.join(seedUploadsDir, copiedAudioName);
+      await fs.copyFile(sourceAudio.sourcePath, copiedAudioAbsolute);
+      const audioDbPath = path.join('uploads', 'incidents', copiedAudioName).replace(/\\/g, '/');
+      await client.query('UPDATE incident_reports SET audio_path = $1 WHERE report_id = $2', [audioDbPath, reportId]);
+    }
+
+    if (i % 3 === 0) {
+      await client.query(
+        `INSERT INTO ai_classifications(report_id, predicted_type, predicted_severity, confidence_score, low_confidence_flag, is_duplicate)
+         VALUES($1,$2,$3,$4,$5,$6)`,
+        [reportId, incidentType, template.severity, 0.5 + (i % 50) / 100, i % 9 === 0, isDuplicateChild]
+      );
+    }
+
+    if (i === 0) {
+      const dispatcherId = pickDispatcherId(userIdsByRole, 'drrmo');
+      await client.query(
+        `INSERT INTO incident_coordination_notes(report_id, user_id, author_name, author_role, department, note, created_at)
+         VALUES($1,$2,'Alice Dispatcher','dispatcher','CDRRMO','Seeded coordination ping for analytics first-action clock.',$3)`,
+        [reportId, dispatcherId, iso(createdAt.getTime() + 90 * 1000)]
+      );
+    }
+
+    if (scenario === 'unserved' || isDuplicateChild) {
+      continue;
+    }
+
+    const deptCode = departmentCodeForType(incidentType === 'sos' ? 'medical' : incidentType);
+    const deptName = DEPARTMENT_NAME_BY_CODE[deptCode];
+    const teamName = teamNameForDepartmentAndType(deptCode, incidentType === 'sos' ? 'medical' : incidentType);
+    const teamKey = `${deptCode}::${teamName}`;
+    const responderId = responderIdByTeamKey[teamKey] || Object.values(responderIdByTeamKey)[0];
+    const dispatcherId = pickDispatcherId(userIdsByRole, deptCode);
+    const timeline = buildDispatchTimeline(createdAt.getTime(), { index: i, fastSla: i % 10 !== 3 });
+
+    if (scenario === 'volunteer') {
+      const volunteerId = reporterIds[(i + 2) % reporterIds.length];
+      await client.query(
+        `UPDATE incident_reports SET accepted_by_user_id = $1, accepted_at = $2 WHERE report_id = $3`,
+        [volunteerId, iso(createdAt.getTime() + 120 * 1000), reportId]
+      );
+    }
+
+    if (scenario === 'backup') {
+      const requester = userIdsByRole[ROLES.RESPONDER]?.[0] || dispatcherId;
+      await client.query(
+        `INSERT INTO backup_requests(report_id, requested_by_user_id, target, notes, status, created_at)
+         VALUES($1,$2,'both','Seeded backup request for analytics exceptions.','acknowledged',$3)`,
+        [reportId, requester, iso(timeline.dispatchMs)]
+      );
+    }
+
+    if (scenario === 'declined') {
+      const fromId = departmentIdByCode.pnp;
+      const toId = departmentIdByCode.drrmo;
+      await client.query(
+        `INSERT INTO incident_escalations(
+           report_id, from_department_id, to_department_id, requested_by_user_id,
+           urgency, justification_notes, status, responded_at, created_at
+         ) VALUES($1,$2,$3,$4,'high','Seeded declined escalation.','declined',$5,$6)`,
+        [
+          reportId,
+          fromId,
+          toId,
+          dispatcherId,
+          iso(createdAt.getTime() + 15 * 60 * 1000),
+          iso(createdAt.getTime() + 5 * 60 * 1000),
+        ]
+      );
+      continue;
+    }
+
+    if (scenario === 'escalation') {
+      const fromId = departmentIdByCode.pnp;
+      const toId = departmentIdByCode.drrmo;
+      const escCreated = createdAt.getTime() + 8 * 60 * 1000;
+      await client.query(
+        `INSERT INTO incident_escalations(
+           report_id, from_department_id, to_department_id, requested_by_user_id,
+           urgency, justification_notes, status, responded_at, created_at
+         ) VALUES($1,$2,$3,$4,'critical','Seeded accepted escalation for funnel metrics.','accepted',$5,$6)`,
+        [reportId, fromId, toId, dispatcherId, iso(escCreated + 4 * 60 * 1000), iso(escCreated)]
+      );
+      const escTeam = teamNameForDepartmentAndType('drrmo', 'medical');
+      const escResponder = responderIdByTeamKey[`drrmo::${escTeam}`] || responderId;
+      await insertDispatchRow(client, {
+        reportId,
+        responderId: escResponder,
+        departmentCode: 'drrmo',
+        departmentName: DEPARTMENT_NAME_BY_CODE.drrmo,
+        teamName: escTeam,
+        dispatchedMs: escCreated + 6 * 60 * 1000,
+        arrivalMs: escCreated + 14 * 60 * 1000,
+        assignedByUserId: dispatcherId,
+        responseStatus: 'On Scene',
+      });
+      await insertOnSceneHistory(client, {
+        reportId,
+        userId: dispatcherId,
+        arrivalMs: escCreated + 14 * 60 * 1000,
+      });
+      dispatchedReportIds.push({ reportId, deptCode: 'drrmo', i });
+    } else if (scenario === 'reassign') {
+      const teamB = deptCode === 'pnp' ? 'Patrol Bravo' : 'Medical Alpha';
+      const responderB = responderIdByTeamKey[`${deptCode}::${teamB}`] || responderId;
+      await insertDispatchRow(client, {
+        reportId,
+        responderId,
+        departmentCode: deptCode,
+        departmentName: deptName,
+        teamName,
+        dispatchedMs: timeline.dispatchMs,
+        arrivalMs: null,
+        assignedByUserId: dispatcherId,
+        responseStatus: 'En Route',
+      });
+      await insertDispatchRow(client, {
+        reportId,
+        responderId: responderB,
+        departmentCode: deptCode,
+        departmentName: deptName,
+        teamName: teamB,
+        dispatchedMs: timeline.dispatchMs + 8 * 60 * 1000,
+        arrivalMs: timeline.arrivalMs + 8 * 60 * 1000,
+        assignedByUserId: dispatcherId,
+        responseStatus: 'On Scene',
+      });
+      await insertOnSceneHistory(client, { reportId, userId: dispatcherId, arrivalMs: timeline.arrivalMs + 8 * 60 * 1000 });
+      dispatchedReportIds.push({ reportId, deptCode, i });
+    } else {
+      await insertDispatchRow(client, {
+        reportId,
+        responderId,
+        departmentCode: deptCode,
+        departmentName: deptName,
+        teamName,
+        dispatchedMs: timeline.dispatchMs,
+        arrivalMs: timeline.arrivalMs,
+        assignedByUserId: dispatcherId,
+        responseStatus: 'On Scene',
+      });
+      await insertOnSceneHistory(client, { reportId, userId: dispatcherId, arrivalMs: timeline.arrivalMs });
+      dispatchedReportIds.push({ reportId, deptCode, i });
+    }
+
+    if (statusProfile.status === 'resolved' || statusProfile.status === 'closed') {
+      await client.query(
+        `UPDATE incident_reports
+         SET resolved_at = $1, closed_at = $2, closure_method = $3, responder_status = 'Resolved'
+         WHERE report_id = $4`,
+        [
+          iso(timeline.resolvedMs),
+          statusProfile.status === 'closed' ? iso(timeline.closedMs) : null,
+          statusProfile.closureMethod,
+          reportId,
+        ]
+      );
+    }
+  }
+
+  await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  }
+  return dispatchedReportIds;
+}
+
 async function seedDatabase() {
   const client = await pool.connect();
   try {
@@ -404,6 +748,7 @@ async function seedDatabase() {
     await deleteOptional(client, 'responder_status_history');
     await deleteOptional(client, 'duplicate_clusters');
     await deleteOptional(client, 'dispatches');
+    await deleteOptional(client, 'incident_unit_usage');
     await deleteOptional(client, 'blockchain_records');
     await deleteOptional(client, 'ai_classifications');
     await deleteOptional(client, 'responder_team_members');
@@ -482,93 +827,9 @@ async function seedDatabase() {
     }
     console.log(`✅ Seeded ${STAFF_USERS.length} staff users\n`);
 
-    console.log('🆘 Seeding incident reports (Dagupan-only, broad status/type/severity mix)...');
-    const audioFiles = await collectAudioFiles();
-    const reporterIds = userIdsByRole[ROLES.USER] || [];
-    if (reporterIds.length === 0) {
-      throw new Error('No reporter users available for incident seeding.');
-    }
-    if (audioFiles.length === 0) {
-      throw new Error('No audio files found for incident seeding.');
-    }
-
-    const incidentColumnMeta = {
-      description: await getColumnMeta(client, 'incident_reports', 'description'),
-      latitude: await getColumnMeta(client, 'incident_reports', 'latitude'),
-      longitude: await getColumnMeta(client, 'incident_reports', 'longitude'),
-      barangay: await getColumnMeta(client, 'incident_reports', 'barangay'),
-      transcription: await getColumnMeta(client, 'incident_reports', 'transcription'),
-    };
-
-    const seedUploadsDir = path.join(process.cwd(), 'uploads', 'incidents');
-    await fs.mkdir(seedUploadsDir, { recursive: true });
-
-    const statuses = ['pending', 'verified', 'in_progress', 'resolved', 'closed'];
-    let incidentsSeeded = 0;
-
-    for (let i = 0; i < INCIDENT_SEED_COUNT; i += 1) {
-      const reporterId = reporterIds[i % reporterIds.length];
-      const locationFixture = DAGUPAN_LOCATION_FIXTURES[i % DAGUPAN_LOCATION_FIXTURES.length];
-      const template = INCIDENT_TEMPLATES[i % INCIDENT_TEMPLATES.length];
-      const status = statuses[i % statuses.length];
-      const sourceAudio = audioFiles[i % audioFiles.length];
-
-      const baseDescription = `${template.description} Location reference: ${locationFixture.label}, ${locationFixture.barangay}, Dagupan City.`;
-      const createdAt = new Date(Date.now() - (i * 45 * 60 * 1000));
-      const verified = status !== 'pending';
-
-      const inserted = await client.query(
-        `INSERT INTO incident_reports(
-          user_id,
-          incident_type,
-          severity_level,
-          description,
-          latitude,
-          longitude,
-          barangay,
-          status,
-          transcription,
-          verified,
-          ai_pending,
-          ai_attempted,
-          scan_status,
-          quarantined,
-          created_at
-        )
-        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,FALSE,FALSE,'clean',FALSE,$11)
-        RETURNING report_id`,
-        [
-          reporterId,
-          template.type,
-          template.severity,
-          maybeEncrypt(baseDescription, incidentColumnMeta.description),
-          maybeEncrypt(locationFixture.latitude, incidentColumnMeta.latitude),
-          maybeEncrypt(locationFixture.longitude, incidentColumnMeta.longitude),
-          maybeEncrypt(locationFixture.barangay, incidentColumnMeta.barangay),
-          status,
-          maybeEncrypt(null, incidentColumnMeta.transcription),
-          verified,
-          createdAt.toISOString(),
-        ]
-      );
-
-      const reportId = inserted.rows[0].report_id;
-      const copiedAudioName = `incident_${reportId}_audio${sourceAudio.ext}`;
-      const copiedAudioAbsolute = path.join(seedUploadsDir, copiedAudioName);
-      await fs.copyFile(sourceAudio.sourcePath, copiedAudioAbsolute);
-      const audioDbPath = path.join('uploads', 'incidents', copiedAudioName).replace(/\\/g, '/');
-
-      await client.query(
-        `UPDATE incident_reports SET audio_path = $1 WHERE report_id = $2`,
-        [audioDbPath, reportId]
-      );
-
-      incidentsSeeded += 1;
-    }
-    console.log(`✅ Seeded ${incidentsSeeded} incident reports (auto_assignment_status left at default none)\n`);
-
     console.log('🚨 Seeding account-backed team roster (users + responders + memberships)...');
     const responderIds = [];
+    const responderIdByTeamKey = {};
     let membershipCount = 0;
 
     for (const team of TEAM_ROSTER) {
@@ -603,6 +864,9 @@ async function seedDatabase() {
           supportedIncidentTypes: member.supported_incident_types,
         });
         responderIds.push(responderId);
+        if (!responderIdByTeamKey[teamKey]) {
+          responderIdByTeamKey[teamKey] = responderId;
+        }
 
         await client.query(
           `INSERT INTO responder_team_members(team_id, responder_id, is_active)
@@ -613,6 +877,59 @@ async function seedDatabase() {
       }
     }
     console.log(`✅ Seeded ${responderIds.length} account-linked responders across ${membershipCount} memberships\n`);
+
+    console.log(`🆘 Seeding ${INCIDENT_SEED_COUNT} incident reports (${SEED_SPAN_DAYS}d span, analytics lifecycles)...`);
+    const audioFiles = await collectAudioFiles();
+    const reporterIds = userIdsByRole[ROLES.USER] || [];
+    if (reporterIds.length === 0) {
+      throw new Error('No reporter users available for incident seeding.');
+    }
+    if (audioFiles.length === 0) {
+      throw new Error('No audio files found for voice-channel incident seeding (need at least one under RescueLink AI/test or Backend/uploads/incidents).');
+    }
+
+    const incidentColumnMeta = {
+      description: await getColumnMeta(client, 'incident_reports', 'description'),
+      latitude: await getColumnMeta(client, 'incident_reports', 'latitude'),
+      longitude: await getColumnMeta(client, 'incident_reports', 'longitude'),
+      barangay: await getColumnMeta(client, 'incident_reports', 'barangay'),
+      transcription: await getColumnMeta(client, 'incident_reports', 'transcription'),
+    };
+
+    const seedUploadsDir = path.join(process.cwd(), 'uploads', 'incidents');
+    await fs.mkdir(seedUploadsDir, { recursive: true });
+
+    const dispatchedReportIds = await seedAnalyticsIncidents(client, {
+      incidentColumnMeta,
+      seedUploadsDir,
+      reporterIds,
+      audioFiles,
+      userIdsByRole,
+      departmentIdByCode,
+      responderIdByTeamKey,
+      incidentCount: INCIDENT_SEED_COUNT,
+      spanDays: SEED_SPAN_DAYS,
+    });
+    console.log(`✅ Seeded ${INCIDENT_SEED_COUNT} incidents with dispatches/escalations for Insights\n`);
+
+    console.log('🚒 Seeding department units, personnel, and unit usage...');
+    const unitIdByDept = await seedDepartmentUnitsAndPersonnel(client, departmentIdByCode);
+    let unitUsageCount = 0;
+    for (const row of dispatchedReportIds) {
+      if (row.i % 5 !== 0) continue;
+      const units = unitIdByDept[row.deptCode] || [];
+      if (!units.length) continue;
+      const unitId = units[row.i % units.length];
+      const deptId = departmentIdByCode[row.deptCode];
+      await client.query(
+        `INSERT INTO incident_unit_usage(report_id, unit_id, department_id)
+         VALUES($1,$2,$3)
+         ON CONFLICT DO NOTHING`,
+        [row.reportId, unitId, deptId]
+      );
+      unitUsageCount += 1;
+    }
+    console.log(`✅ Seeded units/personnel; ${unitUsageCount} incident_unit_usage row(s)\n`);
 
     const verifyTeams = await client.query(
       `SELECT rt.department_code, rt.team_name, COUNT(r.responder_id)::int AS account_members
@@ -649,7 +966,7 @@ async function seedDatabase() {
     console.log(`   👥 Teams: ${TEAM_ROSTER.length} (2 account members each)`);
     console.log(`   🚨 Responders: ${responderIds.length} (all account-backed with user_id)`);
     console.log(`   🔗 Team memberships: ${membershipCount}`);
-    console.log(`   🆘 Incident reports: ${INCIDENT_SEED_COUNT}`);
+    console.log(`   🆘 Incident reports: ${INCIDENT_SEED_COUNT} (${SEED_SPAN_DAYS}-day analytics window)`);
     console.log('\n✅ Auto-dispatch roster check:');
     for (const row of verifyTeams.rows) {
       console.log(`   - ${row.department_code}/${row.team_name}: ${row.account_members} eligible account member(s)`);
@@ -669,8 +986,9 @@ async function seedDatabase() {
     console.log('   Sample responder: 09003000003 / responder123 (Rescue Alpha, responder3@rescuelink.test)');
     console.log('   Sample citizen:    09005000001 / user123');
     console.log('   Full list: Documentation/backend/ACCOUNTS.md');
-    console.log('\nℹ️ Incident reports are seeded without auto-assignment for clean manual testing.');
-    console.log('   Optional: npm run seed-incidents');
+    console.log('\n📊 Insights: log in as admin and open /insights (Last 30 / 90 days).');
+    console.log('   Optional AI audio batch (may duplicate data): npm run seed-incidents -- --reset');
+    console.log(`   Seed flags: --count=N --days=N (defaults ${INCIDENT_SEED_COUNT}/${SEED_SPAN_DAYS})`);
     console.log('');
 
   } catch (err) {

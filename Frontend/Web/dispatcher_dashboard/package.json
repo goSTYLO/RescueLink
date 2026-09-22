@@ -14,6 +14,7 @@
     "test:e2e:smoke": "node -e \"console.log('E2E smoke placeholder. See e2e/smoke.placeholder.md for steps.');\""
   },
   "dependencies": {
+    "antd": "^5.29.3",
     "firebase": "^10.7.1",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.487.0",

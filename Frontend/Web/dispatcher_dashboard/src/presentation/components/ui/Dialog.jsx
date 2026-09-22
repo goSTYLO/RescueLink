@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 
 export function Dialog({ open, onOpenChange, children, className = '', zIndex = 50 }) {
   useEffect(() => {
@@ -15,16 +16,17 @@ export function Dialog({ open, onOpenChange, children, className = '', zIndex = 
   if (!open) return null;
 
   const wrapperClass = className
-    ? `relative w-full bg-card border border-[rgba(19,65,120,0.35)] rounded-lg shadow-card-hover overflow-hidden ${className}`
-    : 'relative w-full max-w-lg bg-card border border-[rgba(19,65,120,0.35)] rounded-lg shadow-card-hover overflow-hidden';
+    ? `relative w-full max-h-[min(90vh,40rem)] overflow-y-auto bg-card border border-[rgba(19,65,120,0.35)] rounded-lg shadow-card-hover ${className}`
+    : 'relative w-full max-w-lg max-h-[min(90vh,40rem)] overflow-y-auto bg-card border border-[rgba(19,65,120,0.35)] rounded-lg shadow-card-hover';
 
-  return (
-    <div className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex }}>
+  return createPortal(
+    <div className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex }} role="presentation">
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={() => onOpenChange(false)} aria-hidden="true" />
-      <div className={wrapperClass}>
+      <div className={wrapperClass} role="dialog" aria-modal="true">
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

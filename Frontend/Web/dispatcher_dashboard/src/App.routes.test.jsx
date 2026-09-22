@@ -22,6 +22,7 @@ jest.mock('@/presentation/pages/Login', () => () => <div>Login page</div>);
 jest.mock('@/presentation/pages/Dashboard', () => () => <div>Legacy Dashboard</div>);
 jest.mock('@/presentation/pages/DashboardPage', () => ({ DashboardPage: () => <div>Dashboard page</div> }));
 jest.mock('@/presentation/pages/IncidentDetailsPage', () => ({ IncidentDetailsPage: () => <div>Incident details</div> }));
+jest.mock('@/presentation/pages/InsightsPage', () => ({ InsightsPage: () => <div>Insights page</div> }));
 jest.mock('@/presentation/pages/MapViewPage', () => ({ MapViewPage: () => <div>Map page</div> }));
 jest.mock('@/presentation/pages/DepartmentsPage', () => ({ DepartmentsPage: () => <div>Departments page</div> }));
 jest.mock('@/presentation/pages/DepartmentDetailsPage', () => ({ DepartmentDetailsPage: () => <div>Department details page</div> }));

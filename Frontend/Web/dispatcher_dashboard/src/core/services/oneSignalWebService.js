@@ -2,19 +2,116 @@ import { API_URL, ONESIGNAL_APP_ID } from '@/core/config/app.config';
 import { getAuthHeaders, getAuthToken } from '@/data/api/http';
 
 let isInitialized = false;
-let initQueued = false;
+let listenersReady = false;
+let pumpRegistered = false;
+let pumpRunning = false;
+let clickHandler = null;
 let lastLoginUserId = null;
 let lastSyncedSubscriptionId = null;
 let subscriptionSyncInflight = null;
+const taskQueue = [];
 
 function isAlreadyInitializedError(err) {
   return /already initialized/i.test(String(err?.message || err || ''));
 }
 
-/**
- * Get current push notification state for the browser/user.
- * @returns {Promise<'granted'|'denied'|'default'|'unsupported'>}
- */
+function attachOneSignalListeners(OneSignal) {
+  if (listenersReady) return;
+  OneSignal.Notifications.addEventListener('click', (event) => {
+    const data = event?.notification?.additionalData;
+    const reportId = data?.report_id || data?.reportId;
+    if (reportId) {
+      if (typeof clickHandler === 'function') {
+        clickHandler(reportId);
+      } else {
+        const tab = data?.tab ? `?tab=${data.tab}` : '';
+        window.location.href = `/incidents/${reportId}${tab}`;
+      }
+    }
+  });
+
+  OneSignal.User.PushSubscription.addEventListener('change', async (changeEvent) => {
+    const subscriptionId = changeEvent?.current?.id;
+    if (subscriptionId) {
+      await syncOneSignalSubscriptionToBackend(subscriptionId);
+    }
+  });
+  listenersReady = true;
+}
+
+async function ensureInitialized(OneSignal) {
+  if (isInitialized) return;
+  try {
+    await OneSignal.init({
+      appId: ONESIGNAL_APP_ID,
+      allowLocalhostAsSecureOrigin: true,
+      notifyButton: { enable: false },
+      serviceWorkerParam: { scope: '/' },
+      serviceWorkerPath: '/OneSignalSDKWorker.js',
+    });
+  } catch (err) {
+    if (!isAlreadyInitializedError(err)) throw err;
+  }
+  isInitialized = true;
+  attachOneSignalListeners(OneSignal);
+  // ponytail: fixed delay — OneSignal v16 identity (LoginManager) is not ready in the same tick as init().
+  await new Promise((resolve) => setTimeout(resolve, 200));
+}
+
+async function drainTaskQueue(OneSignal) {
+  if (pumpRunning) return;
+  pumpRunning = true;
+  try {
+    await ensureInitialized(OneSignal);
+    while (taskQueue.length) {
+      const task = taskQueue.shift();
+      await task(OneSignal);
+    }
+  } finally {
+    pumpRunning = false;
+    if (taskQueue.length) {
+      void drainTaskQueue(OneSignal);
+    }
+  }
+}
+
+function kickOneSignalPump() {
+  if (!ONESIGNAL_APP_ID || typeof window === 'undefined') return;
+  window.OneSignalDeferred = window.OneSignalDeferred || [];
+  if (!pumpRegistered) {
+    pumpRegistered = true;
+    window.OneSignalDeferred.push(async (OneSignal) => {
+      await drainTaskQueue(OneSignal);
+    });
+    return;
+  }
+  const sdk = window.OneSignal;
+  if (isInitialized && sdk) {
+    void drainTaskQueue(sdk);
+  }
+}
+
+function scheduleOneSignalTask(task) {
+  taskQueue.push(task);
+  kickOneSignalPump();
+}
+
+async function loginWithRetry(OneSignal, externalId) {
+  if (typeof OneSignal.login !== 'function') return;
+  let lastErr;
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    try {
+      await OneSignal.login(externalId);
+      return;
+    } catch (err) {
+      lastErr = err;
+      if (attempt >= 3) break;
+      await new Promise((resolve) => setTimeout(resolve, 200 * (attempt + 1)));
+    }
+  }
+  throw lastErr;
+}
+
 export async function getPushNotificationState() {
   if (typeof window === 'undefined' || !('Notification' in window)) {
     return 'unsupported';
@@ -22,108 +119,43 @@ export async function getPushNotificationState() {
   return Notification.permission;
 }
 
-/**
- * Initialize OneSignal Web SDK.
- * Safe to call in SSR/Node or when OneSignal is not configured — silently skips.
- * @param {Function} [onNotificationClick] Optional callback when user clicks a notification
- */
-export async function initOneSignal(onNotificationClick) {
-  if (initQueued || isInitialized || !ONESIGNAL_APP_ID) return;
-  if (typeof window === 'undefined') return;
-  initQueued = true;
+export function initOneSignal(onNotificationClick) {
+  if (onNotificationClick) clickHandler = onNotificationClick;
+  if (!ONESIGNAL_APP_ID || typeof window === 'undefined') return;
 
-  window.OneSignalDeferred = window.OneSignalDeferred || [];
-  window.OneSignalDeferred.push(async function (OneSignal) {
-    try {
-      await OneSignal.init({
-        appId: ONESIGNAL_APP_ID,
-        allowLocalhostAsSecureOrigin: true,
-        notifyButton: { enable: false },
-        serviceWorkerParam: { scope: '/' },
-        serviceWorkerPath: '/OneSignalSDKWorker.js',
-      });
-    } catch (err) {
-      if (!isAlreadyInitializedError(err)) {
-        initQueued = false;
-        console.warn('[OneSignal Web] Initialization error:', err?.message);
-        return;
-      }
-    }
-
-    isInitialized = true;
-
-    OneSignal.Notifications.addEventListener('click', (event) => {
-      const data = event?.notification?.additionalData;
-      const reportId = data?.report_id || data?.reportId;
-      if (reportId) {
-        if (typeof onNotificationClick === 'function') {
-          onNotificationClick(reportId);
-        } else {
-          const tab = data?.tab ? `?tab=${data.tab}` : '';
-          window.location.href = `/incidents/${reportId}${tab}`;
-        }
-      }
-    });
-
-    OneSignal.User.PushSubscription.addEventListener('change', async (changeEvent) => {
-      const subscriptionId = changeEvent?.current?.id;
-      if (subscriptionId) {
-        await syncOneSignalSubscriptionToBackend(subscriptionId);
-      }
-    });
-
-    const currentSubId = OneSignal.User.PushSubscription?.id;
+  scheduleOneSignalTask(async (OneSignal) => {
+    const currentSubId = OneSignal.User?.PushSubscription?.id;
     if (currentSubId) {
       await syncOneSignalSubscriptionToBackend(currentSubId);
     }
   });
 }
 
-/**
- * Set OneSignal external user ID, synchronize user tags, and subscribe to push
- * notifications on login or session restore.
- *
- * @param {string|number} userId - Internal app user_id
- * @param {{ role?: string, departmentId?: number|string, departmentCode?: string }} [metadata]
- */
-export async function setOneSignalUser(userId, metadata = {}) {
+export function setOneSignalUser(userId, metadata = {}) {
   if (!userId || typeof window === 'undefined' || !ONESIGNAL_APP_ID) return;
   const externalId = String(userId);
   if (lastLoginUserId === externalId) return;
   lastLoginUserId = externalId;
 
-  await initOneSignal();
-
-  window.OneSignalDeferred = window.OneSignalDeferred || [];
-  window.OneSignalDeferred.push(async function (OneSignal) {
+  scheduleOneSignalTask(async (OneSignal) => {
     try {
-      if (typeof OneSignal.login !== 'function') return;
-      await OneSignal.login(externalId);
+      await loginWithRetry(OneSignal, externalId);
 
-      // 2. Apply user tags for targeted segment broadcasts
       const tags = {};
-      if (metadata.role) {
-        tags.role = String(metadata.role).toLowerCase();
-      }
-      if (metadata.departmentId != null) {
-        tags.department_id = String(metadata.departmentId);
-      }
-      if (metadata.departmentCode) {
-        tags.department_code = String(metadata.departmentCode).toLowerCase();
-      }
+      if (metadata.role) tags.role = String(metadata.role).toLowerCase();
+      if (metadata.departmentId != null) tags.department_id = String(metadata.departmentId);
+      if (metadata.departmentCode) tags.department_code = String(metadata.departmentCode).toLowerCase();
       if (Object.keys(tags).length > 0) {
         await OneSignal.User.addTags(tags);
       }
 
-      // 3. Auto opt-in if permission is already granted
       if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
         try {
           await OneSignal.User.PushSubscription.optIn();
         } catch (_) {}
       }
 
-      // 4. Sync current subscription ID if available
-      const subscriptionId = OneSignal.User.PushSubscription?.id;
+      const subscriptionId = OneSignal.User?.PushSubscription?.id;
       if (subscriptionId) {
         await syncOneSignalSubscriptionToBackend(subscriptionId);
       }
@@ -134,37 +166,26 @@ export async function setOneSignalUser(userId, metadata = {}) {
   });
 }
 
-/**
- * Log out from OneSignal — clears External User ID and user tags.
- * Call during the auth logout flow before clearing sessionStorage.
- */
-export async function logoutOneSignal() {
+export function logoutOneSignal() {
   if (typeof window === 'undefined' || !ONESIGNAL_APP_ID) return;
 
-  window.OneSignalDeferred = window.OneSignalDeferred || [];
   lastLoginUserId = null;
   lastSyncedSubscriptionId = null;
+  isInitialized = false;
+  listenersReady = false;
+  pumpRegistered = false;
+  taskQueue.length = 0;
 
-  window.OneSignalDeferred.push(async function (OneSignal) {
-    try {
-      await OneSignal.logout();
-    } catch (err) {
-      console.warn('[OneSignal Web] Logout error:', err?.message);
-    }
+  scheduleOneSignalTask(async (OneSignal) => {
+    await OneSignal.logout();
   });
 }
 
-/**
- * Manually request push notification permission via user gesture (button click).
- * Prompts the browser, opts in to OneSignal push subscription, and syncs subscription ID to backend.
- * Resolves to true when granted, false otherwise.
- */
 export async function requestPushPermission() {
   if (typeof window === 'undefined') return false;
 
   let isGranted = false;
 
-  // 1. Request permission directly in current user-activation stack
   try {
     if ('Notification' in window && typeof Notification.requestPermission === 'function') {
       const res = await Notification.requestPermission();
@@ -174,21 +195,14 @@ export async function requestPushPermission() {
     console.warn('[Push] Native requestPermission error:', err);
   }
 
-  // 2. If granted or OneSignal available, handle opt-in & sync
-  if (ONESIGNAL_APP_ID && window.OneSignalDeferred) {
-    window.OneSignalDeferred.push(async function (OneSignal) {
-      try {
-        if (isGranted) {
-          if (OneSignal.User?.PushSubscription?.optIn) {
-            await OneSignal.User.PushSubscription.optIn();
-          }
-          const subId = OneSignal.User?.PushSubscription?.id;
-          if (subId) {
-            await syncOneSignalSubscriptionToBackend(subId);
-          }
-        }
-      } catch (err) {
-        console.warn('[OneSignal Web] optIn error:', err?.message);
+  if (ONESIGNAL_APP_ID && isGranted) {
+    scheduleOneSignalTask(async (OneSignal) => {
+      if (OneSignal.User?.PushSubscription?.optIn) {
+        await OneSignal.User.PushSubscription.optIn();
+      }
+      const subId = OneSignal.User?.PushSubscription?.id;
+      if (subId) {
+        await syncOneSignalSubscriptionToBackend(subId);
       }
     });
   }
@@ -196,10 +210,6 @@ export async function requestPushPermission() {
   return isGranted;
 }
 
-/**
- * Sync the OneSignal push subscription ID to the RescueLink backend.
- * Associates the browser's push subscription with the authenticated user.
- */
 export async function syncOneSignalSubscriptionToBackend(subscriptionId) {
   try {
     const token = getAuthToken();
@@ -227,8 +237,12 @@ export async function syncOneSignalSubscriptionToBackend(subscriptionId) {
 /** @internal */
 export function resetOneSignalWebServiceForTests() {
   isInitialized = false;
-  initQueued = false;
+  listenersReady = false;
+  pumpRegistered = false;
+  pumpRunning = false;
+  clickHandler = null;
   lastLoginUserId = null;
   lastSyncedSubscriptionId = null;
   subscriptionSyncInflight = null;
+  taskQueue.length = 0;
 }

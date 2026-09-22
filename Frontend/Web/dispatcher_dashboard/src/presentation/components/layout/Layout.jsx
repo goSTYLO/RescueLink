@@ -1,16 +1,16 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useIncidentWebSocket } from '@/data/api/useIncidentWebSocket';
+import { Badge, Button, Dropdown, Layout as AntLayout, List, Menu, Popover, Select } from 'antd';
 import { getNotifications, getUnreadCount, markAllAsRead, markNotificationAsRead } from '@/data/api/notifications.api';
-import { IncidentWebSocketContext } from '@/presentation/context/IncidentWebSocketContext';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Home, Map, User, FileText, Settings, Shield, ShieldCheck, Building2, LogOut, PanelLeftClose, PanelLeft, Bell, HelpCircle, ChevronDown, AlertCircle, CheckCircle, Info, X, Users, Truck, ClipboardList, UserCheck, BarChart3 } from 'lucide-react';
+import { useIncidentWebSocketStatus } from '@/presentation/context/IncidentWebSocketContext';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { Home, Map, User, FileText, Settings, Shield, ShieldCheck, Building2, LogOut, Bell, HelpCircle, AlertCircle, CheckCircle, Info, Users, ClipboardList, UserCheck, BarChart3, PanelLeft, PanelLeftClose } from 'lucide-react';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/infrastructure/firebase';
 import { logout as logoutApi, fetchAvatarBlob, invalidateAvatarCache } from '@/data/api/auth.api';
 import { BrandLogo } from '@/presentation/components/common/BrandLogo';
 import { ProfileAvatar } from '@/presentation/components/common/ProfileAvatar';
 import { GlobalSearch } from '@/presentation/components/common/GlobalSearch';
-import Swal from 'sweetalert2';
+import { alertUser } from '@/presentation/feedback/alertUser';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
 import { ThemeToggle } from '@/presentation/components/common/ThemeToggle';
 import { getDefaultRouteByRole, ROLES, normalizeRole } from '@/core/constants';
@@ -18,9 +18,10 @@ import { DEV_MODE } from '@/core/config/app.config';
 import { clearAuthSession, getAuthToken, getStoredUser, persistAuthUser } from '@/core/auth/session';
 import { formatIncidentTypesLabel } from '@/core/utils/incidentDisplay';
 import { NotificationPromptBanner } from '@/presentation/components/common/NotificationPromptBanner';
+import { shellBorderColor } from '@/presentation/theme/antdTheme';
 
+const { Sider, Header, Content } = AntLayout;
 const SIDEBAR_STORAGE_KEY = 'rescuelink_sidebar_collapsed';
-const APP_BAR_HEIGHT = 'h-20';
 
 function formatNotificationTime(sentAt) {
   if (!sentAt) return '';
@@ -94,7 +95,6 @@ const NAV_DISPATCHER = [
   ]},
 ];
 
-// Dev-only: switch role without re-login (uses preset users)
 const DEV_ROLE_PRESETS = [
   { value: ROLES.SUPER_ADMIN, label: 'Super Admin', user: { name: 'Super Admin', username: 'Super Admin', email: 'admin@rescuelink.dagupan.gov.ph', role: ROLES.SUPER_ADMIN, department: 'All', departmentId: null } },
   { value: ROLES.DISPATCHER, label: 'Dispatcher', user: { name: 'Dispatcher Cruz', username: 'Dispatcher Cruz', email: 'dispatcher@rescuelink.dagupan.gov.ph', role: ROLES.DISPATCHER, department: 'Operations', departmentId: null } },
@@ -102,6 +102,46 @@ const DEV_ROLE_PRESETS = [
   { value: ROLES.DEPARTMENT_ADMIN, label: 'Dept Admin (Fire)', user: { name: 'Fire Chief Mendoza', username: 'Fire Chief Mendoza', email: 'mendoza@fire.dagupan.gov', role: ROLES.DEPARTMENT_ADMIN, department: 'Bureau of Fire Protection (BFP Dagupan)', departmentId: 'bfp' } },
   { value: ROLES.PERSONNEL, label: 'Personnel (Fire)', user: { name: 'Officer Pedro Ramos', username: 'Officer Pedro Ramos', email: 'pedro.ramos@pnp.dagupan.gov', role: ROLES.PERSONNEL, department: 'Bureau of Fire Protection (BFP Dagupan)', departmentId: 'bfp' } },
 ];
+
+function toastNotice({ icon, title, text, timer = 5000 }) {
+  alertUser({ toast: true, icon, title, text, timer, showConfirmButton: true });
+}
+
+function activeMenuKey(pathname, sections) {
+  const paths = sections.flatMap((section) => section.items.map((item) => item.path)).concat('/help');
+  const match = paths
+    .filter((path) => pathname === path || pathname.startsWith(`${path}/`))
+    .sort((a, b) => b.length - a.length)[0];
+  return match ? [match] : [];
+}
+
+const ACCOUNT_ITEMS = [
+  { icon: HelpCircle, label: 'Help & Support', path: '/help' },
+  { icon: LogOut, label: 'Log out', path: 'logout' },
+];
+
+function menuItem(item) {
+  const Icon = item.icon;
+  return { key: item.path, icon: <Icon size={18} />, label: item.label, title: item.label };
+}
+
+function menuGroupLabel(title, collapsed) {
+  if (!collapsed) return title;
+  return (
+    <span className="sidebar-nav-group-label" data-nav-group={title}>
+      {title}
+    </span>
+  );
+}
+
+function menuItemsFor(sections, collapsed) {
+  const groups = [...sections, { title: 'ACCOUNT', items: ACCOUNT_ITEMS }];
+  return groups.map((section) => ({
+    type: 'group',
+    label: menuGroupLabel(section.title, collapsed),
+    children: section.items.map(menuItem),
+  }));
+}
 
 export function Layout({ children }) {
   const { theme } = useTheme();
@@ -115,15 +155,12 @@ export function Layout({ children }) {
   });
   const location = useLocation();
   const navigate = useNavigate();
-  const [profileOpen, setProfileOpen] = useState(false);
   const [headerAvatarUrl, setHeaderAvatarUrl] = useState(null);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notificationsAuthError, setNotificationsAuthError] = useState(null);
-  const profileRef = useRef(null);
-  const notificationsRef = useRef(null);
   const notificationRefreshRef = useRef(null);
 
-  const { status: wsStatus, clearNotifications, lastHighSeverity, clearLastHighSeverity, lastDispatched, clearLastDispatched, lastBackupRequested, clearLastBackupRequested, lastBackupJoined, clearLastBackupJoined, lastEscalated, clearLastEscalated } = useIncidentWebSocket();
+  const { status: wsStatus, clearNotifications, lastHighSeverity, clearLastHighSeverity, lastDispatched, clearLastDispatched, lastBackupRequested, clearLastBackupRequested, lastBackupJoined, clearLastBackupJoined, lastEscalated, clearLastEscalated } = useIncidentWebSocketStatus();
   const [apiNotifications, setApiNotifications] = useState([]);
   const [apiUnreadCount, setApiUnreadCount] = useState(0);
 
@@ -195,9 +232,7 @@ export function Layout({ children }) {
   }, []);
 
   useEffect(() => {
-    if (notificationsOpen) {
-      fetchApiNotifications();
-    }
+    if (notificationsOpen) fetchApiNotifications();
   }, [notificationsOpen, fetchApiNotifications]);
 
   useEffect(() => {
@@ -233,20 +268,13 @@ export function Layout({ children }) {
   useEffect(() => {
     if (!lastHighSeverity?.data) return;
     const d = lastHighSeverity.data;
-    const title = `New ${d.severity_level || 'high'}-severity incident`;
-    const body = `${formatIncidentTypesLabel(d)} in ${d.barangay || 'your area'}`;
-    Swal.fire({
+    toastNotice({
       icon: 'warning',
-      title,
-      text: body,
-      timer: 5000,
-      showConfirmButton: true,
-      timerProgressBar: true,
-      toast: true,
-      position: 'top-end',
+      title: `New ${d.severity_level || 'high'}-severity incident`,
+      text: `${formatIncidentTypesLabel(d)} in ${d.barangay || 'your area'}`,
     });
     clearLastHighSeverity();
-  }, [lastHighSeverity]);
+  }, [lastHighSeverity, clearLastHighSeverity]);
 
   useEffect(() => {
     if (!lastDispatched?.data) return;
@@ -255,20 +283,13 @@ export function Layout({ children }) {
     if (!isDept) return;
     const d = lastDispatched.data;
     const reportId = d.report_id ?? d.reportId;
-    const title = reportId ? `Report #${reportId} assigned to your department` : 'Report assigned to your department';
-    const body = `${formatIncidentTypesLabel(d)} in ${d.barangay || 'your area'}`;
-    Swal.fire({
+    toastNotice({
       icon: 'info',
-      title,
-      text: body,
-      timer: 5000,
-      showConfirmButton: true,
-      timerProgressBar: true,
-      toast: true,
-      position: 'top-end',
+      title: reportId ? `Report #${reportId} assigned to your department` : 'Report assigned to your department',
+      text: `${formatIncidentTypesLabel(d)} in ${d.barangay || 'your area'}`,
     });
     clearLastDispatched();
-  }, [lastDispatched]);
+  }, [lastDispatched, clearLastDispatched]);
 
   useEffect(() => {
     if (!lastBackupRequested?.data) return;
@@ -278,17 +299,11 @@ export function Layout({ children }) {
     const d = lastBackupRequested.data;
     const reportId = d.report_id ?? d.reportId;
     const requester = d.requested_by_name ? ` from ${d.requested_by_name}` : '';
-    const title = reportId ? `Backup needed — Report #${reportId}` : 'Backup needed';
-    const body = `${formatIncidentTypesLabel(d)}${requester}${d.barangay ? ` in ${d.barangay}` : ''}`;
-    Swal.fire({
+    toastNotice({
       icon: 'warning',
-      title,
-      text: body,
+      title: reportId ? `Backup needed — Report #${reportId}` : 'Backup needed',
+      text: `${formatIncidentTypesLabel(d)}${requester}${d.barangay ? ` in ${d.barangay}` : ''}`,
       timer: 6000,
-      showConfirmButton: true,
-      timerProgressBar: true,
-      toast: true,
-      position: 'top-end',
     });
     clearLastBackupRequested();
   }, [lastBackupRequested, clearLastBackupRequested]);
@@ -298,17 +313,10 @@ export function Layout({ children }) {
     const d = lastBackupJoined.data;
     const reportId = d.report_id ?? d.reportId;
     const joinerName = d.volunteer_name || 'A volunteer';
-    const title = reportId ? `Backup volunteer joined — Report #${reportId}` : 'Backup volunteer joined';
-    const body = `${joinerName} joined as backup${d.responder_status ? ` (${d.responder_status})` : ''}`;
-    Swal.fire({
+    toastNotice({
       icon: 'info',
-      title,
-      text: body,
-      timer: 5000,
-      showConfirmButton: true,
-      timerProgressBar: true,
-      toast: true,
-      position: 'top-end',
+      title: reportId ? `Backup volunteer joined — Report #${reportId}` : 'Backup volunteer joined',
+      text: `${joinerName} joined as backup${d.responder_status ? ` (${d.responder_status})` : ''}`,
     });
     clearLastBackupJoined();
   }, [lastBackupJoined, clearLastBackupJoined]);
@@ -318,23 +326,16 @@ export function Layout({ children }) {
     const { eventName, data } = lastEscalated;
     const reportId = data.report_id ?? data.reportId;
     const isEscalationRequest = eventName === 'incident:escalated';
-    const title = isEscalationRequest
-      ? (reportId ? `Help requested — Report #${reportId}` : 'Help requested')
-      : (reportId ? `Help update — Report #${reportId}` : 'Help update');
     const toDept = data.to_department_name || (data.to_department_id ? `Department #${data.to_department_id}` : '');
-    const body = toDept
-      ? `${isEscalationRequest ? 'Requested from' : 'Status with'} ${toDept}${data.urgency ? ` (${data.urgency})` : ''}`
-      : (data.barangay ? `In ${data.barangay}` : 'Help update received');
-
-    Swal.fire({
+    toastNotice({
       icon: isEscalationRequest ? 'warning' : 'info',
-      title,
-      text: body,
+      title: isEscalationRequest
+        ? (reportId ? `Help requested — Report #${reportId}` : 'Help requested')
+        : (reportId ? `Help update — Report #${reportId}` : 'Help update'),
+      text: toDept
+        ? `${isEscalationRequest ? 'Requested from' : 'Status with'} ${toDept}${data.urgency ? ` (${data.urgency})` : ''}`
+        : (data.barangay ? `In ${data.barangay}` : 'Help update received'),
       timer: 6000,
-      showConfirmButton: true,
-      timerProgressBar: true,
-      toast: true,
-      position: 'top-end',
     });
     clearLastEscalated();
   }, [lastEscalated, clearLastEscalated]);
@@ -343,26 +344,14 @@ export function Layout({ children }) {
     localStorage.setItem(SIDEBAR_STORAGE_KEY, JSON.stringify(isCollapsed));
   }, [isCollapsed]);
 
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (profileRef.current && !profileRef.current.contains(e.target)) setProfileOpen(false);
-      if (notificationsRef.current && !notificationsRef.current.contains(e.target)) setNotificationsOpen(false);
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
   const storedUser = getStoredUser();
   const currentUser = storedUser.role ? storedUser : {
     username: 'Super Admin',
     email: 'admin@rescuelink.dagupan.gov.ph',
     role: ROLES.SUPER_ADMIN,
-    department: 'All'
+    department: 'All',
   };
   const role = normalizeRole(currentUser.role);
-  const isSuperAdmin = role === ROLES.SUPER_ADMIN;
-  const isAdmin = isSuperAdmin; // legacy: Admin Actions / full access
-  const isDeptRole = [ROLES.DEPARTMENT_ADMIN, ROLES.DEPARTMENT_HEAD, ROLES.PERSONNEL].includes(role);
 
   const notifications = apiNotifications.map(mapApiToUi);
 
@@ -381,9 +370,7 @@ export function Layout({ children }) {
       }
     }
 
-    if (notification.reportId) {
-      navigate(`/incidents/${notification.reportId}`);
-    }
+    if (notification.reportId) navigate(`/incidents/${notification.reportId}`);
     setNotificationsOpen(false);
   };
 
@@ -397,6 +384,7 @@ export function Layout({ children }) {
       fetchApiNotifications();
     }
   };
+
   const userName = currentUser.name ||
     ([currentUser.firstName, currentUser.lastName].filter(Boolean).join(' ') || null) ||
     currentUser.username ||
@@ -413,14 +401,6 @@ export function Layout({ children }) {
           : 'Personnel';
   const userRole = currentUser.role ? userRoleLabel : (currentUser.role || 'Operator');
 
-  const handleDevRoleChange = (e) => {
-    const value = e.target.value;
-    const preset = DEV_ROLE_PRESETS.find((p) => p.value === value);
-    if (!preset) return;
-      persistAuthUser(preset.user);
-    navigate(getDefaultRouteByRole(preset.value));
-  };
-
   const performLogout = async () => {
     try {
       await logoutApi();
@@ -431,25 +411,23 @@ export function Layout({ children }) {
       console.error('Firebase signOut error:', err);
     }
     clearAuthSession();
-    navigate('/login');
-    Swal.fire({
+    alertUser({
       icon: 'success',
       title: 'Logged out',
       text: 'You have been successfully logged out.',
       timer: 1500,
       showConfirmButton: false,
-      timerProgressBar: true,
     });
+    navigate('/login');
   };
 
   const handleLogout = () => {
-    Swal.fire({
+    alertUser({
       title: 'Log out?',
       text: 'Are you sure you want to log out of RescueLink?',
       icon: 'question',
       showCancelButton: true,
       confirmButtonColor: '#dc2626',
-      cancelButtonColor: '#6b7280',
       confirmButtonText: 'Yes, log out',
       cancelButtonText: 'Cancel',
     }).then((result) => {
@@ -465,342 +443,192 @@ export function Layout({ children }) {
     return NAV_SUPER_ADMIN;
   };
   const sections = getNavSections();
+  const siderTheme = isLight ? 'light' : 'dark';
 
-  const linkClasses = (isActive) => {
-    const base = 'flex items-center min-h-[40px] rounded-xl transition-all duration-200 group overflow-hidden w-full';
-    const size = isCollapsed ? 'justify-center px-3 py-2.5' : 'gap-3 px-3 py-2.5';
-    const activeLight = 'bg-primary/15 text-primary shadow-sm';
-    const activeDark = 'bg-primary/20 text-primary shadow-sm';
-    const inactiveLight = 'text-gray-700 hover:bg-gray-100/80';
-    const inactiveDark = 'text-foreground/90 hover:bg-white/10';
-    const active = isActive ? (isLight ? activeLight : activeDark) : (isLight ? inactiveLight : inactiveDark);
-    return `${base} ${size} ${active}`;
+  const notificationIcon = (type) => {
+    const Icon = type === 'alert' ? AlertCircle : type === 'success' ? CheckCircle : Info;
+    return <Icon size={16} />;
   };
 
+  const border = shellBorderColor(isLight);
+
   return (
-    <IncidentWebSocketContext.Provider value={{ status: wsStatus, isConnected: wsStatus === 'connected' }}>
-    <div className="flex min-h-screen h-full flex-1 bg-background">
-      <aside
-        className={`relative z-30 flex flex-col overflow-hidden transition-[width] duration-300 ease-out border-r border-border border-l-2 border-l-primary/40 shadow-sm ${
-          isLight ? 'bg-white' : 'bg-secondary'
-        } ${isCollapsed ? 'w-20' : 'w-64'}`}
+    <AntLayout style={{ height: '100%', overflow: 'hidden' }}>
+      <Sider
+        collapsible
+        collapsed={isCollapsed}
+        onCollapse={setIsCollapsed}
+        trigger={null}
+        width={256}
+        collapsedWidth={80}
+        theme={siderTheme}
+        style={{ height: '100%', overflow: 'hidden' }}
       >
-        {/* Header: logo + collapse */}
-        <div className={`flex items-center shrink-0 border-b border-border/80 transition-all duration-300 ${APP_BAR_HEIGHT} ${
-          isLight ? 'bg-white' : 'bg-secondary'
-        } ${isCollapsed ? 'justify-center px-4' : 'gap-3 px-5'}`}>
-          <BrandLogo iconOnly={isCollapsed} size={isCollapsed ? 'md' : 'lg'} />
-          {!isCollapsed && (
-            <button
-              onClick={() => setIsCollapsed(true)}
-              className={`ml-auto p-2 rounded-xl transition-all duration-200 flex-shrink-0 focus:ring-2 focus:ring-offset-2 focus:ring-offset-transparent ${
-                isLight
-                  ? 'hover:bg-gray-100 text-gray-500 focus:ring-primary/30'
-                  : 'hover:bg-white/10 text-foreground/80 focus:ring-primary/40'
-              }`}
-              aria-label="Collapse sidebar"
-              title="Collapse sidebar"
-            >
-              <PanelLeftClose className="w-5 h-5" strokeWidth={2} />
-            </button>
-          )}
-        </div>
-        {isCollapsed && (
-          <div className="flex justify-center px-2 py-1">
-            <button
-              onClick={() => setIsCollapsed(false)}
-              className={`flex items-center justify-center w-full min-h-[44px] rounded-xl transition-all duration-200 ${
-                isLight ? 'hover:bg-gray-100 text-gray-500' : 'hover:bg-white/10 text-foreground/80'
-              }`}
-              aria-label="Expand sidebar"
-              title="Expand sidebar"
-            >
-              <PanelLeft className="w-5 h-5 flex-shrink-0" strokeWidth={2} />
-            </button>
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: isCollapsed ? 'center' : 'flex-start',
+            gap: isCollapsed ? 2 : 8,
+            flexShrink: 0,
+            boxSizing: 'border-box',
+            height: 64,
+            padding: isCollapsed ? '0 4px' : '0 12px 0 16px',
+          }}>
+            <BrandLogo iconOnly={isCollapsed} size={isCollapsed ? 'md' : 'lg'} />
+            <Button
+              type="text"
+              aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              icon={isCollapsed ? <PanelLeft size={18} /> : <PanelLeftClose size={18} />}
+              onClick={() => setIsCollapsed((value) => !value)}
+              style={{ flexShrink: 0 }}
+            />
           </div>
-        )}
-
-        <nav className="flex-1 flex flex-col min-h-0 py-4 px-3">
-          <div className="flex-1 overflow-y-auto space-y-6">
-            {sections.map((section) => (
-              <div key={section.title}>
-                {!isCollapsed && (
-                  <p className="px-3 mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted">
-                    {section.title}
-                  </p>
-                )}
-                <div className="space-y-0.5">
-                  {section.items.map((item) => {
-                    const Icon = item.icon;
-                    const isActive = location.pathname === item.path || (item.path !== '/dashboard' && location.pathname.startsWith(item.path + '/'));
-                    return (
-                      <Link
-                        key={item.path}
-                        to={item.path}
-                        title={item.label}
-                        className={linkClasses(isActive)}
-                      >
-                        <Icon className="w-5 h-5 flex-shrink-0" />
-                        {!isCollapsed && <span className="text-sm font-medium whitespace-nowrap">{item.label}</span>}
-                      </Link>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Bottom: Dev role switcher, Help & Support, Log out */}
-          <div className="flex-shrink-0 pt-4 mt-4 border-t border-border/80 space-y-0.5">
+          <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
             {DEV_MODE && (
-              <div className={`px-3 py-2 ${!isCollapsed ? 'mb-2' : ''}`}>
+              <div style={{ padding: '0 12px 8px' }}>
                 <label htmlFor="dev-role-switcher" className="sr-only">Switch role (dev)</label>
-                <select
+                <Select
                   id="dev-role-switcher"
                   value={role}
-                  onChange={handleDevRoleChange}
-                  title="Switch role (dev only)"
-                  className={`w-full rounded-lg border bg-transparent text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 ${
-                    isCollapsed
-                      ? 'px-2 py-1.5 border-amber-500/50 text-amber-600 dark:text-amber-400'
-                      : 'px-3 py-2 border-amber-500/40 text-amber-600 dark:text-amber-400'
-                  }`}
-                >
-                  {DEV_ROLE_PRESETS.map((p) => (
-                    <option key={p.value} value={p.value}>{isCollapsed ? p.label.split(' ')[0] : p.label}</option>
-                  ))}
-                </select>
-                {!isCollapsed && (
-                  <p className="text-[10px] text-muted mt-1 px-0.5">Dev: switch role</p>
+                  aria-label="Switch role (dev)"
+                  onChange={(value) => {
+                    const preset = DEV_ROLE_PRESETS.find((p) => p.value === value);
+                    if (!preset) return;
+                    persistAuthUser(preset.user);
+                    navigate(getDefaultRouteByRole(preset.value));
+                  }}
+                  options={DEV_ROLE_PRESETS.map((p) => ({
+                    value: p.value,
+                    label: isCollapsed ? p.label.split(' ')[0] : p.label,
+                  }))}
+                  style={{ width: '100%' }}
+                  size="small"
+                  popupMatchSelectWidth={false}
+                />
+              </div>
+            )}
+            <Menu
+              mode="inline"
+              theme={siderTheme}
+              selectedKeys={activeMenuKey(location.pathname, sections)}
+              items={menuItemsFor(sections, isCollapsed)}
+              onClick={({ key }) => {
+                if (key === 'logout') {
+                  handleLogout();
+                  return;
+                }
+                navigate(key);
+              }}
+            />
+          </div>
+        </div>
+      </Sider>
+
+      <AntLayout
+        style={{
+          height: '100%',
+          overflow: 'hidden',
+          borderLeft: `1px solid ${border}`,
+          boxSizing: 'border-box',
+        }}
+      >
+        <Header style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 16,
+          padding: '0 16px',
+          height: 64,
+          lineHeight: 'normal',
+          flexShrink: 0,
+          boxSizing: 'border-box',
+          borderBottom: `1px solid ${border}`,
+        }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <GlobalSearch />
+          </div>
+          <ThemeToggle />
+          <Popover
+            open={notificationsOpen}
+            onOpenChange={(open) => {
+              setNotificationsOpen(open);
+              if (open) void handleMarkAllAsRead();
+            }}
+            trigger="click"
+            placement="bottomRight"
+            content={(
+              <div style={{ width: 360, maxWidth: '70vw' }}>
+                <List
+                  size="small"
+                  dataSource={notifications}
+                  locale={{ emptyText: notificationsAuthError || 'No new notifications' }}
+                  style={{ maxHeight: 320, overflow: 'auto' }}
+                  renderItem={(n) => (
+                    <List.Item
+                      style={{ cursor: 'pointer', alignItems: 'flex-start' }}
+                      onClick={() => handleNotificationClick(n)}
+                    >
+                      <span style={{ marginRight: 8, marginTop: 4 }}>{notificationIcon(n.type)}</span>
+                      <List.Item.Meta
+                        title={n.title}
+                        description={<span>{n.body}<br />{n.time}</span>}
+                      />
+                    </List.Item>
+                  )}
+                />
+                {notifications.length > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <Button type="link" size="small" onClick={handleMarkAllAsRead}>Mark all as read</Button>
+                    <Button type="link" size="small" onClick={() => { clearNotifications(); setNotificationsOpen(false); }}>Clear</Button>
+                  </div>
                 )}
               </div>
             )}
-            <Link
-              to="/help"
-              title="Help & Support"
-              className={linkClasses(location.pathname === '/help')}
-            >
-              <HelpCircle className="w-5 h-5 flex-shrink-0" />
-              {!isCollapsed && <span className="text-sm font-medium whitespace-nowrap">Help & Support</span>}
-            </Link>
-            <button
-              type="button"
-              onClick={handleLogout}
-              title="Log out"
-              className={`w-full ${linkClasses(false)} ${isLight ? 'text-gray-700' : 'text-foreground/90'}`}
-            >
-              <LogOut className="w-5 h-5 flex-shrink-0" />
-              {!isCollapsed && <span className="text-sm font-medium whitespace-nowrap">Log out</span>}
-            </button>
-          </div>
-        </nav>
-      </aside>
-
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header: search (left), notifications + profile (right) */}
-        <header className={`flex-shrink-0 flex items-center gap-4 px-6 border-b border-border/80 shadow-sm ${APP_BAR_HEIGHT} ${
-          isLight ? 'bg-white' : 'bg-card'
-        }`}>
-          <GlobalSearch />
-
-          <div className="flex items-center gap-3 ml-auto">
-            <ThemeToggle />
-            <div className="relative" ref={notificationsRef}>
-              <button
-                type="button"
-                onClick={() => {
-                  const opening = !notificationsOpen;
-                  setNotificationsOpen(opening);
-                  if (opening) void handleMarkAllAsRead();
-                }}
-                className={`relative p-2 rounded-xl transition-all duration-200 ${
-                  isLight ? 'hover:bg-gray-100 text-gray-600' : 'hover:bg-white/10 text-foreground/80'
-                } ${notificationsOpen ? (isLight ? 'bg-gray-100' : 'bg-white/10') : ''}`}
+          >
+            <Badge count={apiUnreadCount} size="small" offset={[-4, 6]}>
+              <Button
+                type="text"
                 aria-label="Notifications"
-                title="Notifications"
-                aria-expanded={notificationsOpen}
-              >
-                <Bell className="w-5 h-5" strokeWidth={2} />
-                {apiUnreadCount > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-primary text-[10px] font-semibold text-primary-foreground flex items-center justify-center" aria-hidden>
-                    {Math.min(apiUnreadCount, 99)}
-                  </span>
-                )}
-                {wsStatus === 'connected' && (
-                  <span className="absolute bottom-1 right-1 w-1.5 h-1.5 rounded-full bg-green-500" title="Live updates connected" aria-hidden />
-                )}
-              </button>
-              {notificationsOpen && (
-                <div
-                  className={`absolute right-0 top-full mt-2 w-[380px] max-w-[calc(100vw-2rem)] z-[100] rounded-2xl border shadow-xl overflow-hidden ${
-                    isLight
-                      ? 'glass neumorphic-light bg-white/95 backdrop-blur-md border-gray-200/90 shadow-[0_20px_40px_-12px_rgba(0,0,0,0.2)]'
-                      : 'glass neumorphic-dark bg-card/95 backdrop-blur-md border-white/20 shadow-[0_20px_40px_-12px_rgba(0,0,0,0.5)]'
-                  }`}
-                >
-                  <div
-                    className={`flex items-center justify-between px-4 py-3 border-b ${
-                      isLight ? 'bg-gray-50/80 border-gray-200/80' : 'bg-white/5 border-white/10'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <span
-                        className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                          isLight ? 'neumorphic-light-inset bg-gray-100 text-primary' : 'neumorphic-dark-inset bg-white/10 text-primary'
-                        }`}
-                      >
-                        <Bell className="w-4 h-4" strokeWidth={2} />
-                      </span>
-                      <span className="font-semibold text-foreground text-sm">Notifications</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setNotificationsOpen(false)}
-                      className={`p-1.5 rounded-lg transition-all ${
-                        isLight ? 'hover:bg-gray-200/80 text-muted' : 'hover:bg-white/20 text-muted'
-                      }`}
-                      aria-label="Close"
-                    >
-                      <X className="w-4 h-4" strokeWidth={2} />
-                    </button>
-                  </div>
-                  <div className={`max-h-[min(70vh,320px)] overflow-y-auto ${isLight ? 'bg-white' : 'bg-card'}`}>
-                    {(notifications || []).length === 0 ? (
-                      <div className="py-10 px-4 text-center">
-                        <span
-                          className={`inline-flex w-12 h-12 rounded-xl items-center justify-center mb-3 ${
-                            isLight ? 'neumorphic-light-inset bg-gray-100 text-muted' : 'neumorphic-dark-inset bg-white/10 text-muted'
-                          }`}
-                        >
-                          <Bell className="w-6 h-6" strokeWidth={2} />
-                        </span>
-                        <p className="text-sm text-muted">
-                          {notificationsAuthError || 'No new notifications'}
-                        </p>
-                      </div>
-                    ) : (
-                      <ul>
-                        {(notifications || []).map((n) => {
-                          const Icon = n.type === 'alert' ? AlertCircle : n.type === 'success' ? CheckCircle : Info;
-                          const iconBox = isLight
-                            ? 'neumorphic-light-inset bg-gray-100 text-primary'
-                            : 'neumorphic-dark-inset bg-white/10 text-primary';
-                          return (
-                            <li key={n.id}>
-                              <div
-                                role="button"
-                                tabIndex={0}
-                                onClick={() => handleNotificationClick(n)}
-                                onKeyDown={(e) => e.key === 'Enter' && handleNotificationClick(n)}
-                                className={`flex gap-3 px-4 py-3 transition-colors cursor-pointer ${
-                                  n.unread ? (isLight ? 'bg-primary/5' : 'bg-primary/10') : isLight ? 'hover:bg-gray-50/80' : 'hover:bg-white/5'
-                                }`}
-                              >
-                                <span className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${iconBox}`}>
-                                  <Icon className="w-3.5 h-3.5" strokeWidth={2} />
-                                </span>
-                                <div className="min-w-0 flex-1">
-                                  <p className="text-sm font-medium text-foreground">{n.title}</p>
-                                  <p className="text-xs text-muted mt-0.5 line-clamp-2">{n.body}</p>
-                                  <p className="text-xs text-muted mt-1">{n.time}</p>
-                                </div>
-                              </div>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    )}
-                  </div>
-                  {(notifications || []).length > 0 && (
-                    <div
-                      className={`px-4 py-2.5 border-t flex justify-between items-center ${
-                        isLight ? 'bg-gray-50/90 border-gray-200' : 'bg-white/[0.03] border-white/10'
-                      }`}
-                    >
-                      <button
-                        type="button"
-                        onClick={handleMarkAllAsRead}
-                        className="text-xs font-medium text-primary hover:underline"
-                      >
-                        Mark all as read
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => { clearNotifications(); setNotificationsOpen(false); }}
-                        className="text-xs font-medium text-muted hover:underline"
-                      >
-                        Clear
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div className="relative" ref={profileRef}>
-              <button
-                type="button"
-                onClick={() => setProfileOpen((o) => !o)}
-                className={`flex items-center gap-2.5 rounded-xl px-2 py-1.5 transition-all duration-200 ${
-                  isLight ? 'hover:bg-gray-100' : 'hover:bg-white/10'
-                }`}
-                aria-expanded={profileOpen}
-                aria-haspopup="true"
-              >
+                title={wsStatus === 'connected' ? 'Live updates connected' : 'Notifications'}
+                icon={<Bell size={18} />}
+              />
+            </Badge>
+          </Popover>
+          <Dropdown
+            menu={{
+              items: [
+                { key: 'help', icon: <HelpCircle size={16} />, label: 'Help & Support' },
+                { key: 'logout', icon: <LogOut size={16} />, label: 'Log out' },
+              ],
+              onClick: ({ key }) => {
+                if (key === 'logout') handleLogout();
+                else navigate('/help');
+              },
+            }}
+            trigger={['click']}
+          >
+            <Button type="text" aria-haspopup="true" style={{ height: 'auto', padding: '4px 8px' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
                 <ProfileAvatar
                   firstName={currentUser.firstName}
                   lastName={currentUser.lastName}
                   photoUrl={headerAvatarUrl}
                   size="sm"
                 />
-                <div className="hidden sm:block text-left">
-                  <p className="text-sm font-medium text-foreground leading-tight">{userName}</p>
-                  <p className="text-xs text-muted leading-tight">{userRole}</p>
-                </div>
-                <ChevronDown className={`w-4 h-4 flex-shrink-0 text-muted transition-transform ${profileOpen ? 'rotate-180' : ''}`} />
-              </button>
-
-              {profileOpen && (
-                <div className={`absolute right-0 top-full mt-2 min-w-[220px] rounded-xl border shadow-lg py-1.5 z-50 ${
-                  isLight ? 'bg-white border-gray-200' : 'bg-card border-border'
-                }`}>
-                  <Link
-                    to="/help"
-                    onClick={() => setProfileOpen(false)}
-                    className={`flex items-center gap-3 px-3 py-2.5 text-sm rounded-lg mx-1 transition-colors ${
-                      isLight ? 'text-gray-700 hover:bg-gray-50' : 'text-foreground hover:bg-white/10'
-                    }`}
-                  >
-                    <span className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 bg-muted/30">
-                      <HelpCircle className="w-4 h-4" />
-                    </span>
-                    Help & Support
-                  </Link>
-                  <button
-                    type="button"
-                    onClick={() => { setProfileOpen(false); handleLogout(); }}
-                    className={`flex items-center gap-3 w-full px-3 py-2.5 text-sm rounded-lg mx-1 transition-colors ${
-                      isLight ? 'text-gray-700 hover:bg-gray-50' : 'text-foreground hover:bg-white/10'
-                    }`}
-                  >
-                    <span className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 bg-muted/30">
-                      <LogOut className="w-4 h-4" />
-                    </span>
-                    Log out
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </header>
-
+                <span style={{ textAlign: 'left', lineHeight: 1.2 }} className="hidden sm:block">
+                  <span style={{ display: 'block', fontSize: 14 }}>{userName}</span>
+                  <span style={{ display: 'block', fontSize: 12, opacity: 0.7 }}>{userRole}</span>
+                </span>
+              </span>
+            </Button>
+          </Dropdown>
+        </Header>
         <NotificationPromptBanner />
-
-        <main className="flex-1 overflow-auto bg-background relative">
+        <Content style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
           {children}
-        </main>
-      </div>
-    </div>
-    </IncidentWebSocketContext.Provider>
+        </Content>
+      </AntLayout>
+    </AntLayout>
   );
 }

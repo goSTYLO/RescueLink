@@ -57,12 +57,12 @@ export function MetricHelp({ metricId }) {
       >
         <HelpCircle className="w-4 h-4" aria-hidden />
       </button>
-      <Dialog open={open} onOpenChange={setOpen} className="metric-help-dialog max-w-md">
+      <Dialog open={open} onOpenChange={setOpen} className="metric-help-dialog max-w-lg">
         <DialogContent>
           <DialogHeader>
             <DialogTitle>What this metric means</DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-foreground leading-relaxed">{body}</p>
+          <p className="text-sm text-foreground leading-relaxed whitespace-normal break-words">{body}</p>
           <div className="mt-4 flex justify-end">
             <Button type="button" variant="outline" size="sm" onClick={() => setOpen(false)}>Close</Button>
           </div>

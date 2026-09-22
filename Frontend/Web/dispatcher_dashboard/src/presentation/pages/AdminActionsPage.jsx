@@ -1,11 +1,5 @@
 import { Layout } from '@/presentation/components/layout/Layout';
-import { Badge } from '@/presentation/components/ui/Badge';
-import { Button } from '@/presentation/components/ui/Button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/presentation/components/ui/Tabs';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/presentation/components/ui/Select';
-import { Label } from '@/presentation/components/ui/Label';
-import { Switch } from '@/presentation/components/ui/Switch';
-import { Alert, AlertDescription, AlertTitle } from '@/presentation/components/ui/Alert';
+import { Alert, Button, Card, Checkbox, Select, Switch, Table, Tabs, Tag } from 'antd';
 import {
   Shield,
   AlertTriangle,
@@ -26,8 +20,7 @@ import { getAdminLogs } from '@/data/api/auditLog.api';
 import { ROLES, normalizeRole } from '@/core/constants';
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Swal from 'sweetalert2';
-import { useTheme } from '@/presentation/context/ThemeContext.jsx';
+import { alertUser } from '@/presentation/feedback/alertUser';
 import { AccessDeniedNotice } from '@/presentation/components/common/AccessDeniedNotice';
 import { Breadcrumb } from '@/presentation/components/common/Breadcrumb';
 
@@ -45,11 +38,6 @@ export function AdminActionsPage() {
   const [adminLogs, setAdminLogs] = useState([]);
   const [adminLogsLoading, setAdminLogsLoading] = useState(true);
   const [adminLogsError, setAdminLogsError] = useState(null);
-  const [selectStates, setSelectStates] = useState({
-    disasterType: false,
-    filterAction: false,
-    filterUser: false,
-  });
 
   const fetchAdminLogs = useCallback(async () => {
     setAdminLogsLoading(true);
@@ -73,13 +61,11 @@ export function AdminActionsPage() {
     fetchAdminLogs();
   }, [fetchAdminLogs]);
 
-  const duplicateIncidents = incidents.filter(inc =>
+  const duplicateIncidents = incidents.filter((inc) =>
     inc.status === 'Duplicate' || (inc.possibleDuplicates && inc.possibleDuplicates.length > 0)
   );
 
-  const adminUsers = [...new Set(adminLogs.map(log => log.user_email || [log.user_first_name, log.user_last_name].filter(Boolean).join(' ') || `User #${log.user_id}`))];
-
-  const filteredLogs = adminLogs.filter(log => {
+  const filteredLogs = adminLogs.filter((log) => {
     const actionMatch = filterAction === 'all' || log.action === filterAction;
     const adminLabel = log.user_email || [log.user_first_name, log.user_last_name].filter(Boolean).join(' ') || `User #${log.user_id}`;
     const userMatch = filterUser === 'all' || adminLabel === filterUser;
@@ -88,7 +74,7 @@ export function AdminActionsPage() {
 
   const handleActivateDisasterMode = () => {
     if (!disasterType) {
-      Swal.fire({
+      alertUser({
         icon: 'warning',
         title: 'Select Disaster Type',
         text: 'Please select a disaster type (e.g., Typhoon, Flood) before activating emergency protocols.',
@@ -97,7 +83,7 @@ export function AdminActionsPage() {
       return;
     }
     if (selectedBarangays.length === 0) {
-      Swal.fire({
+      alertUser({
         icon: 'warning',
         title: 'Select Affected Areas',
         text: 'Please select at least one affected barangay to enable Disaster Control Mode.',
@@ -107,7 +93,7 @@ export function AdminActionsPage() {
     }
     setDisasterMode(true);
     const autoEscalateNote = autoEscalate ? '<br><strong>Auto-escalation:</strong> New incidents will automatically be set to Warning.' : '';
-    Swal.fire({
+    alertUser({
       icon: 'success',
       title: 'Disaster Control Mode Activated',
       html: `Emergency protocols are now active for <strong>${disasterType}</strong>.<br><br>
@@ -118,7 +104,7 @@ export function AdminActionsPage() {
   };
 
   const handleDeactivateDisasterMode = () => {
-    Swal.fire({
+    alertUser({
       title: 'Deactivate Disaster Control Mode?',
       text: 'This will revert to normal operating procedures. Emergency protocols will be disabled.',
       icon: 'warning',
@@ -133,7 +119,7 @@ export function AdminActionsPage() {
         setDisasterType('');
         setSelectedBarangays([]);
         setAutoEscalate(false);
-        Swal.fire({
+        alertUser({
           icon: 'success',
           title: 'Deactivated',
           text: 'Disaster Control Mode has been turned off. Normal operations resumed.',
@@ -196,404 +182,309 @@ export function AdminActionsPage() {
     return entries.length > 0 ? entries.map(([k, v]) => `${k}: ${v}`).join(', ') : '—';
   }
 
-  const { theme } = useTheme();
-  const isLight = theme === 'light';
-  const heroCardClass = `rounded-3xl border overflow-hidden transition-all duration-300 ${isLight ? 'glass neumorphic-light bg-white/80 border-gray-200/80 shadow-[8px_8px_24px_rgba(209,213,219,0.5),-8px_-8px_24px_rgba(255,255,255,0.9)]' : 'glass neumorphic-dark bg-card/60 border-white/10 shadow-[8px_8px_24px_rgba(0,0,0,0.35),-6px_-6px_20px_rgba(19,65,120,0.2)]'}`;
-  const heroIconClass = `w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isLight ? 'neumorphic-light-inset bg-gray-100 text-primary' : 'neumorphic-dark-inset bg-white/10 text-primary'}`;
-  const panelClass = `rounded-2xl border overflow-hidden transition-all duration-300 ${isLight ? 'glass neumorphic-light bg-white/80' : 'glass neumorphic-dark bg-card/60'}`;
-  const headerClass = `flex items-center gap-3 px-4 py-3 border-b ${isLight ? 'border-gray-200/80 bg-gray-50/50' : 'border-white/10 bg-white/5'}`;
-  const iconBoxClass = (accent = 'primary') =>
-    `w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isLight ? 'neumorphic-light-inset bg-gray-100' : 'neumorphic-dark-inset bg-white/10'} ${
-      accent === 'primary' ? 'text-primary' : accent === 'danger' ? 'text-red-500' : 'text-foreground'
-    }`;
-  const iconSmClass = () =>
-    `w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${isLight ? 'neumorphic-light-inset bg-gray-100 text-primary' : 'neumorphic-dark-inset bg-white/10 text-primary'}`;
+  const severityColor = (severity) => {
+    if (severity === 'Critical') return 'red';
+    if (severity === 'Warning') return 'gold';
+    return 'green';
+  };
+
+  const logActionIcon = (action) => {
+    if (['user_role_update', 'user_deactivate', 'user_delete'].includes(action)) return <Shield size={14} />;
+    if (action === 'user_create') return <Users size={14} />;
+    if (action === 'stats_view') return <TrendingUp size={14} />;
+    return <FileText size={14} />;
+  };
+
+  const logColumns = [
+    {
+      title: 'Action',
+      dataIndex: 'action',
+      render: (action) => (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          {logActionIcon(action)}
+          <Tag color="blue">{formatActionLabel(action)}</Tag>
+        </span>
+      ),
+    },
+    {
+      title: 'Admin',
+      key: 'admin',
+      render: (_, log) => log.user_email || [log.user_first_name, log.user_last_name].filter(Boolean).join(' ') || `User #${log.user_id}`,
+    },
+    {
+      title: 'Details',
+      key: 'details',
+      render: (_, log) => {
+        const details = typeof log.details === 'object' ? log.details : (typeof log.details === 'string' && log.details.trim().startsWith('{') ? (() => { try { return JSON.parse(log.details); } catch { return {}; } })() : {});
+        return (
+          <div>
+            <div>{formatDetailsForDisplay(log.details)}</div>
+            {details?.reason && <div style={{ opacity: 0.7, fontSize: 12 }}>Reason: {details.reason}</div>}
+          </div>
+        );
+      },
+    },
+    {
+      title: 'When',
+      dataIndex: 'created_at',
+      render: (ts) => formatTimestamp(ts),
+    },
+    {
+      title: '',
+      key: 'link',
+      render: (_, log) => {
+        const details = typeof log.details === 'object' ? log.details : (typeof log.details === 'string' && log.details.trim().startsWith('{') ? (() => { try { return JSON.parse(log.details); } catch { return {}; } })() : {});
+        const incidentId = log.resource_id ?? details?.report_id ?? details?.incident_id ?? details?.user_id;
+        if (incidentId && log.resource_type === 'incident') {
+          return <Button type="link" onClick={() => navigate(`/incidents/${incidentId}`)}>View Incident {incidentId} →</Button>;
+        }
+        if (incidentId && log.resource_type === 'user') {
+          return <Button type="link" onClick={() => navigate('/admin/users')}>View user #{incidentId} →</Button>;
+        }
+        return null;
+      },
+    },
+  ];
+
+  const duplicateColumns = [
+    {
+      title: 'Incident',
+      key: 'id',
+      render: (_, incident) => (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+          <Copy size={14} />
+          {incident.id}
+          {incident.status === 'Duplicate' && <Tag>Marked as Duplicate</Tag>}
+        </span>
+      ),
+    },
+    {
+      title: 'Type / Location',
+      key: 'meta',
+      render: (_, incident) => `${incident.emergencyType} — ${incident.barangay}`,
+    },
+    {
+      title: 'Severity',
+      dataIndex: 'severity',
+      render: (severity) => <Tag color={severityColor(severity)}>{severity}</Tag>,
+    },
+    {
+      title: 'Description',
+      dataIndex: 'description',
+      ellipsis: true,
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
+      render: (_, incident) => (
+        <Button onClick={() => navigate(`/incidents/${incident.id}`)}>View Details</Button>
+      ),
+    },
+  ];
+
+  // Disaster Control tab content kept behind false for parity with prior UI
+  const disasterTabChildren = (
+    <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12 }}>
+      <Card
+        size="small"
+        title={(
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            <AlertOctagon size={16} />
+            Disaster Control Mode
+          </span>
+        )}
+      >
+        {!disasterMode ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <Alert
+              type="warning"
+              showIcon
+              icon={<AlertTriangle size={16} />}
+              message="What is Disaster Control Mode?"
+              description="This mode enables emergency protocols for large-scale disasters like typhoons and floods."
+            />
+            <div>
+              <div style={{ marginBottom: 4, fontWeight: 500 }}>Disaster Type</div>
+              <Select
+                style={{ width: '100%' }}
+                placeholder="Select disaster type"
+                value={disasterType || undefined}
+                onChange={setDisasterType}
+                options={disasterTypeOptions}
+              />
+            </div>
+            <div>
+              <div style={{ marginBottom: 8, fontWeight: 500 }}>Affected Barangays ({selectedBarangays.length} selected)</div>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                <Button onClick={() => setSelectedBarangays(barangays)}>Select All Barangays</Button>
+                <Button onClick={() => setSelectedBarangays([])}>Unselect All Barangays</Button>
+              </div>
+              <Checkbox.Group
+                style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}
+                options={barangays.map((b) => ({ label: b, value: b }))}
+                value={selectedBarangays}
+                onChange={setSelectedBarangays}
+              />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ fontWeight: 500 }}>Auto-escalate to Warning</div>
+                <div style={{ fontSize: 12, opacity: 0.7 }}>All new incidents automatically set to Warning severity</div>
+              </div>
+              <Switch checked={autoEscalate} onChange={setAutoEscalate} />
+            </div>
+            <Button type="primary" danger icon={<AlertOctagon size={14} />} onClick={handleActivateDisasterMode} block>
+              Activate Disaster Control Mode
+            </Button>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <Alert
+              type="error"
+              showIcon
+              icon={<AlertOctagon size={16} />}
+              message="Disaster Mode Active"
+              description={(
+                <>
+                  <strong>Type:</strong> {disasterType}<br />
+                  <strong>Affected Areas:</strong> {selectedBarangays.length} barangays<br />
+                  <strong>Auto-escalation:</strong> {autoEscalate ? 'Enabled' : 'Disabled'}
+                </>
+              )}
+            />
+            <Button type="primary" icon={<Users size={14} />} onClick={() => alert('Bulk assignment interface would open here')} block>
+              Bulk Incident Assignment
+            </Button>
+            <Button icon={<MapPin size={14} />} onClick={() => navigate('/map')} block>
+              View Affected Areas on Map
+            </Button>
+            <Button danger icon={<XCircle size={14} />} onClick={handleDeactivateDisasterMode} block>
+              Deactivate Disaster Mode
+            </Button>
+          </div>
+        )}
+      </Card>
+      <Card
+        size="small"
+        title={(
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            <Settings size={16} />
+            Disaster Mode Features
+          </span>
+        )}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {['Bulk incident assignment by barangay', 'Automatic severity escalation', 'Priority override controls'].map((text) => (
+            <div key={text} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+              <CheckCircle size={16} />
+              <span>{text}</span>
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+  );
 
   return (
     <Layout>
-      <div className="p-8 max-w-7xl mx-auto">
+      <div className="p-4 max-w-7xl mx-auto">
         <Breadcrumb items={[{ label: 'Home', path: '/dashboard' }, { label: 'Admin Actions' }]} />
-        <div className={`${heroCardClass} mb-6`}>
-          <div className="p-8 flex flex-wrap items-center gap-6">
-            <div className={heroIconClass}>
-              <Shield className="w-5 h-5" strokeWidth={2} />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold text-foreground">Admin Actions</h1>
-              <p className="text-muted mt-1">Advanced administrative controls and oversight</p>
-            </div>
-          </div>
-        </div>
+        <Card
+          size="small"
+          style={{ marginTop: 12, marginBottom: 12 }}
+          title={(
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+              <Shield size={18} />
+              Admin Actions
+            </span>
+          )}
+        >
+          <p style={{ margin: 0, opacity: 0.75 }}>Advanced administrative controls and oversight</p>
+        </Card>
 
         {disasterMode && (
-          <Alert className={`mb-6 rounded-xl border ${isLight ? 'border-red-300 bg-red-50' : 'border-red-500/40 bg-red-500/10'}`}>
-            <AlertOctagon className={`h-5 w-5 ${isLight ? 'text-red-600' : 'text-red-400'}`} />
-            <AlertTitle className={isLight ? 'text-red-900 font-semibold' : 'text-red-200 font-semibold'}>
-              Disaster Control Mode Active
-            </AlertTitle>
-            <AlertDescription className={isLight ? 'text-red-800' : 'text-red-300/90'}>
-              Enhanced emergency protocols are currently in effect. Normal operating procedures are overridden.
-            </AlertDescription>
-          </Alert>
+          <Alert
+            type="error"
+            showIcon
+            icon={<AlertOctagon size={18} />}
+            style={{ marginBottom: 12 }}
+            message="Disaster Control Mode Active"
+            description="Enhanced emergency protocols are currently in effect. Normal operating procedures are overridden."
+          />
         )}
 
-        <Tabs defaultValue="logs" className="space-y-6">
-          <div className={`w-full rounded-xl p-1 ${isLight ? 'glass neumorphic-light bg-white/80' : 'glass neumorphic-dark bg-card/60'}`}>
-            <TabsList className="flex w-full rounded-xl border-0 bg-transparent p-0 gap-1 h-11">
-              {/* Disaster Control tab hidden for now - re-enable when ready */}
-              {/* <TabsTrigger value="disaster" className="rounded-lg flex-1 min-w-0">Disaster Control</TabsTrigger> */}
-              <TabsTrigger value="duplicates" className="rounded-lg flex-1 min-w-0">Duplicate Management</TabsTrigger>
-              <TabsTrigger value="logs" className="rounded-lg flex-1 min-w-0">Admin Logs</TabsTrigger>
-            </TabsList>
-          </div>
-
-          {/* Disaster Control tab content - hidden for now */}
-          {false && <TabsContent value="disaster">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2">
-                <div className={`${panelClass} ${disasterMode ? (isLight ? 'border-red-300' : 'border-red-500/40') : ''}`}>
-                  <div className={headerClass}>
-                    <span className={iconBoxClass(disasterMode ? 'danger' : 'primary')}>
-                      <AlertOctagon className="w-5 h-5" strokeWidth={2} />
+        <Tabs
+          defaultActiveKey="logs"
+          items={[
+            ...(false ? [{ key: 'disaster', label: 'Disaster Control', children: disasterTabChildren }] : []),
+            {
+              key: 'duplicates',
+              label: 'Duplicate Management',
+              children: (
+                <Card
+                  size="small"
+                  title={(
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                      <Merge size={16} />
+                      Duplicate Incident Management
                     </span>
-                    <span className="font-medium text-foreground">Disaster Control Mode</span>
-                  </div>
-                  <div className="p-6 space-y-6">
-                    {!disasterMode ? (
-                      <>
-                        <Alert className={`rounded-xl border ${isLight ? 'border-amber-500/30 bg-amber-500/10' : 'border-amber-500/30 bg-amber-500/10'}`}>
-                          <AlertTriangle className={`h-4 w-4 ${isLight ? 'text-amber-600' : 'text-amber-400'}`} />
-                          <AlertTitle className={isLight ? 'text-amber-900' : 'text-amber-200'}>What is Disaster Control Mode?</AlertTitle>
-                          <AlertDescription className={isLight ? 'text-amber-800' : 'text-amber-300/90'}>
-                            This mode enables emergency protocols for large-scale disasters like typhoons and floods.
-                          </AlertDescription>
-                        </Alert>
-
-                        <div className="overflow-visible">
-                          <Label className="block mb-2">Disaster Type</Label>
-                          <Select
-                            value={disasterType}
-                            onValueChange={setDisasterType}
-                            open={selectStates.disasterType}
-                            onOpenChange={(open) => setSelectStates((s) => ({ ...s, disasterType: open }))}
-                          >
-                            {({ value, dropdownRect }) => (
-                              <>
-                                <SelectTrigger
-                                  isOpen={selectStates.disasterType}
-                                  onClick={() => setSelectStates((s) => ({ ...s, disasterType: !s.disasterType }))}
-                                  className={`mt-2 w-full rounded-xl py-2.5 border-2 ${isLight ? 'border-gray-200 bg-gray-50/80' : 'border-border bg-white/5'}`}
-                                >
-                                  <SelectValue placeholder="Select disaster type" value={value} options={disasterTypeOptions} />
-                                </SelectTrigger>
-                                <SelectContent isOpen={selectStates.disasterType} dropdownRect={dropdownRect} className="rounded-xl border-2 border-border shadow-xl bg-card py-1">
-                                  {disasterTypeOptions.map(option => (
-                                    <SelectItem
-                                      key={option.value}
-                                      value={option.value}
-                                      onSelect={(val) => { setDisasterType(val); setSelectStates((s) => ({ ...s, disasterType: false })); }}
-                                    >
-                                      {option.label}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </>
-                            )}
-                          </Select>
-                        </div>
-
-                        <div>
-                          <Label className="mb-2 block">Affected Barangays ({selectedBarangays.length} selected)</Label>
-                          <div className={`rounded-xl border p-4 max-h-64 overflow-y-auto ${isLight ? 'border-gray-200 bg-gray-50/50' : 'border-white/10 bg-white/5'}`}>
-                            <div className="grid grid-cols-2 gap-2">
-                              <div className="col-span-2 mb-2 flex gap-2">
-                                <Button size="sm" variant="outline" className="flex-1 rounded-xl" onClick={() => setSelectedBarangays(barangays)}>
-                                  Select All Barangays
-                                </Button>
-                                <Button size="sm" variant="outline" className="flex-1 rounded-xl" onClick={() => setSelectedBarangays([])}>
-                                  Unselect All Barangays
-                                </Button>
-                              </div>
-                              {barangays.map((brgy) => (
-                                <div key={brgy} className="flex items-center gap-2">
-                                  <input
-                                    type="checkbox"
-                                    id={`brgy-${brgy}`}
-                                    checked={selectedBarangays.includes(brgy)}
-                                    onChange={(e) => {
-                                      if (e.target.checked) setSelectedBarangays([...selectedBarangays, brgy]);
-                                      else setSelectedBarangays(selectedBarangays.filter(b => b !== brgy));
-                                    }}
-                                    className={`rounded border-2 ${isLight ? 'border-gray-300' : 'border-white/30'}`}
-                                  />
-                                  <label htmlFor={`brgy-${brgy}`} className="text-sm text-foreground cursor-pointer">
-                                    {brgy}
-                                  </label>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className={`border-t ${isLight ? 'border-gray-200' : 'border-white/10'}`} />
-
-                        <div>
-                          <Label className="mb-3 block">Priority Override Rules</Label>
-                          <div className={`flex items-center justify-between p-4 rounded-xl border ${isLight ? 'border-gray-200 bg-gray-50/50' : 'border-white/10 bg-white/5'}`}>
-                            <div>
-                              <p className="text-sm font-medium text-foreground">Auto-escalate to Warning</p>
-                              <p className="text-xs text-muted">All new incidents automatically set to Warning severity</p>
-                            </div>
-                            <Switch checked={autoEscalate} onCheckedChange={setAutoEscalate} />
-                          </div>
-                        </div>
-
-                        <Button className="w-full rounded-xl gap-2 bg-red-600 hover:bg-red-700 text-white font-medium" onClick={handleActivateDisasterMode}>
-                          <AlertOctagon className="w-4 h-4" strokeWidth={2} />
-                          Activate Disaster Control Mode
-                        </Button>
-                      </>
-                    ) : (
-                      <>
-                        <Alert className={`rounded-xl border ${isLight ? 'border-red-300 bg-red-50' : 'border-red-500/40 bg-red-500/10'}`}>
-                          <AlertOctagon className={`h-4 w-4 ${isLight ? 'text-red-600' : 'text-red-400'}`} />
-                          <AlertTitle className={isLight ? 'text-red-900' : 'text-red-200'}>Disaster Mode Active</AlertTitle>
-                          <AlertDescription className={isLight ? 'text-red-800' : 'text-red-300/90'}>
-                            <strong>Type:</strong> {disasterType}<br />
-                            <strong>Affected Areas:</strong> {selectedBarangays.length} barangays<br />
-                            <strong>Auto-escalation:</strong> {autoEscalate ? 'Enabled' : 'Disabled'}
-                          </AlertDescription>
-                        </Alert>
-
-                        <div className="space-y-3">
-                          <Button className="w-full rounded-xl gap-2" onClick={() => alert('Bulk assignment interface would open here')}>
-                            <Users className="w-4 h-4" strokeWidth={2} />
-                            Bulk Incident Assignment
-                          </Button>
-                          <Button variant="outline" className="w-full rounded-xl gap-2" onClick={() => navigate('/map')}>
-                            <MapPin className="w-4 h-4" strokeWidth={2} />
-                            View Affected Areas on Map
-                          </Button>
-                        </div>
-
-                        <div className={`border-t ${isLight ? 'border-gray-200' : 'border-white/10'}`} />
-
-                        <Button
-                          variant="outline"
-                          className={`w-full rounded-xl gap-2 ${isLight ? 'text-red-600 border-red-200 hover:bg-red-50' : 'text-red-400 border-red-500/40 hover:bg-red-500/10'}`}
-                          onClick={handleDeactivateDisasterMode}
-                        >
-                          <XCircle className="w-4 h-4" strokeWidth={2} />
-                          Deactivate Disaster Mode
-                        </Button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <div className={panelClass}>
-                  <div className={headerClass}>
-                    <span className={iconBoxClass('primary')}>
-                      <Settings className="w-5 h-5" strokeWidth={2} />
-                    </span>
-                    <span className="font-medium text-foreground text-base">Disaster Mode Features</span>
-                  </div>
-                  <div className="p-4 space-y-4">
-                    <div className="space-y-3 text-sm">
-                      <div className="flex gap-3 items-start">
-                        <span className={iconSmClass()}>
-                          <CheckCircle className="w-4 h-4" strokeWidth={2} />
-                        </span>
-                        <span className="text-foreground">Bulk incident assignment by barangay</span>
-                      </div>
-                      <div className="flex gap-3 items-start">
-                        <span className={iconSmClass()}>
-                          <CheckCircle className="w-4 h-4" strokeWidth={2} />
-                        </span>
-                        <span className="text-foreground">Automatic severity escalation</span>
-                      </div>
-                      <div className="flex gap-3 items-start">
-                        <span className={iconSmClass()}>
-                          <CheckCircle className="w-4 h-4" strokeWidth={2} />
-                        </span>
-                        <span className="text-foreground">Priority override controls</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </TabsContent>}
-
-          <TabsContent value="duplicates">
-            <div className={panelClass}>
-              <div className={headerClass}>
-                <span className={iconBoxClass('primary')}>
-                  <Merge className="w-5 h-5" strokeWidth={2} />
-                </span>
-                <span className="font-medium text-foreground">Duplicate Incident Management</span>
-              </div>
-              <div className="p-4">
-                {duplicateIncidents.length > 0 ? (
-                  <div className="space-y-3">
-                    {duplicateIncidents.map((incident) => (
-                      <div
-                        key={incident.id}
-                        className={`rounded-xl border p-4 transition-all duration-200 ${isLight ? 'bg-gray-50/80 border-gray-200/80 hover:border-primary/30' : 'bg-white/5 border-white/10 hover:border-primary/30'}`}
-                      >
-                        <div className="flex items-start justify-between mb-3">
-                          <div className="flex items-center gap-3">
-                            <span className={iconSmClass()}>
-                              <Copy className="w-4 h-4" strokeWidth={2} />
-                            </span>
-                            <div>
-                              <div className="flex items-center gap-2 mb-0.5">
-                                <h3 className="font-medium text-foreground">{incident.id}</h3>
-                                {incident.status === 'Duplicate' && (
-                                  <Badge variant="outline" className="rounded-lg bg-secondary/20 text-foreground border-border">
-                                    Marked as Duplicate
-                                  </Badge>
-                                )}
-                              </div>
-                              <p className="text-sm text-muted">{incident.emergencyType} — {incident.barangay}</p>
-                            </div>
-                          </div>
-                          <Badge
-                            className={`rounded-lg ${
-                              incident.severity === 'Critical' ? 'bg-primary/20 text-primary border-primary/50' :
-                              incident.severity === 'Warning' ? 'bg-amber-500/20 text-amber-400 border-amber-500/40' :
-                              'bg-severity-resolved/20 text-severity-resolved border-severity-resolved/40'
-                            }`}
-                          >
-                            {incident.severity}
-                          </Badge>
-                        </div>
-                        <p className="text-sm text-foreground mb-3">{incident.description}</p>
-                        <Button size="sm" variant="outline" className="rounded-xl" onClick={() => navigate(`/incidents/${incident.id}`)}>
-                          View Details
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-12">
-                    <span className={`inline-flex w-14 h-14 rounded-2xl items-center justify-center mb-4 ${isLight ? 'neumorphic-light-inset bg-gray-100 text-severity-resolved' : 'neumorphic-dark-inset bg-white/10 text-severity-resolved'}`}>
-                      <CheckCircle className="w-7 h-7" strokeWidth={2} />
-                    </span>
-                    <p className="text-muted">No duplicate incidents detected</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="logs">
-            <div className={panelClass}>
-              <div className={headerClass}>
-                <span className={iconBoxClass('primary')}>
-                  <ListChecks className="w-5 h-5" strokeWidth={2} />
-                </span>
-                <span className="font-medium text-foreground flex-1">Admin Action Logs</span>
-                <div className="overflow-visible">
-                  <Select
-                    value={filterAction}
-                    onValueChange={setFilterAction}
-                    open={selectStates.filterAction}
-                    onOpenChange={(open) => setSelectStates((s) => ({ ...s, filterAction: open }))}
-                  >
-                    {({ value, dropdownRect }) => (
-                      <>
-                        <SelectTrigger
-                          isOpen={selectStates.filterAction}
-                          onClick={() => setSelectStates((s) => ({ ...s, filterAction: !s.filterAction }))}
-                          className={`w-48 rounded-xl py-2.5 border-2 ${isLight ? 'border-gray-200 bg-gray-50/80' : 'border-border bg-white/5'}`}
-                        >
-                          <SelectValue placeholder="Filter by action" value={value} options={actionFilterOptions} />
-                        </SelectTrigger>
-                        <SelectContent isOpen={selectStates.filterAction} dropdownRect={dropdownRect} className="rounded-xl border-2 border-border shadow-xl bg-card py-1">
-                          {actionFilterOptions.map(option => (
-                            <SelectItem
-                              key={option.value}
-                              value={option.value}
-                              onSelect={(val) => { setFilterAction(val); setSelectStates((s) => ({ ...s, filterAction: false })); }}
-                            >
-                              {option.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </>
-                    )}
-                  </Select>
-                </div>
-              </div>
-              <div className="p-4">
-                {adminLogsError && (
-                  <div className="mb-4 p-3 rounded-xl bg-destructive/10 text-destructive text-sm border border-destructive/20">
-                    {adminLogsError}
-                  </div>
-                )}
-                {adminLogsLoading ? (
-                  <div className="py-12 flex flex-col items-center justify-center gap-3 text-muted">
-                    <ListChecks className="w-10 h-10 animate-pulse" strokeWidth={2} />
-                    <span>Loading admin logs...</span>
-                  </div>
-                ) : (
-                <div className="space-y-3">
-                  {filteredLogs.map((log) => {
-                    const details = typeof log.details === 'object' ? log.details : (typeof log.details === 'string' && log.details.trim().startsWith('{') ? (() => { try { return JSON.parse(log.details); } catch { return {}; } })() : {});
-                    const adminLabel = log.user_email || [log.user_first_name, log.user_last_name].filter(Boolean).join(' ') || `User #${log.user_id}`;
-                    const incidentId = log.resource_id ?? details?.report_id ?? details?.incident_id ?? details?.user_id;
-                    return (
-                    <div
-                      key={log.id}
-                      className={`rounded-xl border p-4 transition-all duration-200 ${isLight ? 'bg-gray-50/80 border-gray-200/80 hover:border-primary/30' : 'bg-white/5 border-white/10 hover:border-primary/30'}`}
-                    >
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          {(log.action === 'user_role_update' || log.action === 'user_deactivate' || log.action === 'user_delete') && <span className={iconSmClass()}><Shield className="w-4 h-4" strokeWidth={2} /></span>}
-                          {log.action === 'user_create' && <span className={iconSmClass()}><Users className="w-4 h-4" strokeWidth={2} /></span>}
-                          {log.action === 'stats_view' && <span className={iconSmClass()}><TrendingUp className="w-4 h-4" strokeWidth={2} /></span>}
-                          {!['user_role_update', 'user_deactivate', 'user_delete', 'user_create', 'stats_view'].includes(log.action) && <span className={iconSmClass()}><FileText className="w-4 h-4" strokeWidth={2} /></span>}
-                          <Badge variant="outline" className="rounded-lg text-xs border-border bg-primary/5 text-primary">
-                            {formatActionLabel(log.action)}
-                          </Badge>
-                        </div>
-                        <span className="text-xs text-muted">{formatTimestamp(log.created_at)}</span>
-                      </div>
-                      <div className="space-y-1 mb-2">
-                        <p className="text-sm text-foreground"><strong>Admin:</strong> {adminLabel}</p>
-                        <p className="text-sm text-foreground"><strong>Details:</strong> {formatDetailsForDisplay(log.details)}</p>
-                        {details?.reason && <p className="text-sm text-muted"><strong>Reason:</strong> {details.reason}</p>}
-                      </div>
-                      {incidentId && log.resource_type === 'incident' && (
-                        <Button size="sm" variant="link" className="p-0 h-auto text-xs text-primary" onClick={() => navigate(`/incidents/${incidentId}`)}>
-                          View Incident {incidentId} →
-                        </Button>
-                      )}
-                      {incidentId && log.resource_type === 'user' && (
-                        <Button size="sm" variant="link" className="p-0 h-auto text-xs text-primary" onClick={() => navigate(`/admin/users`)}>
-                          View user #{incidentId} →
-                        </Button>
-                      )}
-                    </div>
-                    );
-                  })}
-                  {filteredLogs.length === 0 && (
-                    <div className="text-center py-12">
-                      <span className={`inline-flex w-14 h-14 rounded-2xl items-center justify-center mb-4 ${isLight ? 'neumorphic-light-inset bg-gray-100 text-muted' : 'neumorphic-dark-inset bg-white/10 text-muted'}`}>
-                        <FileText className="w-7 h-7" strokeWidth={2} />
-                      </span>
-                      <p className="text-muted">No admin actions match the current filters</p>
+                  )}
+                >
+                  {duplicateIncidents.length > 0 ? (
+                    <Table
+                      size="small"
+                      rowKey="id"
+                      columns={duplicateColumns}
+                      dataSource={duplicateIncidents}
+                      pagination={false}
+                    />
+                  ) : (
+                    <div style={{ textAlign: 'center', padding: 32 }}>
+                      <CheckCircle size={28} style={{ marginBottom: 8 }} />
+                      <p style={{ opacity: 0.7 }}>No duplicate incidents detected</p>
                     </div>
                   )}
-                </div>
-                )}
-              </div>
-            </div>
-          </TabsContent>
-        </Tabs>
+                </Card>
+              ),
+            },
+            {
+              key: 'logs',
+              label: 'Admin Logs',
+              children: (
+                <Card
+                  size="small"
+                  title={(
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                      <ListChecks size={16} />
+                      Admin Action Logs
+                    </span>
+                  )}
+                  extra={(
+                    <Select
+                      style={{ width: 200 }}
+                      value={filterAction}
+                      onChange={setFilterAction}
+                      options={actionFilterOptions}
+                    />
+                  )}
+                >
+                  {adminLogsError && (
+                    <Alert type="error" showIcon message={adminLogsError} style={{ marginBottom: 12 }} />
+                  )}
+                  <Table
+                    size="small"
+                    rowKey="id"
+                    loading={adminLogsLoading}
+                    columns={logColumns}
+                    dataSource={filteredLogs}
+                    pagination={false}
+                    locale={{ emptyText: 'No admin actions match the current filters' }}
+                  />
+                </Card>
+              ),
+            },
+          ]}
+        />
       </div>
     </Layout>
   );

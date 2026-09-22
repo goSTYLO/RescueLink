@@ -5,8 +5,6 @@ import {
   AlertTriangle,
   BarChart3,
   CheckCircle,
-  ChevronLeft,
-  ChevronRight,
   Download,
   MapPin,
   Printer,
@@ -22,29 +20,29 @@ import { Breadcrumb } from '@/presentation/components/common/Breadcrumb';
 import { Button } from '@/presentation/components/ui/Button';
 import { Input } from '@/presentation/components/ui/Input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/presentation/components/ui/Select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/presentation/components/ui/Tabs';
+import { Card, Col, ConfigProvider, Input as AntInput, Pagination, Progress, Row, Select as AntSelect, Space, Statistic, Table } from 'antd';
+import { buildAntdTheme } from '@/presentation/theme/antdTheme';
 import {
   ChartCard,
-  ClockMatrix,
-  DayHourHeatmap,
   DonutChart,
   EscalationFunnelSteps,
   ExceptionBreakdownCard,
   RankedBarChart,
-  SlaMetricCard,
   TypeProgressList,
   UtilizationStackedBar,
   VolumeAreaChart,
 } from '@/presentation/components/insights/ChartCard';
 import {
-  CARD_CHROME,
-  KPI_HOVER,
   channelColor,
   departmentColor,
   incidentTypeColor,
   kpiAccentClass,
   outcomeColor,
+  percentileTextClass,
+  severityColor,
+  slaRowBarColor,
 } from '@/presentation/components/insights/insightsColors';
+import { buildTypeBarangayMatrix, matrixCellStyle } from '@/presentation/components/insights/insightsMatrix';
 import { MetricHelp } from '@/presentation/components/insights/MetricHelp';
 import { BarangayChoropleth } from '@/presentation/components/insights/BarangayChoropleth';
 import { BarangayTypesCell } from '@/presentation/components/insights/BarangayTypesCell';
@@ -59,6 +57,14 @@ import {
   INSIGHTS_POLLING_INTERVAL_MS,
   INSIGHTS_POLLING_WHEN_WS_CONNECTED_MS,
 } from '@/core/utils/insightsRealtime';
+
+const INCIDENTS_PAGE_SIZE_OPTIONS = [
+  { value: 5, label: '5' },
+  { value: 8, label: '8' },
+  { value: 10, label: '10' },
+  { value: 15, label: '15' },
+  { value: 20, label: '20' },
+];
 
 const PRESETS = [
   { id: '24h', label: 'Last 24h', ms: 24 * 60 * 60 * 1000 },
@@ -140,25 +146,6 @@ function Delta({ value }) {
   );
 }
 
-function Sparkline({ data }) {
-  const values = (data || []).map((row) => Number(row.current) || 0);
-  if (values.length < 2) return null;
-  const max = Math.max(...values, 1);
-  const min = Math.min(...values, 0);
-  const w = 88;
-  const h = 28;
-  const pts = values.map((v, i) => {
-    const x = (i / (values.length - 1)) * w;
-    const y = h - ((v - min) / (max - min || 1)) * (h - 2) - 1;
-    return `${x},${y}`;
-  }).join(' ');
-  return (
-    <svg width={w} height={h} className="text-primary mt-1" aria-hidden>
-      <polyline fill="none" stroke="currentColor" strokeWidth="1.5" points={pts} />
-    </svg>
-  );
-}
-
 const KPI_ICON = {
   incidents: Activity,
   critical: AlertTriangle,
@@ -168,22 +155,72 @@ const KPI_ICON = {
   resolve: CheckCircle,
 };
 
-function KpiCard({ metricId, label, value, hint, delta, extra, headline }) {
+const OUTCOME_ORDER = ['resolved', 'closed', 'cancelled', 'duplicate', 'unable to respond', 'other'];
+
+function clockHint(clock, emptyLabel) {
+  if (!clock?.n) return emptyLabel;
+  return `p90 ${formatClock(clock.p90_seconds)} · p95 ${formatClock(clock.p95_seconds)} · n=${clock.n}`;
+}
+
+function ClockPercents({ clock }) {
+  if (!clock?.n) return '—';
+  const parts = [
+    ['p50', clock.p50_seconds],
+    ['p90', clock.p90_seconds],
+    ['p95', clock.p95_seconds],
+  ];
+  return (
+    <span className="tabular-nums text-xs">
+      {parts.map(([kind, value], index) => (
+        <span key={kind}>
+          {index > 0 ? ' / ' : null}
+          <span className={percentileTextClass(kind)}>{formatClock(value)}</span>
+        </span>
+      ))}
+    </span>
+  );
+}
+
+function InsightStat({ metricId, title, value, hint, delta }) {
   const Icon = KPI_ICON[metricId];
   return (
-    <div className={`${CARD_CHROME} p-4 ${KPI_HOVER} ${kpiAccentClass(metricId)} ${headline ? 'py-5' : ''}`}>
-      <div className="flex items-start justify-between gap-2">
-        <p className="text-xs text-muted flex items-center gap-0.5">
-          <span>{label}</span>
-          <MetricHelp metricId={metricId} />
-        </p>
-        {Icon ? <Icon className="w-5 h-5 shrink-0 text-primary/80" aria-hidden /> : null}
-      </div>
-      <p className={`font-semibold mt-1 ${headline ? 'text-3xl' : 'text-2xl'}`}>{value}</p>
+    <Card size="small" className={`h-full ${kpiAccentClass(metricId)}`} styles={{ body: { padding: 12, height: '100%' } }}>
+      <Statistic
+        title={(
+          <span className="inline-flex items-center gap-0.5">
+            {title}
+            <MetricHelp metricId={metricId} />
+          </span>
+        )}
+        value={value ?? '—'}
+        prefix={Icon ? <Icon className="w-4 h-4" aria-hidden /> : null}
+        valueStyle={{ fontSize: 22, lineHeight: 1.2 }}
+      />
       {hint ? <p className="text-xs text-muted mt-1">{hint}</p> : null}
       <Delta value={delta} />
-      {extra}
-    </div>
+    </Card>
+  );
+}
+
+function SlaStat({ metricId, label, pct, hint, barLabel }) {
+  const value = Math.max(0, Math.min(100, Number(pct) || 0));
+  return (
+    <Card size="small" className="h-full" styles={{ body: { padding: 12, height: '100%' } }}>
+      <p className="text-xs text-muted flex items-center gap-0.5">
+        {label}
+        <MetricHelp metricId={metricId} />
+      </p>
+      <p className="text-xl font-semibold mt-1 tabular-nums">{value}%</p>
+      {hint ? <p className="text-xs text-muted mt-0.5">{hint}</p> : null}
+      <Progress
+        percent={value}
+        showInfo={false}
+        strokeColor={slaRowBarColor(metricId)}
+        trailColor="rgba(148,163,184,0.25)"
+        size="small"
+      />
+      <p className="text-[11px] text-muted mt-1">{barLabel}</p>
+    </Card>
   );
 }
 
@@ -193,40 +230,35 @@ function EmptyNote() {
 
 function BarangayDemandTable({ rows, patchParams }) {
   if (!rows?.length) return <EmptyNote />;
+  const columns = [
+    {
+      title: 'Barangay',
+      dataIndex: 'key',
+      render: (key) => (
+        <button type="button" className="underline-offset-2 hover:underline" onClick={() => patchParams({ barangay: key })}>
+          {key}
+        </button>
+      ),
+    },
+    { title: 'Count', dataIndex: 'count' },
+    { title: '%', dataIndex: 'pct', render: (pct) => `${pct}%` },
+    { title: 'Critical', dataIndex: 'critical_count' },
+    {
+      title: 'Types',
+      dataIndex: 'types',
+      width: 140,
+      render: (types) => (
+        <BarangayTypesCell
+          types={types}
+          titleCase={titleCase}
+          onTypeClick={(key) => patchParams({ incident_type: key })}
+        />
+      ),
+    },
+  ];
   return (
-    <div className="max-h-80 overflow-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="text-left text-muted">
-            <th className="py-1">Barangay</th>
-            <th>Count</th>
-            <th>%</th>
-            <th>Critical</th>
-            <th className="min-w-[140px]">Types</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr key={row.key}>
-              <td className="py-1">
-                <button type="button" className="underline-offset-2 hover:underline" onClick={() => patchParams({ barangay: row.key })}>
-                  {row.key}
-                </button>
-              </td>
-              <td>{row.count}</td>
-              <td>{row.pct}%</td>
-              <td>{row.critical_count}</td>
-              <td className="py-1">
-                <BarangayTypesCell
-                  types={row.types}
-                  titleCase={titleCase}
-                  onTypeClick={(key) => patchParams({ incident_type: key })}
-                />
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="insights-scroll-panel">
+      <Table size="small" pagination={false} rowKey="key" columns={columns} dataSource={rows} />
     </div>
   );
 }
@@ -261,9 +293,9 @@ export function InsightsPage() {
   const page = Math.max(1, Number(searchParams.get('page') || 1));
   const includeArchived = searchParams.get('include_archived') !== 'false';
   const excludeDuplicates = searchParams.get('exclude_duplicates') === 'true';
-  const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
+  const pageSizeValues = INCIDENTS_PAGE_SIZE_OPTIONS.map((option) => option.value);
   const pageSizeParam = Number(searchParams.get('page_size') || 10);
-  const pageSize = PAGE_SIZE_OPTIONS.includes(pageSizeParam) ? pageSizeParam : 10;
+  const pageSize = pageSizeValues.includes(pageSizeParam) ? pageSizeParam : 10;
 
   const [overview, setOverview] = useState(null);
   const [rows, setRows] = useState([]);
@@ -398,7 +430,8 @@ export function InsightsPage() {
     };
   }, [insightsAuthorized, wsConnected, fetchOverview, fetchIncidentsTable]);
 
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const pageStart = total === 0 ? 0 : ((page - 1) * pageSize) + 1;
+  const pageEnd = Math.min(page * pageSize, total);
   const kpis = overview?.kpis || {};
   const clocks = overview?.clocks || {};
   const demand = overview?.demand || { types: [], barangays: [], type_barangay: [], channels: [] };
@@ -426,6 +459,46 @@ export function InsightsPage() {
     { label: 'Dispatched', count: funnel.dispatched || 0, pct: funnel.dispatched_pct || 0 },
     { label: 'Arrived', count: funnel.arrived || 0, pct: funnel.arrived_pct || 0 },
   ];
+  const severityClocks = useMemo(() => {
+    const lookup = new Map((overview?.breakdowns?.severity_clocks || []).map((row) => [String(row.key || '').toLowerCase(), row]));
+    const metrics = [
+      { key: 'first_action', label: 'First action' },
+      { key: 'dispatch', label: 'Dispatch' },
+      { key: 'arrival', label: 'Arrival' },
+      { key: 'resolve', label: 'Resolution' },
+    ];
+    return metrics.map((metric) => ({
+      key: metric.key,
+      clock: metric.label,
+      overall: clocks[metric.key],
+      critical: lookup.get('critical')?.[metric.key],
+      high: lookup.get('high')?.[metric.key],
+      medium: lookup.get('medium')?.[metric.key],
+      low: lookup.get('low')?.[metric.key],
+    }));
+  }, [overview, clocks]);
+  const typeMatrix = useMemo(
+    () => buildTypeBarangayMatrix(demand.type_barangay),
+    [demand.type_barangay]
+  );
+  const outcomeRows = useMemo(() => {
+    const rows = (overview?.outcomes || []).filter((row) => Number(row.count) > 0);
+    return [...rows].sort((a, b) => {
+      const ai = OUTCOME_ORDER.indexOf(String(a.key || '').toLowerCase());
+      const bi = OUTCOME_ORDER.indexOf(String(b.key || '').toLowerCase());
+      return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi);
+    });
+  }, [overview]);
+  const insightsTheme = useMemo(() => buildAntdTheme(isLight), [isLight]);
+
+  const incidentTableColumns = useMemo(() => [
+    { title: 'ID', dataIndex: 'report_id', render: (id) => `#${id}` },
+    { title: 'Type', dataIndex: 'incident_type', render: (value) => titleCase(value) },
+    { title: 'Severity', dataIndex: 'severity_level', render: (value) => titleCase(value) },
+    { title: 'Status', dataIndex: 'status', render: (value) => titleCase(value) },
+    { title: 'Barangay', dataIndex: 'barangay', render: (value) => value || 'Unknown' },
+    { title: 'Created', dataIndex: 'created_at', render: (value) => formatWhen(value) },
+  ], []);
 
   async function onExportCsv() {
     setExporting(true);
@@ -558,9 +631,69 @@ export function InsightsPage() {
     </>
   );
 
+  const clockColumn = (key, title) => ({
+    title: key === 'overall' ? title : (
+      <span className="inline-flex items-center gap-1.5">
+        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: severityColor(key) }} aria-hidden />
+        {title}
+      </span>
+    ),
+    dataIndex: key,
+    render: (clock) => <ClockPercents clock={clock} />,
+  });
+
+  const matrixColumns = [
+    { title: 'Clock', dataIndex: 'clock', fixed: 'left' },
+    clockColumn('overall', 'Overall'),
+    clockColumn('critical', 'Critical'),
+    clockColumn('high', 'High'),
+    clockColumn('medium', 'Medium'),
+    clockColumn('low', 'Low'),
+  ];
+
+  const typeMatrixColumns = [
+    {
+      title: 'Type',
+      dataIndex: 'type',
+      fixed: 'left',
+      render: (label, record) => (
+        <button type="button" className="hover:underline inline-flex items-center gap-2" onClick={() => patchParams({ incident_type: record.typeKey })}>
+          <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: incidentTypeColor(record.typeKey) }} aria-hidden />
+          {label}
+        </button>
+      ),
+    },
+    ...typeMatrix.barangays.map((name) => ({
+      title: (
+        <button type="button" className="hover:underline" onClick={() => patchParams({ barangay: name })}>
+          {name}
+        </button>
+      ),
+      dataIndex: name,
+      align: 'center',
+      render: (count, record) => (
+        <span
+          className="inline-flex min-w-8 justify-center rounded px-1.5 py-0.5 tabular-nums"
+          style={matrixCellStyle(count, typeMatrix.max, isLight, incidentTypeColor(record.typeKey))}
+        >
+          {count || ''}
+        </span>
+      ),
+    })),
+  ];
+
+  const typeMatrixRows = typeMatrix.types.map((type) => {
+    const record = { key: type, type: titleCase(type), typeKey: type };
+    for (const name of typeMatrix.barangays) {
+      record[name] = typeMatrix.lookup.get(`${type}|${name}`) || 0;
+    }
+    return record;
+  });
+
   return (
+    <ConfigProvider theme={insightsTheme}>
     <Layout>
-      <div className="insights-root p-6 space-y-10">
+      <div className="insights-root p-4 md:p-6 space-y-10">
         <Breadcrumb items={[{ label: 'Home', path: '/dashboard' }, { label: 'Insights' }]} />
         <header className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -579,12 +712,19 @@ export function InsightsPage() {
               {wsConnected ? (
                 <span className="inline-flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" aria-hidden />
-                  Live
+                  Live — updates on incident activity
+                  <span className="text-muted">
+                    (backup every {INSIGHTS_POLLING_WHEN_WS_CONNECTED_MS / 1000}s)
+                  </span>
                 </span>
               ) : wsStatus === 'reconnecting' ? (
-                <span className="text-amber-600 dark:text-amber-400">Reconnecting…</span>
+                <span className="text-amber-600 dark:text-amber-400">
+                  Connecting live feed… · backup every {INSIGHTS_POLLING_INTERVAL_MS / 1000}s until connected
+                </span>
               ) : (
-                <span>Offline — backup refresh every {INSIGHTS_POLLING_INTERVAL_MS / 1000}s</span>
+                <span>
+                  Live feed offline — backup refresh every {INSIGHTS_POLLING_INTERVAL_MS / 1000}s
+                </span>
               )}
               {lastRefreshedAt ? (
                 <span>Updated {lastRefreshedAt.toLocaleTimeString('en-PH', { timeZone: 'Asia/Manila', hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
@@ -608,13 +748,13 @@ export function InsightsPage() {
           </div>
         </header>
 
-        <div className="insights-filters sticky top-0 z-20 bg-background/95 backdrop-blur border border-[rgba(19,65,120,0.35)] rounded-xl p-3 print:static">
+        <Card size="small" className="insights-filters sticky top-0 z-20 print:static">
           <details className="md:hidden">
             <summary className="cursor-pointer text-sm font-medium py-1">Filters</summary>
             <div className="flex flex-wrap gap-2 items-end pt-2">{filterControls}</div>
           </details>
           <div className="hidden md:flex flex-wrap gap-2 items-end">{filterControls}</div>
-        </div>
+        </Card>
         <div className="flex flex-wrap gap-1.5 text-xs print:hidden">
           {superAdmin && departmentId ? (
             <button
@@ -658,197 +798,175 @@ export function InsightsPage() {
           <>
             <section id="insights-kpis" className="scroll-mt-24 space-y-4">
               <h2 className="text-lg font-semibold">Headline</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-                <KpiCard
-                  headline
-                  metricId="incidents"
-                  label="Total incidents"
-                  value={kpis.incidents ?? '—'}
-                  delta={kpis.incidents_delta_pct}
-                  hint={cityWide && kpis.volunteer_share != null ? `${kpis.volunteer_share}% volunteer-accepted (primary acceptor)` : undefined}
-                  extra={<Sparkline data={volumeData} />}
-                />
-                <KpiCard headline metricId="critical" label="Critical incidents" value={kpis.critical ?? '—'} delta={kpis.critical_delta_pct} />
-                <KpiCard
-                  headline
-                  metricId="first_action"
-                  label="First action time"
-                  value={formatClock(clocks.first_action?.p50_seconds)}
-                  hint={`p90 ${formatClock(clocks.first_action?.p90_seconds)} · p95 ${formatClock(clocks.first_action?.p95_seconds)} · n=${clocks.first_action?.n || 0}`}
-                />
-                <KpiCard
-                  headline
-                  metricId="dispatch"
-                  label="Dispatch time"
-                  value={formatClock(clocks.dispatch?.p50_seconds)}
-                  hint={`p90 ${formatClock(clocks.dispatch?.p90_seconds)} · p95 ${formatClock(clocks.dispatch?.p95_seconds)} · n=${clocks.dispatch?.n || 0}`}
-                />
-                <KpiCard
-                  headline
-                  metricId="arrival"
-                  label="Arrival time"
-                  value={clocks.arrival?.n ? formatClock(clocks.arrival.p50_seconds) : '—'}
-                  hint={clocks.arrival?.n
-                    ? `p90 ${formatClock(clocks.arrival.p90_seconds)} · p95 ${formatClock(clocks.arrival.p95_seconds)} · n=${clocks.arrival.n}`
-                    : 'No on-scene stamps in range'}
-                />
-                <KpiCard
-                  headline
-                  metricId="resolve"
-                  label="Resolution time"
-                  value={clocks.resolve?.n ? formatClock(clocks.resolve.p50_seconds) : '—'}
-                  hint={clocks.resolve?.n
-                    ? `p90 ${formatClock(clocks.resolve.p90_seconds)} · p95 ${formatClock(clocks.resolve.p95_seconds)} · n=${clocks.resolve.n}`
-                    : 'No resolve/close timestamps in range'}
-                />
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
-                <SlaMetricCard
-                  metricId="dispatch_sla"
-                  label="Dispatch SLA"
-                  value={`${kpis.dispatch_sla ?? 0}%`}
-                  pct={kpis.dispatch_sla}
-                  barLabel="≤ 8 min (internal, not NFPA)"
-                />
-                <SlaMetricCard
-                  metricId="arrival_sla"
-                  label="Arrival SLA"
-                  value={`${kpis.arrival_sla ?? 0}%`}
-                  pct={kpis.arrival_sla}
-                  barLabel="≤ 10 min (internal, not NFPA)"
-                />
-                <SlaMetricCard
-                  metricId="unserved"
-                  label="Unserved"
-                  value={`${kpis.unserved_pct ?? 0}%`}
-                  pct={kpis.unserved_pct}
-                  hint={`${kpis.unserved ?? 0} incidents`}
-                  barLabel="Share unserved"
-                />
-                <SlaMetricCard
-                  metricId="overdue"
-                  label="Overdue"
-                  value={`${kpis.overdue_pct ?? 0}%`}
-                  pct={kpis.overdue_pct}
-                  hint={`${kpis.overdue ?? 0} still open > 30 min`}
-                  barLabel="Open > 30 min"
-                />
-                <SlaMetricCard
-                  metricId="duplicate_rate"
-                  label="Duplicate rate"
-                  value={`${kpis.duplicate_rate ?? 0}%`}
-                  pct={kpis.duplicate_rate}
-                  barLabel="Marked duplicate"
-                />
-              </div>
+              <Row gutter={[12, 12]} className="insights-kpi-row">
+                <Col xs={24} sm={12} xl={4}>
+                  <InsightStat
+                    metricId="incidents"
+                    title="Total incidents"
+                    value={kpis.incidents ?? '—'}
+                    delta={kpis.incidents_delta_pct}
+                    hint={cityWide && kpis.volunteer_share != null ? `${kpis.volunteer_share}% volunteer-accepted` : undefined}
+                  />
+                </Col>
+                <Col xs={24} sm={12} xl={4}>
+                  <InsightStat metricId="critical" title="Critical incidents" value={kpis.critical ?? '—'} delta={kpis.critical_delta_pct} />
+                </Col>
+                <Col xs={24} sm={12} xl={4}>
+                  <InsightStat metricId="first_action" title="First action time" value={formatClock(clocks.first_action?.p50_seconds)} hint={clockHint(clocks.first_action, 'No first-action stamps')} />
+                </Col>
+                <Col xs={24} sm={12} xl={4}>
+                  <InsightStat metricId="dispatch" title="Dispatch time" value={formatClock(clocks.dispatch?.p50_seconds)} hint={clockHint(clocks.dispatch, 'No dispatch stamps')} />
+                </Col>
+                <Col xs={24} sm={12} xl={4}>
+                  <InsightStat metricId="arrival" title="Arrival time" value={clocks.arrival?.n ? formatClock(clocks.arrival.p50_seconds) : '—'} hint={clockHint(clocks.arrival, 'No on-scene stamps')} />
+                </Col>
+                <Col xs={24} sm={12} xl={4}>
+                  <InsightStat metricId="resolve" title="Resolution time" value={clocks.resolve?.n ? formatClock(clocks.resolve.p50_seconds) : '—'} hint={clockHint(clocks.resolve, 'No resolve/close timestamps')} />
+                </Col>
+              </Row>
+              <Row gutter={[12, 12]} className="insights-kpi-row">
+                <Col xs={24} sm={12} xl={4}>
+                  <SlaStat metricId="dispatch_sla" label="Dispatch SLA" pct={kpis.dispatch_sla} barLabel="≤ 8 min (internal, not NFPA)" />
+                </Col>
+                <Col xs={24} sm={12} xl={4}>
+                  <SlaStat metricId="arrival_sla" label="Arrival SLA" pct={kpis.arrival_sla} barLabel="≤ 10 min (internal, not NFPA)" />
+                </Col>
+                <Col xs={24} sm={12} xl={5}>
+                  <SlaStat metricId="unserved" label="Unserved" pct={kpis.unserved_pct} hint={`${kpis.unserved ?? 0} incidents`} barLabel="Share unserved" />
+                </Col>
+                <Col xs={24} sm={12} xl={5}>
+                  <SlaStat metricId="overdue" label="Overdue" pct={kpis.overdue_pct} hint={`${kpis.overdue ?? 0} still open > 30 min`} barLabel="Open > 30 min" />
+                </Col>
+                <Col xs={24} sm={12} xl={6}>
+                  <SlaStat metricId="duplicate_rate" label="Duplicate rate" pct={kpis.duplicate_rate} barLabel="Marked duplicate" />
+                </Col>
+              </Row>
             </section>
 
             <section id="insights-performance" className="scroll-mt-24 space-y-4">
               <h2 className="text-lg font-semibold">Response performance</h2>
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                <ChartCard title="Response matrix" metricId="response_matrix" footer="Cells are p50 / p90 / p95. Null clocks excluded.">
-                  <ClockMatrix overall={clocks} bySeverity={overview.breakdowns?.severity_clocks} formatClock={formatClock} />
-                </ChartCard>
-                <div className="space-y-4">
-                  <ChartCard title="Volume" metricId="volume">
+              <ChartCard title="Response matrix" metricId="response_matrix" footer="Cells are p50 / p90 / p95. Null clocks excluded.">
+                <div className="insights-scroll-panel">
+                  <Table
+                    size="small"
+                    pagination={false}
+                    rowKey="key"
+                    columns={matrixColumns}
+                    dataSource={severityClocks}
+                    scroll={{ x: 720 }}
+                  />
+                </div>
+              </ChartCard>
+              <Row gutter={[16, 16]} className="insights-row-equal">
+                <Col xs={24} xl={14}>
+                  <ChartCard title="Incident volume" metricId="volume">
                     <VolumeAreaChart data={volumeData} isLight={isLight} animKey={`vol-${chartAnimKey}`} />
                   </ChartCard>
+                </Col>
+                <Col xs={24} xl={10}>
                   <ChartCard title="Peak demand" metricId="peak_demand">
-                    <dl className="grid grid-cols-2 gap-3 text-sm">
-                      <div>Busiest weekday<br /><strong>{overview.peak?.busiest_weekday || '—'}</strong></div>
-                      <div>Peak hour<br /><strong>{overview.peak?.peak_hour_band || '—'}</strong></div>
-                      <div>Peak volume<br /><strong>{overview.peak?.peak_volume ?? 0}</strong></div>
-                      <div>Max concurrent open<br /><strong>{overview.peak?.max_concurrent ?? 0}</strong>
-                        <span className="block text-xs text-muted">avg {overview.peak?.avg_concurrent ?? 0} · {overview.concurrent?.granularity || 'hour'}</span>
+                    <dl className="insights-chart-frame grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm content-center">
+                      <div>
+                        <dt className="text-xs text-muted inline-flex items-center gap-1"><BarChart3 className="w-3.5 h-3.5" aria-hidden /> Peak day</dt>
+                        <dd className="text-lg font-semibold mt-1">{overview.peak?.busiest_weekday || '—'}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-muted inline-flex items-center gap-1"><Zap className="w-3.5 h-3.5" aria-hidden /> Peak hour</dt>
+                        <dd className="text-lg font-semibold mt-1">{overview.peak?.peak_hour_band || '—'}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-muted inline-flex items-center gap-1"><Activity className="w-3.5 h-3.5" aria-hidden /> Peak incident volume</dt>
+                        <dd className="text-lg font-semibold mt-1 tabular-nums">{overview.peak?.peak_volume ?? 0}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-muted inline-flex items-center gap-1"><Truck className="w-3.5 h-3.5" aria-hidden /> Max concurrent</dt>
+                        <dd className="text-lg font-semibold mt-1 tabular-nums">{overview.peak?.max_concurrent ?? overview.concurrent?.max ?? 0}</dd>
+                        <p className="text-xs text-muted">avg {overview.concurrent?.avg ?? overview.peak?.avg_concurrent ?? 0}</p>
                       </div>
                     </dl>
-                    <div className="mt-3">
-                      <DayHourHeatmap cells={overview.heatmap || []} animKey={`heat-${chartAnimKey}`} />
-                    </div>
                   </ChartCard>
-                </div>
-              </div>
+                </Col>
+              </Row>
             </section>
 
             <section id="insights-demand" className="scroll-mt-24 space-y-4">
-              <h2 className="text-lg font-semibold">What &amp; where</h2>
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 min-w-0">
-                <ChartCard className="min-w-0 overflow-hidden relative z-0" title="Barangay map" metricId="barangay_map" footer="Click a barangay to filter. Unknown names are not on the map.">
-                  <BarangayChoropleth
-                    barangays={demand.barangays}
-                    selected={barangay}
-                    isLight={isLight}
-                    onSelect={(name) => patchParams({ barangay: name })}
-                  />
-                </ChartCard>
-                <ChartCard className="min-w-0" title="Barangay table" metricId="barangay_map">
-                  <BarangayDemandTable rows={demand.barangays} patchParams={patchParams} />
-                </ChartCard>
+              <div>
+                <h2 className="text-lg font-semibold">What &amp; where</h2>
+                <p className="text-sm text-muted mt-1">
+                  Barangay:{' '}
+                  {barangay ? (
+                    <button
+                      type="button"
+                      className="text-foreground hover:underline underline-offset-2"
+                      onClick={() => patchParams({ barangay: '' })}
+                      title="Clear barangay filter"
+                    >
+                      {barangay}
+                    </button>
+                  ) : (
+                    <span className="text-foreground">All barangays</span>
+                  )}
+                </p>
               </div>
-              <ChartCard title="Demand" metricId="demand_types">
-                <Tabs defaultValue="types">
-                  <TabsList className="mb-3 w-full justify-start overflow-x-auto">
-                    <TabsTrigger value="types">Incident types</TabsTrigger>
-                    <TabsTrigger value="barangays">Barangay table</TabsTrigger>
-                    <TabsTrigger value="matrix">Type × barangay</TabsTrigger>
-                    <TabsTrigger value="channels">Channels</TabsTrigger>
-                  </TabsList>
-                  <TabsContent value="types">
-                    <TypeProgressList
-                      key={`types-${chartAnimKey}`}
-                      data={(demand.types || []).map((row) => ({ ...row, label: titleCase(row.key) }))}
-                      onRowClick={(row) => patchParams({ incident_type: row?.key })}
+              <ChartCard title="Incident types" metricId="demand_types">
+                <div className="insights-scroll-panel">
+                  <TypeProgressList
+                    key={`types-${chartAnimKey}`}
+                    data={(demand.types || []).map((row) => ({ ...row, label: titleCase(row.key) }))}
+                    onRowClick={(row) => patchParams({ incident_type: row?.key })}
+                  />
+                </div>
+              </ChartCard>
+              <Row gutter={[16, 16]} className="insights-row-equal">
+                <Col xs={24} xl={12}>
+                  <ChartCard className="min-w-0 overflow-hidden relative z-0" title="Geographic demand" metricId="barangay_map" footer="Click a barangay to filter. Unknown names are not on the map.">
+                    <BarangayChoropleth
+                      barangays={demand.barangays}
+                      selected={barangay}
+                      isLight={isLight}
+                      onSelect={(name) => patchParams({ barangay: name })}
                     />
-                  </TabsContent>
-                  <TabsContent value="barangays">
+                  </ChartCard>
+                </Col>
+                <Col xs={24} xl={12}>
+                  <ChartCard className="min-w-0" title="Top barangays" metricId="barangay_map">
                     <BarangayDemandTable rows={demand.barangays} patchParams={patchParams} />
-                  </TabsContent>
-                  <TabsContent value="matrix">
-                    {(demand.type_barangay || []).length ? (
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="text-left text-muted">
-                            <th className="py-1">Type</th>
-                            <th>Barangay</th>
-                            <th>Count</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {demand.type_barangay.map((row) => (
-                            <tr key={`${row.incident_type}-${row.barangay}`}>
-                              <td className="py-1">
-                                <button type="button" className="hover:underline inline-flex items-center gap-2" onClick={() => patchParams({ incident_type: row.incident_type })}>
-                                  <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: incidentTypeColor(row.incident_type) }} aria-hidden />
-                                  {titleCase(row.incident_type)}
-                                </button>
-                              </td>
-                              <td>
-                                <button type="button" className="hover:underline" onClick={() => patchParams({ barangay: row.barangay })}>
-                                  {row.barangay}
-                                </button>
-                              </td>
-                              <td>{row.count}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    ) : <EmptyNote />}
-                  </TabsContent>
-                  <TabsContent value="channels">
+                  </ChartCard>
+                </Col>
+              </Row>
+              <Row gutter={[16, 16]} className="insights-row-equal">
+                <Col xs={24} xl={14}>
+                  <ChartCard title="Type × barangay" metricId="demand_types">
+                    <div className="insights-scroll-panel">
+                      {typeMatrixRows.length ? (
+                        <Table
+                          size="small"
+                          pagination={false}
+                          rowKey="key"
+                          columns={typeMatrixColumns}
+                          dataSource={typeMatrixRows}
+                          scroll={{ x: 640 }}
+                        />
+                      ) : <EmptyNote />}
+                    </div>
+                  </ChartCard>
+                </Col>
+                <Col xs={24} xl={10}>
+                  <ChartCard title="Reporting channels" metricId="demand_types">
                     <DonutChart
                       isLight={isLight}
                       animKey={`ch-${chartAnimKey}`}
                       data={(demand.channels || []).map((row) => ({ ...row, label: titleCase(row.key) }))}
                       getSliceFill={(entry) => channelColor(entry.key || entry.name)}
                     />
-                  </TabsContent>
-                </Tabs>
-              </ChartCard>
+                  </ChartCard>
+                </Col>
+              </Row>
             </section>
 
             <section id="insights-ops" className="scroll-mt-24 space-y-4">
               <h2 className="text-lg font-semibold">Operations</h2>
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 insights-ops-uniform">
                 <ChartCard
                   title="Dispatch exceptions"
                   metricId="exceptions"
@@ -889,7 +1007,7 @@ export function InsightsPage() {
                   <DonutChart
                     isLight={isLight}
                     animKey={`out-${chartAnimKey}`}
-                    data={(overview.outcomes || []).map((row) => ({ ...row, label: row.key }))}
+                    data={outcomeRows.map((row) => ({ ...row, label: row.key }))}
                     getSliceFill={(entry) => outcomeColor(entry.key || entry.name)}
                   />
                 </ChartCard>
@@ -911,30 +1029,21 @@ export function InsightsPage() {
                     getBarFill={(row) => departmentColor(row.key || row.label)}
                   />
                   {(overview.breakdowns?.department_clocks || []).length ? (
-                    <table className="w-full text-sm mt-4">
-                      <thead>
-                        <tr className="text-left text-muted">
-                          <th className="py-1">Department</th>
-                          <th>Dispatch p50</th>
-                          <th>Arrival p50</th>
-                          <th>n</th>
-                          <th>Primary</th>
-                          <th>Supporting</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {overview.breakdowns.department_clocks.map((row) => (
-                          <tr key={row.key}>
-                            <td className="py-1">{row.key}</td>
-                            <td>{formatClock(row.dispatch_p50_seconds)}</td>
-                            <td>{formatClock(row.arrival_p50_seconds)}</td>
-                            <td>{row.n}</td>
-                            <td>{row.primary_n}</td>
-                            <td>{row.supporting_n}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                    <Table
+                      className="mt-4"
+                      size="small"
+                      pagination={false}
+                      rowKey="key"
+                      dataSource={overview.breakdowns.department_clocks}
+                      columns={[
+                        { title: 'Department', dataIndex: 'key' },
+                        { title: 'Dispatch p50', dataIndex: 'dispatch_p50_seconds', render: (value) => formatClock(value) },
+                        { title: 'Arrival p50', dataIndex: 'arrival_p50_seconds', render: (value) => formatClock(value) },
+                        { title: 'n', dataIndex: 'n' },
+                        { title: 'Primary', dataIndex: 'primary_n' },
+                        { title: 'Supporting', dataIndex: 'supporting_n' },
+                      ]}
+                    />
                   ) : <EmptyNote />}
                 </ChartCard>
               </section>
@@ -944,87 +1053,66 @@ export function InsightsPage() {
 
         {!loading && !overview && !error && <EmptyNote />}
 
-        <section id="insights-table" className="scroll-mt-24 bg-card rounded-xl border border-[rgba(19,65,120,0.35)] p-4">
-          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-            <h2 className="text-base font-semibold flex items-center gap-0.5">
+        <Card
+          id="insights-table"
+          size="small"
+          className="scroll-mt-24"
+          title={(
+            <span className="inline-flex items-center gap-0.5">
               Incidents ({total})
               <MetricHelp metricId="incidents_table" />
-            </h2>
-            <label className="relative">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted" aria-hidden />
-              <Input
-                className="pl-9 py-2 min-w-[220px]"
-                placeholder="Search barangay or report ID"
-                defaultValue={search}
-                onBlur={(e) => patchParams({ search: e.target.value.trim() })}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') patchParams({ search: e.currentTarget.value.trim() });
-                }}
+            </span>
+          )}
+        >
+          <div style={{ marginBottom: 12, width: '100%', maxWidth: 480 }}>
+            <AntInput
+              prefix={<Search size={14} />}
+              placeholder="Search barangay or report ID"
+              defaultValue={search}
+              onBlur={(e) => patchParams({ search: e.target.value.trim() })}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') patchParams({ search: e.currentTarget.value.trim() });
+              }}
+              allowClear
+            />
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 12 }} className="print:hidden">
+            <Space wrap>
+              <span style={{ fontSize: 12, opacity: 0.7 }}>Rows</span>
+              <AntSelect
+                value={pageSize}
+                onChange={(value) => patchParams({ page_size: value, page: 1 })}
+                options={INCIDENTS_PAGE_SIZE_OPTIONS}
+                style={{ width: 84 }}
               />
-            </label>
+              <span style={{ fontSize: 12, opacity: 0.7 }}>Showing {pageStart}-{pageEnd} of {total}</span>
+            </Space>
+            <Pagination
+              current={page}
+              total={total}
+              pageSize={pageSize}
+              onChange={(nextPage) => patchParams({ page: nextPage })}
+              showSizeChanger={false}
+              size="small"
+            />
           </div>
-          <div className="flex flex-wrap items-center justify-between gap-3 mb-3 text-sm print:hidden">
-            <div className="flex items-center gap-2">
-              <span className="text-muted">Page {page} of {totalPages}</span>
-              <Button variant="outline" size="sm" disabled={page <= 1 || tableLoading} onClick={() => patchParams({ page: page - 1 })}>
-                <ChevronLeft className="w-4 h-4" />
-              </Button>
-              <Button variant="outline" size="sm" disabled={page >= totalPages || tableLoading} onClick={() => patchParams({ page: page + 1 })}>
-                <ChevronRight className="w-4 h-4" />
-              </Button>
-            </div>
-            <label className="text-xs text-muted flex items-center gap-2">
-              Rows per page
-              <Select
-                value={String(pageSize)}
-                onValueChange={(value) => patchParams({ page_size: value, page: 1 })}
-              >
-                <SelectTrigger className="h-8 w-[72px]"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {PAGE_SIZE_OPTIONS.map((n) => (
-                    <SelectItem key={n} value={String(n)}>{n}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </label>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-muted border-b border-[rgba(19,65,120,0.35)]">
-                  <th className="py-2">ID</th>
-                  <th>Type</th>
-                  <th>Severity</th>
-                  <th>Status</th>
-                  <th>Barangay</th>
-                  <th>Created</th>
-                </tr>
-              </thead>
-              <tbody>
-                {tableLoading && <tr><td colSpan={6} className="py-4 text-muted">Loading…</td></tr>}
-                {!tableLoading && rows.map((row) => (
-                  <tr
-                    key={row.report_id}
-                    className="border-b border-[rgba(19,65,120,0.15)] cursor-pointer hover:bg-primary/5"
-                    onClick={() => navigate(`/incidents/${row.report_id}`)}
-                  >
-                    <td className="py-2">#{row.report_id}</td>
-                    <td>{titleCase(row.incident_type)}</td>
-                    <td>{titleCase(row.severity_level)}</td>
-                    <td>{titleCase(row.status)}</td>
-                    <td>{row.barangay || 'Unknown'}</td>
-                    <td>{formatWhen(row.created_at)}</td>
-                  </tr>
-                ))}
-                {!tableLoading && rows.length === 0 && (
-                  <tr><td colSpan={6} className="py-4 text-muted">No incidents in this range. Widen the dates or clear filters.</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+          <Table
+            size="small"
+            loading={tableLoading}
+            rowKey="report_id"
+            columns={incidentTableColumns}
+            dataSource={rows}
+            pagination={false}
+            locale={{ emptyText: 'No incidents in this range. Widen the dates or clear filters.' }}
+            onRow={(record) => ({
+              onClick: () => navigate(`/incidents/${record.report_id}`),
+              style: { cursor: 'pointer' },
+            })}
+          />
           <p className="text-xs text-muted mt-2 print:hidden">Print/PDF includes this page of the table. Use CSV for the full filtered set.</p>
-        </section>
+        </Card>
       </div>
     </Layout>
+    </ConfigProvider>
   );
 }

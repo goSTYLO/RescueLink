@@ -7,28 +7,22 @@
  *   - Action buttons: Accept, Decline (with notes), Resolve, Cancel
  */
 import { useState } from 'react';
-import { Badge } from '@/presentation/components/ui/Badge';
-import { Button } from '@/presentation/components/ui/Button';
-import { Textarea } from '@/presentation/components/ui/Textarea';
-import { Label } from '@/presentation/components/ui/Label';
-import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
-} from '@/presentation/components/ui/Dialog';
-import { Loader2, CheckCircle, XCircle, Flag, Ban, AlertTriangle, HandHelping, Clock } from 'lucide-react';
+import { Alert, Button, Card, Input, Modal, Tag } from 'antd';
+import { Loader2, CheckCircle, XCircle, Flag, Ban, HandHelping, Clock } from 'lucide-react';
 
 const URGENCY_CONFIG = {
-  low:      { label: 'Low',      classes: 'bg-green-500/10 text-green-400 border-green-500/30' },
-  medium:   { label: 'Medium',   classes: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/30' },
-  high:     { label: 'High',     classes: 'bg-orange-500/10 text-orange-400 border-orange-500/30' },
-  critical: { label: 'Critical', classes: 'bg-red-500/10 text-red-400 border-red-500/30' },
+  low: { label: 'Low', color: 'green' },
+  medium: { label: 'Medium', color: 'gold' },
+  high: { label: 'High', color: 'orange' },
+  critical: { label: 'Critical', color: 'red' },
 };
 
 const STATUS_CONFIG = {
-  pending:   { label: 'Pending',   classes: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/30', icon: Clock },
-  accepted:  { label: 'Accepted',  classes: 'bg-blue-500/10 text-blue-400 border-blue-500/30',   icon: CheckCircle },
-  declined:  { label: 'Declined',  classes: 'bg-red-500/10 text-red-400 border-red-500/30',     icon: XCircle },
-  resolved:  { label: 'Resolved',  classes: 'bg-green-500/10 text-green-400 border-green-500/30', icon: Flag },
-  cancelled: { label: 'Cancelled', classes: 'bg-gray-500/10 text-gray-400 border-gray-500/30',  icon: Ban },
+  pending: { label: 'Pending', color: 'gold', icon: Clock },
+  accepted: { label: 'Accepted', color: 'blue', icon: CheckCircle },
+  declined: { label: 'Declined', color: 'red', icon: XCircle },
+  resolved: { label: 'Resolved', color: 'green', icon: Flag },
+  cancelled: { label: 'Cancelled', color: 'default', icon: Ban },
 };
 
 function formatDate(ts) {
@@ -99,7 +93,9 @@ export function IncidentEscalationSection({
     setActionError('');
     try {
       await onStatusUpdate(escalationId, action, responseNotes.trim() || undefined);
-      closeAction();
+      setActionState({ escalationId: null, action: null });
+      setResponseNotes('');
+      setActionError('');
     } catch (err) {
       setActionError(err.message || 'Action failed. Please try again.');
     } finally {
@@ -115,19 +111,16 @@ export function IncidentEscalationSection({
     <div className="space-y-5">
       {/* Active alert banner */}
       {(pending.length > 0 || active.length > 0) && (
-        <div className="flex items-start gap-3 p-4 rounded-xl bg-orange-500/10 border border-orange-500/30 text-orange-300">
-          <AlertTriangle size={18} className="mt-0.5 shrink-0" />
-          <div className="text-sm">
-            {pending.length > 0 && (
-              <p className="font-semibold">
-                {pending.length} pending assistance request{pending.length > 1 ? 's' : ''} awaiting response
-              </p>
-            )}
-            {active.length > 0 && (
-              <p>{active.length} active assistance request{active.length > 1 ? 's' : ''} in progress</p>
-            )}
-          </div>
-        </div>
+        <Alert
+          type="warning"
+          showIcon
+          message={pending.length > 0
+            ? `${pending.length} pending assistance request${pending.length > 1 ? 's' : ''} awaiting response`
+            : `${active.length} active assistance request${active.length > 1 ? 's' : ''} in progress`}
+          description={pending.length > 0 && active.length > 0
+            ? `${active.length} active assistance request${active.length > 1 ? 's' : ''} in progress`
+            : null}
+        />
       )}
 
       {/* Escalation list */}
@@ -150,7 +143,7 @@ export function IncidentEscalationSection({
             const caps = canActOn(esc);
 
             return (
-              <div key={esc.id} className="p-4 rounded-xl border border-border bg-card/40 space-y-3">
+              <Card key={esc.id} size="small" style={{ marginBottom: 8 }}>
                 {/* Header row */}
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="space-y-0.5">
@@ -165,13 +158,8 @@ export function IncidentEscalationSection({
                     </p>
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs font-medium ${urgencyCfg.classes}`}>
-                      {urgencyCfg.label}
-                    </span>
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs font-medium ${statusCfg.classes}`}>
-                      <StatusIcon size={11} />
-                      {statusCfg.label}
-                    </span>
+                    <Tag color={urgencyCfg.color}>{urgencyCfg.label}</Tag>
+                    <Tag color={statusCfg.color} icon={<StatusIcon size={11} />}>{statusCfg.label}</Tag>
                   </div>
                 </div>
 
@@ -197,79 +185,57 @@ export function IncidentEscalationSection({
                 {(caps.accept || caps.decline || caps.resolve || caps.cancel) && (
                   <div className="flex flex-wrap gap-2 pt-1">
                     {caps.accept && (
-                      <Button size="sm" variant="default" className="gap-1 text-xs" onClick={() => openAction(esc.id, 'accepted')}>
-                        <CheckCircle size={12} /> Accept
-                      </Button>
+                      <Button type="primary" icon={<CheckCircle size={14} />} onClick={() => openAction(esc.id, 'accepted')}>Accept</Button>
                     )}
                     {caps.decline && (
-                      <Button size="sm" variant="outline" className="gap-1 text-xs text-red-400 border-red-500/40 hover:bg-red-500/10" onClick={() => openAction(esc.id, 'declined')}>
-                        <XCircle size={12} /> Decline
-                      </Button>
+                      <Button danger icon={<XCircle size={14} />} onClick={() => openAction(esc.id, 'declined')}>Decline</Button>
                     )}
                     {caps.resolve && (
-                      <Button size="sm" variant="outline" className="gap-1 text-xs text-green-400 border-green-500/40 hover:bg-green-500/10" onClick={() => openAction(esc.id, 'resolved')}>
-                        <Flag size={12} /> Mark Resolved
-                      </Button>
+                      <Button icon={<Flag size={14} />} onClick={() => openAction(esc.id, 'resolved')}>Mark Resolved</Button>
                     )}
                     {caps.cancel && (
-                      <Button size="sm" variant="ghost" className="gap-1 text-xs text-muted" onClick={() => openAction(esc.id, 'cancelled')}>
-                        <Ban size={12} /> Cancel
-                      </Button>
+                      <Button type="text" icon={<Ban size={14} />} onClick={() => openAction(esc.id, 'cancelled')}>Cancel</Button>
                     )}
                   </div>
                 )}
-              </div>
+              </Card>
             );
           })}
         </div>
       )}
 
       {/* Action confirmation dialog */}
-      <Dialog open={!!actionState.escalationId} onOpenChange={closeAction}>
-        <DialogContent className="max-w-md bg-card border border-border text-foreground">
-          <DialogHeader>
-            <DialogTitle className="capitalize">
-              {actionState.action === 'accepted'  && '✅ Accept Assistance Request'}
-              {actionState.action === 'declined'  && '❌ Decline Assistance Request'}
-              {actionState.action === 'resolved'  && '🏁 Mark Assistance as Resolved'}
-              {actionState.action === 'cancelled' && '🚫 Cancel Assistance Request'}
-            </DialogTitle>
-            <DialogDescription className="text-muted text-sm">
-              {needsNotes
-                ? 'Please provide a reason (optional but helpful for the requesting department).'
-                : 'Add optional response notes before confirming.'}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-3 py-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="action-response-notes" className="text-foreground text-sm">
-                Response Notes {needsNotes ? <span className="text-muted font-normal">(optional)</span> : <span className="text-muted font-normal">(optional)</span>}
-              </Label>
-              <Textarea
-                id="action-response-notes"
-                rows={3}
-                placeholder="Add notes for the other department..."
-                value={responseNotes}
-                onChange={(e) => setResponseNotes(e.target.value)}
-                maxLength={500}
-                disabled={submitting}
-                className="resize-none"
-              />
-            </div>
-            {actionError && (
-              <p className="text-sm text-red-400">{actionError}</p>
-            )}
-          </div>
-
-          <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={closeAction} disabled={submitting}>Cancel</Button>
-            <Button onClick={handleActionSubmit} disabled={submitting} className="gap-2">
-              {submitting ? <><Loader2 size={13} className="animate-spin" /> Processing...</> : 'Confirm'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <Modal
+        open={!!actionState.escalationId}
+        onCancel={closeAction}
+        title={
+          (actionState.action === 'accepted' && 'Accept Assistance Request')
+          || (actionState.action === 'declined' && 'Decline Assistance Request')
+          || (actionState.action === 'resolved' && 'Mark Assistance as Resolved')
+          || (actionState.action === 'cancelled' && 'Cancel Assistance Request')
+          || 'Assistance request'
+        }
+        okText={submitting ? 'Processing...' : 'Confirm'}
+        confirmLoading={submitting}
+        onOk={handleActionSubmit}
+      >
+        <p>
+          {needsNotes
+            ? 'Please provide a reason (optional but helpful for the requesting department).'
+            : 'Add optional response notes before confirming.'}
+        </p>
+        <label htmlFor="action-response-notes">Response notes (optional)</label>
+        <Input.TextArea
+          id="action-response-notes"
+          rows={3}
+          placeholder="Add notes for the other department..."
+          value={responseNotes}
+          onChange={(e) => setResponseNotes(e.target.value)}
+          maxLength={500}
+          disabled={submitting}
+        />
+        {actionError && <Alert type="error" showIcon message={actionError} style={{ marginTop: 8 }} />}
+      </Modal>
     </div>
   );
 }

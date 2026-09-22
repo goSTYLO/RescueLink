@@ -31,7 +31,7 @@ void main() {
   test('foreground critical staff path suppresses tray so modal owns sound', () {
     final src = File('lib/services/onesignal_service.dart').readAsStringSync();
     expect(src.contains('preventDefault()'), isTrue);
-    expect(src.contains('_staffOwnsForegroundAmber'), isTrue);
+    expect(src.contains('_inAppOwnsForegroundAmber'), isTrue);
   });
 
   test('modal interaction stops native amber tray and FGS', () {

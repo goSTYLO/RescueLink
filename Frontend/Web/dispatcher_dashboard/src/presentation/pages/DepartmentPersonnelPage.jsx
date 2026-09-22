@@ -1,17 +1,10 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Layout } from '@/presentation/components/layout/Layout';
-import { Card } from '@/presentation/components/ui/Card';
-import { Badge } from '@/presentation/components/ui/Badge';
+import { Alert, Button, Card, Form, Input, Modal, Select, Table, Tabs, Tag } from 'antd';
 import { IncidentTypeChips } from '@/presentation/components/common/IncidentTypeChips';
-import { Button } from '@/presentation/components/ui/Button';
-import { Input } from '@/presentation/components/ui/Input';
-import { PhoneInput } from '@/presentation/components/ui/PhoneInput';
+import { ResponderStatusTag, statusSelectProps, embeddedStatusSelectProps } from '@/presentation/components/common/ResponderStatusTag';
 import { isValidLocalPhone } from '@/core/utils/inputUtils';
-import { Label } from '@/presentation/components/ui/Label';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/presentation/components/ui/Dialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/presentation/components/ui/Tabs';
-import { Combobox } from '@/presentation/components/ui/Combobox';
 import {
   Users,
   Shield,
@@ -19,7 +12,6 @@ import {
   UserPlus,
   Eye,
   MapPin,
-  X,
   UserCheck,
   Truck,
   Clock,
@@ -39,9 +31,8 @@ import {
 import { personnel as mockPersonnel, incidents as mockIncidents } from '@/data/mock/mockData';
 import { ROLES } from '@/core/constants';
 import { normalizeSectorCode, inferDepartmentSectorCode } from '@/core/utils/departmentSector';
-import { useTheme } from '@/presentation/context/ThemeContext';
 import { Breadcrumb } from '@/presentation/components/common/Breadcrumb';
-import Swal from 'sweetalert2';
+import { alertUser } from '@/presentation/feedback/alertUser';
 
 const ASSIGNMENTS_STORAGE_KEY = 'rescuelink_incident_personnel_assignments';
 const VEHICLE_ASSIGNMENTS_STORAGE_KEY = 'rescuelink_incident_vehicle_assignments';
@@ -50,6 +41,7 @@ const TASK_TYPES = ['fire', 'medical', 'police', 'disaster', 'sos'];
 const teamsPerPage = 5;
 const respondersPerPage = 5;
 const teamMembersPerPage = 5;
+const availabilitySelectOptions = AVAILABILITY_OPTIONS.map((s) => ({ value: s, label: s }));
 
 function getStoredAssignments() {
   try {
@@ -76,8 +68,6 @@ function toggleTaskType(values, taskType) {
 
 export function DepartmentPersonnelPage() {
   const navigate = useNavigate();
-  const { theme } = useTheme();
-  const isLight = theme === 'light';
   const user = JSON.parse(sessionStorage.getItem('user') || '{}');
   const departmentId = user.departmentId ?? user.department_id;
   const isDeptAdmin = user.role === ROLES.DEPARTMENT_ADMIN;
@@ -268,9 +258,9 @@ export function DepartmentPersonnelPage() {
       setVehicleAssignments((prev) => ({ ...prev, [incidentId]: { vehicleId: unitId, name: unitName } }));
       setVehicleModalOpen(false);
       setAssigningIncidentIdVehicle(null);
-      Swal.fire({ icon: 'success', title: 'Vehicle assigned', html: `<strong>${unitName}</strong> has been assigned. Status set to On Dispatch.`, timer: 2500, showConfirmButton: false, timerProgressBar: true });
+      alertUser({ icon: 'success', title: 'Vehicle assigned', html: `<strong>${unitName}</strong> has been assigned. Status set to On Dispatch.`, timer: 2500, showConfirmButton: false, timerProgressBar: true });
     } catch (e) {
-      Swal.fire({ icon: 'error', title: 'Assign failed', text: e?.message || 'Failed to assign vehicle' });
+      alertUser({ icon: 'error', title: 'Assign failed', text: e?.message || 'Failed to assign vehicle' });
     } finally {
       setAssigningVehicleId(null);
     }
@@ -279,7 +269,7 @@ export function DepartmentPersonnelPage() {
     setAssignments((prev) => ({ ...prev, [incidentId]: { personnelKey, name } }));
     setAssignModalOpen(false);
     setAssigningIncidentId(null);
-    Swal.fire({ icon: 'success', title: 'Personnel assigned', html: `<strong>${name}</strong> has been assigned.`, timer: 2500, showConfirmButton: false, timerProgressBar: true });
+    alertUser({ icon: 'success', title: 'Personnel assigned', html: `<strong>${name}</strong> has been assigned.`, timer: 2500, showConfirmButton: false, timerProgressBar: true });
   }, []);
   const openAssignModal = (incidentId) => { setAssigningIncidentId(incidentId); setAssignModalOpen(true); };
   const closeAssignModal = () => { setAssignModalOpen(false); setAssigningIncidentId(null); };
@@ -298,9 +288,9 @@ export function DepartmentPersonnelPage() {
       setTeamForm((prev) => ({ ...prev, team_name: '', supported_incident_types: [] }));
       await loadResponderResources();
       setCreateTeamDialogOpen(false);
-      Swal.fire({ icon: 'success', title: 'Team saved', timer: 1500, showConfirmButton: false });
+      alertUser({ icon: 'success', title: 'Team saved', timer: 1500, showConfirmButton: false });
     } catch (error) {
-      Swal.fire({ icon: 'error', title: 'Team save failed', text: error.message || 'Please try again.' });
+      alertUser({ icon: 'error', title: 'Team save failed', text: error.message || 'Please try again.' });
     }
   };
 
@@ -308,18 +298,18 @@ export function DepartmentPersonnelPage() {
     if (!responderForm.name.trim()) return;
     const contact = responderForm.contact_number?.trim() || '';
     if (contact && !isValidLocalPhone(contact)) {
-      Swal.fire({ icon: 'warning', title: 'Invalid contact number', text: 'Use local format 09XXXXXXXXX (11 digits).', confirmButtonColor: '#134178' });
+      alertUser({ icon: 'warning', title: 'Invalid contact number', text: 'Use local format 09XXXXXXXXX (11 digits).', confirmButtonColor: '#134178' });
       return;
     }
     const email = responderForm.email?.trim() || '';
     const password = responderForm.password || '';
     if (email || password) {
       if (!email || !password || !contact) {
-        Swal.fire({ icon: 'warning', title: 'Mobile login incomplete', text: 'Email, password, and contact number are required together to create a mobile login.', confirmButtonColor: '#134178' });
+        alertUser({ icon: 'warning', title: 'Mobile login incomplete', text: 'Email, password, and contact number are required together to create a mobile login.', confirmButtonColor: '#134178' });
         return;
       }
       if (password.length < 8) {
-        Swal.fire({ icon: 'warning', title: 'Invalid password', text: 'Password must be at least 8 characters.', confirmButtonColor: '#134178' });
+        alertUser({ icon: 'warning', title: 'Invalid password', text: 'Password must be at least 8 characters.', confirmButtonColor: '#134178' });
         return;
       }
     }
@@ -334,7 +324,7 @@ export function DepartmentPersonnelPage() {
       });
       setResponderForm((prev) => ({ ...prev, name: '', contact_number: '', email: '', password: '' }));
       await loadResponderResources();
-      Swal.fire({
+      alertUser({
         icon: 'success',
         title: 'Responder added',
         text: email ? 'They can sign in on mobile with that phone number and password.' : undefined,
@@ -342,7 +332,7 @@ export function DepartmentPersonnelPage() {
         showConfirmButton: false,
       });
     } catch (error) {
-      Swal.fire({ icon: 'error', title: 'Responder create failed', text: error.message || 'Please try again.' });
+      alertUser({ icon: 'error', title: 'Responder create failed', text: error.message || 'Please try again.' });
     }
   };
 
@@ -354,9 +344,9 @@ export function DepartmentPersonnelPage() {
       await loadResponderResources();
       const members = await getTeamMembers(Number(teamId));
       setTeamMembersByTeamId((prev) => ({ ...prev, [Number(teamId)]: Array.isArray(members) ? members : [] }));
-      Swal.fire({ icon: 'success', title: 'Responder mapped', timer: 1500, showConfirmButton: false });
+      alertUser({ icon: 'success', title: 'Responder mapped', timer: 1500, showConfirmButton: false });
     } catch (error) {
-      Swal.fire({ icon: 'error', title: 'Map failed', text: error.message || 'Please try again.' });
+      alertUser({ icon: 'error', title: 'Map failed', text: error.message || 'Please try again.' });
     }
   };
 
@@ -366,9 +356,9 @@ export function DepartmentPersonnelPage() {
       await loadResponderResources();
       const members = await getTeamMembers(Number(teamId));
       setTeamMembersByTeamId((prev) => ({ ...prev, [Number(teamId)]: Array.isArray(members) ? members : [] }));
-      Swal.fire({ icon: 'success', title: 'Responder removed', timer: 1200, showConfirmButton: false });
+      alertUser({ icon: 'success', title: 'Responder removed', timer: 1200, showConfirmButton: false });
     } catch (error) {
-      Swal.fire({ icon: 'error', title: 'Remove failed', text: error.message || 'Please try again.' });
+      alertUser({ icon: 'error', title: 'Remove failed', text: error.message || 'Please try again.' });
     }
   };
 
@@ -450,409 +440,446 @@ export function DepartmentPersonnelPage() {
       .map((r) => ({ value: String(r.responder_id), label: `${r.name} • ${String(r.availability_status || 'unknown').toLowerCase()}` }));
   }, [deptResponders, selectedTeamForMembers, selectedTeamMembers]);
 
-  const heroCardClass = `rounded-3xl border overflow-hidden transition-all duration-300 ${isLight ? 'glass neumorphic-light bg-white/80 border-gray-200/80 shadow-[8px_8px_24px_rgba(209,213,219,0.5),-8px_-8px_24px_rgba(255,255,255,0.9)]' : 'glass neumorphic-dark bg-card/60 border-white/10 shadow-[8px_8px_24px_rgba(0,0,0,0.35),-6px_-6px_20px_rgba(19,65,120,0.2)]'}`;
-  const heroIconClass = `w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isLight ? 'neumorphic-light-inset bg-gray-100 text-primary' : 'neumorphic-dark-inset bg-white/10 text-primary'}`;
-  const panelClass = `rounded-2xl border overflow-hidden transition-all duration-300 ${isLight ? 'glass neumorphic-light bg-white/80' : 'glass neumorphic-dark bg-card/60'}`;
-  const headerClass = `flex items-center gap-3 px-4 py-3 border-b ${isLight ? 'border-gray-200/80 bg-gray-50/50' : 'border-white/10 bg-white/5'}`;
-  const iconBoxClass = (accent = 'primary') =>
-    `w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isLight ? 'neumorphic-light-inset bg-gray-100' : 'neumorphic-dark-inset bg-white/10'} ${accent === 'primary' ? 'text-primary' : accent === 'secondary' ? 'text-secondary' : 'text-foreground'}`;
-
   const deptName = department?.name || user.department || 'Department';
+
+  const pager = (page, total, onPrev, onNext) => (
+    <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, marginTop: 8 }}>
+      <Button disabled={page <= 1} onClick={onPrev}>Prev</Button>
+      <span style={{ fontSize: 12, opacity: 0.7 }}>Page {page} / {total}</span>
+      <Button disabled={page >= total} onClick={onNext}>Next</Button>
+    </div>
+  );
+
+  const incidentColumns = [
+    {
+      title: 'Incident ID',
+      dataIndex: 'id',
+      render: (id) => <Button type="link" onClick={() => navigate(`/incidents/${id}`)}>{id}</Button>,
+    },
+    {
+      title: 'Type',
+      key: 'type',
+      render: (_, incident) => (
+        <IncidentTypeChips incidentTypes={incident.incidentTypes} fallbackType={incident.emergencyType} compact />
+      ),
+    },
+    {
+      title: 'Location',
+      dataIndex: 'barangay',
+      render: (barangay) => <span><MapPin size={14} style={{ marginRight: 4 }} />{barangay}</span>,
+    },
+    {
+      title: 'Status',
+      dataIndex: 'status',
+      render: (status) => <Tag color="purple">{status}</Tag>,
+    },
+    {
+      title: 'Assigned To',
+      key: 'assigned',
+      render: (_, incident) => getAssignment(incident.id)?.name || '—',
+    },
+    {
+      title: 'Vehicle',
+      key: 'vehicle',
+      render: (_, incident) => getVehicleAssignment(incident.id)?.name || '—',
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
+      render: (_, incident) => (
+        <div style={{ display: 'flex', gap: 4 }}>
+          <Button type="text" icon={<UserPlus size={14} />} onClick={() => openAssignModal(incident.id)} title="Assign personnel" />
+          <Button type="text" icon={<Truck size={14} />} onClick={() => openVehicleAssignModal(incident.id)} title="Assign vehicle" />
+          <Button type="text" icon={<Eye size={14} />} onClick={() => navigate(`/incidents/${incident.id}`)} title="View details" />
+        </div>
+      ),
+    },
+  ];
 
   return (
     <Layout>
-      <div className="p-3 md:p-4 max-w-7xl mx-auto space-y-3">
+      <div className="p-4 max-w-7xl mx-auto" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <Breadcrumb items={[{ label: 'Home', path: '/department/dashboard' }, { label: 'Department Personnel' }]} />
-        <div className={heroCardClass}>
-          <div className="px-4 py-3 flex flex-wrap items-center gap-3">
-            <div className={heroIconClass}>
-              <Users className="w-5 h-5" strokeWidth={2} />
-            </div>
-            <div>
-              <h1 className="text-xl font-semibold text-foreground">Personnel Management</h1>
-              <p className="text-xs text-muted">Teams and responders for your department</p>
-            </div>
-          </div>
-        </div>
+        <Card
+          size="small"
+          title={(
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+              <Users size={18} />
+              Personnel Management
+            </span>
+          )}
+        >
+          <p style={{ margin: 0, opacity: 0.75 }}>Teams and responders for your department</p>
+        </Card>
 
         {loadingDept || loadingResources ? (
-          <p className="text-sm text-muted">Loading...</p>
+          <Card size="small">Loading...</Card>
         ) : (
-          <Tabs defaultValue="teams" className="space-y-3">
-            <TabsList className="w-full sm:w-auto sm:inline-flex gap-1">
-              <TabsTrigger value="teams">Teams</TabsTrigger>
-              <TabsTrigger value="responders">Responders</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="teams" className="space-y-3">
-              <div className={panelClass}>
-                <div className={headerClass}>
-                  <div className={iconBoxClass('secondary')}><Shield className="w-4 h-4" /></div>
-                  <h3 className="text-sm font-semibold text-foreground flex-1">Team Status</h3>
-                  {isDeptAdmin && (
-                    <Button
-                      type="button"
-                      className="h-8 text-xs px-3"
-                      onClick={() => {
-                        setTeamForm((prev) => ({ ...prev, department_code: inferredSectorCode || 'drrmo', team_name: '', supported_incident_types: [] }));
-                        setCreateTeamDialogOpen(true);
-                      }}
-                    >
-                      Create Team
-                    </Button>
-                  )}
-                </div>
-                <div className="p-3 space-y-2 max-h-[420px] overflow-auto">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <Input value={teamSearch} onChange={(e) => setTeamSearch(e.target.value)} placeholder="Search team/member/status" className="h-8 text-xs" />
-                    <select className="h-8 px-2 py-1 border border-border rounded bg-card text-foreground text-xs" value={teamStatusFilter} onChange={(e) => setTeamStatusFilter(e.target.value)}>
-                      <option value="all">All status</option>
-                      {AVAILABILITY_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
-                    </select>
-                  </div>
-                  <div className="flex items-center justify-between text-[11px] text-muted">
-                    <span>Showing {teamRangeStart}-{teamRangeEnd} of {teamStatusFiltered.length}</span>
-                    <span>{teamsPerPage} per page</span>
-                  </div>
-                  {paginatedTeams.map((team) => {
-                    const teamMembers = teamMembersByTeamId[team.team_id] || [];
-                    return (
-                      <div key={team.team_id} className="border border-border/60 rounded-lg p-2.5">
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="text-xs font-semibold text-foreground">{String(team.department_code || '').toUpperCase()} • {team.team_name}</p>
-                          {isDeptAdmin ? (
-                            <select
-                              className="px-2 py-1 border border-border rounded bg-card text-foreground text-xs"
-                              value={String(team.team_status || 'available').toLowerCase()}
-                              onChange={async (e) => {
-                                await updateResponderTeamStatus(team.team_id, e.target.value);
-                                await loadResponderResources();
-                              }}
-                            >
-                              {AVAILABILITY_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
-                            </select>
+          <Tabs
+            defaultActiveKey="teams"
+            items={[
+              {
+                key: 'teams',
+                label: 'Teams',
+                children: (
+                  <Card
+                    size="small"
+                    title={(
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                        <Shield size={16} />
+                        Team Status
+                      </span>
+                    )}
+                    extra={isDeptAdmin ? (
+                      <Button
+                        type="primary"
+                        onClick={() => {
+                          setTeamForm((prev) => ({ ...prev, department_code: inferredSectorCode || 'drrmo', team_name: '', supported_incident_types: [] }));
+                          setCreateTeamDialogOpen(true);
+                        }}
+                      >
+                        Create Team
+                      </Button>
+                    ) : null}
+                  >
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                      <Input value={teamSearch} onChange={(e) => setTeamSearch(e.target.value)} placeholder="Search team/member/status" />
+                      <Select
+                        value={teamStatusFilter}
+                        onChange={setTeamStatusFilter}
+                        options={[{ value: 'all', label: 'All status' }, ...availabilitySelectOptions]}
+                        {...statusSelectProps}
+                      />
+                    </div>
+                    <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 8 }}>
+                      Showing {teamRangeStart}-{teamRangeEnd} of {teamStatusFiltered.length}
+                    </div>
+                    {paginatedTeams.map((team) => {
+                      const teamMembers = teamMembersByTeamId[team.team_id] || [];
+                      return (
+                        <Card key={team.team_id} size="small" type="inner" style={{ marginBottom: 8 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
+                            <strong>{String(team.department_code || '').toUpperCase()} • {team.team_name}</strong>
+                            {isDeptAdmin ? (
+                              <Select
+                                style={{ width: 140 }}
+                                value={String(team.team_status || 'available').toLowerCase()}
+                                onChange={async (v) => {
+                                  await updateResponderTeamStatus(team.team_id, v);
+                                  await loadResponderResources();
+                                }}
+                                options={availabilitySelectOptions}
+                                {...statusSelectProps}
+                              />
+                            ) : (
+                              <ResponderStatusTag status={team.team_status}>{String(team.team_status || 'available')}</ResponderStatusTag>
+                            )}
+                          </div>
+                          <p style={{ fontSize: 12, opacity: 0.7, margin: '4px 0' }}>
+                            Supported: {Array.isArray(team.supported_incident_types) && team.supported_incident_types.length ? team.supported_incident_types.join(', ') : 'all'}
+                          </p>
+                          <p style={{ fontSize: 12, opacity: 0.7, margin: '4px 0' }}>Members: {teamMembers.length}</p>
+                          {teamMembers.length > 0 ? (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                              {teamMembers.slice(0, 6).map((member) => (
+                                <ResponderStatusTag key={`${team.team_id}-${member.responder_id}`} status={member.availability_status}>
+                                  {member.name} • {String(member.availability_status || 'available').toLowerCase()}
+                                </ResponderStatusTag>
+                              ))}
+                              {teamMembers.length > 6 && <Tag>+{teamMembers.length - 6} more</Tag>}
+                            </div>
                           ) : (
-                            <span className="text-[11px] px-2 py-0.5 rounded bg-muted/50 text-muted-foreground">{String(team.team_status || 'available')}</span>
+                            <p style={{ fontSize: 12, opacity: 0.7 }}>No mapped members.</p>
                           )}
-                        </div>
-                        <p className="text-[11px] text-muted mt-1">Supported: {Array.isArray(team.supported_incident_types) && team.supported_incident_types.length ? team.supported_incident_types.join(', ') : 'all'}</p>
-                        <p className="text-[11px] text-muted mt-1">Members: {teamMembers.length}</p>
-                        {teamMembers.length > 0 ? (
-                          <div className="mt-1.5 flex flex-wrap gap-1">
-                            {teamMembers.slice(0, 6).map((member) => (
-                              <span key={`${team.team_id}-${member.responder_id}`} className="text-[10px] px-1.5 py-0.5 rounded border border-border/60 text-muted">
-                                {member.name} • {String(member.availability_status || 'available').toLowerCase()}
-                              </span>
-                            ))}
-                            {teamMembers.length > 6 && <span className="text-[10px] px-1.5 py-0.5 rounded border border-border/60 text-muted">+{teamMembers.length - 6} more</span>}
+                          {isDeptAdmin && (
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+                              <Button onClick={() => {
+                                setSelectedTeamForMembers(team);
+                                setMemberForm({ responder_id: '' });
+                                setTeamMemberSearch('');
+                                setTeamMemberStatusFilter('all');
+                                setManageMembersDialogOpen(true);
+                              }}>
+                                Assign Members
+                              </Button>
+                            </div>
+                          )}
+                        </Card>
+                      );
+                    })}
+                    {paginatedTeams.length === 0 && <Alert type="info" message="No teams match the current filters." showIcon />}
+                    {pager(safeTeamPage, teamTotalPages, () => setTeamPage((p) => Math.max(1, p - 1)), () => setTeamPage((p) => Math.min(teamTotalPages, p + 1)))}
+                  </Card>
+                ),
+              },
+              {
+                key: 'responders',
+                label: 'Responders',
+                children: (
+                  <div style={{ display: 'grid', gridTemplateColumns: isDeptAdmin ? '1fr 1fr' : '1fr', gap: 12 }}>
+                    {isDeptAdmin && (
+                      <Card
+                        size="small"
+                        title={(
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                            <PlusCircle size={16} />
+                            Create Responder
+                          </span>
+                        )}
+                      >
+                        <Form layout="vertical" size="small">
+                          <Form.Item label="Name"><Input maxLength={100} value={responderForm.name} onChange={(e) => setResponderForm((p) => ({ ...p, name: e.target.value }))} /></Form.Item>
+                          <Form.Item label="Contact Number"><Input value={responderForm.contact_number} onChange={(e) => setResponderForm((p) => ({ ...p, contact_number: e.target.value }))} placeholder="09XXXXXXXXX" /></Form.Item>
+                          <Form.Item label="Email (optional mobile login)"><Input type="email" value={responderForm.email} onChange={(e) => setResponderForm((p) => ({ ...p, email: e.target.value }))} /></Form.Item>
+                          <Form.Item label="Password (optional mobile login)"><Input.Password value={responderForm.password} onChange={(e) => setResponderForm((p) => ({ ...p, password: e.target.value }))} placeholder="Min 8 characters" /></Form.Item>
+                          <Form.Item label="Team">
+                            <Select
+                              value={responderForm.team_name || undefined}
+                              onChange={(v) => setResponderForm((p) => ({ ...p, team_name: v || '' }))}
+                              allowClear
+                              placeholder="Unassigned"
+                              options={deptTeams.map((team) => ({ value: team.team_name, label: `${team.department_code}:${team.team_name}` }))}
+                            />
+                          </Form.Item>
+                          <Form.Item label="Supported Task Types">
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                              {TASK_TYPES.map((taskType) => (
+                                <Button
+                                  key={taskType}
+                                  type={responderForm.supported_incident_types.includes(taskType) ? 'primary' : 'default'}
+                                  onClick={() => setResponderForm((p) => ({ ...p, supported_incident_types: toggleTaskType(p.supported_incident_types, taskType) }))}
+                                >
+                                  {taskType}
+                                </Button>
+                              ))}
+                            </div>
+                          </Form.Item>
+                          <Button type="primary" block onClick={handleCreateResponder}>Save Responder</Button>
+                        </Form>
+                      </Card>
+                    )}
+                    <Card
+                      size="small"
+                      title={(
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                          <Users size={16} />
+                          Responder Status
+                        </span>
+                      )}
+                    >
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 8 }}>
+                        <Input value={responderSearch} onChange={(e) => setResponderSearch(e.target.value)} placeholder="Search responder/team/status" />
+                        <Select value={responderStatusFilter} onChange={setResponderStatusFilter} options={[{ value: 'all', label: 'All status' }, ...availabilitySelectOptions]} {...statusSelectProps} />
+                        <Select
+                          value={responderTeamFilter}
+                          onChange={setResponderTeamFilter}
+                          options={[{ value: 'all', label: 'All teams' }, ...responderTeamFilterOptions.map((tn) => ({ value: tn, label: tn }))]}
+                        />
+                      </div>
+                      <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 8 }}>
+                        Showing {responderRangeStart}-{responderRangeEnd} of {responderStatusFiltered.length}
+                      </div>
+                      {paginatedResponders.map((responder) => (
+                        <Card key={responder.responder_id} size="small" type="inner" style={{ marginBottom: 8 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
+                            <div>
+                              <strong>{responder.name}</strong>
+                              <div style={{ fontSize: 12, opacity: 0.7 }}>{responder.team_name || 'Unassigned team'}</div>
+                            </div>
+                            {isDeptAdmin ? (
+                              <Select
+                                style={{ width: 140 }}
+                                value={String(responder.availability_status || 'available').toLowerCase()}
+                                onChange={async (v) => { await updateResponderStatus(responder.responder_id, v); await loadResponderResources(); }}
+                                options={availabilitySelectOptions}
+                                {...statusSelectProps}
+                              />
+                            ) : (
+                              <ResponderStatusTag status={responder.availability_status}>{String(responder.availability_status || 'available')}</ResponderStatusTag>
+                            )}
                           </div>
-                        ) : (
-                          <p className="text-[11px] text-muted mt-1">No mapped members.</p>
-                        )}
-                        {isDeptAdmin && (
-                          <div className="mt-2 flex justify-end">
-                            <Button type="button" variant="outline" className="h-7 text-[11px] px-2.5" onClick={() => { setSelectedTeamForMembers(team); setMemberForm({ responder_id: '' }); setTeamMemberSearch(''); setTeamMemberStatusFilter('all'); setManageMembersDialogOpen(true); }}>
-                              Assign Members
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                  {paginatedTeams.length === 0 && <div className="text-xs text-muted border border-border/60 rounded-lg p-2.5">No teams match the current filters.</div>}
-                  <div className="flex items-center justify-end gap-1.5 pt-1">
-                    <Button type="button" variant="outline" className="h-7 px-2.5 text-[11px]" onClick={() => setTeamPage((p) => Math.max(1, p - 1))} disabled={safeTeamPage <= 1}>Prev</Button>
-                    <span className="text-[11px] text-muted px-1">Page {safeTeamPage} / {teamTotalPages}</span>
-                    <Button type="button" variant="outline" className="h-7 px-2.5 text-[11px]" onClick={() => setTeamPage((p) => Math.min(teamTotalPages, p + 1))} disabled={safeTeamPage >= teamTotalPages}>Next</Button>
+                        </Card>
+                      ))}
+                      {paginatedResponders.length === 0 && <Alert type="info" message="No responders match the current filters." showIcon />}
+                      {pager(safeResponderPage, responderTotalPages, () => setResponderPage((p) => Math.max(1, p - 1)), () => setResponderPage((p) => Math.min(responderTotalPages, p + 1)))}
+                    </Card>
                   </div>
-                </div>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="responders" className="space-y-3">
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
-                {isDeptAdmin && (
-                  <div className={panelClass}>
-                    <div className={headerClass}><div className={iconBoxClass('secondary')}><PlusCircle className="w-4 h-4" /></div><h3 className="text-sm font-semibold text-foreground">Create Responder</h3></div>
-                    <div className="p-3 space-y-2.5">
-                      <div><Label className="text-xs">Name</Label><Input maxLength={100} value={responderForm.name} onChange={(e) => setResponderForm((p) => ({ ...p, name: e.target.value }))} /></div>
-                      <div><Label className="text-xs">Contact Number</Label><PhoneInput value={responderForm.contact_number} onChange={(e) => setResponderForm((p) => ({ ...p, contact_number: e.target.value }))} /></div>
-                      <div><Label className="text-xs">Email (optional mobile login)</Label><Input type="email" value={responderForm.email} onChange={(e) => setResponderForm((p) => ({ ...p, email: e.target.value }))} /></div>
-                      <div><Label className="text-xs">Password (optional mobile login)</Label><Input type="password" value={responderForm.password} onChange={(e) => setResponderForm((p) => ({ ...p, password: e.target.value }))} placeholder="Min 8 characters" /></div>
-                      <div>
-                        <Label className="text-xs">Team</Label>
-                        <select className="w-full mt-1 px-2.5 py-2 border border-border rounded-lg bg-card text-foreground text-sm" value={responderForm.team_name} onChange={(e) => setResponderForm((p) => ({ ...p, team_name: e.target.value }))}>
-                          <option value="">Unassigned</option>
-                          {deptTeams.map((team) => <option key={team.team_id} value={team.team_name}>{team.department_code}:{team.team_name}</option>)}
-                        </select>
-                      </div>
-                      <div>
-                        <Label className="text-xs">Supported Task Types</Label>
-                        <div className="mt-1 flex flex-wrap gap-1.5">
-                          {TASK_TYPES.map((taskType) => (
-                            <Button key={taskType} type="button" variant={responderForm.supported_incident_types.includes(taskType) ? 'default' : 'outline'} className="h-7 text-[11px]" onClick={() => setResponderForm((p) => ({ ...p, supported_incident_types: toggleTaskType(p.supported_incident_types, taskType) }))}>{taskType}</Button>
-                          ))}
-                        </div>
-                      </div>
-                      <Button className="w-full h-8 text-xs" onClick={handleCreateResponder}>Save Responder</Button>
-                    </div>
-                  </div>
-                )}
-                <div className={panelClass}>
-                  <div className={headerClass}><div className={iconBoxClass('primary')}><Users className="w-4 h-4" /></div><h3 className="text-sm font-semibold text-foreground">Responder Status</h3></div>
-                  <div className="p-3 space-y-2 max-h-[420px] overflow-auto">
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                      <Input value={responderSearch} onChange={(e) => setResponderSearch(e.target.value)} placeholder="Search responder/team/status" className="h-8 text-xs" />
-                      <select className="h-8 px-2 py-1 border border-border rounded bg-card text-foreground text-xs" value={responderStatusFilter} onChange={(e) => setResponderStatusFilter(e.target.value)}>
-                        <option value="all">All status</option>
-                        {AVAILABILITY_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
-                      </select>
-                      <select className="h-8 px-2 py-1 border border-border rounded bg-card text-foreground text-xs" value={responderTeamFilter} onChange={(e) => setResponderTeamFilter(e.target.value)}>
-                        <option value="all">All teams</option>
-                        {responderTeamFilterOptions.map((tn) => <option key={tn} value={tn}>{tn}</option>)}
-                      </select>
-                    </div>
-                    <div className="flex items-center justify-between text-[11px] text-muted">
-                      <span>Showing {responderRangeStart}-{responderRangeEnd} of {responderStatusFiltered.length}</span>
-                      <span>{respondersPerPage} per page</span>
-                    </div>
-                    {paginatedResponders.map((responder) => (
-                      <div key={responder.responder_id} className="border border-border/60 rounded-lg p-2.5 flex items-center justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="text-xs font-semibold text-foreground truncate">{responder.name}</p>
-                          <p className="text-[11px] text-muted truncate">{responder.team_name || 'Unassigned team'}</p>
-                        </div>
-                        {isDeptAdmin ? (
-                          <select
-                            className="px-2 py-1 border border-border rounded bg-card text-foreground text-xs"
-                            value={String(responder.availability_status || 'available').toLowerCase()}
-                            onChange={async (e) => { await updateResponderStatus(responder.responder_id, e.target.value); await loadResponderResources(); }}
-                          >
-                            {AVAILABILITY_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
-                          </select>
-                        ) : (
-                          <span className="text-[11px] px-2 py-0.5 rounded bg-muted/50 text-muted-foreground">{String(responder.availability_status || 'available')}</span>
-                        )}
-                      </div>
-                    ))}
-                    {paginatedResponders.length === 0 && <div className="text-xs text-muted border border-border/60 rounded-lg p-2.5">No responders match the current filters.</div>}
-                    <div className="flex items-center justify-end gap-1.5 pt-1">
-                      <Button type="button" variant="outline" className="h-7 px-2.5 text-[11px]" onClick={() => setResponderPage((p) => Math.max(1, p - 1))} disabled={safeResponderPage <= 1}>Prev</Button>
-                      <span className="text-[11px] text-muted px-1">Page {safeResponderPage} / {responderTotalPages}</span>
-                      <Button type="button" variant="outline" className="h-7 px-2.5 text-[11px]" onClick={() => setResponderPage((p) => Math.min(responderTotalPages, p + 1))} disabled={safeResponderPage >= responderTotalPages}>Next</Button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </TabsContent>
-          </Tabs>
+                ),
+              },
+            ]}
+          />
         )}
 
         {isDeptAdmin && (
-          <>
-            <Card className="rounded-2xl border border-border overflow-hidden">
-              <div className="p-4 border-b border-border">
-                <h2 className="text-xl font-semibold text-foreground">Assign Personnel to Incidents</h2>
-                <p className="text-sm text-muted mt-0.5">Assign team members to new or assigned incidents</p>
-              </div>
-              <div className="overflow-x-auto">
-                {activeDepartmentIncidents.length === 0 ? (
-                  <div className="p-8 text-center text-muted text-sm">No incidents assigned to your department that need assignment</div>
-                ) : (
-                  <table className="w-full">
-                    <thead className={isLight ? 'bg-gray-50 border-b border-gray-200' : 'bg-muted/30 border-b border-border'}>
-                      <tr>
-                        <th className="px-6 py-3 text-left text-sm font-semibold text-foreground">Incident ID</th>
-                        <th className="px-6 py-3 text-left text-sm font-semibold text-foreground">Type</th>
-                        <th className="px-6 py-3 text-left text-sm font-semibold text-foreground">Location</th>
-                        <th className="px-6 py-3 text-left text-sm font-semibold text-foreground">Status</th>
-                        <th className="px-6 py-3 text-left text-sm font-semibold text-foreground">Assigned To</th>
-                        <th className="px-6 py-3 text-left text-sm font-semibold text-foreground">Vehicle</th>
-                        <th className="px-6 py-3 text-left text-sm font-semibold text-foreground">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                      {activeDepartmentIncidents.map((incident) => (
-                        <tr key={incident.id} className="hover:bg-muted/20 transition-colors">
-                          <td className="px-6 py-3">
-                            <button type="button" onClick={() => navigate(`/incidents/${incident.id}`)} className="text-sm font-medium text-primary hover:underline">{incident.id}</button>
-                          </td>
-                          <td className="px-6 py-3 text-sm text-foreground">
-                            <IncidentTypeChips
-                              incidentTypes={incident.incidentTypes}
-                              fallbackType={incident.emergencyType}
-                              compact
-                            />
-                          </td>
-                          <td className="px-6 py-3 text-sm text-muted"><span className="inline-flex items-center gap-1"><MapPin className="w-4 h-4" /> {incident.barangay}</span></td>
-                          <td className="px-6 py-3"><Badge className="bg-indigo-500/20 text-indigo-400">{incident.status}</Badge></td>
-                          <td className="px-6 py-3 text-sm text-muted">{getAssignment(incident.id) ? getAssignment(incident.id).name : '—'}</td>
-                          <td className="px-6 py-3 text-sm text-muted">{getVehicleAssignment(incident.id) ? getVehicleAssignment(incident.id).name : '—'}</td>
-                          <td className="px-6 py-3">
-                            <div className="flex items-center gap-1">
-                              <Button size="sm" variant="ghost" onClick={() => openAssignModal(incident.id)} className="text-primary" title="Assign personnel"><UserPlus className="w-4 h-4" /></Button>
-                              <Button size="sm" variant="ghost" onClick={() => openVehicleAssignModal(incident.id)} className="text-primary" title="Assign vehicle"><Truck className="w-4 h-4" /></Button>
-                              <Button size="sm" variant="ghost" onClick={() => navigate(`/incidents/${incident.id}`)} className="text-primary" title="View details"><Eye className="w-4 h-4" /></Button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            </Card>
-
-            <Dialog open={assignModalOpen} onOpenChange={(open) => !open && closeAssignModal()} className="max-w-md">
-              <DialogContent className={`max-w-md rounded-2xl overflow-hidden ${isLight ? 'glass neumorphic-light bg-white/95 border-gray-200/80' : 'glass neumorphic-dark bg-card/95 border-white/10'}`}>
-                <div className={`flex items-center justify-between border-b ${isLight ? 'border-gray-200/80 pb-4' : 'border-white/10 pb-4'}`}>
-                  <DialogHeader>
-                    <DialogTitle className="text-xl font-bold text-foreground">Assign personnel</DialogTitle>
-                    <p className="text-sm text-muted mt-1">{assigningIncidentId ? `Select for ${assigningIncidentId}` : 'Select a team member'}</p>
-                  </DialogHeader>
-                  <button type="button" onClick={closeAssignModal} className={`p-2 rounded-xl transition-colors ${isLight ? 'hover:bg-gray-100 text-gray-500' : 'hover:bg-white/10 text-muted'}`} aria-label="Close"><X className="w-5 h-5" strokeWidth={2} /></button>
-                </div>
-                <div className="mt-4 space-y-3 max-h-[280px] overflow-y-auto pr-1">
-                  {list.map((p, idx) => {
-                    const personnelKey = `${departmentId}-${idx}`;
-                    const isAvailable = String(p.status || '').toLowerCase() === 'available';
-                    const Wrapper = isAvailable ? 'button' : 'div';
-                    const wrapperProps = isAvailable ? { type: 'button', onClick: () => setAssignment(assigningIncidentId, personnelKey, p.name) } : {};
-                    return (
-                      <Wrapper key={personnelKey} {...wrapperProps} className={`w-full text-left flex items-center gap-4 px-4 py-3.5 rounded-xl border transition-all duration-200 ${isAvailable ? (isLight ? 'border-gray-200/80 bg-white hover:bg-primary/5 hover:border-primary/30 cursor-pointer' : 'border-white/10 bg-white/5 hover:bg-primary/10 hover:border-primary/30 cursor-pointer') : (isLight ? 'border-gray-200/60 bg-gray-50/50 opacity-60 cursor-not-allowed' : 'border-white/5 bg-white/5 opacity-60 cursor-not-allowed')}`}>
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isAvailable ? (isLight ? 'bg-green-500/15 text-green-600' : 'bg-green-500/20 text-green-400') : (isLight ? 'bg-amber-500/15 text-amber-600' : 'bg-amber-500/20 text-amber-400')}`}>
-                          {isAvailable ? <UserCheck className="w-5 h-5" strokeWidth={2} /> : <Clock className="w-5 h-5" strokeWidth={2} />}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-foreground">{p.name}</p>
-                          <p className="text-sm text-muted">{p.role} · {p.unit}</p>
-                        </div>
-                        <span className={`flex-shrink-0 px-2.5 py-1 rounded-lg text-xs font-medium ${isAvailable ? 'bg-green-500/20 text-green-600' : 'bg-amber-500/20 text-amber-600'}`}>{p.status}</span>
-                      </Wrapper>
-                    );
-                  })}
-                </div>
-                {list.length === 0 && <p className="text-sm text-muted py-6 text-center">No personnel in this department</p>}
-              </DialogContent>
-            </Dialog>
-
-            <Dialog open={vehicleModalOpen} onOpenChange={(open) => !open && closeVehicleAssignModal()} className="max-w-md">
-              <DialogContent className={`max-w-md rounded-2xl overflow-hidden ${isLight ? 'glass neumorphic-light bg-white/95 border-gray-200/80' : 'glass neumorphic-dark bg-card/95 border-white/10'}`}>
-                <div className={`flex items-center justify-between border-b ${isLight ? 'border-gray-200/80 pb-4' : 'border-white/10 pb-4'}`}>
-                  <DialogHeader>
-                    <DialogTitle className="text-xl font-bold text-foreground">Assign vehicle</DialogTitle>
-                    <p className="text-sm text-muted mt-1">{assigningIncidentIdVehicle ? `Select for ${assigningIncidentIdVehicle}` : 'Select a vehicle'}</p>
-                  </DialogHeader>
-                  <button type="button" onClick={closeVehicleAssignModal} className={`p-2 rounded-xl transition-colors ${isLight ? 'hover:bg-gray-100 text-gray-500' : 'hover:bg-white/10 text-muted'}`} aria-label="Close"><X className="w-5 h-5" strokeWidth={2} /></button>
-                </div>
-                <div className="mt-4 space-y-3 max-h-[280px] overflow-y-auto pr-1">
-                  {unitsList.map((u) => {
-                    const isAvailable = String(u.status || '').toLowerCase() === 'available';
-                    const isAssigning = assigningVehicleId === u.id;
-                    return (
-                      <button
-                        key={u.id}
-                        type="button"
-                        onClick={() => assignVehicleToIncident(assigningIncidentIdVehicle, u.id, u.name)}
-                        disabled={isAssigning}
-                        className={`w-full text-left flex items-center gap-4 px-4 py-3.5 rounded-xl border transition-all duration-200 ${isLight ? 'border-gray-200/80 bg-white hover:bg-primary/5 hover:border-primary/30 cursor-pointer' : 'border-white/10 bg-white/5 hover:bg-primary/10 hover:border-primary/30 cursor-pointer'}`}
-                      >
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isAvailable ? (isLight ? 'bg-green-500/15 text-green-600' : 'bg-green-500/20 text-green-400') : (isLight ? 'bg-amber-500/15 text-amber-600' : 'bg-amber-500/20 text-amber-400')}`}>
-                          {isAvailable ? <Truck className="w-5 h-5" strokeWidth={2} /> : <Clock className="w-5 h-5" strokeWidth={2} />}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-foreground">{u.name}</p>
-                          <p className="text-sm text-muted">{u.type} · {u.id}</p>
-                        </div>
-                        <span className={`flex-shrink-0 px-2.5 py-1 rounded-lg text-xs font-medium ${isAvailable ? 'bg-green-500/20 text-green-600' : 'bg-amber-500/20 text-amber-600'}`}>{isAssigning ? 'Assigning…' : u.status}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-                {unitsList.length === 0 && <p className="text-sm text-muted py-6 text-center">No vehicles in this department</p>}
-              </DialogContent>
-            </Dialog>
-          </>
+          <Card size="small" title="Assign Personnel to Incidents">
+            <p style={{ opacity: 0.75, marginTop: 0 }}>Assign team members to new or assigned incidents</p>
+            <Table
+              size="small"
+              rowKey="id"
+              columns={incidentColumns}
+              dataSource={activeDepartmentIncidents}
+              pagination={false}
+              locale={{ emptyText: 'No incidents assigned to your department that need assignment' }}
+            />
+          </Card>
         )}
 
-        <Dialog open={createTeamDialogOpen} onOpenChange={setCreateTeamDialogOpen}>
-          <DialogContent className={`max-w-lg w-full !p-0 overflow-visible rounded-2xl border-0 shadow-2xl ${isLight ? 'bg-white border border-gray-200/90' : 'bg-card border border-white/20'}`}>
-            <div className={`px-6 py-5 rounded-t-2xl ${isLight ? 'bg-gradient-to-br from-primary via-primary to-primary-hover' : 'bg-gradient-to-br from-primary/95 via-primary to-primary-hover'}`}>
-              <DialogTitle className="text-lg font-semibold text-white m-0">Create Team</DialogTitle>
-              <DialogDescription className="!text-white/90 mt-1 text-sm">Add a new team for {deptName}. Sector is set to your department.</DialogDescription>
-            </div>
-            <div className={`p-6 space-y-3 w-full ${isLight ? 'bg-white' : 'bg-card'}`}>
-              <div>
-                <Label className="text-xs">Sector</Label>
-                <select className="w-full mt-1 px-2.5 py-2 border border-border rounded-lg bg-card text-foreground text-sm" value={teamForm.department_code} onChange={(e) => setTeamForm((p) => ({ ...p, department_code: e.target.value }))}>
-                  <option value="pnp">pnp</option>
-                  <option value="drrmo">drrmo</option>
-                </select>
-              </div>
-              <div>
-                <Label className="text-xs">Team Name</Label>
-                <Input value={teamForm.team_name} onChange={(e) => setTeamForm((p) => ({ ...p, team_name: e.target.value }))} />
-              </div>
-              <div>
-                <Label className="text-xs">Supported Task Types</Label>
-                <div className="mt-1 flex flex-wrap gap-1.5">
-                  {TASK_TYPES.map((taskType) => (
-                    <Button key={taskType} type="button" variant={teamForm.supported_incident_types.includes(taskType) ? 'default' : 'outline'} className="h-7 text-[11px]" onClick={() => setTeamForm((p) => ({ ...p, supported_incident_types: toggleTaskType(p.supported_incident_types, taskType) }))}>{taskType}</Button>
-                  ))}
-                </div>
-              </div>
-            </div>
-            <DialogFooter className={`px-6 py-4 border-t gap-2 ${isLight ? 'bg-gray-50/90 border-gray-200' : 'bg-white/[0.03] border-border'}`}>
-              <Button type="button" className="h-8 text-xs px-4" onClick={handleCreateTeam}>Save Team</Button>
-              <Button type="button" variant="outline" className="h-8 text-xs px-4" onClick={() => setCreateTeamDialogOpen(false)}>Cancel</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        <Dialog open={manageMembersDialogOpen} onOpenChange={setManageMembersDialogOpen}>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Assign Members — {selectedTeamForMembers ? `${String(selectedTeamForMembers.department_code || '').toUpperCase()} • ${selectedTeamForMembers.team_name}` : 'Team'}</DialogTitle>
-              <DialogDescription>Add or remove members for this team.</DialogDescription>
-            </DialogHeader>
-            <div className="space-y-3 py-2">
-              <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] gap-2 items-end">
-                <div>
-                  <Label className="text-xs">Add responder</Label>
-                  <Combobox options={assignableResponderOptions} value={memberForm.responder_id} onValueChange={(next) => setMemberForm({ responder_id: next })} placeholder="Select responder" searchPlaceholder="Search responder..." />
-                </div>
-                <Button type="button" className="h-9" disabled={!selectedTeamForMembers?.team_id || !memberForm.responder_id} onClick={() => handleMapMember(selectedTeamForMembers?.team_id, memberForm.responder_id)}>Add</Button>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <Input value={teamMemberSearch} onChange={(e) => setTeamMemberSearch(e.target.value)} placeholder="Search assigned members" className="h-8 text-xs" />
-                <select className="h-8 px-2 py-1 border border-border rounded bg-card text-foreground text-xs" value={teamMemberStatusFilter} onChange={(e) => setTeamMemberStatusFilter(e.target.value)}>
-                  <option value="all">All status</option>
-                  {AVAILABILITY_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
-              <div className="space-y-2 max-h-64 overflow-auto">
-                {paginatedTeamMembers.map((member) => (
-                  <div key={`assigned-${member.responder_id}`} className="border border-border/60 rounded-lg p-2 flex items-center justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="text-xs font-semibold text-foreground truncate">{member.name}</p>
-                      <p className="text-[11px] text-muted">Status: {String(member.availability_status || 'available').toLowerCase()}</p>
+        <Modal
+          open={assignModalOpen}
+          onCancel={closeAssignModal}
+          title="Assign personnel"
+          footer={null}
+        >
+          <p style={{ opacity: 0.75 }}>{assigningIncidentId ? `Select for ${assigningIncidentId}` : 'Select a team member'}</p>
+          <div style={{ maxHeight: 280, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {list.map((p, idx) => {
+              const personnelKey = `${departmentId}-${idx}`;
+              const isAvailable = String(p.status || '').toLowerCase() === 'available';
+              return (
+                <Card
+                  key={personnelKey}
+                  size="small"
+                  type="inner"
+                  hoverable={isAvailable}
+                  onClick={isAvailable ? () => setAssignment(assigningIncidentId, personnelKey, p.name) : undefined}
+                  style={{ cursor: isAvailable ? 'pointer' : 'not-allowed', opacity: isAvailable ? 1 : 0.6 }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    {isAvailable ? <UserCheck size={18} /> : <Clock size={18} />}
+                    <div style={{ flex: 1 }}>
+                      <strong>{p.name}</strong>
+                      <div style={{ fontSize: 12, opacity: 0.7 }}>{p.role} · {p.unit}</div>
                     </div>
-                    <Button type="button" variant="outline" className="h-7 text-[11px] px-2.5" onClick={() => handleRemoveMember(selectedTeamForMembers?.team_id, member.responder_id)}>Remove</Button>
+                    <Tag color={isAvailable ? 'green' : 'gold'}>{p.status}</Tag>
                   </div>
+                </Card>
+              );
+            })}
+            {list.length === 0 && <Alert type="info" message="No personnel in this department" showIcon />}
+          </div>
+        </Modal>
+
+        <Modal
+          open={vehicleModalOpen}
+          onCancel={closeVehicleAssignModal}
+          title="Assign vehicle"
+          footer={null}
+        >
+          <p style={{ opacity: 0.75 }}>{assigningIncidentIdVehicle ? `Select for ${assigningIncidentIdVehicle}` : 'Select a vehicle'}</p>
+          <div style={{ maxHeight: 280, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {unitsList.map((u) => {
+              const isAvailable = String(u.status || '').toLowerCase() === 'available';
+              const isAssigning = assigningVehicleId === u.id;
+              return (
+                <Card
+                  key={u.id}
+                  size="small"
+                  type="inner"
+                  hoverable
+                  onClick={() => !isAssigning && assignVehicleToIncident(assigningIncidentIdVehicle, u.id, u.name)}
+                  style={{ cursor: isAssigning ? 'wait' : 'pointer' }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    {isAvailable ? <Truck size={18} /> : <Clock size={18} />}
+                    <div style={{ flex: 1 }}>
+                      <strong>{u.name}</strong>
+                      <div style={{ fontSize: 12, opacity: 0.7 }}>{u.type} · {u.id}</div>
+                    </div>
+                    <Tag color={isAvailable ? 'green' : 'gold'}>{isAssigning ? 'Assigning…' : u.status}</Tag>
+                  </div>
+                </Card>
+              );
+            })}
+            {unitsList.length === 0 && <Alert type="info" message="No vehicles in this department" showIcon />}
+          </div>
+        </Modal>
+
+        <Modal
+          open={createTeamDialogOpen}
+          onCancel={() => setCreateTeamDialogOpen(false)}
+          title="Create Team"
+          footer={[
+            <Button key="cancel" onClick={() => setCreateTeamDialogOpen(false)}>Cancel</Button>,
+            <Button key="save" type="primary" onClick={handleCreateTeam}>Save Team</Button>,
+          ]}
+        >
+          <p style={{ opacity: 0.75 }}>Add a new team for {deptName}. Sector is set to your department.</p>
+          <Form layout="vertical" size="small">
+            <Form.Item label="Sector">
+              <Select
+                value={teamForm.department_code}
+                onChange={(v) => setTeamForm((p) => ({ ...p, department_code: v }))}
+                options={[{ value: 'pnp', label: 'pnp' }, { value: 'drrmo', label: 'drrmo' }]}
+              />
+            </Form.Item>
+            <Form.Item label="Team Name">
+              <Input value={teamForm.team_name} onChange={(e) => setTeamForm((p) => ({ ...p, team_name: e.target.value }))} />
+            </Form.Item>
+            <Form.Item label="Supported Task Types">
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                {TASK_TYPES.map((taskType) => (
+                  <Button
+                    key={taskType}
+                    type={teamForm.supported_incident_types.includes(taskType) ? 'primary' : 'default'}
+                    onClick={() => setTeamForm((p) => ({ ...p, supported_incident_types: toggleTaskType(p.supported_incident_types, taskType) }))}
+                  >
+                    {taskType}
+                  </Button>
                 ))}
-                {paginatedTeamMembers.length === 0 && <p className="text-xs text-muted border border-border/60 rounded-lg p-2.5">No team members match current filters.</p>}
               </div>
-              <div className="flex items-center justify-end gap-1.5">
-                <Button type="button" variant="outline" className="h-7 px-2.5 text-[11px]" onClick={() => setTeamMemberPage((p) => Math.max(1, p - 1))} disabled={safeTeamMemberPage <= 1}>Prev</Button>
-                <span className="text-[11px] text-muted px-1">Page {safeTeamMemberPage} / {teamMemberTotalPages}</span>
-                <Button type="button" variant="outline" className="h-7 px-2.5 text-[11px]" onClick={() => setTeamMemberPage((p) => Math.min(teamMemberTotalPages, p + 1))} disabled={safeTeamMemberPage >= teamMemberTotalPages}>Next</Button>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setManageMembersDialogOpen(false)}>Close</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+            </Form.Item>
+          </Form>
+        </Modal>
+
+        <Modal
+          open={manageMembersDialogOpen}
+          onCancel={() => setManageMembersDialogOpen(false)}
+          title={`Assign Members — ${selectedTeamForMembers ? `${String(selectedTeamForMembers.department_code || '').toUpperCase()} • ${selectedTeamForMembers.team_name}` : 'Team'}`}
+          footer={[<Button key="close" onClick={() => setManageMembersDialogOpen(false)}>Close</Button>]}
+          width={720}
+        >
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, marginBottom: 12 }}>
+            <Select
+              showSearch
+              optionFilterProp="label"
+              placeholder="Select responder"
+              value={memberForm.responder_id || undefined}
+              onChange={(v) => setMemberForm({ responder_id: v })}
+              options={assignableResponderOptions}
+              {...embeddedStatusSelectProps}
+            />
+            <Button
+              type="primary"
+              disabled={!selectedTeamForMembers?.team_id || !memberForm.responder_id}
+              onClick={() => handleMapMember(selectedTeamForMembers?.team_id, memberForm.responder_id)}
+            >
+              Add
+            </Button>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
+            <Input value={teamMemberSearch} onChange={(e) => setTeamMemberSearch(e.target.value)} placeholder="Search assigned members" />
+            <Select
+              value={teamMemberStatusFilter}
+              onChange={setTeamMemberStatusFilter}
+              options={[{ value: 'all', label: 'All status' }, ...availabilitySelectOptions]} {...statusSelectProps}
+            />
+          </div>
+          <div style={{ maxHeight: 256, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {paginatedTeamMembers.map((member) => (
+              <Card key={`assigned-${member.responder_id}`} size="small" type="inner">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                  <div>
+                    <strong>{member.name}</strong>
+                    <div style={{ fontSize: 12, marginTop: 4 }}><ResponderStatusTag status={member.availability_status}>{String(member.availability_status || 'available').toLowerCase()}</ResponderStatusTag></div>
+                  </div>
+                  <Button onClick={() => handleRemoveMember(selectedTeamForMembers?.team_id, member.responder_id)}>Remove</Button>
+                </div>
+              </Card>
+            ))}
+            {paginatedTeamMembers.length === 0 && <Alert type="info" message="No team members match current filters." showIcon />}
+          </div>
+          {pager(safeTeamMemberPage, teamMemberTotalPages, () => setTeamMemberPage((p) => Math.max(1, p - 1)), () => setTeamMemberPage((p) => Math.min(teamMemberTotalPages, p + 1)))}
+        </Modal>
       </div>
     </Layout>
   );

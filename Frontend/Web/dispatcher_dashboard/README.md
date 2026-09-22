@@ -49,6 +49,8 @@ Config source is centralized in:
 
 ## Notable implementation updates
 
+- Dispatcher UI (except Insights content) uses Ant Design: shared sidebar/header, compact `Card`/`Table`, forms, and modals. Theme tokens live in `src/presentation/theme/antdTheme.js` (navy `#134178`, light/dark). Insights keeps its own page layout. Confirmations and toasts use `src/presentation/feedback/alertUser.js`.
+
 - Standardized API client behavior (auth headers, request IDs, error mapping) via:
   - `src/data/api/http.js`
 - Canonical incident lifecycle mapping:
@@ -108,7 +110,7 @@ Config source is centralized in:
   - **Departments 403 fix**: `getDepartments()` only called for Super Admin and Dispatcher; department users skip the call to avoid 403.
   - **Incident closed resource refresh**: `DepartmentPersonnelPage` and `DepartmentDashboardPage` refetch teams, responders, and units on `incident:updated` so status returns to "available" after incident is closed/resolved.
   - **MapViewPage**: fixed `wsConnected` reference (destructure from `useIncidentWebSocketStatus`).
-  - **Insights (`/insights`)**: near-real-time analytics — debounced silent refetch on `incident:updated`, 60s/120s backup poll (`core/utils/insightsRealtime.js`); Live / last-updated header. Analytics GETs share in-flight requests.
+  - **Insights (`/insights`)**: scrollable CAD layout (Ant Design cards/tables on this page; Recharts line, bars, donuts). Near-real-time via `incident:updated` plus 60s/120s poll (`core/utils/insightsRealtime.js`).
   - **OneSignal / avatar**: init+login queued once (login after init); avatar GET coalesced and 404s are not retried until profile-updated.
 
 ## Backend contract and sync docs

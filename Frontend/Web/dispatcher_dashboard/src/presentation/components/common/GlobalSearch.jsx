@@ -194,7 +194,7 @@ export function GlobalSearch() {
             if (query.trim().length >= MIN_QUERY_LENGTH) setIsOpen(true);
           }}
           onKeyDown={onKeyDown}
-          className={`w-full pl-9 pr-3 py-2.5 rounded-xl bg-transparent text-sm outline-none ${
+          className={`w-full h-9 pl-9 pr-3 rounded-xl bg-transparent text-sm outline-none ${
             isLight ? 'text-gray-900 placeholder:text-gray-400' : 'text-foreground placeholder:text-muted'
           }`}
         />

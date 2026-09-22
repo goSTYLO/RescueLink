@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Swal from 'sweetalert2';
-import { Eye, EyeOff } from 'lucide-react';
+import { Button, Form, Input } from 'antd';
+import { ArrowLeft } from 'lucide-react';
+import { alertUser } from '@/presentation/feedback/alertUser';
 import { BrandLogo } from '@/presentation/components/common/BrandLogo';
 import illustration from '@/presentation/assets/create-password-illustration.svg';
 import { API_URL } from '@/core/config/app.config';
 import { AuthCardLayout } from '@/presentation/components/layout/AuthCardLayout';
-import { AuthFloatingInput } from '@/presentation/components/ui/AuthFloatingInput';
 
 function validatePassword(password) {
   if (!password) return 'Password is required';
@@ -28,8 +28,6 @@ export default function CreateNewPassword({ onSuccess, onBackToLogin }) {
   const navigate = useNavigate();
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [passwordError, setPasswordError] = useState('');
   const [confirmPasswordError, setConfirmPasswordError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -47,14 +45,13 @@ export default function CreateNewPassword({ onSuccess, onBackToLogin }) {
     if (confirmPasswordError || value) setConfirmPasswordError(validateConfirmPassword(value, newPassword));
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async () => {
     const passwordValidationError = validatePassword(newPassword);
     const confirmValidationError = validateConfirmPassword(confirmPassword, newPassword);
     if (passwordValidationError) setPasswordError(passwordValidationError);
     if (confirmValidationError) setConfirmPasswordError(confirmValidationError);
     if (passwordValidationError || confirmValidationError) {
-      Swal.fire({
+      alertUser({
         icon: 'warning',
         title: 'Validation failed',
         text: passwordValidationError || confirmValidationError,
@@ -81,14 +78,14 @@ export default function CreateNewPassword({ onSuccess, onBackToLogin }) {
       }
 
       sessionStorage.removeItem('resetEmail');
-      Swal.fire({
+      alertUser({
         icon: 'success',
         title: 'Password reset!',
         text: 'Your password has been updated. Redirecting to login...',
         confirmButtonColor: '#134178',
       }).then(() => navigate('/login'));
     } catch (err) {
-      Swal.fire({
+      alertUser({
         icon: 'error',
         title: 'Reset failed',
         text: err.message || 'Failed to reset password. Please try again.',
@@ -112,52 +109,42 @@ export default function CreateNewPassword({ onSuccess, onBackToLogin }) {
         <p className="text-muted">Create a new password for your account.</p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <AuthFloatingInput
+      <Form layout="vertical" onFinish={handleSubmit} requiredMark={false}>
+        <Form.Item
           label="New Password"
-          type={showNewPassword ? 'text' : 'password'}
-          value={newPassword}
-          onChange={handleNewPasswordChange}
-          onBlur={() => setPasswordError(validatePassword(newPassword))}
-          rightAction={
-            <button
-              type="button"
-              onClick={() => setShowNewPassword(!showNewPassword)}
-              className="p-1.5 rounded-lg text-muted hover:text-foreground transition-colors"
-              aria-label={showNewPassword ? 'Hide password' : 'Show password'}
-            >
-              {showNewPassword ? <EyeOff className="w-5 h-5" strokeWidth={2} /> : <Eye className="w-5 h-5" strokeWidth={2} />}
-            </button>
-          }
-          error={passwordError}
-        />
-        <AuthFloatingInput
-          label="Confirm Password"
-          type={showConfirmPassword ? 'text' : 'password'}
-          value={confirmPassword}
-          onChange={handleConfirmPasswordChange}
-          onBlur={() => setConfirmPasswordError(validateConfirmPassword(confirmPassword, newPassword))}
-          rightAction={
-            <button
-              type="button"
-              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-              className="p-1.5 rounded-lg text-muted hover:text-foreground transition-colors"
-              aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
-            >
-              {showConfirmPassword ? <EyeOff className="w-5 h-5" strokeWidth={2} /> : <Eye className="w-5 h-5" strokeWidth={2} />}
-            </button>
-          }
-          error={confirmPasswordError}
-        />
-
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full bg-primary text-white py-3 rounded-xl font-bold text-lg hover:bg-primary-hover disabled:bg-muted/40 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] shadow-card focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background"
+          htmlFor="create-new-password"
+          validateStatus={passwordError ? 'error' : ''}
+          help={passwordError || undefined}
         >
-          {loading ? 'Resetting...' : 'Reset Password'}
-        </button>
-      </form>
+          <Input.Password
+            id="create-new-password"
+            value={newPassword}
+            onChange={handleNewPasswordChange}
+            onBlur={() => setPasswordError(validatePassword(newPassword))}
+            autoComplete="new-password"
+          />
+        </Form.Item>
+        <Form.Item
+          label="Confirm Password"
+          htmlFor="create-confirm-password"
+          validateStatus={confirmPasswordError ? 'error' : ''}
+          help={confirmPasswordError || undefined}
+        >
+          <Input.Password
+            id="create-confirm-password"
+            value={confirmPassword}
+            onChange={handleConfirmPasswordChange}
+            onBlur={() => setConfirmPasswordError(validateConfirmPassword(confirmPassword, newPassword))}
+            autoComplete="new-password"
+          />
+        </Form.Item>
+
+        <Form.Item className="mb-0">
+          <Button type="primary" htmlType="submit" block loading={loading}>
+            {loading ? 'Resetting...' : 'Reset Password'}
+          </Button>
+        </Form.Item>
+      </Form>
 
       <div className="mt-8 flex flex-col items-center gap-4">
         <div className="flex items-center gap-4 w-full">
@@ -165,15 +152,13 @@ export default function CreateNewPassword({ onSuccess, onBackToLogin }) {
           <span className="text-sm text-muted">or back to login</span>
           <div className="flex-1 border-t border-border" />
         </div>
-        <button
-          type="button"
+        <Button
+          type="primary"
+          shape="circle"
+          icon={<ArrowLeft className="w-5 h-5" strokeWidth={2} />}
           onClick={() => navigate('/login')}
-          className="w-12 h-12 bg-primary rounded-full flex items-center justify-center hover:bg-primary-hover transition-all duration-300 transform hover:scale-[1.05] active:scale-[0.95] shadow-card text-white"
-        >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-        </button>
+          aria-label="Back to login"
+        />
       </div>
     </AuthCardLayout>
   );

@@ -223,12 +223,16 @@ Latest reliability fixes applied:
 
 5. **Seed test data (optional, local/dev only):**
    ```bash
-   node scripts/seed-db.js
-   node scripts/seed-incidents-from-audio.js --reset
+   npm run seed-db
    ```
-   `seed-db.js` seeds realistic core operational data (departments, users, 12 teams, 18 responders, team memberships).
-   `seed-incidents-from-audio.js` seeds 30 incidents (5 duplicates + 25 unique) using real audio files from `RescueLink AI/test` and `Backend/uploads/incidents`, distributed across a variety of Dagupan City locations.
-   Use `--count=N` to override the default (max: 30).
+   `seed-db.js` wipes and seeds departments, staff, 12 teams, 24 responders, **~300 incidents over ~90 days** with dispatches, clocks, escalations, exceptions, duplicates, SOS/voice/text mix, volunteer accepts, department units, and unit usage so the web **Insights** page is populated on **Last 30 / 90 days** without extra steps. Requires at least one audio file under `RescueLink AI/test` or `Backend/uploads/incidents` (voice-channel rows only).
+
+   Optional flags: `--count=N` (default 300, max 2000), `--days=N` (default 90, max 366).
+
+   Optional AI batch (slow; **adds** incidents, do not run right after seed-db unless you want duplicates):
+   ```bash
+   npm run seed-incidents -- --reset
+   ```
 
 ## Environment variables
 

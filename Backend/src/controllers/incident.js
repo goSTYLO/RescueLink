@@ -22,6 +22,7 @@ const { buildIncidentEventPayload, emitIncidentEvent } = require('../utils/incid
 const { attachBackupVolunteers, findEligibleNearbyVolunteerUserIds, pushCriticalToNearbyVolunteers } = require('./incidentAcceptance');
 const path = require('path');
 const fs = require('fs').promises;
+const { tryDecryptValue } = require('../utils/encryption');
 
 /** Reporter or volunteer who accepted the incident may read full incident detail. */
 function canReadOwnOrAcceptedIncident(user, incident) {
@@ -37,7 +38,7 @@ function canReadOwnOrAcceptedIncident(user, incident) {
   return false;
 }
 
-/** Backup joiner or dispatched team member may read the incident they are assigned to. */
+/** Backup joiner, dispatched team member, or dept field personnel on a dept dispatch. */
 async function canResponderReadAssignedIncident(user, reportId) {
   if (![ROLES.RESPONDER, ROLES.VOLUNTEER].includes(user?.role) || user?.user_id == null) return false;
   try {
@@ -50,10 +51,12 @@ async function canResponderReadAssignedIncident(user, reportId) {
     if (joined.rows.length > 0) return true;
   } catch (_) {}
   try {
-    return Boolean(await Dispatch.findByReportAndUser(reportId, user.user_id));
-  } catch (_) {
-    return false;
+    if (await Dispatch.findByReportAndUser(reportId, user.user_id)) return true;
+  } catch (_) {}
+  if (user.role === ROLES.RESPONDER) {
+    return checkDepartmentIncidentAccess(user, reportId);
   }
+  return false;
 }
 
 /** Check if a department-scoped user (head/admin) has access via direct dispatch or active escalation */
@@ -287,8 +290,11 @@ async function attachAcceptedResponder(incident) {
     );
     const r = row.rows[0];
     if (r) {
-      incident.accepted_by_name = [r.first_name, r.last_name].filter(Boolean).join(' ').trim() || 'Volunteer Responder';
-      incident.accepted_by_phone = r.phone_number || null;
+      incident.accepted_by_name = [tryDecryptValue(r.first_name), tryDecryptValue(r.last_name)]
+        .filter(Boolean)
+        .join(' ')
+        .trim() || 'Volunteer Responder';
+      incident.accepted_by_phone = tryDecryptValue(r.phone_number) || null;
     }
   } catch (_) {}
   return incident;

@@ -1,28 +1,23 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Layout } from '@/presentation/components/layout/Layout';
-import { Card } from '@/presentation/components/ui/Card';
-import { Button } from '@/presentation/components/ui/Button';
-import { Badge } from '@/presentation/components/ui/Badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/presentation/components/ui/Select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/presentation/components/ui/Dialog';
-import { Eye, Truck, MapPin, CheckCircle, AlertCircle, Activity, LayoutList, SlidersHorizontal, UserPlus, X, Clock, Shield, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, Archive, ArchiveRestore, Search, HandHelping } from 'lucide-react';
+import { Alert, Button, Card, Input, Modal, Pagination, Select, Space, Table, Tabs, Tag } from 'antd';
+import { Eye, MapPin, AlertCircle, Activity, LayoutList, UserPlus, Shield, ArrowUpDown, ArrowUp, ArrowDown, Archive, ArchiveRestore, Search, HandHelping } from 'lucide-react';
 import { getIncidents, acknowledgeBackupRequest, archiveIncident, unarchiveIncident } from '@/data/api/incidents.api';
-import { getDepartmentById, getDepartmentUnits, assignDepartmentUnit } from '@/data/api/departments.api';
+import { getDepartmentById, getDepartmentUnits } from '@/data/api/departments.api';
 import { getResponderTeams } from '@/data/api/responders.api';
 import { createDispatch } from '@/data/api/dispatches.api';
 import { inferDepartmentSectorCode, normalizeSectorCode } from '@/core/utils/departmentSector';
 import { mapApiIncidentToDisplay, isIncidentActiveForDashboard, hasOpenBackupUi, getBackupDialogCapabilities, getAutoAssignmentBadge } from '@/core/utils/incidentDisplay';
 import { formatDepartmentToIncidentDistance } from '@/core/utils/geoDistance';
 import { VolunteerStatusBadge } from '@/presentation/components/common/VolunteerStatusBadge';
+import { ResponderStatusTag } from '@/presentation/components/common/ResponderStatusTag';
 import { BackupRequestedBadge } from '@/presentation/components/common/BackupRequestedBadge';
 import { BackupRequestDialog } from '@/presentation/components/common/BackupRequestDialog';
-import { Tabs, TabsList, TabsTrigger } from '@/presentation/components/ui/Tabs';
 import { ROLES, normalizeRole } from '@/core/constants';
-import { useTheme } from '@/presentation/context/ThemeContext';
 import { useIncidentWebSocketStatus } from '@/presentation/context/IncidentWebSocketContext';
 import { Breadcrumb } from '@/presentation/components/common/Breadcrumb';
-import Swal from 'sweetalert2';
+import { alertUser } from '@/presentation/feedback/alertUser';
 
 function mapApiIncidentToRow(api) {
   return mapApiIncidentToDisplay(api);
@@ -44,9 +39,7 @@ function getStoredAssignments() {
 
 export function DepartmentDashboardPage() {
   const navigate = useNavigate();
-  const { theme } = useTheme();
   const { isConnected: wsConnected } = useIncidentWebSocketStatus();
-  const isLight = theme === 'light';
   const user = JSON.parse(sessionStorage.getItem('user') || '{}');
   const departmentId = user.departmentId || user.department_id;
 
@@ -64,12 +57,10 @@ export function DepartmentDashboardPage() {
   const [filterType, setFilterType] = useState('All');
   const [filterStatus, setFilterStatus] = useState('All');
   const [filterSeverity, setFilterSeverity] = useState('All');
-  const [selectStates, setSelectStates] = useState({ type: false, status: false, severity: false });
   const [sortColumn, setSortColumn] = useState(null);
   const [sortDirection, setSortDirection] = useState('asc');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(5);
-  const [pageSizeSelectOpen, setPageSizeSelectOpen] = useState(false);
   const [dashboardView, setDashboardView] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [backupDialogOpen, setBackupDialogOpen] = useState(false);
@@ -304,7 +295,7 @@ export function DepartmentDashboardPage() {
     const backupId = incident?.activeBackupRequestId;
     if (!backupId) return;
     if (String(incident?.openBackupStatus || '').toLowerCase() === 'acknowledged') {
-      Swal.fire({
+      alertUser({
         icon: 'info',
         title: 'Already acknowledged',
         text: 'This backup request was already acknowledged. Assign an official backup team.',
@@ -318,7 +309,7 @@ export function DepartmentDashboardPage() {
       setBackupDialogIncident(null);
       fetchIncidents();
     } catch (err) {
-      Swal.fire({ icon: 'error', title: 'Acknowledge failed', text: err.message || 'Could not acknowledge backup request.' });
+      alertUser({ icon: 'error', title: 'Acknowledge failed', text: err.message || 'Could not acknowledge backup request.' });
     } finally {
       setAcknowledgingBackup(false);
     }
@@ -370,7 +361,7 @@ export function DepartmentDashboardPage() {
   };
   const handleArchiveIncident = async (incident) => {
     if (!incident) return;
-    const confirm = await Swal.fire({
+    const confirm = await alertUser({
       title: 'Archive Incident',
       html: `Move incident <strong>#${incident.id}</strong> to the archives?`,
       icon: 'question',
@@ -388,7 +379,7 @@ export function DepartmentDashboardPage() {
       await archiveIncident(incident.id);
       await fetchIncidents();
       window.dispatchEvent(new CustomEvent('incident:updated', { detail: { incidentId: incident.id } }));
-      Swal.fire({
+      alertUser({
         icon: 'success',
         title: 'Archived',
         text: `Incident #${incident.id} has been moved to archives.`,
@@ -397,7 +388,7 @@ export function DepartmentDashboardPage() {
         timerProgressBar: true,
       });
     } catch (err) {
-      Swal.fire({
+      alertUser({
         icon: 'error',
         title: 'Archive Failed',
         text: err.message || 'Failed to archive incident.',
@@ -409,7 +400,7 @@ export function DepartmentDashboardPage() {
 
   const handleUnarchiveIncident = async (incident) => {
     if (!incident) return;
-    const confirm = await Swal.fire({
+    const confirm = await alertUser({
       title: 'Restore Incident',
       html: `Restore incident <strong>#${incident.id}</strong> back to the active department dashboard?`,
       icon: 'question',
@@ -427,7 +418,7 @@ export function DepartmentDashboardPage() {
       await unarchiveIncident(incident.id);
       await fetchIncidents();
       window.dispatchEvent(new CustomEvent('incident:updated', { detail: { incidentId: incident.id } }));
-      Swal.fire({
+      alertUser({
         icon: 'success',
         title: 'Restored',
         text: `Incident #${incident.id} restored to active dashboard.`,
@@ -436,7 +427,7 @@ export function DepartmentDashboardPage() {
         timerProgressBar: true,
       });
     } catch (err) {
-      Swal.fire({
+      alertUser({
         icon: 'error',
         title: 'Restore Failed',
         text: err.message || 'Failed to restore incident.',
@@ -448,7 +439,7 @@ export function DepartmentDashboardPage() {
   const assignTeamToIncident = useCallback(async (incidentId, team) => {
     if (!department?.code || !department?.name || !team?.team_name) return;
     if (!isTeamAssignable(team)) {
-      Swal.fire({
+      alertUser({
         icon: 'warning',
         title: 'Team unavailable',
         text: 'Only available or standby teams can be assigned.',
@@ -471,7 +462,7 @@ export function DepartmentDashboardPage() {
       setAssigningIncidentId(null);
       await fetchIncidents();
       window.dispatchEvent(new CustomEvent('incident:updated', { detail: { incidentId } }));
-      Swal.fire({
+      alertUser({
         icon: 'success',
         title: 'Team assigned',
         html: `Team <strong>${team.team_name}</strong> has been assigned to incident <strong>${incidentId}</strong>. Available members are assigned by the system.`,
@@ -481,7 +472,7 @@ export function DepartmentDashboardPage() {
         customClass: { popup: 'rounded-2xl shadow-xl' },
       });
     } catch (err) {
-      Swal.fire({
+      alertUser({
         icon: 'error',
         title: 'Assignment failed',
         text: err.message || 'Could not assign team. Try again.',
@@ -491,28 +482,23 @@ export function DepartmentDashboardPage() {
   }, [department, fetchIncidents, isTeamAssignable]);
 
 
-  const getSeverityColor = (severity) => {
+  const severityTagColor = (severity) => {
     switch (String(severity).toLowerCase()) {
-      case 'critical': return 'bg-primary/20 text-primary border-primary/50';
-      case 'warning': return 'bg-amber-500/20 text-amber-400 border-amber-500/40';
+      case 'critical': return 'red';
+      case 'warning': return 'gold';
       case 'resolved':
-      case 'low': return 'bg-green-500/20 text-green-400 border-green-500/40';
-      default: return 'bg-muted text-muted-foreground';
+      case 'low': return 'green';
+      default: return 'default';
     }
   };
 
-  const getStatusBadge = (status) => {
+  const statusTagColor = (status) => {
     const s = String(status || '').toLowerCase();
-    const map = {
-      new: 'bg-blue-500/20 text-blue-400',
-      verified: 'bg-purple-500/20 text-purple-400',
-      'in progress': 'bg-indigo-500/20 text-indigo-400',
-      assigned: 'bg-indigo-500/20 text-indigo-400',
-      resolved: 'bg-green-500/20 text-green-400',
-      closed: 'bg-emerald-700/20 text-emerald-300',
-    };
-    const cls = map[s] || 'bg-muted text-muted-foreground';
-    return <Badge className={cls}>{status || '—'}</Badge>;
+    if (s === 'new' || s === 'pending') return 'blue';
+    if (s === 'verified') return 'purple';
+    if (s === 'in progress' || s === 'assigned') return 'geekblue';
+    if (s === 'resolved' || s === 'closed') return 'green';
+    return 'default';
   };
 
   const getTypeIcon = (type) => {
@@ -546,428 +532,310 @@ export function DepartmentDashboardPage() {
     { value: 'Low', label: 'Low' },
   ];
 
-  const heroCardClass = `rounded-3xl border overflow-hidden transition-all duration-300 ${isLight ? 'glass neumorphic-light bg-white/80 border-gray-200/80 shadow-[8px_8px_24px_rgba(209,213,219,0.5),-8px_-8px_24px_rgba(255,255,255,0.9)]' : 'glass neumorphic-dark bg-card/60 border-white/10 shadow-[8px_8px_24px_rgba(0,0,0,0.35),-6px_-6px_20px_rgba(19,65,120,0.2)]'}`;
-  const heroIconClass = `w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isLight ? 'neumorphic-light-inset bg-gray-100 text-primary' : 'neumorphic-dark-inset bg-white/10 text-primary'}`;
+  const PAGE_SIZE_OPTIONS = [
+    { value: 5, label: '5' },
+    { value: 8, label: '8' },
+    { value: 10, label: '10' },
+    { value: 15, label: '15' },
+    { value: 20, label: '20' },
+  ];
+
+  const sortTitle = (label, column) => (
+    <button type="button" onClick={() => handleSort(column)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4, padding: 0 }}>
+      {label}{getSortIcon(column)}
+    </button>
+  );
+
+  const columns = [
+    {
+      title: sortTitle('Incident ID', 'id'),
+      dataIndex: 'id',
+      render: (id) => (
+        <Button type="link" onClick={() => navigate(`/incidents/${id}`)}>{id}</Button>
+      ),
+    },
+    {
+      title: sortTitle('Type', 'type'),
+      key: 'type',
+      render: (_, incident) => (
+        <span>{getTypeIcon(incident.emergencyType)} {incident.emergencyTypesLabel || incident.emergencyType}</span>
+      ),
+    },
+    {
+      title: sortTitle('Location', 'location'),
+      dataIndex: 'barangay',
+      render: (barangay) => (
+        <span><MapPin size={14} style={{ marginRight: 4 }} />{barangay}</span>
+      ),
+    },
+    {
+      title: sortTitle('Severity', 'severity'),
+      dataIndex: 'severity',
+      render: (severity) => <Tag color={severityTagColor(severity)}>{String(severity || '—')}</Tag>,
+    },
+    {
+      title: sortTitle('Status', 'status'),
+      key: 'status',
+      render: (_, incident) => (
+        <Space direction="vertical" size={4}>
+          <Tag color={statusTagColor(incident.status)}>{incident.status || '—'}</Tag>
+          <VolunteerStatusBadge responderStatus={incident.responderStatus} />
+          {getAutoAssignmentBadge(incident) && (
+            <Tag color="blue">{getAutoAssignmentBadge(incident).label}</Tag>
+          )}
+          {hasOpenBackupUi(incident) && (
+            <BackupRequestedBadge
+              status={incident.openBackupStatus || 'pending'}
+              onClick={() => openBackupDialog(incident)}
+            />
+          )}
+          {Number(incident.backupVolunteerCount) > 0 && (
+            <Tag color="purple">{incident.backupVolunteerCount} BACKUP VOL.</Tag>
+          )}
+          {(incident.hasPendingEscalation || incident.has_pending_escalation) && (
+            <Button
+              type="link"
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate(`/incidents/${incident.id}?tab=escalation`);
+              }}
+              icon={<HandHelping size={12} />}
+              style={{ padding: 0, height: 'auto', fontSize: 11 }}
+            >
+              Assistance Requested
+            </Button>
+          )}
+          {(incident.status === 'Resolved' || incident.status === 'resolved') && !incident.reporterConfirmedAt && (
+            <span style={{ fontSize: 12, color: '#d97706' }}>Awaiting confirmation</span>
+          )}
+        </Space>
+      ),
+    },
+    ...(isVolunteerView ? [
+      {
+        title: 'Volunteer',
+        key: 'volunteer',
+        render: (_, incident) => (
+          <Space direction="vertical" size={2}>
+            <span>{incident.acceptedByName || 'Volunteer'}</span>
+            {incident.acceptedByPhone && <span style={{ fontSize: 12, opacity: 0.7 }}>{incident.acceptedByPhone}</span>}
+            <VolunteerStatusBadge responderStatus={incident.responderStatus} />
+          </Space>
+        ),
+      },
+      {
+        title: 'Distance',
+        key: 'distance',
+        render: (_, incident) => (
+          <span title={getIncidentDistance(incident).hint}>{getIncidentDistance(incident).label}</span>
+        ),
+      },
+    ] : []),
+    {
+      title: 'Assigned To',
+      key: 'assigned',
+      render: (_, incident) => {
+        const a = getAssignment(incident);
+        return a ? (a.teamName || a.name) : '—';
+      },
+    },
+    {
+      title: sortTitle('Reported', 'reported'),
+      dataIndex: 'timeReported',
+      render: (v) => v || '—',
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
+      render: (_, incident) => (
+        <Space>
+          {(normalizedRole === ROLES.DEPARTMENT_ADMIN || normalizedRole === ROLES.DEPARTMENT_HEAD) && !isArchivedView && !incident.assignedTeamName && (
+            <Button type="text" icon={<UserPlus size={16} />} onClick={() => openAssignModal(incident.id)} title="Assign personnel" />
+          )}
+          <Button type="text" icon={<Eye size={16} />} onClick={() => navigate(`/incidents/${incident.id}`)} title="View details" />
+          {isArchivedView && (
+            <Button type="text" disabled={archivingInProgress} icon={<ArchiveRestore size={16} />} onClick={() => handleUnarchiveIncident(incident)} title="Restore incident" />
+          )}
+          {!isArchivedView && (incident.status === 'Closed' || incident.status === 'closed') && !incident.isArchived && (
+            <Button type="text" disabled={archivingInProgress} icon={<Archive size={16} />} onClick={() => handleArchiveIncident(incident)} title="Archive incident" />
+          )}
+        </Space>
+      ),
+    },
+  ];
 
   return (
     <Layout>
       <div className="p-6 space-y-6 max-w-7xl mx-auto">
         <Breadcrumb items={[{ label: 'Home', path: '/department/dashboard' }, { label: 'Department Dashboard' }]} />
-        <div className={heroCardClass}>
-          <div className="p-5 md:p-6 space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div className="flex items-center gap-4">
-                <div className={heroIconClass}>
-                  <Activity className="w-5 h-5" strokeWidth={2} />
-                </div>
-                <div>
-                  <h1 className="text-2xl md:text-3xl font-bold text-foreground">Incident Overview</h1>
-                  <p className="text-muted mt-1">{user.department || 'Department'} — Assigned Incidents</p>
-                </div>
-              </div>
-              <span className={`rounded-full px-3 py-1 text-xs font-semibold ${isLight ? 'bg-primary/10 text-primary border border-primary/20' : 'bg-primary/20 text-primary border border-primary/30'}`}>
-                {departmentIncidents.length} total
-              </span>
-            </div>
 
-            {activeIncidents.length > 0 && !loading && (
-              <div className={`rounded-xl border px-3 py-2.5 ${isLight ? 'border-amber-300/70 bg-amber-50/80' : 'border-amber-500/40 bg-amber-500/10'}`}>
-                <div className="flex items-start gap-2">
-                  <AlertCircle className="w-4 h-4 text-amber-500 mt-0.5" />
-                  <p className="text-sm text-foreground">
-                    <span className="font-semibold">{activeIncidents.length} active incident{activeIncidents.length !== 1 ? 's' : ''}</span> requiring response.
-                  </p>
-                </div>
-              </div>
-            )}
+        <Card size="small" title={(
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            <Activity size={18} />
+            Incident Overview
+          </span>
+        )} extra={<Tag color="blue">{departmentIncidents.length} total</Tag>}>
+          <p style={{ marginBottom: 12 }}>{user.department || 'Department'} — Assigned Incidents</p>
 
-            {departmentIncidents.some((i) => i.hasPendingEscalation) && !loading && (
-              <div className={`rounded-xl border px-3 py-2.5 ${isLight ? 'border-orange-300/80 bg-orange-50/90 text-orange-900' : 'border-orange-500/40 bg-orange-500/10 text-orange-300'}`}>
-                <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <div className="flex items-center gap-2">
-                    <HandHelping className="w-4 h-4 text-orange-500 shrink-0" />
-                    <p className="text-sm">
-                      <span className="font-semibold">
-                        {departmentIncidents.filter((i) => i.hasPendingEscalation).length} inter-department assistance request{departmentIncidents.filter((i) => i.hasPendingEscalation).length !== 1 ? 's' : ''}
-                      </span>{' '}
-                      awaiting response.
-                    </p>
-                  </div>
+          {activeIncidents.length > 0 && !loading && (
+            <Alert
+              type="warning"
+              showIcon
+              icon={<AlertCircle size={16} />}
+              message={<span><strong>{activeIncidents.length} active incident{activeIncidents.length !== 1 ? 's' : ''}</strong> requiring response.</span>}
+              style={{ marginBottom: 12 }}
+            />
+          )}
+
+          {departmentIncidents.some((i) => i.hasPendingEscalation) && !loading && (
+            <Alert
+              type="warning"
+              showIcon
+              icon={<HandHelping size={16} />}
+              message={(
+                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                  <span>
+                    <strong>
+                      {departmentIncidents.filter((i) => i.hasPendingEscalation).length} inter-department assistance request{departmentIncidents.filter((i) => i.hasPendingEscalation).length !== 1 ? 's' : ''}
+                    </strong>{' '}
+                    awaiting response.
+                  </span>
                   {departmentIncidents.find((i) => i.hasPendingEscalation) && (
                     <Button
-                      size="sm"
-                      className="h-7 text-xs bg-orange-500 hover:bg-orange-600 text-white font-medium gap-1"
                       onClick={() => {
                         const first = departmentIncidents.find((i) => i.hasPendingEscalation);
                         if (first) navigate(`/incidents/${first.id}?tab=escalation`);
                       }}
+                      icon={<Eye size={14} />}
                     >
-                      <Eye className="w-3 h-3" />
                       Review Assistance
                     </Button>
                   )}
                 </div>
-              </div>
-            )}
+              )}
+              style={{ marginBottom: 12 }}
+            />
+          )}
 
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              <div className={`rounded-xl border p-3 ${isLight ? 'bg-white/70 border-gray-200/80' : 'bg-white/5 border-white/10'}`}>
-                <p className="text-[11px] text-muted uppercase font-semibold">Total Assigned</p>
-                <p className="text-xl font-bold text-foreground mt-1">{departmentIncidents.length}</p>
-              </div>
-              <div className={`rounded-xl border p-3 ${isLight ? 'bg-white/70 border-gray-200/80' : 'bg-white/5 border-white/10'}`}>
-                <p className="text-[11px] text-muted uppercase font-semibold">Awaiting Action</p>
-                <p className="text-xl font-bold text-foreground mt-1">{departmentIncidents.filter((i) => i.status === 'Verified' || i.status === 'verified' || i.status === 'New').length}</p>
-              </div>
-              <div className={`rounded-xl border p-3 ${isLight ? 'bg-white/70 border-gray-200/80' : 'bg-white/5 border-white/10'}`}>
-                <p className="text-[11px] text-muted uppercase font-semibold">In Progress</p>
-                <p className="text-xl font-bold text-foreground mt-1">{departmentIncidents.filter((i) => i.status === 'In Progress' || i.status === 'in-progress').length}</p>
-              </div>
-              <div className={`rounded-xl border p-3 ${isLight ? 'bg-white/70 border-gray-200/80' : 'bg-white/5 border-white/10'}`}>
-                <p className="text-[11px] text-muted uppercase font-semibold">Resolved</p>
-                <p className="text-xl font-bold text-foreground mt-1">{departmentIncidents.filter((i) => i.status === 'Resolved' || i.status === 'resolved').length}</p>
-              </div>
-            </div>
-          </div>
-        </div>
+          <Space wrap size="middle">
+            <Card size="small" style={{ minWidth: 120 }}>
+              <div style={{ fontSize: 11, opacity: 0.7 }}>Total Assigned</div>
+              <div style={{ fontSize: 20, fontWeight: 700 }}>{departmentIncidents.length}</div>
+            </Card>
+            <Card size="small" style={{ minWidth: 120 }}>
+              <div style={{ fontSize: 11, opacity: 0.7 }}>Awaiting Action</div>
+              <div style={{ fontSize: 20, fontWeight: 700 }}>{departmentIncidents.filter((i) => i.status === 'Verified' || i.status === 'verified' || i.status === 'New').length}</div>
+            </Card>
+            <Card size="small" style={{ minWidth: 120 }}>
+              <div style={{ fontSize: 11, opacity: 0.7 }}>In Progress</div>
+              <div style={{ fontSize: 20, fontWeight: 700 }}>{departmentIncidents.filter((i) => i.status === 'In Progress' || i.status === 'in-progress').length}</div>
+            </Card>
+            <Card size="small" style={{ minWidth: 120 }}>
+              <div style={{ fontSize: 11, opacity: 0.7 }}>Resolved</div>
+              <div style={{ fontSize: 20, fontWeight: 700 }}>{departmentIncidents.filter((i) => i.status === 'Resolved' || i.status === 'resolved').length}</div>
+            </Card>
+          </Space>
+        </Card>
 
-        {loading && (
-          <p className="text-muted text-center py-4">Loading incidents…</p>
-        )}
         {error && (
-          <Card className="p-4 rounded-2xl border border-amber-500/30 bg-amber-500/10">
-            <p className="text-foreground mb-2">{error}</p>
-            <Button variant="outline" size="sm" onClick={() => fetchIncidents()}>Retry</Button>
-          </Card>
+          <Alert
+            type="warning"
+            showIcon
+            message={error}
+            action={<Button onClick={() => fetchIncidents()}>Retry</Button>}
+            style={{ marginBottom: 12 }}
+          />
         )}
 
-        <div className={`relative z-0 rounded-2xl overflow-hidden border transition-all duration-300 ${
-          isLight ? 'glass neumorphic-light bg-white/80' : 'glass neumorphic-dark bg-card/60'
-        }`}>
-          <div className={`flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 border-b ${
-            isLight ? 'border-gray-200/80 bg-gray-50/50' : 'border-white/10 bg-white/5'
-          }`}>
-            <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                isLight ? 'neumorphic-light-inset bg-gray-100 text-primary' : 'neumorphic-dark-inset bg-white/10 text-primary'
-              }`}>
-                <LayoutList className="w-5 h-5" strokeWidth={2} />
-              </div>
-              <h3 className="text-base font-semibold text-foreground">
-                {isVolunteerView ? 'Volunteer Response' : isArchivedView ? 'Archived Incidents' : 'Assigned Incidents'}
-              </h3>
-              <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                isLight ? 'bg-primary/15 text-primary' : 'bg-primary/20 text-primary'
-              }`}>
-                {filteredIncidents.length}
-              </span>
-            </div>
-            <Tabs value={dashboardView} onValueChange={setDashboardView}>
-              <TabsList className={`rounded-xl p-1 ${isLight ? 'bg-gray-100 border border-gray-200' : 'bg-white/10 border border-white/10'}`}>
-                <TabsTrigger value="all" className="rounded-lg px-3 py-1.5 text-xs">All Incidents</TabsTrigger>
-                <TabsTrigger value="volunteer" className="rounded-lg px-3 py-1.5 text-xs">Volunteer Response</TabsTrigger>
-                <TabsTrigger value="archived" className="rounded-lg px-3 py-1.5 text-xs flex items-center gap-1">
-                  <Archive className="w-3 h-3" />
-                  Archived
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
+        <Card
+          size="small"
+          title={(
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+              <LayoutList size={16} />
+              {isVolunteerView ? 'Volunteer Response' : isArchivedView ? 'Archived Incidents' : 'Assigned Incidents'}
+              <Tag>{filteredIncidents.length}</Tag>
+            </span>
+          )}
+          extra={(
+            <Tabs
+              activeKey={dashboardView}
+              onChange={setDashboardView}
+              size="small"
+              items={[
+                { key: 'all', label: 'All Incidents' },
+                { key: 'volunteer', label: 'Volunteer Response' },
+                { key: 'archived', label: <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Archive size={12} />Archived</span> },
+              ]}
+            />
+          )}
+        >
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 12 }}>
+            <Space wrap>
+              <span style={{ fontSize: 12, opacity: 0.7 }}>Rows</span>
+              <Select
+                value={itemsPerPage}
+                onChange={(value) => { setItemsPerPage(Number(value)); setCurrentPage(1); }}
+                options={PAGE_SIZE_OPTIONS}
+                style={{ width: 84 }}
+              />
+              <span style={{ fontSize: 12, opacity: 0.7 }}>Showing {pageStart}-{pageEnd} of {filteredIncidents.length}</span>
+            </Space>
+            <Pagination
+              current={safePage}
+              total={sortedIncidents.length}
+              pageSize={itemsPerPage}
+              onChange={setCurrentPage}
+              showSizeChanger={false}
+              size="small"
+            />
           </div>
 
-          <div className={`px-2 sm:px-3 py-2 border-b ${
-            isLight ? 'border-gray-200/80 bg-gray-50/20' : 'border-white/10 bg-white/[0.02]'
-          }`}>
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs text-muted">Rows</span>
-                <Select value={String(itemsPerPage)} onValueChange={(value) => { setItemsPerPage(Number(value)); setCurrentPage(1); }} open={pageSizeSelectOpen} onOpenChange={setPageSizeSelectOpen}>
-                  {({ value }) => (
-                    <>
-                      <SelectTrigger isOpen={pageSizeSelectOpen} onClick={() => setPageSizeSelectOpen((o) => !o)} className="h-8 w-[84px]">
-                        <SelectValue value={value} options={[
-                          { value: '5', label: '5' },
-                          { value: '8', label: '8' },
-                          { value: '10', label: '10' },
-                          { value: '15', label: '15' },
-                          { value: '20', label: '20' },
-                        ]} />
-                      </SelectTrigger>
-                      <SelectContent isOpen={pageSizeSelectOpen}>
-                        {['5', '8', '10', '15', '20'].map((size) => (
-                          <SelectItem key={size} value={size} onSelect={(v) => { setItemsPerPage(Number(v)); setCurrentPage(1); setPageSizeSelectOpen(false); }}>
-                            {size}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </>
-                  )}
-                </Select>
-                <span className="text-xs text-muted sm:ml-1">Showing {pageStart}-{pageEnd} of {filteredIncidents.length}</span>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <Button variant="ghost" size="sm" onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))} disabled={safePage === 1} className="h-9 w-9 p-0 rounded-lg">
-                  <ChevronLeft className="w-4 h-4" />
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))} disabled={safePage === totalPages} className="h-9 w-9 p-0 rounded-lg">
-                  <ChevronRight className="w-4 h-4" />
-                </Button>
-                <span className="text-sm text-muted">Page {safePage} of {totalPages}</span>
-              </div>
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ marginBottom: 8, width: '100%', maxWidth: 480 }}>
+              <Input
+                prefix={<Search size={14} />}
+                placeholder="Search ID, barangay..."
+                value={searchQuery}
+                onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+                style={{ width: '100%' }}
+                allowClear
+              />
             </div>
+            <Space wrap>
+              <div>
+                <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 4 }}>Type</div>
+                <Select value={filterType} onChange={setFilterType} options={typeOptions} style={{ minWidth: 140 }} />
+              </div>
+              <div>
+                <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 4 }}>Status</div>
+                <Select value={filterStatus} onChange={setFilterStatus} options={statusOptions} style={{ minWidth: 140 }} />
+              </div>
+              <div>
+                <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 4 }}>Severity</div>
+                <Select value={filterSeverity} onChange={setFilterSeverity} options={severityOptions} style={{ minWidth: 140 }} />
+              </div>
+            </Space>
           </div>
 
-          <div className={`px-2 sm:px-3 py-2 border-b ${
-            isLight ? 'border-gray-200/80 bg-gray-50/30' : 'border-white/10 bg-white/[0.03]'
-          }`}>
-            <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-              <div className="flex items-center gap-2">
-                <SlidersHorizontal className="w-4 h-4 text-primary" />
-                <h4 className="text-xs font-semibold text-foreground">Filters</h4>
-              </div>
-              <div className="relative w-full sm:w-64">
-                <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
-                <input
-                  type="text"
-                  placeholder="Search ID, barangay..."
-                  value={searchQuery}
-                  onChange={(e) => {
-                    setSearchQuery(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  className={`w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border transition-colors ${
-                    isLight
-                      ? 'bg-white border-gray-200 text-foreground placeholder-muted focus:border-primary focus:outline-none'
-                      : 'bg-white/5 border-white/10 text-foreground placeholder-muted focus:border-primary focus:outline-none'
-                  }`}
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              <div className="min-w-0">
-                <label className="text-xs font-medium text-muted mb-1 block">Type</label>
-                <Select value={filterType} onValueChange={setFilterType}>
-                  {({ value }) => (
-                    <>
-                      <SelectTrigger isOpen={selectStates.type} onClick={() => setSelectStates({ ...selectStates, type: !selectStates.type })} className={`h-8 ${isLight ? 'bg-gray-50/80 border-gray-200' : 'bg-white/5 border-white/10'}`}>
-                        <SelectValue placeholder="All Types" value={value} options={typeOptions} />
-                      </SelectTrigger>
-                      <SelectContent isOpen={selectStates.type}>
-                        {typeOptions.map((option) => (
-                          <SelectItem key={option.value} value={option.value} onSelect={(val) => { setFilterType(val); setSelectStates({ ...selectStates, type: false }); }}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </>
-                  )}
-                </Select>
-              </div>
-              <div className="min-w-0">
-                <label className="text-xs font-medium text-muted mb-1 block">Status</label>
-                <Select value={filterStatus} onValueChange={setFilterStatus}>
-                  {({ value }) => (
-                    <>
-                      <SelectTrigger isOpen={selectStates.status} onClick={() => setSelectStates({ ...selectStates, status: !selectStates.status })} className={`h-8 ${isLight ? 'bg-gray-50/80 border-gray-200' : 'bg-white/5 border-white/10'}`}>
-                        <SelectValue placeholder="All Status" value={value} options={statusOptions} />
-                      </SelectTrigger>
-                      <SelectContent isOpen={selectStates.status}>
-                        {statusOptions.map((option) => (
-                          <SelectItem key={option.value} value={option.value} onSelect={(val) => { setFilterStatus(val); setSelectStates({ ...selectStates, status: false }); }}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </>
-                  )}
-                </Select>
-              </div>
-              <div className="min-w-0">
-                <label className="text-xs font-medium text-muted mb-1 block">Severity</label>
-                <Select value={filterSeverity} onValueChange={setFilterSeverity}>
-                  {({ value }) => (
-                    <>
-                      <SelectTrigger isOpen={selectStates.severity} onClick={() => setSelectStates({ ...selectStates, severity: !selectStates.severity })} className={`h-8 ${isLight ? 'bg-gray-50/80 border-gray-200' : 'bg-white/5 border-white/10'}`}>
-                        <SelectValue placeholder="All Severity" value={value} options={severityOptions} />
-                      </SelectTrigger>
-                      <SelectContent isOpen={selectStates.severity}>
-                        {severityOptions.map((option) => (
-                          <SelectItem key={option.value} value={option.value} onSelect={(val) => { setFilterSeverity(val); setSelectStates({ ...selectStates, severity: false }); }}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </>
-                  )}
-                </Select>
-              </div>
-            </div>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className={isLight ? 'bg-gray-50 border-b border-gray-200' : 'bg-muted/30 border-b border-border'}>
-                <tr>
-                  <th className="px-2.5 py-2 text-left text-xs font-semibold text-foreground cursor-pointer" onClick={() => handleSort('id')}><div className="flex items-center gap-1">Incident ID{getSortIcon('id')}</div></th>
-                  <th className="px-2.5 py-2 text-left text-xs font-semibold text-foreground cursor-pointer" onClick={() => handleSort('type')}><div className="flex items-center gap-1">Type{getSortIcon('type')}</div></th>
-                  <th className="px-2.5 py-2 text-left text-xs font-semibold text-foreground cursor-pointer" onClick={() => handleSort('location')}><div className="flex items-center gap-1">Location{getSortIcon('location')}</div></th>
-                  <th className="px-2.5 py-2 text-left text-xs font-semibold text-foreground cursor-pointer" onClick={() => handleSort('severity')}><div className="flex items-center gap-1">Severity{getSortIcon('severity')}</div></th>
-                  <th className="px-2.5 py-2 text-left text-xs font-semibold text-foreground cursor-pointer" onClick={() => handleSort('status')}><div className="flex items-center gap-1">Status{getSortIcon('status')}</div></th>
-                  {isVolunteerView && (
-                    <>
-                      <th className="px-2.5 py-2 text-left text-xs font-semibold text-foreground">Volunteer</th>
-                      <th className="px-2.5 py-2 text-left text-xs font-semibold text-foreground">Distance</th>
-                    </>
-                  )}
-                  <th className="px-2.5 py-2 text-left text-xs font-semibold text-foreground">Assigned To</th>
-                  <th className="px-2.5 py-2 text-left text-xs font-semibold text-foreground cursor-pointer" onClick={() => handleSort('reported')}><div className="flex items-center gap-1">Reported{getSortIcon('reported')}</div></th>
-                  <th className="px-2.5 py-2 text-left text-xs font-semibold text-foreground">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {loading ? (
-                  <tr>
-                    <td colSpan={isVolunteerView ? 10 : 8} className="px-4 py-8 text-center text-muted">Loading incidents…</td>
-                  </tr>
-                ) : (
-                  paginatedIncidents.map((incident) => (
-                    <tr key={incident.id} className="hover:bg-muted/20 transition-colors">
-                      <td className="px-2.5 py-2">
-                        <button type="button" onClick={() => navigate(`/incidents/${incident.id}`)} className="text-xs font-medium text-primary hover:underline">
-                          {incident.id}
-                        </button>
-                      </td>
-                      <td className="px-2.5 py-2 text-xs">
-                        <span className="inline-flex items-center gap-1">
-                          {getTypeIcon(incident.emergencyType)}
-                          <span className="capitalize text-foreground">{incident.emergencyTypesLabel || incident.emergencyType}</span>
-                        </span>
-                      </td>
-                      <td className="px-2.5 py-2 text-xs text-muted">
-                        <div className="flex items-center gap-1">
-                          <MapPin className="w-4 h-4 text-muted" />
-                          {incident.barangay}
-                        </div>
-                      </td>
-                      <td className="px-2.5 py-2">
-                        <Badge className={getSeverityColor(incident.severity)}>{String(incident.severity || '—')}</Badge>
-                      </td>
-                      <td className="px-2.5 py-2">
-                        <div className="flex flex-col gap-1">
-                          {getStatusBadge(incident.status)}
-                          <VolunteerStatusBadge responderStatus={incident.responderStatus} />
-                          {getAutoAssignmentBadge(incident) && (
-                            <Badge className={`${getAutoAssignmentBadge(incident).className} border rounded-lg px-2 py-0.5 text-[11px] font-semibold w-fit`}>
-                              {getAutoAssignmentBadge(incident).label}
-                            </Badge>
-                          )}
-                          {hasOpenBackupUi(incident) && (
-                            <BackupRequestedBadge
-                              status={incident.openBackupStatus || 'pending'}
-                              onClick={() => openBackupDialog(incident)}
-                            />
-                          )}
-                          {Number(incident.backupVolunteerCount) > 0 && (
-                            <Badge className="bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 rounded-lg px-2 py-0.5 text-[11px] font-semibold w-fit">
-                              {incident.backupVolunteerCount} BACKUP VOL.
-                            </Badge>
-                          )}
-                          {(incident.hasPendingEscalation || incident.has_pending_escalation) && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                navigate(`/incidents/${incident.id}?tab=escalation`);
-                              }}
-                              className="inline-flex items-center gap-1 bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 border border-orange-500/40 rounded-lg px-2 py-0.5 text-[11px] font-semibold w-fit transition-colors"
-                              title="Click to review assistance request"
-                            >
-                              <HandHelping className="w-3 h-3" />
-                              Assistance Requested
-                            </button>
-                          )}
-                          {(incident.status === 'Resolved' || incident.status === 'resolved') && !incident.reporterConfirmedAt && (
-                            <span className="text-xs text-amber-500 font-medium">Awaiting confirmation</span>
-                          )}
-                        </div>
-                      </td>
-                      {isVolunteerView && (
-                        <>
-                          <td className="px-2.5 py-2 text-xs">
-                            <div className="flex flex-col gap-1">
-                              <span className="font-medium text-foreground">{incident.acceptedByName || 'Volunteer'}</span>
-                              {incident.acceptedByPhone && <span className="text-muted">{incident.acceptedByPhone}</span>}
-                              <VolunteerStatusBadge responderStatus={incident.responderStatus} />
-                            </div>
-                          </td>
-                          <td className="px-2.5 py-2 text-xs text-muted" title={getIncidentDistance(incident).hint}>
-                            {getIncidentDistance(incident).label}
-                          </td>
-                        </>
-                      )}
-                      <td className="px-2.5 py-2 text-xs text-muted">
-                        {getAssignment(incident) ? (getAssignment(incident).teamName || getAssignment(incident).name) : '—'}
-                      </td>
-                      <td className="px-2.5 py-2 text-xs text-muted">{incident.timeReported || '—'}</td>
-                      <td className="px-2.5 py-2">
-                        <div className="flex items-center gap-1">
-                          {(normalizedRole === ROLES.DEPARTMENT_ADMIN || normalizedRole === ROLES.DEPARTMENT_HEAD) && !isArchivedView && !incident.assignedTeamName && (
-                            <Button size="sm" variant="ghost" onClick={() => openAssignModal(incident.id)} className="text-primary" title="Assign personnel">
-                              <UserPlus className="w-4 h-4" />
-                            </Button>
-                          )}
-                          <Button size="sm" variant="ghost" onClick={() => navigate(`/incidents/${incident.id}`)} className="text-primary" title="View details">
-                            <Eye className="w-4 h-4" />
-                          </Button>
-                          {isArchivedView && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              disabled={archivingInProgress}
-                              onClick={() => handleUnarchiveIncident(incident)}
-                              className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
-                              title="Restore incident"
-                            >
-                              <ArchiveRestore className="w-4 h-4" />
-                            </Button>
-                          )}
-                          {!isArchivedView && (incident.status === 'Closed' || incident.status === 'closed') && !incident.isArchived && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              disabled={archivingInProgress}
-                              onClick={() => handleArchiveIncident(incident)}
-                              className="text-slate-500 hover:text-slate-700 hover:bg-slate-100"
-                              title="Archive incident"
-                            >
-                              <Archive className="w-4 h-4" />
-                            </Button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-                {!loading && paginatedIncidents.length === 0 && (
-                  <tr>
-                    <td colSpan={isVolunteerView ? 10 : 8} className="px-4 py-8 text-center text-muted">
-                      {isVolunteerView
-                        ? 'No volunteers have accepted an incident yet.'
-                        : 'No incidents match the current filters.'}
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+          <Table
+            size="small"
+            rowKey="id"
+            loading={loading}
+            columns={columns}
+            dataSource={paginatedIncidents}
+            pagination={false}
+            locale={{
+              emptyText: isVolunteerView
+                ? 'No volunteers have accepted an incident yet.'
+                : 'No incidents match the current filters.',
+            }}
+          />
+        </Card>
 
         {!loading && !error && filteredIncidents.length === 0 && (
-          <div className="text-center py-12 text-muted">
-            <p className="text-lg">No incidents assigned to your department yet</p>
-          </div>
+          <p style={{ textAlign: 'center', padding: 48, opacity: 0.7 }}>No incidents assigned to your department yet</p>
         )}
 
-        {/* Assign Personnel Modal — Dept Admin only: assign a response team (uses API teams) */}
         <BackupRequestDialog
           open={backupDialogOpen}
           onOpenChange={setBackupDialogOpen}
@@ -985,66 +853,51 @@ export function DepartmentDashboardPage() {
           canAssignTeam={backupDialogCapabilities.canAssignTeam}
         />
 
-        <Dialog open={assignModalOpen} onOpenChange={(open) => !open && closeAssignModal()} className="max-w-md">
-          <DialogContent className={`max-w-md rounded-2xl overflow-hidden ${isLight ? 'glass neumorphic-light bg-white/95 border-gray-200/80' : 'glass neumorphic-dark bg-card/95 border-white/10'}`}>
-            <div className={`flex items-center justify-between border-b ${isLight ? 'border-gray-200/80 pb-4' : 'border-white/10 pb-4'}`}>
-              <DialogHeader>
-                <DialogTitle className="text-xl font-bold text-foreground">Assign personnel</DialogTitle>
-                <p className="text-sm text-muted mt-1">
-                  {assigningIncidentId ? `Assign a response team to incident ${assigningIncidentId}. The selected team's available members will be assigned by the system.` : 'Assign a response team to this incident.'}
-                </p>
-              </DialogHeader>
-              <button
-                type="button"
-                onClick={closeAssignModal}
-                className={`p-2 rounded-xl transition-colors ${isLight ? 'hover:bg-gray-100 text-gray-500' : 'hover:bg-white/10 text-muted'}`}
-                aria-label="Close"
-              >
-                <X className="w-5 h-5" strokeWidth={2} />
-              </button>
-            </div>
-            <div className="mt-4 space-y-3 max-h-[280px] overflow-y-auto pr-1">
-              {teamsLoading && <p className="text-sm text-muted py-4 text-center">Loading teams…</p>}
-              {!teamsLoading && teams.map((team) => {
-                const assignable = isTeamAssignable(team);
-                return (
-                <button
+        <Modal
+          open={assignModalOpen}
+          title="Assign personnel"
+          onCancel={closeAssignModal}
+          footer={null}
+          destroyOnClose
+        >
+          <p style={{ marginBottom: 12, opacity: 0.7, fontSize: 13 }}>
+            {assigningIncidentId
+              ? `Assign a response team to incident ${assigningIncidentId}. The selected team's available members will be assigned by the system.`
+              : 'Assign a response team to this incident.'}
+          </p>
+          <div style={{ maxHeight: 280, overflowY: 'auto' }}>
+            {teamsLoading && <p style={{ textAlign: 'center', opacity: 0.7 }}>Loading teams…</p>}
+            {!teamsLoading && teams.map((team) => {
+              const assignable = isTeamAssignable(team);
+              return (
+                <Button
                   key={team.team_id}
-                  type="button"
-                  onClick={() => assignTeamToIncident(assigningIncidentId, team)}
+                  block
                   disabled={!assignable}
-                  className={`w-full text-left flex items-center gap-4 px-4 py-3.5 rounded-xl border transition-all duration-200 ${
-                    isLight
-                      ? `${assignable ? 'border-gray-200/80 bg-white hover:bg-primary/5 hover:border-primary/30 cursor-pointer shadow-sm' : 'border-gray-200/80 bg-gray-100/80 opacity-70 cursor-not-allowed'}`
-                      : `${assignable ? 'border-white/10 bg-white/5 hover:bg-primary/10 hover:border-primary/30 cursor-pointer' : 'border-white/10 bg-white/5 opacity-60 cursor-not-allowed'}`
-                  }`}
+                  onClick={() => assignTeamToIncident(assigningIncidentId, team)}
+                  style={{ height: 'auto', marginBottom: 8, textAlign: 'left', padding: '12px 16px' }}
                 >
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isLight ? 'bg-primary/15 text-primary' : 'bg-primary/20 text-primary'}`}>
-                    <Shield className="w-5 h-5" strokeWidth={2} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-foreground">{team.team_name}</p>
-                    <p className="text-sm text-muted">{String(team.department_code || '').toUpperCase()} · {String(team.team_status || 'available').toLowerCase()}</p>
-                  </div>
-                  {!assignable && (
-                    <span className="flex-shrink-0 px-2.5 py-1 rounded-lg text-xs font-medium bg-amber-500/20 text-amber-600">
-                      Unavailable
-                    </span>
-                  )}
-                  {Array.isArray(team.supported_incident_types) && team.supported_incident_types.length > 0 && (
-                    <span className="flex-shrink-0 px-2.5 py-1 rounded-lg text-xs font-medium bg-muted/50 text-muted-foreground">
-                      {team.supported_incident_types.slice(0, 2).join(', ')}
-                    </span>
-                  )}
-                </button>
-                );
-              })}
-            </div>
-            {!teamsLoading && teams.length === 0 && <p className="text-sm text-muted py-6 text-center">No teams in this department. Create teams in the Personnel page first.</p>}
-          </DialogContent>
-        </Dialog>
-
-
+                  <Space>
+                    <Shield size={18} />
+                    <div>
+                      <div style={{ fontWeight: 600 }}>{team.team_name}</div>
+                      <div style={{ fontSize: 12, opacity: 0.7 }}>
+                        {String(team.department_code || '').toUpperCase()} · <ResponderStatusTag status={team.team_status}>{String(team.team_status || 'available').toLowerCase()}</ResponderStatusTag>
+                      </div>
+                    </div>
+                    {!assignable && <Tag color="gold">Unavailable</Tag>}
+                    {Array.isArray(team.supported_incident_types) && team.supported_incident_types.length > 0 && (
+                      <Tag>{team.supported_incident_types.slice(0, 2).join(', ')}</Tag>
+                    )}
+                  </Space>
+                </Button>
+              );
+            })}
+            {!teamsLoading && teams.length === 0 && (
+              <p style={{ textAlign: 'center', opacity: 0.7, padding: 24 }}>No teams in this department. Create teams in the Personnel page first.</p>
+            )}
+          </div>
+        </Modal>
       </div>
     </Layout>
   );

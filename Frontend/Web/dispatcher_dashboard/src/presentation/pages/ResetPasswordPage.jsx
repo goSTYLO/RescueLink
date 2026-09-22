@@ -1,12 +1,11 @@
 import { useState } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
-import Swal from 'sweetalert2';
-import { Eye, EyeOff } from 'lucide-react';
+import { Button, Form, Input } from 'antd';
+import { alertUser } from '@/presentation/feedback/alertUser';
 import { BrandLogo } from '@/presentation/components/common/BrandLogo';
 import illustration from '@/presentation/assets/create-password-illustration.svg';
 import { API_URL } from '@/core/config/app.config';
 import { AuthCardLayout } from '@/presentation/components/layout/AuthCardLayout';
-import { AuthFloatingInput } from '@/presentation/components/ui/AuthFloatingInput';
 
 function validatePassword(password) {
   if (!password) return 'Password is required';
@@ -31,8 +30,6 @@ export default function ResetPasswordPage() {
 
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [passwordError, setPasswordError] = useState('');
   const [confirmPasswordError, setConfirmPasswordError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -52,14 +49,13 @@ export default function ResetPasswordPage() {
     if (confirmPasswordError || value) setConfirmPasswordError(validateConfirmPassword(value, newPassword));
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async () => {
     const passwordValidationError = validatePassword(newPassword);
     const confirmValidationError = validateConfirmPassword(confirmPassword, newPassword);
     if (passwordValidationError) setPasswordError(passwordValidationError);
     if (confirmValidationError) setConfirmPasswordError(confirmValidationError);
     if (passwordValidationError || confirmValidationError) {
-      Swal.fire({
+      alertUser({
         icon: 'warning',
         title: 'Validation failed',
         text: passwordValidationError || confirmValidationError,
@@ -85,14 +81,14 @@ export default function ResetPasswordPage() {
       }
 
       sessionStorage.removeItem('resetEmail');
-      Swal.fire({
+      alertUser({
         icon: 'success',
         title: 'Password reset!',
         text: 'Your password has been updated. Redirecting to login...',
         confirmButtonColor: '#134178',
       }).then(() => navigate('/login'));
     } catch (err) {
-      Swal.fire({
+      alertUser({
         icon: 'error',
         title: 'Reset failed',
         text: err.message || 'Failed to reset password. Please try again.',
@@ -116,17 +112,15 @@ export default function ResetPasswordPage() {
           </p>
         </div>
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
-          <Link
-            to="/forgot-password"
-            className="inline-flex justify-center px-6 py-3 rounded-xl font-semibold bg-primary text-white hover:bg-primary-hover transition-all"
-          >
-            Request new link
+          <Link to="/forgot-password">
+            <Button type="primary" block>
+              Request new link
+            </Button>
           </Link>
-          <Link
-            to="/login"
-            className="inline-flex justify-center px-6 py-3 rounded-xl font-semibold border-2 border-border text-foreground hover:bg-muted/50 transition-all"
-          >
-            Back to login
+          <Link to="/login">
+            <Button block>
+              Back to login
+            </Button>
           </Link>
         </div>
       </AuthCardLayout>
@@ -143,56 +137,46 @@ export default function ResetPasswordPage() {
         <p className="text-muted">Create a new password for your account.</p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <AuthFloatingInput
+      <Form layout="vertical" onFinish={handleSubmit} requiredMark={false}>
+        <Form.Item
           label="New Password"
-          type={showNewPassword ? 'text' : 'password'}
-          value={newPassword}
-          onChange={handleNewPasswordChange}
-          onBlur={() => setPasswordError(validatePassword(newPassword))}
-          rightAction={
-            <button
-              type="button"
-              onClick={() => setShowNewPassword(!showNewPassword)}
-              className="p-1.5 rounded-lg text-muted hover:text-foreground transition-colors"
-              aria-label={showNewPassword ? 'Hide password' : 'Show password'}
-            >
-              {showNewPassword ? <EyeOff className="w-5 h-5" strokeWidth={2} /> : <Eye className="w-5 h-5" strokeWidth={2} />}
-            </button>
-          }
-          error={passwordError}
-        />
-        <AuthFloatingInput
-          label="Confirm Password"
-          type={showConfirmPassword ? 'text' : 'password'}
-          value={confirmPassword}
-          onChange={handleConfirmPasswordChange}
-          onBlur={() => setConfirmPasswordError(validateConfirmPassword(confirmPassword, newPassword))}
-          rightAction={
-            <button
-              type="button"
-              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-              className="p-1.5 rounded-lg text-muted hover:text-foreground transition-colors"
-              aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
-            >
-              {showConfirmPassword ? <EyeOff className="w-5 h-5" strokeWidth={2} /> : <Eye className="w-5 h-5" strokeWidth={2} />}
-            </button>
-          }
-          error={confirmPasswordError}
-        />
-
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full bg-primary text-white py-3 rounded-xl font-bold text-lg hover:bg-primary-hover disabled:bg-muted/40 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] shadow-card focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background"
+          htmlFor="reset-new-password"
+          validateStatus={passwordError ? 'error' : ''}
+          help={passwordError || undefined}
         >
-          {loading ? 'Resetting...' : 'Reset Password'}
-        </button>
-      </form>
+          <Input.Password
+            id="reset-new-password"
+            value={newPassword}
+            onChange={handleNewPasswordChange}
+            onBlur={() => setPasswordError(validatePassword(newPassword))}
+            autoComplete="new-password"
+          />
+        </Form.Item>
+        <Form.Item
+          label="Confirm Password"
+          htmlFor="reset-confirm-password"
+          validateStatus={confirmPasswordError ? 'error' : ''}
+          help={confirmPasswordError || undefined}
+        >
+          <Input.Password
+            id="reset-confirm-password"
+            value={confirmPassword}
+            onChange={handleConfirmPasswordChange}
+            onBlur={() => setConfirmPasswordError(validateConfirmPassword(confirmPassword, newPassword))}
+            autoComplete="new-password"
+          />
+        </Form.Item>
+
+        <Form.Item className="mb-0">
+          <Button type="primary" htmlType="submit" block loading={loading}>
+            {loading ? 'Resetting...' : 'Reset Password'}
+          </Button>
+        </Form.Item>
+      </Form>
 
       <div className="mt-8 flex justify-center">
-        <Link to="/login" className="text-sm text-primary hover:text-primary-hover font-medium">
-          Back to login
+        <Link to="/login">
+          <Button type="link">Back to login</Button>
         </Link>
       </div>
     </AuthCardLayout>

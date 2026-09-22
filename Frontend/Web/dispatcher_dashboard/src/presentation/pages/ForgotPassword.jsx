@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Swal from 'sweetalert2';
-import { AtSign } from 'lucide-react';
+import { Button, Form, Input } from 'antd';
+import { AtSign, ArrowLeft } from 'lucide-react';
+import { alertUser } from '@/presentation/feedback/alertUser';
 import { BrandLogo } from '@/presentation/components/common/BrandLogo';
 import illustration from '@/presentation/assets/forgot-password-illustration.svg';
 import { API_URL } from '@/core/config/app.config';
 import { AuthCardLayout } from '@/presentation/components/layout/AuthCardLayout';
-import { AuthFloatingInput } from '@/presentation/components/ui/AuthFloatingInput';
 
 export default function ForgotPassword({ onSuccess, onBackToLogin }) {
   const navigate = useNavigate();
@@ -14,10 +14,10 @@ export default function ForgotPassword({ onSuccess, onBackToLogin }) {
   const [emailError, setEmailError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const validateEmail = (email) => {
+  const validateEmail = (value) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!email) return 'Email address is required';
-    if (!emailRegex.test(email)) return 'Please enter a valid email address';
+    if (!value) return 'Email address is required';
+    if (!emailRegex.test(value)) return 'Please enter a valid email address';
     return '';
   };
 
@@ -27,11 +27,10 @@ export default function ForgotPassword({ onSuccess, onBackToLogin }) {
     if (emailError) setEmailError(validateEmail(value));
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async () => {
     const emailValidationError = validateEmail(email);
     if (emailValidationError) {
-      Swal.fire({
+      alertUser({
         icon: 'warning',
         title: 'Invalid email',
         text: emailValidationError,
@@ -56,14 +55,14 @@ export default function ForgotPassword({ onSuccess, onBackToLogin }) {
         throw new Error(data.message || 'Failed to send reset link');
       }
 
-      Swal.fire({
+      alertUser({
         icon: 'success',
         title: 'Check your email',
         text: data.message || "If an account exists, you'll receive a link to reset your password.",
         confirmButtonColor: '#134178',
       }).then(() => navigate('/login'));
     } catch (err) {
-      Swal.fire({
+      alertUser({
         icon: 'error',
         title: 'Failed to send reset link',
         text: err.message || 'Please try again later.',
@@ -89,25 +88,30 @@ export default function ForgotPassword({ onSuccess, onBackToLogin }) {
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <AuthFloatingInput
+      <Form layout="vertical" onFinish={handleSubmit} requiredMark={false}>
+        <Form.Item
           label="Email Address"
-          type="email"
-          value={email}
-          onChange={handleEmailChange}
-          onBlur={() => setEmailError(validateEmail(email))}
-          rightIcon={<AtSign className="w-5 h-5" strokeWidth={2} />}
-          error={emailError}
-        />
-
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full bg-primary text-white py-3 rounded-xl font-bold text-lg hover:bg-primary-hover disabled:bg-muted/40 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] shadow-card focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background"
+          htmlFor="forgot-email"
+          validateStatus={emailError ? 'error' : ''}
+          help={emailError || undefined}
         >
-          {loading ? 'Sending...' : 'Send Reset Link'}
-        </button>
-      </form>
+          <Input
+            id="forgot-email"
+            type="email"
+            value={email}
+            onChange={handleEmailChange}
+            onBlur={() => setEmailError(validateEmail(email))}
+            suffix={<AtSign className="w-5 h-5 text-muted" strokeWidth={2} />}
+            autoComplete="email"
+          />
+        </Form.Item>
+
+        <Form.Item className="mb-0">
+          <Button type="primary" htmlType="submit" block loading={loading}>
+            {loading ? 'Sending...' : 'Send Reset Link'}
+          </Button>
+        </Form.Item>
+      </Form>
 
       <div className="mt-8 flex flex-col items-center gap-4">
         <div className="flex items-center gap-4 w-full">
@@ -115,15 +119,13 @@ export default function ForgotPassword({ onSuccess, onBackToLogin }) {
           <span className="text-sm text-muted">or back to login</span>
           <div className="flex-1 border-t border-border" />
         </div>
-        <button
-          type="button"
+        <Button
+          type="primary"
+          shape="circle"
+          icon={<ArrowLeft className="w-5 h-5" strokeWidth={2} />}
           onClick={() => navigate('/login')}
-          className="w-12 h-12 bg-primary rounded-full flex items-center justify-center hover:bg-primary-hover transition-all duration-300 transform hover:scale-[1.05] active:scale-[0.95] shadow-card text-white"
-        >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-        </button>
+          aria-label="Back to login"
+        />
       </div>
     </AuthCardLayout>
   );

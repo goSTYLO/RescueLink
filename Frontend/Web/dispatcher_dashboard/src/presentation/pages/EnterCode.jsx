@@ -1,7 +1,8 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Swal from 'sweetalert2';
-import { KeyRound } from 'lucide-react';
+import { Button, Form, Input } from 'antd';
+import { KeyRound, ArrowLeft } from 'lucide-react';
+import { alertUser } from '@/presentation/feedback/alertUser';
 import { BrandLogo } from '@/presentation/components/common/BrandLogo';
 import illustration from '@/presentation/assets/enter-code-illustration.svg';
 import { API_URL } from '@/core/config/app.config';
@@ -26,9 +27,7 @@ export default function EnterCode({ onSuccess, onBackToLogin }) {
       setCode(newCode);
       const nextEmptyIndex = newCode.findIndex((val, i) => i >= index && val === '');
       const focusIndex = nextEmptyIndex === -1 ? 5 : Math.min(nextEmptyIndex, 5);
-      if (inputRefs.current[focusIndex]) {
-        inputRefs.current[focusIndex].focus();
-      }
+      inputRefs.current[focusIndex]?.focus();
       return;
     }
 
@@ -57,11 +56,10 @@ export default function EnterCode({ onSuccess, onBackToLogin }) {
     return '';
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async () => {
     const validationError = validateCode();
     if (validationError) {
-      Swal.fire({
+      alertUser({
         icon: 'warning',
         title: 'Invalid code',
         text: validationError,
@@ -89,14 +87,14 @@ export default function EnterCode({ onSuccess, onBackToLogin }) {
         throw new Error(data.message || 'Invalid verification code');
       }
 
-      Swal.fire({
+      alertUser({
         icon: 'success',
         title: 'Code verified!',
         text: 'Proceeding to create your new password.',
         confirmButtonColor: '#134178',
       }).then(() => navigate('/create-password'));
     } catch (err) {
-      Swal.fire({
+      alertUser({
         icon: 'error',
         title: 'Verification failed',
         text: err.message || 'Invalid code. Please try again.',
@@ -108,9 +106,6 @@ export default function EnterCode({ onSuccess, onBackToLogin }) {
       setLoading(false);
     }
   };
-
-  const inputBase =
-    'w-14 h-14 text-center text-2xl font-bold border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:ring-offset-2 focus:ring-offset-background focus:border-primary transition-all duration-300 bg-card text-foreground border-border hover:border-primary/50';
 
   return (
     <AuthCardLayout
@@ -127,52 +122,44 @@ export default function EnterCode({ onSuccess, onBackToLogin }) {
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div>
+      <Form layout="vertical" onFinish={handleSubmit} requiredMark={false}>
+        <Form.Item
+          validateStatus={codeError ? 'error' : ''}
+          help={codeError || undefined}
+        >
           <div className="flex items-center justify-center gap-2 mb-4">
             <KeyRound className="w-5 h-5 text-primary" strokeWidth={2} />
-            <label className="text-sm font-medium text-foreground">Verification Code</label>
+            <span className="text-sm font-medium text-foreground">Verification Code</span>
           </div>
           <div className="flex justify-center gap-3">
             {code.map((digit, index) => (
-              <input
+              <Input
                 key={index}
-                ref={(el) => (inputRefs.current[index] = el)}
-                type="text"
+                ref={(el) => { inputRefs.current[index] = el; }}
                 inputMode="numeric"
                 maxLength={1}
                 value={digit}
                 onChange={(e) => handleCodeChange(index, e.target.value)}
                 onKeyDown={(e) => handleKeyDown(index, e)}
-                className={inputBase}
+                className="!w-14 !h-14 text-center text-2xl font-bold"
+                aria-label={`Digit ${index + 1}`}
               />
             ))}
           </div>
-          {codeError && (
-            <div className="mt-3 flex items-center justify-center gap-2 text-sm text-destructive">
-              <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <span>{codeError}</span>
-            </div>
-          )}
-        </div>
+        </Form.Item>
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full bg-primary text-white py-3 rounded-xl font-bold text-lg hover:bg-primary-hover disabled:bg-muted/40 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] shadow-card focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background"
-        >
-          {loading ? 'Verifying...' : 'Verify Code'}
-        </button>
-      </form>
+        <Form.Item className="mb-0">
+          <Button type="primary" htmlType="submit" block loading={loading}>
+            {loading ? 'Verifying...' : 'Verify Code'}
+          </Button>
+        </Form.Item>
+      </Form>
 
       <div className="mt-4 text-center">
-        <button
-          type="button"
-          className="text-sm text-primary hover:text-primary-hover font-medium transition-colors underline underline-offset-2"
+        <Button
+          type="link"
           onClick={() => {
-            Swal.fire({
+            alertUser({
               icon: 'success',
               title: 'Code resent',
               text: 'A new verification code has been sent to your email.',
@@ -183,7 +170,7 @@ export default function EnterCode({ onSuccess, onBackToLogin }) {
           }}
         >
           Didn't receive the code? Resend
-        </button>
+        </Button>
       </div>
 
       <div className="mt-8 flex flex-col items-center gap-4">
@@ -192,15 +179,13 @@ export default function EnterCode({ onSuccess, onBackToLogin }) {
           <span className="text-sm text-muted">or back to login</span>
           <div className="flex-1 border-t border-border" />
         </div>
-        <button
-          type="button"
+        <Button
+          type="primary"
+          shape="circle"
+          icon={<ArrowLeft className="w-5 h-5" strokeWidth={2} />}
           onClick={() => navigate('/login')}
-          className="w-12 h-12 bg-primary rounded-full flex items-center justify-center hover:bg-primary-hover transition-all duration-300 transform hover:scale-[1.05] active:scale-[0.95] shadow-card text-white"
-        >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-        </button>
+          aria-label="Back to login"
+        />
       </div>
     </AuthCardLayout>
   );

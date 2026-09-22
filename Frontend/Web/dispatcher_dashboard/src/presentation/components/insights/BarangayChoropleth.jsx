@@ -82,7 +82,7 @@ export function BarangayChoropleth({ barangays, selected, onSelect, isLight = tr
   }
 
   return (
-    <div className="insights-choropleth h-80 w-full min-w-0 rounded-lg overflow-hidden border border-[rgba(19,65,120,0.2)] relative z-0 isolate">
+    <div className="insights-choropleth w-full min-w-0 rounded-lg overflow-hidden border border-[rgba(19,65,120,0.2)] relative z-0 isolate">
       <MapContainer
         center={DAGUPAN_CENTER}
         zoom={13}

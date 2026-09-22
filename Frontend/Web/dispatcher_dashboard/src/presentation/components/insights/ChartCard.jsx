@@ -1,7 +1,7 @@
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, AreaChart, Area, Legend, PieChart, Pie, Cell } from 'recharts';
+import { Card } from 'antd';
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, LineChart, Line, Legend, PieChart, Pie, Cell } from 'recharts';
 import { MetricHelp } from '@/presentation/components/insights/MetricHelp';
 import {
-  CARD_CHROME,
   channelColor,
   departmentColor,
   exceptionColor,
@@ -18,56 +18,54 @@ import {
 const AXIS = { stroke: 'currentColor', fontSize: 12 };
 const RECHART_ANIM = { isAnimationActive: 'auto', animationDuration: 600, animationBegin: 0 };
 
-export function ChartCard({ title, metricId, children, className = '', onClick, footer }) {
+export function ChartCard({ title, metricId, children, className = '', onClick, footer, uniform = true }) {
+  const cardTitle = title ? (
+    <span className="inline-flex items-center gap-0.5 text-sm font-semibold">
+      {title}
+      {metricId ? <MetricHelp metricId={metricId} /> : null}
+    </span>
+  ) : null;
+
   return (
-    <section className={`${CARD_CHROME} p-4 ${className}`}>
-      {title ? (
-        <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-0.5">
-          <span>{title}</span>
-          {metricId ? <MetricHelp metricId={metricId} /> : null}
-        </h3>
-      ) : null}
-      <div onClick={onClick}>{children}</div>
-      {footer ? <p className="text-xs text-muted mt-2">{footer}</p> : null}
-    </section>
+    <Card size="small" className={`h-full ${className}`} title={cardTitle}>
+      <div
+        className={uniform ? 'insights-card-body flex flex-col flex-1 min-h-0' : 'flex-1 min-h-0'}
+        onClick={onClick}
+      >
+        {children}
+      </div>
+      {footer ? <p className="text-xs text-muted mt-2 shrink-0">{footer}</p> : null}
+    </Card>
   );
 }
 
 export function VolumeAreaChart({ data, isLight, animKey = 'volume' }) {
   const stroke = isLight ? '#134178' : '#7dd3fc';
   const prev = isLight ? '#9ca3af' : '#64748b';
-  const gradId = `insights-volume-${String(animKey).replace(/[^a-zA-Z0-9_-]/g, '_')}`;
   if (!data?.length) {
     return <p className="text-sm text-muted">No data in this range.</p>;
   }
   return (
-    <div className="h-64 text-muted">
+    <div className="insights-chart-frame text-muted">
       <ResponsiveContainer width="100%" height="100%">
-        <AreaChart key={animKey} data={data} accessibilityLayer>
-          <defs>
-            <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={stroke} stopOpacity={0.45} />
-              <stop offset="100%" stopColor={stroke} stopOpacity={0.05} />
-            </linearGradient>
-          </defs>
+        <LineChart key={animKey} data={data} accessibilityLayer>
           <CartesianGrid strokeDasharray="3 3" stroke="currentColor" opacity={0.2} />
           <XAxis dataKey="label" tick={AXIS} />
           <YAxis allowDecimals={false} tick={AXIS} />
           <Tooltip />
           <Legend />
-          <Area type="monotone" dataKey="current" name="This period" stroke={stroke} fill={`url(#${gradId})`} strokeWidth={2} {...RECHART_ANIM} />
-          <Area
+          <Line type="monotone" dataKey="current" name="This period" stroke={stroke} strokeWidth={2} dot={false} {...RECHART_ANIM} />
+          <Line
             type="monotone"
             dataKey="previous"
             name="Previous period"
             stroke={prev}
-            fill={prev}
-            fillOpacity={0.08}
             strokeDasharray="6 4"
             strokeWidth={1.5}
+            dot={false}
             {...RECHART_ANIM}
           />
-        </AreaChart>
+        </LineChart>
       </ResponsiveContainer>
     </div>
   );
@@ -79,7 +77,7 @@ export function RankedBarChart({ data, onBarClick, isLight, getBarFill, animKey 
     return <p className="text-sm text-muted">No data in this range.</p>;
   }
   return (
-    <div className="h-72 text-muted">
+    <div className="insights-chart-frame text-muted">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart key={animKey} data={data} layout="vertical" accessibilityLayer margin={{ left: 8, right: 16 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="currentColor" opacity={0.2} />
@@ -118,7 +116,7 @@ export function DonutChart({ data, isLight, getSliceFill, centerLabel, animKey =
   }
   const stroke = isLight ? '#fff' : '#0f172a';
   return (
-    <div className="h-64 text-muted relative">
+    <div className="insights-chart-frame text-muted relative">
       <ResponsiveContainer width="100%" height="100%">
         <PieChart key={animKey} accessibilityLayer>
           <Pie data={rows} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={52} outerRadius={80} {...RECHART_ANIM}>
@@ -164,7 +162,7 @@ export function SlaMetricCard({ metricId, label, value, hint, pct, barLabel }) {
   const barPct = pct != null ? pct : parseFloat(String(value).replace(/[^\d.]/g, '')) || 0;
   const barColor = slaRowBarColor(metricId);
   return (
-    <div className={`${CARD_CHROME} p-3 flex flex-col min-h-[88px]`}>
+    <Card size="small" className="min-h-[88px] flex flex-col">
       <p className="text-xs text-muted flex items-center gap-0.5">
         <span>{label}</span>
         {metricId ? <MetricHelp metricId={metricId} /> : null}
@@ -174,7 +172,7 @@ export function SlaMetricCard({ metricId, label, value, hint, pct, barLabel }) {
       <div className="mt-auto pt-2">
         <SlaBar pct={barPct} label={barLabel || ''} barColor={barColor} />
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -345,25 +343,42 @@ export function DayHourHeatmap({ cells, animKey = 'heatmap' }) {
 
 const FUNNEL_COLORS = ['#134178', '#2563eb', '#0d9488', '#16a34a'];
 
+/** Reverse-pyramid trapezoid: topPct/bottomPct are visible widths (0–100) of the stage. */
+export function funnelTrapezoidClipPath(topPct, bottomPct) {
+  const top = Math.max(0, Math.min(100, Number(topPct) || 0));
+  const bottom = Math.max(0, Math.min(100, Number(bottomPct) || 0));
+  const tl = (100 - top) / 2;
+  const tr = (100 + top) / 2;
+  const br = (100 + bottom) / 2;
+  const bl = (100 - bottom) / 2;
+  return `polygon(${tl}% 0, ${tr}% 0, ${br}% 100%, ${bl}% 100%)`;
+}
+
 export function EscalationFunnelSteps({ rows, animKey = 'funnel' }) {
   const steps = (rows || []).filter((row) => row.count != null);
   if (!steps.length) {
     return <p className="text-sm text-muted">No escalations in this range.</p>;
   }
   return (
-    <div className="space-y-2 animate-fade-in" key={animKey}>
+    <div className="w-full max-w-md mx-auto animate-fade-in" key={animKey}>
       {steps.map((row, index) => {
-        const width = Math.max(28, 100 - index * 12);
+        const topPct = Math.max(36, Math.min(100, Number(row.pct) || 0));
+        const next = steps[index + 1];
+        const bottomPct = next != null
+          ? Math.max(32, Math.min(100, Number(next.pct) || 0))
+          : Math.max(28, topPct * 0.88);
         const color = FUNNEL_COLORS[index % FUNNEL_COLORS.length];
         return (
-          <div key={row.label} className="flex flex-col items-center">
-            <div
-              className="text-center text-xs text-white py-2 px-3 rounded-sm shadow-sm insights-funnel-step"
-              style={{ width: `${width}%`, backgroundColor: color, clipPath: 'polygon(4% 0, 96% 0, 100% 100%, 0 100%)' }}
-            >
-              <span className="font-semibold block">{row.label}</span>
-              <span className="opacity-90">{row.count} · {row.pct ?? 0}%</span>
-            </div>
+          <div
+            key={row.label}
+            className="text-center text-xs text-white py-2.5 px-2 shadow-sm insights-funnel-step"
+            style={{
+              backgroundColor: color,
+              clipPath: funnelTrapezoidClipPath(topPct, bottomPct),
+            }}
+          >
+            <span className="font-semibold block">{row.label}</span>
+            <span className="opacity-90 tabular-nums">{row.count} · {row.pct ?? 0}%</span>
           </div>
         );
       })}
@@ -397,29 +412,37 @@ export function UtilizationStackedBar({ available, total, inUse }) {
 
 export function ExceptionBreakdownCard({ anyPct, slices }) {
   const rows = (slices || []).filter((row) => Number(row.count) >= 0);
+  const total = rows.reduce((sum, row) => sum + (Number(row.count) || 0), 0);
   const big = Math.max(0, Math.min(100, Number(anyPct) || 0));
   if (!rows.length && !big) {
     return <p className="text-sm text-muted">No exceptions in this range.</p>;
   }
   return (
-    <div className="flex flex-col sm:flex-row gap-6 items-start animate-fade-in">
-      <div className="shrink-0">
-        <p className="text-4xl font-semibold tabular-nums">{big}%</p>
-        <p className="text-xs text-muted mt-1">with any recorded exception</p>
+    <div>
+      <p className="text-3xl font-semibold tabular-nums">{big}%</p>
+      <p className="text-xs text-muted mb-3">incidents with any recorded exception</p>
+      <div className="h-4 rounded overflow-hidden flex bg-muted/30" role="img" aria-label="Exception mix">
+        {total > 0 ? rows.map((row) => (
+          <div
+            key={row.key}
+            title={`${row.label}: ${row.count}`}
+            style={{
+              width: `${((Number(row.count) || 0) / total) * 100}%`,
+              backgroundColor: exceptionColor(row.key),
+            }}
+          />
+        )) : null}
       </div>
-      <ul className="flex-1 space-y-2 text-sm w-full">
-        {rows.map((row) => {
-          const color = exceptionColor(row.key);
-          return (
-            <li key={row.key} className="flex items-center justify-between gap-2">
-              <span className="inline-flex items-center gap-2 min-w-0">
-                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} aria-hidden />
-                <span className="truncate">{row.label}</span>
-              </span>
-              <span className="tabular-nums font-medium">{row.count}</span>
-            </li>
-          );
-        })}
+      <ul className="mt-3 space-y-1 text-xs">
+        {rows.map((row) => (
+          <li key={row.key} className="flex items-center justify-between gap-2">
+            <span className="inline-flex items-center gap-2 min-w-0">
+              <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ backgroundColor: exceptionColor(row.key) }} aria-hidden />
+              <span className="truncate">{row.label}</span>
+            </span>
+            <span className="tabular-nums">{row.count}</span>
+          </li>
+        ))}
       </ul>
     </div>
   );

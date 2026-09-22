@@ -31,6 +31,7 @@ import { AccessDeniedNotice } from '@/presentation/components/common/AccessDenie
 import { clearAuthSession, getAuthToken, getStoredUser, hasRoleAccess, persistAuthUser } from '@/core/auth/session';
 import { logout as logoutDispatcher } from '@/data/api/auth.api';
 import { initOneSignal, setOneSignalUser, logoutOneSignal } from '@/core/services/oneSignalWebService';
+import { IncidentWebSocketProvider } from '@/presentation/context/IncidentWebSocketContext';
 
 const SUPER_ADMIN_ONLY = [ROLES.SUPER_ADMIN];
 const DASHBOARD_OPERATIONS_ROLES = [ROLES.SUPER_ADMIN, ROLES.DISPATCHER];
@@ -196,14 +197,16 @@ export default function App() {
 
   return (
     <BrowserRouter>
+      <IncidentWebSocketProvider>
       <OneSignalClickBridge />
-      <div className="min-h-screen bg-background">
+      <div className="h-screen overflow-hidden flex flex-col bg-background">
         {/* Dev Mode Banner */}
         {DEV_MODE && (
-          <div className="bg-amber-500/20 text-amber-400 border-b border-amber-500/40 text-center py-2 text-sm font-semibold">
+          <div className="bg-amber-500/20 text-amber-400 border-b border-amber-500/40 text-center py-2 text-sm font-semibold shrink-0">
             🚧 DEVELOPMENT MODE - Authentication Bypassed
           </div>
         )}
+        <div className="flex-1 min-h-0 overflow-auto">
         <Routes>
           {/* Auth Routes */}
           <Route path="/login" element={
@@ -324,7 +327,9 @@ export default function App() {
             } />
           )}
         </Routes>
+        </div>
       </div>
+      </IncidentWebSocketProvider>
     </BrowserRouter>
   );
 }

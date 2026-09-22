@@ -4,14 +4,7 @@ import { VolunteerStatusBadge } from '@/presentation/components/common/Volunteer
 import { BackupRequestedBadge } from '@/presentation/components/common/BackupRequestedBadge';
 import { BackupRequestDialog } from '@/presentation/components/common/BackupRequestDialog';
 import { IncidentMap } from '@/presentation/components/common/IncidentMap';
-import { Badge } from '@/presentation/components/ui/Badge';
-import { Button } from '@/presentation/components/ui/Button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/presentation/components/ui/Tabs';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/presentation/components/ui/Dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/presentation/components/ui/Select';
-import { Textarea } from '@/presentation/components/ui/Textarea';
-import { Label } from '@/presentation/components/ui/Label';
-import { Separator } from '@/presentation/components/ui/Separator';
+import { Button, Card, Divider, Input, Modal, Select, Tabs, Tag } from 'antd';
 import { 
   ArrowLeft, MapPin, CheckCircle, XCircle, Bell, 
   Clock, AlertTriangle, TrendingUp, Users, Shield, FileText,
@@ -42,9 +35,10 @@ import { IncidentTypeChips } from '@/presentation/components/common/IncidentType
 import { Loader2 } from 'lucide-react';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
 import { Breadcrumb } from '@/presentation/components/common/Breadcrumb';
-import Swal from 'sweetalert2';
+import { alertUser } from '@/presentation/feedback/alertUser';
 import { IncidentEscalationModal } from '@/presentation/components/incidents/IncidentEscalationModal';
 import { IncidentEscalationSection } from '@/presentation/components/incidents/IncidentEscalationSection';
+import { ResponderStatusTag, statusSelectProps, embeddedStatusSelectProps } from '@/presentation/components/common/ResponderStatusTag';
 
 // Feature flag — mirrors USE_BLOCKCHAIN in Backend/.env
 const USE_BLOCKCHAIN = import.meta.env.VITE_USE_BLOCKCHAIN === 'true';
@@ -524,14 +518,14 @@ export function IncidentDetailsPage() {
         {hasBadges && (
           <div className="flex flex-wrap gap-1.5 pt-0.5">
             {incident.aiKeywordPromoted && (
-              <Badge variant="outline" className="rounded-lg text-[10px] border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300">
+              <Tag className="rounded-lg text-[10px] border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300">
                 Keyword-assisted
-              </Badge>
+              </Tag>
             )}
             {incident.aiFallbackUsed && (
-              <Badge variant="outline" className="rounded-lg text-[10px] border-orange-500/40 bg-orange-500/10 text-orange-700 dark:text-orange-300">
+              <Tag className="rounded-lg text-[10px] border-orange-500/40 bg-orange-500/10 text-orange-700 dark:text-orange-300">
                 Keyword fallback
-              </Badge>
+              </Tag>
             )}
           </div>
         )}
@@ -556,19 +550,12 @@ export function IncidentDetailsPage() {
   const [reclassLoading, setReclassLoading] = useState(false);
   const [manualReclassInfoExpanded, setManualReclassInfoExpanded] = useState(false);
 
-  // Select dropdown state
-  const [severitySelectOpen, setSeveritySelectOpen] = useState(false);
-  const [additionalDeptSelectOpen, setAdditionalDeptSelectOpen] = useState(false);
-  const [notifyDeptSelectOpen, setNotifyDeptSelectOpen] = useState(false);
-  const [closureClassSelectOpen, setClosureClassSelectOpen] = useState(false);
-
   // State for forms
   const [newSeverity, setNewSeverity] = useState('');
   const [escalationReason, setEscalationReason] = useState('');
   const [additionalDepartment, setAdditionalDepartment] = useState('');
   const [notifyDepartment, setNotifyDepartment] = useState('');
   const [notifyTeamName, setNotifyTeamName] = useState('');
-  const [notifyTeamSelectOpen, setNotifyTeamSelectOpen] = useState(false);
   const [undoNotifyDialogOpen, setUndoNotifyDialogOpen] = useState(false);
   const [undoDepartmentCode, setUndoDepartmentCode] = useState('');
   const [assignTeamDialogOpen, setAssignTeamDialogOpen] = useState(false);
@@ -577,7 +564,6 @@ export function IncidentDetailsPage() {
   const [reassignTeamName, setReassignTeamName] = useState('');
   const [reassignReason, setReassignReason] = useState('');
   const [reassignLoading, setReassignLoading] = useState(false);
-  const [assignTeamSelectOpen, setAssignTeamSelectOpen] = useState(false);
   const [closureOutcome, setClosureOutcome] = useState('');
   const [closureClassification, setClosureClassification] = useState('');
   const [coordinationNote, setCoordinationNote] = useState('');
@@ -818,7 +804,7 @@ export function IncidentDetailsPage() {
     const row = await createIncidentEscalation(id, payload);
     setEscalations((prev) => [row, ...prev]);
     window.dispatchEvent(new CustomEvent('incident:updated', { detail: { incidentId: id } }));
-    Swal.fire({
+    alertUser({
       icon: 'success',
       title: 'Assistance Requested',
       text: 'Your inter-department assistance request has been sent.',
@@ -919,7 +905,7 @@ export function IncidentDetailsPage() {
       <Layout>
         <div className="p-8">
           <p className="text-primary font-medium">{error}</p>
-          <Button variant="outline" className="mt-4" onClick={() => navigate(-1)}>Back</Button>
+          <Button className="mt-4" onClick={() => navigate(-1)}>Back</Button>
         </div>
       </Layout>
     );
@@ -930,7 +916,7 @@ export function IncidentDetailsPage() {
       <Layout>
         <div className="p-8">
           <p>Incident not found</p>
-          <Button variant="outline" className="mt-4" onClick={() => navigate(-1)}>Back</Button>
+          <Button className="mt-4" onClick={() => navigate(-1)}>Back</Button>
         </div>
       </Layout>
     );
@@ -973,9 +959,9 @@ export function IncidentDetailsPage() {
   };
 
   const getWorkloadBadge = (count) => {
-    if (count === 0) return <Badge variant="outline" className="bg-severity-resolved/20 text-severity-resolved border-emerald-500/40">Available</Badge>;
-    if (count <= 2) return <Badge variant="outline" className="bg-amber-500/20 text-amber-400 border-amber-500/40">Moderate Load ({count})</Badge>;
-    return <Badge variant="outline" className="bg-primary/20 text-primary border-primary/50">Overloaded ({count})</Badge>;
+    if (count === 0) return <Tag className="bg-severity-resolved/20 text-severity-resolved border-emerald-500/40">Available</Tag>;
+    if (count <= 2) return <Tag className="bg-amber-500/20 text-amber-400 border-amber-500/40">Moderate Load ({count})</Tag>;
+    return <Tag className="bg-primary/20 text-primary border-primary/50">Overloaded ({count})</Tag>;
   };
 
   const activeSectors = departments.filter((dept) => ACTIVE_SECTOR_IDS.has(dept.id));
@@ -1025,7 +1011,7 @@ export function IncidentDetailsPage() {
     const selectedDepartment = selectedDept?.name || null;
 
     if (!selectedCode || !selectedDepartment) {
-      await Swal.fire({
+      await alertUser({
         icon: 'warning',
         title: 'Select department',
         text: 'Please choose a sector before assigning the incident.',
@@ -1035,7 +1021,7 @@ export function IncidentDetailsPage() {
     }
 
     if (notifiedDepartmentCodes.has(String(selectedCode || '').toLowerCase())) {
-      await Swal.fire({
+      await alertUser({
         icon: 'info',
         title: 'Already notified',
         text: `${selectedDepartment} is already notified for this incident.`,
@@ -1066,7 +1052,7 @@ export function IncidentDetailsPage() {
       await fetchIncident();
       window.dispatchEvent(new CustomEvent('incident:updated', { detail: { incidentId: id } }));
     } catch (dispatchError) {
-      await Swal.fire({
+      await alertUser({
         icon: 'warning',
         title: 'Assignment failed',
         text: dispatchError.message || 'Could not assign incident.',
@@ -1077,7 +1063,7 @@ export function IncidentDetailsPage() {
 
     const successText = `${selectedDepartment} has been notified and will select the response team.`;
 
-    await Swal.fire({
+    await alertUser({
       icon: 'success',
       title: 'Assignment successful',
       text: successText,
@@ -1090,7 +1076,7 @@ export function IncidentDetailsPage() {
   const handleUndoDepartmentNotification = async () => {
     const selectedCode = String(undoDepartmentCode || '').trim();
     if (!selectedCode) {
-      await Swal.fire({
+      await alertUser({
         icon: 'warning',
         title: 'Select department',
         text: 'Please choose a notified department to undo.',
@@ -1101,7 +1087,7 @@ export function IncidentDetailsPage() {
 
     const selectedDepartment = notifiedDepartments.find((item) => String(item.code || '').toLowerCase() === selectedCode.toLowerCase());
     if (selectedDepartment?.hasTeamAssigned) {
-      await Swal.fire({
+      await alertUser({
         icon: 'info',
         title: 'Cannot undo',
         text: 'You can no longer undo notification once a team is assigned by the department.',
@@ -1115,7 +1101,7 @@ export function IncidentDetailsPage() {
       setUndoNotifyDialogOpen(false);
       await fetchIncident();
       window.dispatchEvent(new CustomEvent('incident:updated', { detail: { incidentId: id } }));
-      await Swal.fire({
+      await alertUser({
         icon: 'success',
         title: 'Notification undone',
         text: `${selectedDepartment?.name || selectedCode} is no longer notified for this incident.`,
@@ -1124,7 +1110,7 @@ export function IncidentDetailsPage() {
         timerProgressBar: true,
       });
     } catch (err) {
-      await Swal.fire({
+      await alertUser({
         icon: 'error',
         title: 'Undo failed',
         text: err.message || 'Could not undo department notification.',
@@ -1137,7 +1123,7 @@ export function IncidentDetailsPage() {
     const teamName = getSuggestedTeamName(incident) || assignTeamName;
     const departmentCode = incident?.suggestedDepartmentCode || assignedDepartmentCodeForTeamActions || '';
     const departmentName = departmentNameByCode[String(departmentCode).toLowerCase()] || departmentCode;
-    const proceed = await Swal.fire({
+    const proceed = await alertUser({
       icon: 'question',
       title: 'Confirm suggested team?',
       text: teamName
@@ -1157,7 +1143,7 @@ export function IncidentDetailsPage() {
       });
       await fetchIncident();
       window.dispatchEvent(new CustomEvent('incident:updated', { detail: { incidentId: id } }));
-      await Swal.fire({
+      await alertUser({
         icon: 'success',
         title: 'Suggestion confirmed',
         text: `${teamName || 'Team'} has been assigned.`,
@@ -1166,7 +1152,7 @@ export function IncidentDetailsPage() {
         timerProgressBar: true,
       });
     } catch (err) {
-      await Swal.fire({
+      await alertUser({
         icon: 'error',
         title: 'Confirm failed',
         text: err.message || 'Could not confirm the suggested team.',
@@ -1177,7 +1163,7 @@ export function IncidentDetailsPage() {
 
   const handleReassignTeam = async () => {
     if (!reassignReason || reassignReason.trim().length < 10) {
-      await Swal.fire({
+      await alertUser({
         icon: 'warning',
         title: 'Reason required',
         text: 'Enter at least 10 characters explaining the reassignment.',
@@ -1197,7 +1183,7 @@ export function IncidentDetailsPage() {
       setReassignReason('');
       await fetchIncident();
       window.dispatchEvent(new CustomEvent('incident:updated', { detail: { incidentId: id } }));
-      await Swal.fire({
+      await alertUser({
         icon: 'success',
         title: 'Team reassigned',
         timer: 2200,
@@ -1205,7 +1191,7 @@ export function IncidentDetailsPage() {
         timerProgressBar: true,
       });
     } catch (err) {
-      await Swal.fire({
+      await alertUser({
         icon: 'error',
         title: 'Reassign failed',
         text: err.message || 'Could not reassign the team.',
@@ -1259,7 +1245,7 @@ export function IncidentDetailsPage() {
       setAssignTeamDialogOpen(false);
       await fetchIncident();
       window.dispatchEvent(new CustomEvent('incident:updated', { detail: { incidentId: id } }));
-      await Swal.fire({
+      await alertUser({
         icon: 'success',
         title: 'Team assigned',
         text: `${assignTeamName} has been assigned to this incident.`,
@@ -1268,7 +1254,7 @@ export function IncidentDetailsPage() {
         timerProgressBar: true,
       });
     } catch (err) {
-      await Swal.fire({
+      await alertUser({
         icon: 'error',
         title: 'Assignment failed',
         text: err.message || 'Could not assign team for this incident.',
@@ -1318,7 +1304,7 @@ export function IncidentDetailsPage() {
     if (!additionalDepartment) return;
     const selectedSector = activeSectors.find((dept) => dept.id === additionalDepartment);
     const selectedDepartmentName = selectedSector?.name || additionalDepartment;
-    const proceed = await Swal.fire({
+    const proceed = await alertUser({
       icon: 'question',
       title: 'Add supporting department?',
       text: `Notify ${selectedDepartmentName} to assist. This will not replace the primary assigned team.`,
@@ -1334,7 +1320,7 @@ export function IncidentDetailsPage() {
       setAdditionalDepartment('');
       await fetchIncident();
       window.dispatchEvent(new CustomEvent('incident:updated', { detail: { incidentId: id } }));
-      await Swal.fire({
+      await alertUser({
         icon: 'success',
         title: 'Department added',
         text: `${selectedDepartmentName} has been notified to assist.`,
@@ -1343,7 +1329,7 @@ export function IncidentDetailsPage() {
         timerProgressBar: true,
       });
     } catch (err) {
-      await Swal.fire({
+      await alertUser({
         icon: 'error',
         title: 'Could not add department',
         text: err.message || 'The department may already be notified, or a primary team lock blocked this.',
@@ -1356,7 +1342,7 @@ export function IncidentDetailsPage() {
     const numericId = /^\d+$/.test(String(id));
     if (!numericId || !incident || closeLoading) return;
 
-    const confirm = await Swal.fire({
+    const confirm = await alertUser({
       icon: 'warning',
       title: 'Close this incident?',
       text: 'This marks the incident closed for all parties. This action is permanent.',
@@ -1378,14 +1364,14 @@ export function IncidentDetailsPage() {
       setClosureClassification('');
       await fetchIncident({ silent: true });
       window.dispatchEvent(new CustomEvent('incident:updated', { detail: { incidentId: id } }));
-      await Swal.fire({
+      await alertUser({
         icon: 'success',
         title: 'Incident closed',
         timer: 1500,
         showConfirmButton: false,
       });
     } catch (err) {
-      await Swal.fire({
+      await alertUser({
         icon: 'error',
         title: 'Failed to close incident',
         text: err.message || 'Could not close incident.',
@@ -1401,7 +1387,7 @@ export function IncidentDetailsPage() {
     const backupId = incident?.activeBackupRequestId;
     if (!numericId || !backupId) return;
     if (String(incident?.openBackupStatus || '').toLowerCase() === 'acknowledged') {
-      await Swal.fire({
+      await alertUser({
         icon: 'info',
         title: 'Already acknowledged',
         text: 'This backup request was already acknowledged. Notify a department or assign a backup team.',
@@ -1415,14 +1401,14 @@ export function IncidentDetailsPage() {
       setBackupDialogOpen(false);
       await fetchIncident({ silent: true });
       window.dispatchEvent(new CustomEvent('incident:updated', { detail: { incidentId: id } }));
-      await Swal.fire({
+      await alertUser({
         icon: 'success',
         title: 'Backup acknowledged',
         timer: 1500,
         showConfirmButton: false,
       });
     } catch (err) {
-      await Swal.fire({
+      await alertUser({
         icon: 'error',
         title: 'Acknowledge failed',
         text: err.message || 'Could not acknowledge backup request.',
@@ -1448,7 +1434,7 @@ export function IncidentDetailsPage() {
       return;
     }
     if ((notifiedDepartments?.length ?? 0) > 0) {
-      void Swal.fire({
+      void alertUser({
         icon: 'info',
         title: 'Department already notified',
         text: 'The department has been notified. They can assign a backup team from their dashboard or the assignment section below.',
@@ -1464,7 +1450,7 @@ export function IncidentDetailsPage() {
     const hasAssignment = Boolean(incident?.assignedTeamName)
       || ['auto_applied', 'confirmed', 'overridden', 'dept_notified'].includes(assignmentStatus);
     if (hasAssignment) {
-      const proceed = await Swal.fire({
+      const proceed = await alertUser({
         icon: 'warning',
         title: 'This incident already has an assignment',
         text: 'Linking as a duplicate will not release the current team or department notify. Reassign or undo notify first if this child should stop being worked.',
@@ -1482,9 +1468,9 @@ export function IncidentDetailsPage() {
       setPotentialDuplicatesList([]);
       await fetchIncident({ silent: true });
       window.dispatchEvent(new CustomEvent('incident:updated', { detail: { incidentId: id } }));
-      Swal.fire({ icon: 'success', title: 'Marked as duplicate', timer: 1500, showConfirmButton: false });
+      alertUser({ icon: 'success', title: 'Marked as duplicate', timer: 1500, showConfirmButton: false });
     } catch (err) {
-      Swal.fire({ icon: 'error', title: 'Failed', text: err.message || 'Could not link duplicate' });
+      alertUser({ icon: 'error', title: 'Failed', text: err.message || 'Could not link duplicate' });
     } finally {
       setLinkDuplicateInProgress(false);
     }
@@ -1498,9 +1484,9 @@ export function IncidentDetailsPage() {
       setDuplicateDialogOpen(false);
       await fetchIncident({ silent: true });
       window.dispatchEvent(new CustomEvent('incident:updated', { detail: { incidentId: id } }));
-      Swal.fire({ icon: 'success', title: 'Unlinked from duplicate', timer: 1500, showConfirmButton: false });
+      alertUser({ icon: 'success', title: 'Unlinked from duplicate', timer: 1500, showConfirmButton: false });
     } catch (err) {
-      Swal.fire({ icon: 'error', title: 'Failed', text: err.message || 'Could not unlink' });
+      alertUser({ icon: 'error', title: 'Failed', text: err.message || 'Could not unlink' });
     }
   };
 
@@ -1525,7 +1511,7 @@ export function IncidentDetailsPage() {
     const numericId = /^\d+$/.test(String(id));
     if (!numericId || !incident) return;
     if (!incident?.assignedTeamName) {
-      await Swal.fire({
+      await alertUser({
         icon: 'warning',
         title: 'Assign team first',
         text: 'You cannot mark this incident as done until a team is assigned.',
@@ -1544,7 +1530,7 @@ export function IncidentDetailsPage() {
       setClosureClassification('');
       await fetchIncident();
       window.dispatchEvent(new CustomEvent('incident:updated', { detail: { incidentId: id } }));
-      await Swal.fire({
+      await alertUser({
         icon: 'success',
         title: 'Marked resolved',
         text: 'Waiting for the citizen to confirm before this incident closes.',
@@ -1553,7 +1539,7 @@ export function IncidentDetailsPage() {
         timerProgressBar: true,
       });
     } catch (err) {
-      await Swal.fire({
+      await alertUser({
         icon: 'error',
         title: 'Failed to mark incident as resolved',
         text: err.message || 'Could not mark incident as resolved.',
@@ -1582,7 +1568,7 @@ export function IncidentDetailsPage() {
 
     const trimmedReason = reclassReason.trim();
     if (trimmedReason.length < 10) {
-      await Swal.fire({
+      await alertUser({
         icon: 'warning',
         title: 'Reason required',
         text: 'Please provide at least 10 characters explaining the manual override reason.',
@@ -1593,7 +1579,7 @@ export function IncidentDetailsPage() {
 
     const confidencePct = getConfidencePercent(incident.aiConfidenceScore);
     if (confidencePct != null && confidencePct >= 90) {
-      const confirmation = await Swal.fire({
+      const confirmation = await alertUser({
         icon: 'warning',
         title: 'High AI Confidence Detected',
         text: `AI confidence is ${confidencePct}%. Are you sure you want to manually reclassify this incident?`,
@@ -1653,7 +1639,7 @@ export function IncidentDetailsPage() {
         setCoordinationNote('');
       } catch (err) {
         console.error('Failed to add coordination note:', err);
-        Swal.fire({
+        alertUser({
           icon: 'error',
           title: 'Error',
           text: err.message || 'Failed to add coordination note. Please try again.',
@@ -1679,9 +1665,6 @@ export function IncidentDetailsPage() {
     setCoordinationNote('');
   };
 
-  const panelClass = `rounded-2xl border overflow-hidden transition-all duration-300 ${isLight ? 'glass neumorphic-light bg-white/80' : 'glass neumorphic-dark bg-card/60'}`;
-  const headerClass = `flex items-center gap-3 px-4 py-3 border-b ${isLight ? 'border-gray-200/80 bg-gray-50/50' : 'border-white/10 bg-white/5'}`;
-  const iconBoxClass = `w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${isLight ? 'neumorphic-light-inset bg-gray-100 text-primary' : 'neumorphic-dark-inset bg-white/10 text-primary'}`;
   const incidentLatitude = Number(incident?.location?.lat);
   const incidentLongitude = Number(incident?.location?.lng);
   const hasIncidentCoordinates = Number.isFinite(incidentLatitude) && Number.isFinite(incidentLongitude);
@@ -1694,7 +1677,7 @@ export function IncidentDetailsPage() {
   const renderPrimaryActions = ({ compact = false } = {}) => (
     <>
       {canSaveToBlockchain && (
-        <Button
+        <Button type="primary"
           className={`gap-2 bg-[#134178] hover:bg-[#0f3256] ${compact ? 'h-8 px-3 text-xs rounded-lg' : ''}`}
           onClick={() => setVerifyDialogOpen(true)}
         >
@@ -1704,7 +1687,6 @@ export function IncidentDetailsPage() {
       )}
       {showNotifyDepartmentButton && (
         <Button
-          variant="outline"
           className={`gap-2 rounded-xl ${compact ? 'h-8 px-3 text-xs rounded-lg' : ''}`}
           onClick={openNotifyDepartmentDialog}
         >
@@ -1714,7 +1696,6 @@ export function IncidentDetailsPage() {
       )}
       {hasOpenBackupUi(incident) && canNotifyDepartment && (
         <Button
-          variant="outline"
           className={`gap-2 rounded-xl border-amber-500/40 text-amber-700 hover:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-500/10 ${compact ? 'h-8 px-3 text-xs rounded-lg' : ''}`}
           onClick={handleDispatchBackup}
         >
@@ -1723,7 +1704,7 @@ export function IncidentDetailsPage() {
         </Button>
       )}
       {canConfirmOrReassign && isSuggested && hasSuggestedTeam && !incidentIsClosed && (
-        <Button
+        <Button type="primary"
           className={`gap-2 bg-[#134178] hover:bg-[#0f3256] ${compact ? 'h-8 px-3 text-xs rounded-lg' : ''}`}
           onClick={handleConfirmSuggestion}
         >
@@ -1735,7 +1716,6 @@ export function IncidentDetailsPage() {
       )}
       {canConfirmOrReassign && isAutoApplied && !incidentIsClosed && (
         <Button
-          variant="outline"
           className={`gap-2 rounded-xl ${compact ? 'h-8 px-3 text-xs rounded-lg' : ''}`}
           onClick={() => {
             setReassignTeamName(incident?.assignedTeamName || '');
@@ -1748,7 +1728,6 @@ export function IncidentDetailsPage() {
       )}
       {showUndoNotifyButton && (
         <Button
-          variant="outline"
           className={`gap-2 rounded-xl ${compact ? 'h-8 px-3 text-xs rounded-lg' : ''}`}
           onClick={openUndoNotifyDialog}
         >
@@ -1758,7 +1737,6 @@ export function IncidentDetailsPage() {
       )}
       {showSelectTeamButton && assignedDepartmentCodeForTeamActions && (
         <Button
-          variant="outline"
           className={`gap-2 rounded-xl ${compact ? 'h-8 px-3 text-xs rounded-lg' : ''}`}
           onClick={openAssignTeamDialog}
         >
@@ -1768,7 +1746,6 @@ export function IncidentDetailsPage() {
       )}
       {canUpdateResponderStatuses && incident?.assignedTeamName && !incidentIsClosed && (
         <Button
-          variant="outline"
           className={`gap-2 rounded-xl ${compact ? 'h-8 px-3 text-xs rounded-lg' : ''}`}
           onClick={openStatusDialog}
         >
@@ -1777,7 +1754,7 @@ export function IncidentDetailsPage() {
         </Button>
       )}
       {canMarkResolved && incident.status === 'In Progress' && Boolean(incident?.assignedTeamName) && (
-        <Button
+        <Button type="primary"
           className={`gap-2 bg-severity-resolved hover:bg-severity-resolved/90 ${compact ? 'h-8 px-3 text-xs rounded-lg' : ''}`}
           onClick={() => setClosureDialogOpen(true)}
           disabled={resolveLoading}
@@ -1788,7 +1765,6 @@ export function IncidentDetailsPage() {
       )}
       {canCloseIncident && effectivelyResolved && (
         <Button
-          variant="outline"
           className={`gap-2 rounded-xl border-emerald-500/40 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-500/10 ${compact ? 'h-8 px-3 text-xs rounded-lg' : ''}`}
           onClick={() => setClosureDialogOpen(true)}
           disabled={closeLoading}
@@ -1799,7 +1775,6 @@ export function IncidentDetailsPage() {
       )}
       {canManageDuplicates && !incidentIsClosed && (
         <Button
-          variant="outline"
           className={`gap-2 rounded-xl ${isLight ? 'text-amber-600 border-amber-200 hover:bg-amber-50' : 'text-amber-400 border-amber-500/40 hover:bg-amber-500/20'} ${compact ? 'h-8 px-3 text-xs rounded-lg' : ''}`}
           onClick={() => setDuplicateDialogOpen(true)}
         >
@@ -1808,9 +1783,9 @@ export function IncidentDetailsPage() {
         </Button>
       )}
       {effectivelyResolved && !incident.reporterConfirmedAt && (
-        <Badge variant="outline" className="rounded-lg border-border">
+        <Tag className="rounded-lg border-border">
           Awaiting reporter confirmation or dispatcher close
-        </Badge>
+        </Tag>
       )}
     </>
   );
@@ -1869,30 +1844,33 @@ export function IncidentDetailsPage() {
           )}
         </div>
 
-        {/* Header with back + incident title – glass */}
-        <div className={`mb-4 rounded-2xl border overflow-hidden ${isLight ? 'glass neumorphic-light bg-white/80' : 'glass neumorphic-dark bg-card/60'}`}>
-          <div className={`flex items-center gap-4 px-4 py-3 border-b ${isLight ? 'border-gray-200/80 bg-gray-50/50' : 'border-white/10 bg-white/5'}`}>
-            <Button variant="ghost" onClick={() => navigate(-1)} className="gap-2 rounded-xl">
+        {/* Header with back + incident title */}
+        <Card
+          size="small"
+          className="mb-4"
+          title={(
+            <Button type="text" onClick={() => navigate(-1)} className="gap-2 px-0">
               <ArrowLeft className="w-4 h-4" />
               Back
             </Button>
-          </div>
-          <div className="p-3 md:p-4 space-y-3">
+          )}
+        >
+          <div className="space-y-3">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
               <div className="flex items-center gap-3 flex-wrap">
                   <h1 className="text-2xl font-semibold text-foreground">{incident.id}</h1>
                   {incident.highPriority && (
-                    <Badge className="bg-primary/20 text-primary border-primary/50 rounded-lg">
+                    <Tag className="bg-primary/20 text-primary border-primary/50 rounded-lg">
                       <AlertTriangle className="w-3 h-3 mr-1" />
                       High Priority
-                    </Badge>
+                    </Tag>
                   )}
                   {(incident.isDuplicate || incident.flaggedForReview) && (
-                    <Badge variant="outline" className={`rounded-lg ${incident.isDuplicate ? 'bg-card text-muted border-border' : 'bg-orange-500/10 text-orange-600 border-orange-500/40'}`}>
+                    <Tag className={`rounded-lg ${incident.isDuplicate ? 'bg-card text-muted border-border' : 'bg-orange-500/10 text-orange-600 border-orange-500/40'}`}>
                       <Copy className="w-3 h-3 mr-1" />
                       {incident.isDuplicate ? 'Duplicate' : 'Possible Duplicate'}
-                    </Badge>
+                    </Tag>
                   )}
                 </div>
                 <div className="mt-2">
@@ -1917,7 +1895,7 @@ export function IncidentDetailsPage() {
                       {incident.backupVolunteers.map((vol) => (
                         <li key={vol.user_id || vol.name} className="flex items-center justify-between gap-2">
                           <span>{vol.name || 'Volunteer'}</span>
-                          <span className="text-xs text-muted">{vol.responder_status || 'Assigned'}</span>
+                          <ResponderStatusTag status={vol.responder_status || 'assigned'}>{vol.responder_status || 'Assigned'}</ResponderStatusTag>
                         </li>
                       ))}
                     </ul>
@@ -1925,18 +1903,18 @@ export function IncidentDetailsPage() {
                 )}
               </div>
               <div className="flex items-center gap-2 flex-wrap">
-                <Badge className={`${getStatusColor(incident.status)} rounded-lg px-3 py-1`}>
+                <Tag className={`${getStatusColor(incident.status)} rounded-lg px-3 py-1`}>
                   {incident.status}
-                </Badge>
+                </Tag>
                 {autoBadge && (
-                  <Badge className={`${autoBadge.className} border rounded-lg px-3 py-1`}>
+                  <Tag className={`${autoBadge.className} border rounded-lg px-3 py-1`}>
                     {autoBadge.label}
-                  </Badge>
+                  </Tag>
                 )}
                 {incident.autoAssignmentMismatch && (
-                  <Badge className="bg-orange-500/20 text-orange-700 border border-orange-500/40 rounded-lg px-3 py-1">
+                  <Tag className="bg-orange-500/20 text-orange-700 border border-orange-500/40 rounded-lg px-3 py-1">
                     Type/team mismatch
-                  </Badge>
+                  </Tag>
                 )}
                 <VolunteerStatusBadge responderStatus={incident.responderStatus} className="rounded-lg px-3 py-1" />
                 {hasOpenBackupUi(incident) && (
@@ -1945,41 +1923,41 @@ export function IncidentDetailsPage() {
                     onClick={() => setBackupDialogOpen(true)}
                   />
                 )}
-                <Badge className={`${getSeverityColor(incident.severity)} rounded-lg px-3 py-1`}>
+                <Tag className={`${getSeverityColor(incident.severity)} rounded-lg px-3 py-1`}>
                   {incident.severity}
-                </Badge>
-                <Badge variant="outline" className="rounded-lg border-border">
+                </Tag>
+                <Tag className="rounded-lg border-border">
                   {incident.verified ? 'Verified' : 'Not Verified'}
-                </Badge>
+                </Tag>
                 {getConfidencePercent(incident.aiConfidenceScore) != null && (
-                  <Badge variant="outline" className="rounded-lg border-border">
+                  <Tag className="rounded-lg border-border">
                     Model {getConfidencePercent(incident.aiConfidenceScore)}% ({getConfidenceLabel(incident.aiConfidenceScore)})
-                  </Badge>
+                  </Tag>
                 )}
                 {getConfidencePercent(incident.aiSttConfidence) != null && (
-                  <Badge variant="outline" className="rounded-lg border-border">
+                  <Tag className="rounded-lg border-border">
                     STT {getConfidencePercent(incident.aiSttConfidence)}%
-                  </Badge>
+                  </Tag>
                 )}
                 {incident.aiKeywordPromoted && (
-                  <Badge variant="outline" className="rounded-lg border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300">
+                  <Tag className="rounded-lg border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300">
                     Keyword-assisted
-                  </Badge>
+                  </Tag>
                 )}
                 {incident.aiFallbackUsed && (
-                  <Badge variant="outline" className="rounded-lg border-orange-500/40 bg-orange-500/10 text-orange-700 dark:text-orange-300">
+                  <Tag className="rounded-lg border-orange-500/40 bg-orange-500/10 text-orange-700 dark:text-orange-300">
                     Keyword fallback
-                  </Badge>
+                  </Tag>
                 )}
                 {effectivelyResolved && (
-                  <Badge variant="outline" className="rounded-lg border-border">
+                  <Tag className="rounded-lg border-border">
                     {incident.reporterConfirmedAt ? 'Reporter confirmed' : 'Awaiting reporter confirmation or dispatcher close'}
-                  </Badge>
+                  </Tag>
                 )}
                 {incident.status === 'Closed' && (
-                  <Badge variant="outline" className="rounded-lg border-border">
+                  <Tag className="rounded-lg border-border">
                     {incident.reporterConfirmedAt ? 'Closed after reporter confirmation' : 'Closed by dispatcher'}
-                  </Badge>
+                  </Tag>
                 )}
               </div>
             </div>
@@ -1990,9 +1968,9 @@ export function IncidentDetailsPage() {
                   {USE_BLOCKCHAIN ? 'Latest Blockchain Verification' : 'Latest Audit Finalization'}
                 </p>
                 <div className="flex flex-wrap items-center gap-2 text-sm">
-                  <Badge variant="outline" className="rounded-lg border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                  <Tag className="rounded-lg border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
                     {USE_BLOCKCHAIN ? 'Blockchain Verified' : 'Audit Entry Created'}
-                  </Badge>
+                  </Tag>
                   {latestVerificationMeta.block_number != null && (
                     <span className="text-foreground">Block #{latestVerificationMeta.block_number}</span>
                   )}
@@ -2066,30 +2044,28 @@ export function IncidentDetailsPage() {
                         </Link>
                         <span className="text-sm text-muted">{report.reporter_name || `User #${report.user_id}`}</span>
                         {report.confidence != null && (
-                          <Badge variant="outline">{Math.round((report.confidence || 0) * 100)}% match</Badge>
+                          <Tag>{Math.round((report.confidence || 0) * 100)}% match</Tag>
                         )}
                       </div>
                     ))}
                     <div className="flex flex-wrap gap-2 pt-2">
                       {!incidentIsClosed && (
-                        <Button variant="outline" size="sm" className="gap-2" onClick={() => setDuplicateDialogOpen(true)}>
+                        <Button className="gap-2" onClick={() => setDuplicateDialogOpen(true)}>
                           <Merge className="w-3 h-3" />
                           Manage duplicates
                         </Button>
                       )}
                       {closedRelatedReport && !incidentIsClosed && (
                         <Button
-                          variant="outline"
-                          size="sm"
                           className="gap-2 text-severity-resolved border-severity-resolved/50"
                           onClick={async () => {
                             try {
                               await updateIncidentStatus(id, 'closed');
                               await fetchIncident();
                               window.dispatchEvent(new CustomEvent('incident:updated', { detail: { incidentId: id } }));
-                              Swal.fire({ icon: 'success', title: 'Incident closed', timer: 1500, showConfirmButton: false });
+                              alertUser({ icon: 'success', title: 'Incident closed', timer: 1500, showConfirmButton: false });
                             } catch (err) {
-                              Swal.fire({ icon: 'error', title: 'Failed', text: err.message || 'Could not close' });
+                              alertUser({ icon: 'error', title: 'Failed', text: err.message || 'Could not close' });
                             }
                           }}
                         >
@@ -2109,7 +2085,7 @@ export function IncidentDetailsPage() {
                   <FileText className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
                   <p className="text-xs uppercase tracking-wide text-muted font-semibold">Audio Intelligence</p>
                 </div>
-                <Badge variant="outline" className="rounded-md text-[10px]">Transcription + Recording</Badge>
+                <Tag className="rounded-md text-[10px]">Transcription + Recording</Tag>
               </div>
               {incident.transcription ? (
                 <p className="text-sm text-foreground whitespace-pre-wrap mb-3">{incident.transcription}</p>
@@ -2133,26 +2109,14 @@ export function IncidentDetailsPage() {
               )}
             </div>
           </div>
-        </div>
+        </Card>
 
-        <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
-          <TabsList className={`grid w-full grid-cols-5 lg:w-auto lg:inline-grid rounded-xl p-1 gap-1 ${isLight ? 'bg-gray-100 border border-gray-200' : 'bg-white/10 border border-white/10'}`}>
-            <TabsTrigger value="details">Details</TabsTrigger>
-            <TabsTrigger value="timeline">Timeline</TabsTrigger>
-            <TabsTrigger value="coordination">Coordination</TabsTrigger>
-            <TabsTrigger value="escalation" className="relative flex items-center justify-center gap-1.5">
-              Escalation
-              {activeEscalationsCount > 0 && (
-                <span className="flex h-4 min-w-4 px-1 items-center justify-center rounded-full bg-orange-500 text-[9px] font-bold text-white">
-                  {activeEscalationsCount}
-                </span>
-              )}
-            </TabsTrigger>
-            {review && <TabsTrigger value="review">Review</TabsTrigger>}
-          </TabsList>
-
-          {/* DETAILS TAB */}
-          <TabsContent value="details" className="space-y-6">
+        <Tabs activeKey={activeTab} onChange={handleTabChange} className="space-y-6">
+          <Tabs.TabPane
+            key="details"
+            tab="Details"
+          >
+          <div className="space-y-6">
             {/* Pending Assistance Alert Banner for Target Department */}
             {escalations.some((e) => String(e.to_department_id) === String(currentUserDeptId) && e.status === 'pending') && (
               <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-2xl bg-orange-500/10 border border-orange-500/30 text-orange-400">
@@ -2163,8 +2127,7 @@ export function IncidentDetailsPage() {
                     <p className="text-xs text-muted">Another agency has requested assistance from your department for this incident.</p>
                   </div>
                 </div>
-                <Button
-                  size="sm"
+                <Button type="primary"
                   className="bg-orange-500 hover:bg-orange-600 text-white font-medium text-xs gap-1.5"
                   onClick={() => handleTabChange('escalation')}
                 >
@@ -2174,12 +2137,8 @@ export function IncidentDetailsPage() {
               </div>
             )}
 
-            <div className={panelClass}>
-                <div className={headerClass}>
-                  <div className={iconBoxClass}><MapPin className="w-4 h-4" /></div>
-                  <h2 className="text-base font-semibold text-foreground">Secondary Context</h2>
-                </div>
-                <div className="p-4 space-y-4">
+            <Card size="small" title={<span className="inline-flex items-center gap-2"><MapPin className="w-4 h-4" /> Secondary Context</span>}>
+                <div className="space-y-4">
                   <div>
                     <p className="text-xs uppercase tracking-wide text-muted font-semibold mb-2">Map</p>
                     <IncidentMap
@@ -2191,9 +2150,6 @@ export function IncidentDetailsPage() {
                       <div className="mt-2 flex flex-wrap items-center gap-2">
                         {incidentMapOpenStreetUrl && (
                           <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
                             className="h-8 px-3 text-xs rounded-lg"
                             onClick={() => window.open(incidentMapOpenStreetUrl, '_blank', 'noopener,noreferrer')}
                           >
@@ -2203,9 +2159,6 @@ export function IncidentDetailsPage() {
                         )}
                         {incidentMapGoogleUrl && (
                           <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
                             className="h-8 px-3 text-xs rounded-lg"
                             onClick={() => window.open(incidentMapGoogleUrl, '_blank', 'noopener,noreferrer')}
                           >
@@ -2282,8 +2235,6 @@ export function IncidentDetailsPage() {
                                     <div className="flex flex-col items-center gap-2 p-4">
                                       <p className="text-sm text-muted">Failed to load</p>
                                       <Button
-                                        variant="outline"
-                                        size="sm"
                                         disabled={mediaRetryingIndex === idx}
                                         onClick={() => retryMediaFetch(idx)}
                                       >
@@ -2296,32 +2247,25 @@ export function IncidentDetailsPage() {
                                 </div>
                               );
                             })}
-                            <Dialog open={mediaLightboxIndex != null} onOpenChange={(open) => !open && setMediaLightboxIndex(null)} zIndex={9999}>
-                              <DialogContent className="max-w-[480px] max-h-[420px] p-0 overflow-hidden flex flex-col">
-                                {mediaLightboxIndex != null && mediaUrls[mediaLightboxIndex]?.url && (mediaUrls[mediaLightboxIndex]?.contentType?.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp)$/i.test(String(mediaUrls[mediaLightboxIndex]?.path || ''))) && (
-                                  <>
-                                    <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-                                      <p className="text-sm font-medium text-foreground">Media & Evidence</p>
-                                      <button
-                                        type="button"
-                                        onClick={() => setMediaLightboxIndex(null)}
-                                        className="rounded-full p-2 hover:bg-muted transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50"
-                                        aria-label="Close"
-                                      >
-                                        <X className="w-5 h-5 text-muted-foreground" />
-                                      </button>
-                                    </div>
-                                    <div className="flex-1 overflow-auto flex items-center justify-center p-4 min-h-0">
-                                      <img
-                                        src={mediaUrls[mediaLightboxIndex].url}
-                                        alt={`Media ${mediaLightboxIndex + 1}`}
-                                        className="max-w-full max-h-[320px] object-contain"
-                                      />
-                                    </div>
-                                  </>
-                                )}
-                              </DialogContent>
-                            </Dialog>
+                            <Modal
+                              open={mediaLightboxIndex != null}
+                              onCancel={() => setMediaLightboxIndex(null)}
+                              title="Media & Evidence"
+                              footer={null}
+                              width={480}
+                              zIndex={9999}
+                              destroyOnClose
+                            >
+                              {mediaLightboxIndex != null && mediaUrls[mediaLightboxIndex]?.url && (mediaUrls[mediaLightboxIndex]?.contentType?.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp)$/i.test(String(mediaUrls[mediaLightboxIndex]?.path || ''))) && (
+                                <div className="flex items-center justify-center p-2">
+                                  <img
+                                    src={mediaUrls[mediaLightboxIndex].url}
+                                    alt={`Media ${mediaLightboxIndex + 1}`}
+                                    className="max-w-full max-h-[320px] object-contain"
+                                  />
+                                </div>
+                              )}
+                            </Modal>
                           </>
                         ) : (
                           <div className="w-full p-6 bg-muted/20 rounded-xl border border-dashed border-border flex items-center justify-center">
@@ -2382,9 +2326,9 @@ export function IncidentDetailsPage() {
                                 >
                                   <div className="flex items-center justify-between gap-2">
                                     <span className="font-medium text-foreground">{member.name || `Responder ${member.responder_id}`}</span>
-                                    <Badge variant="outline" className="text-xs">
+                                    <Tag className="text-xs">
                                       {member.response_status || 'Assigned'}
-                                    </Badge>
+                                    </Tag>
                                   </div>
                                 </div>
                               ))}
@@ -2411,8 +2355,6 @@ export function IncidentDetailsPage() {
                             <div className="flex items-center justify-between gap-2 mb-2">
                               <p className="text-xs text-muted">Team Members</p>
                               <Button
-                                size="sm"
-                                variant="outline"
                                 className="h-6 px-2 text-xs rounded-lg"
                                 onClick={openStatusDialog}
                               >
@@ -2430,16 +2372,9 @@ export function IncidentDetailsPage() {
                                   }`}>
                                     <div className="flex items-center justify-between">
                                       <span className="font-medium text-foreground">{member.name || `Responder ${member.responder_id}`}</span>
-                                      <Badge 
-                                        variant="outline" 
-                                        className={`text-xs ${
-                                          member.availability_status?.toLowerCase() === 'available'
-                                            ? 'border-severity-resolved/60 bg-severity-resolved/20 text-severity-resolved'
-                                            : 'border-amber-500/60 bg-amber-500/20 text-amber-300'
-                                        }`}
-                                      >
+                                      <ResponderStatusTag status={member.availability_status}>
                                         {member.availability_status || 'unknown'}
-                                      </Badge>
+                                      </ResponderStatusTag>
                                     </div>
                                     {Array.isArray(member.supported_incident_types) && member.supported_incident_types.length > 0 && (
                                       <p className="text-xs text-muted mt-1">
@@ -2464,120 +2399,73 @@ export function IncidentDetailsPage() {
                   {isSupervisor && !incidentIsClosed && incident.status !== 'Resolved' && incident.status !== 'Duplicate' && (
                     <div className="space-y-2">
                       <p className="text-xs uppercase tracking-wide text-muted font-semibold">Escalation Controls</p>
-                      <Dialog open={escalateDialogOpen} onOpenChange={setEscalateDialogOpen}>
-                        <DialogTrigger asChild>
-                          <Button className="w-full bg-amber-600 hover:bg-amber-700 gap-2">
-                            <AlertTriangle className="w-4 h-4" />
-                            Escalate Severity
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle>Escalate Incident Severity</DialogTitle>
-                            <DialogDescription>
-                              Change the severity level of this incident. This action will be logged.
-                            </DialogDescription>
-                          </DialogHeader>
-                          <div className="space-y-4 py-4">
-                            <div>
-                              <Label>New Severity Level</Label>
-                              <Select value={newSeverity} onValueChange={setNewSeverity} open={severitySelectOpen} onOpenChange={setSeveritySelectOpen}>
-                                {({ value, onValueChange, dropdownRect }) => (
-                                  <>
-                                    <SelectTrigger isOpen={severitySelectOpen} onClick={() => setSeveritySelectOpen(o => !o)}>
-                                      <SelectValue value={value} options={[
-                                        { value: 'Critical', label: 'Critical' },
-                                        { value: 'Warning', label: 'Warning' },
-                                        { value: 'Low', label: 'Low' }
-                                      ]} placeholder="Select severity" />
-                                    </SelectTrigger>
-                                    <SelectContent isOpen={severitySelectOpen} dropdownRect={dropdownRect}>
-                                      <SelectItem value="Critical" onSelect={(v) => { onValueChange(v); setSeveritySelectOpen(false); }}>Critical</SelectItem>
-                                      <SelectItem value="Warning" onSelect={(v) => { onValueChange(v); setSeveritySelectOpen(false); }}>Warning</SelectItem>
-                                      <SelectItem value="Low" onSelect={(v) => { onValueChange(v); setSeveritySelectOpen(false); }}>Low</SelectItem>
-                                    </SelectContent>
-                                  </>
-                                )}
-                              </Select>
-                            </div>
-                            <div>
-                              <Label>Escalation Reason</Label>
-                              <Textarea
-                                placeholder="Explain why this escalation is necessary..."
-                                value={escalationReason}
-                                onChange={(e) => setEscalationReason(e.target.value)}
-                                rows={3}
-                                maxLength={1000}
-                              />
-                            </div>
+                      <Button type="primary" className="w-full bg-amber-600 hover:bg-amber-700 gap-2" onClick={() => setEscalateDialogOpen(true)}>
+                        <AlertTriangle className="w-4 h-4" />
+                        Escalate Severity
+                      </Button>
+                      <Modal
+                        open={escalateDialogOpen}
+                        onCancel={() => setEscalateDialogOpen(false)}
+                        title="Escalate Incident Severity"
+                        okText="Confirm Escalation"
+                        okButtonProps={{ disabled: !newSeverity || !escalationReason, style: { background: '#d97706' } }}
+                        onOk={handleEscalate}
+                      >
+                        <p className="text-sm text-muted mb-4">Change the severity level of this incident. This action will be logged.</p>
+                        <div className="space-y-4">
+                          <div>
+                            <label className="block mb-1">New Severity Level</label>
+                            <Select
+                              value={newSeverity || undefined}
+                              onChange={setNewSeverity}
+                              placeholder="Select severity"
+                              style={{ width: '100%' }}
+                              options={[
+                                { value: 'Critical', label: 'Critical' },
+                                { value: 'Warning', label: 'Warning' },
+                                { value: 'Low', label: 'Low' },
+                              ]}
+                            />
                           </div>
-                          <DialogFooter>
-                            <Button
-                              className="bg-amber-600 hover:bg-amber-700"
-                              onClick={handleEscalate}
-                              disabled={!newSeverity || !escalationReason}
-                            >
-                              Confirm Escalation
-                            </Button>
-                            <Button variant="outline" onClick={() => setEscalateDialogOpen(false)}>
-                              Cancel
-                            </Button>
-                          </DialogFooter>
-                        </DialogContent>
-                      </Dialog>
+                          <div>
+                            <label className="block mb-1">Escalation Reason</label>
+                            <Input.TextArea
+                              placeholder="Explain why this escalation is necessary..."
+                              value={escalationReason}
+                              onChange={(e) => setEscalationReason(e.target.value)}
+                              rows={3}
+                              maxLength={1000}
+                            />
+                          </div>
+                        </div>
+                      </Modal>
 
-                      <Dialog open={addDepartmentDialogOpen} onOpenChange={setAddDepartmentDialogOpen}>
-                        <DialogTrigger asChild>
-                          <Button variant="outline" className="w-full gap-2">
-                            <Users className="w-4 h-4" />
-                            Add Department
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle>Add Supporting Department</DialogTitle>
-                            <DialogDescription>
-                              Add another department to assist with this incident.
-                            </DialogDescription>
-                          </DialogHeader>
-                          <div className="space-y-4 py-4">
-                            <div>
-                              <Label>Select Department</Label>
-                              <Select value={additionalDepartment} onValueChange={setAdditionalDepartment} open={additionalDeptSelectOpen} onOpenChange={setAdditionalDeptSelectOpen}>
-                                {({ value, onValueChange, dropdownRect }) => (
-                                  <>
-                                    <SelectTrigger isOpen={additionalDeptSelectOpen} onClick={() => setAdditionalDeptSelectOpen(o => !o)}>
-                                      <SelectValue value={value} options={activeSectors.map((d) => ({ value: d.id, label: d.name }))} placeholder="Choose sector" />
-                                    </SelectTrigger>
-                                    <SelectContent isOpen={additionalDeptSelectOpen} dropdownRect={dropdownRect}>
-                                      {activeSectors.map((dept) => (
-                                        <SelectItem key={dept.id} value={dept.id} onSelect={(v) => { onValueChange(v); setAdditionalDeptSelectOpen(false); }}>
-                                          {dept.name}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </>
-                                )}
-                              </Select>
-                            </div>
-                          </div>
-                          <DialogFooter>
-                            <Button
-                              className="bg-[#134178] hover:bg-[#0f3256]"
-                              onClick={handleAddDepartment}
-                              disabled={!additionalDepartment}
-                            >
-                              Add Department
-                            </Button>
-                            <Button variant="outline" onClick={() => setAddDepartmentDialogOpen(false)}>
-                              Cancel
-                            </Button>
-                          </DialogFooter>
-                        </DialogContent>
-                      </Dialog>
+                      <Button className="w-full gap-2" onClick={() => setAddDepartmentDialogOpen(true)}>
+                        <Users className="w-4 h-4" />
+                        Add Department
+                      </Button>
+                      <Modal
+                        open={addDepartmentDialogOpen}
+                        onCancel={() => setAddDepartmentDialogOpen(false)}
+                        title="Add Supporting Department"
+                        okText="Add Department"
+                        okButtonProps={{ disabled: !additionalDepartment, style: { background: '#134178' } }}
+                        onOk={handleAddDepartment}
+                      >
+                        <p className="text-sm text-muted mb-4">Add another department to assist with this incident.</p>
+                        <div>
+                          <label className="block mb-1">Select Department</label>
+                          <Select
+                            value={additionalDepartment || undefined}
+                            onChange={setAdditionalDepartment}
+                            placeholder="Choose sector"
+                            style={{ width: '100%' }}
+                            options={activeSectors.map((d) => ({ value: d.id, label: d.name }))}
+                          />
+                        </div>
+                      </Modal>
 
                       <Button
-                        variant="outline"
                         className="w-full gap-2"
                         onClick={() => alert('Incident marked as high priority')}
                       >
@@ -2618,507 +2506,13 @@ export function IncidentDetailsPage() {
                     </div>
                   )}
                 </div>
-              </div>
-          </TabsContent>
-
-          {/* DIALOGS - Rendered outside cards for proper z-index and portal behavior */}
-          <Dialog open={reclassDialogOpen} onOpenChange={setReclassDialogOpen}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Manual Incident Reclassification</DialogTitle>
-                <DialogDescription>
-                  Override AI classification for incident type and severity. This action is audit logged.
-                </DialogDescription>
-              </DialogHeader>
-
-              <div className="space-y-4 py-2">
-                {incident?.incidentTypes?.length > 0 && (
-                  <div>
-                    <Label>Current classification</Label>
-                    <div className="mt-2">
-                      <IncidentTypeChips incidentTypes={incident.incidentTypes} />
-                    </div>
-                  </div>
-                )}
-
-                <div>
-                  <Label>Incident Type</Label>
-                  <select
-                    value={reclassType}
-                    onChange={(e) => setReclassType(e.target.value)}
-                    className="w-full mt-2 px-3 py-2 border border-border rounded-lg bg-card text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-secondary"
-                    disabled={reclassLoading}
-                  >
-                    <option value="">Select incident type</option>
-                    <option value="fire">Fire</option>
-                    <option value="medical">Medical</option>
-                    <option value="police">Police</option>
-                    <option value="disaster">Disaster</option>
-                  </select>
-                </div>
-
-                <div>
-                  <Label>Severity</Label>
-                  <select
-                    value={reclassSeverity}
-                    onChange={(e) => setReclassSeverity(e.target.value)}
-                    className="w-full mt-2 px-3 py-2 border border-border rounded-lg bg-card text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-secondary"
-                    disabled={reclassLoading}
-                  >
-                    <option value="">Select severity</option>
-                    <option value="low">Low</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
-                  </select>
-                </div>
-
-                <div>
-                  <Label>Reason (required, minimum 10 characters)</Label>
-                  <Textarea
-                    placeholder="Add context for this manual override..."
-                    value={reclassReason}
-                    onChange={(e) => setReclassReason(e.target.value)}
-                    rows={3}
-                    maxLength={500}
-                    disabled={reclassLoading}
-                  />
-                </div>
-              </div>
-
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setReclassDialogOpen(false)} disabled={reclassLoading}>
-                  Cancel
-                </Button>
-                <Button onClick={handleManualReclassify} disabled={reclassLoading || !reclassType || !reclassSeverity} className="bg-[#134178] hover:bg-[#0f3256]">
-                  {reclassLoading ? (
-                    <span className="inline-flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Saving...</span>
-                  ) : (
-                    'Confirm Reclassification'
-                  )}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-
-          <Dialog open={verifyDialogOpen} onOpenChange={setVerifyDialogOpen}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>
-                  {USE_BLOCKCHAIN ? 'Save Incident to Blockchain' : 'Finalize & Create Audit Entry'}
-                </DialogTitle>
-                <DialogDescription>
-                  {USE_BLOCKCHAIN
-                    ? 'Are you sure you want to save this closed and reporter-confirmed incident to the blockchain for tamper-proof audit? This action cannot be undone.'
-                    : 'Create a permanent audit log entry for this closed and reporter-confirmed incident. This action cannot be undone.'}
-                </DialogDescription>
-              </DialogHeader>
-              <DialogFooter>
-                <Button
-                  onClick={handleVerifyIncident}
-                  disabled={verifyLoading}
-                  className="gap-2 bg-[#134178] hover:bg-[#0f3256]"
-                >
-                  {verifyLoading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle className="w-4 h-4" />
-                      Confirm Save
-                    </>
-                  )}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => setVerifyDialogOpen(false)}
-                  disabled={verifyLoading}
-                >
-                  Cancel
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-
-          <Dialog open={closureDialogOpen} onOpenChange={setClosureDialogOpen}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Close Incident</DialogTitle>
-                <DialogDescription>
-                  {canMarkResolved
-                    ? 'Provide outcome details. The incident stays open until the citizen confirms.'
-                    : 'Provide final closure details for this incident. This action is permanent.'}
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div>
-                  <Label>Outcome Description</Label>
-                  <Textarea
-                    placeholder="Describe the final outcome..."
-                    value={closureOutcome}
-                    onChange={(e) => setClosureOutcome(e.target.value)}
-                    rows={3}
-                    maxLength={500}
-                  />
-                </div>
-                <div>
-                  <Label>Classification</Label>
-                  <Select value={closureClassification} onValueChange={setClosureClassification} open={closureClassSelectOpen} onOpenChange={setClosureClassSelectOpen}>
-                    {({ value, onValueChange, dropdownRect }) => (
-                      <>
-                        <SelectTrigger isOpen={closureClassSelectOpen} onClick={() => setClosureClassSelectOpen((o) => !o)}>
-                          <SelectValue value={value} options={[
-                            { value: 'Successful Response', label: 'Successful Response' },
-                            { value: 'Partial Success', label: 'Partial Success' },
-                            { value: 'False Alarm', label: 'False Alarm' },
-                            { value: 'Duplicate Report', label: 'Duplicate Report' },
-                            { value: 'No Action Required', label: 'No Action Required' },
-                          ]} placeholder="Select classification" />
-                        </SelectTrigger>
-                        <SelectContent isOpen={closureClassSelectOpen} dropdownRect={dropdownRect}>
-                          <SelectItem value="Successful Response" onSelect={(v) => { onValueChange(v); setClosureClassSelectOpen(false); }}>Successful Response</SelectItem>
-                          <SelectItem value="Partial Success" onSelect={(v) => { onValueChange(v); setClosureClassSelectOpen(false); }}>Partial Success</SelectItem>
-                          <SelectItem value="False Alarm" onSelect={(v) => { onValueChange(v); setClosureClassSelectOpen(false); }}>False Alarm</SelectItem>
-                          <SelectItem value="Duplicate Report" onSelect={(v) => { onValueChange(v); setClosureClassSelectOpen(false); }}>Duplicate Report</SelectItem>
-                          <SelectItem value="No Action Required" onSelect={(v) => { onValueChange(v); setClosureClassSelectOpen(false); }}>No Action Required</SelectItem>
-                        </SelectContent>
-                      </>
-                    )}
-                  </Select>
-                </div>
-              </div>
-              <DialogFooter>
-                <Button
-                  className="bg-green-600 hover:bg-green-700"
-                  onClick={canMarkResolved ? handleMarkResolved : handleCloseIncident}
-                  disabled={!closureOutcome || !closureClassification || closeLoading || resolveLoading}
-                >
-                  {canMarkResolved
-                    ? (resolveLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Mark Resolved')
-                    : (closeLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Close Incident')}
-                </Button>
-                <Button variant="outline" onClick={() => setClosureDialogOpen(false)}>
-                  Cancel
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-
-          <Dialog open={notifyDialogOpen} onOpenChange={setNotifyDialogOpen}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Notify Department</DialogTitle>
-                <DialogDescription>
-                  Select a department to notify. Team availability is shown to help you choose the best department.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div>
-                  <Label>Department</Label>
-                  <Select value={notifyDepartment} onValueChange={setNotifyDepartment} open={notifyDeptSelectOpen} onOpenChange={setNotifyDeptSelectOpen}>
-                    {({ value, onValueChange, dropdownRect }) => (
-                      <>
-                        <SelectTrigger isOpen={notifyDeptSelectOpen} onClick={() => setNotifyDeptSelectOpen(o => !o)}>
-                          <SelectValue value={value} options={availableNotifyDepartments.map((d) => ({ value: d.code || '', label: d.name || d.code || '—' }))} placeholder="Choose department" />
-                        </SelectTrigger>
-                        <SelectContent isOpen={notifyDeptSelectOpen} dropdownRect={dropdownRect}>
-                          {availableNotifyDepartments.map((dept) => (
-                            <SelectItem key={dept.department_id ?? dept.code} value={dept.code || ''} onSelect={(v) => { onValueChange(v); setNotifyDeptSelectOpen(false); }}>
-                              {dept.name || dept.code || '—'}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </>
-                    )}
-                  </Select>
-                </div>
-                {notifyDepartment && (
-                  <div className={`rounded-xl border p-3 ${isLight ? 'border-blue-200/80 bg-blue-50/60' : 'border-blue-500/30 bg-blue-500/10'}`}>
-                    <p className="text-xs uppercase tracking-wide text-muted font-semibold mb-2">Department Team Status</p>
-                    {(() => {
-                      const summary = teamSummaryByDepartment[String(notifyDepartment || '').toLowerCase()];
-                      if (!summary) {
-                        return <p className="text-xs text-muted">No team data available for this department yet.</p>;
-                      }
-                      return (
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                          <span className="rounded-md border border-severity-resolved/40 bg-severity-resolved/10 px-2 py-1 text-severity-resolved">Available: {summary.available}</span>
-                          <span className="rounded-md border border-indigo-500/40 bg-indigo-500/10 px-2 py-1 text-indigo-300">Standby: {summary.standby}</span>
-                          <span className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-amber-400">Busy: {summary.busy}</span>
-                          <span className="rounded-md border border-gray-400/40 bg-muted/30 px-2 py-1 text-muted">Off-duty: {summary.offDuty}</span>
-                        </div>
-                      );
-                    })()}
-                  </div>
-                )}
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setNotifyDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button
-                  className="bg-[#134178] hover:bg-[#0f3256]"
-                  onClick={handleNotifyDepartment}
-                  disabled={!notifyDepartment || availableNotifyDepartments.length === 0}
-                >
-                  Notify Department
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-
-          <Dialog open={statusDialogOpen} onOpenChange={setStatusDialogOpen}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Team and Responder Status</DialogTitle>
-                <DialogDescription>
-                  Update availability for the team assigned to this incident. Team and member status affect assignment eligibility.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-2">
-                <div>
-                  <Label>Assigned team</Label>
-                  <p className="text-sm text-muted mt-1">
-                    {selectedTeamMeta?.team_name || incident?.assignedTeamName || 'No team assigned'} ({notifyDepartment || incident?.assignedDepartmentId || 'n/a'})
-                  </p>
-                </div>
-                {selectedTeamMeta?.team_id ? (
-                  <>
-                    <div>
-                      <Label>Team Status</Label>
-                      <select
-                        className="w-full mt-2 px-3 py-2 border border-border rounded-lg bg-card text-foreground text-sm"
-                        value={String(selectedTeamMeta?.team_status || 'available').toLowerCase()}
-                        onChange={(event) => handleUpdateTeamStatus(event.target.value)}
-                        disabled={statusBusy}
-                      >
-                        <option value="available">available</option>
-                        <option value="standby">standby</option>
-                        <option value="busy">busy</option>
-                        <option value="off-duty">off-duty</option>
-                      </select>
-                    </div>
-                    <div className="space-y-2 max-h-52 overflow-auto">
-                      <Label>Team Members</Label>
-                      {(teamMembersByTeamId[selectedTeamMeta.team_id] || []).map((member) => (
-                        <div key={member.responder_id} className="grid grid-cols-[1fr_auto] items-center gap-2 p-2 rounded-lg border border-border/60">
-                          <div>
-                            <p className="text-sm font-medium text-foreground">{member.name || `Responder ${member.responder_id}`}</p>
-                            <p className="text-xs text-muted">
-                              Supported: {Array.isArray(member.supported_incident_types) && member.supported_incident_types.length
-                                ? member.supported_incident_types.join(', ')
-                                : 'all'}
-                            </p>
-                          </div>
-                          <select
-                            className="px-2 py-1 border border-border rounded bg-card text-foreground text-xs"
-                            value={String(member.availability_status || 'available').toLowerCase()}
-                            onChange={(event) => handleUpdateResponderStatus(member.responder_id, event.target.value)}
-                            disabled={statusBusy}
-                          >
-                            <option value="available">available</option>
-                            <option value="standby">standby</option>
-                            <option value="busy">busy</option>
-                            <option value="off-duty">off-duty</option>
-                          </select>
-                        </div>
-                      ))}
-                      {(teamMembersByTeamId[selectedTeamMeta.team_id] || []).length === 0 && (
-                        <p className="text-xs text-muted">No team members found for this team.</p>
-                      )}
-                    </div>
-                  </>
-                ) : (
-                  <p className="text-sm text-muted">No team assigned to this incident yet. Assign a team from the department dashboard first.</p>
-                )}
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setStatusDialogOpen(false)}>Close</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-
-          <Dialog open={undoNotifyDialogOpen} onOpenChange={setUndoNotifyDialogOpen}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Undo Notified Department</DialogTitle>
-                <DialogDescription>
-                  Choose a notified department to remove from this incident. Undo is blocked when that department already assigned a team.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-2">
-                <div>
-                  <Label>Notified Department</Label>
-                  <select
-                    className="w-full mt-2 px-3 py-2 border border-border rounded-lg bg-card text-foreground text-sm"
-                    value={undoDepartmentCode}
-                    onChange={(event) => setUndoDepartmentCode(event.target.value)}
-                  >
-                    {notifiedDepartments.map((dept) => (
-                      <option key={dept.code} value={dept.code}>
-                        {dept.name || dept.code}
-                        {dept.hasTeamAssigned ? ' (team already assigned)' : ''}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                {(() => {
-                  const selected = notifiedDepartments.find((dept) => String(dept.code || '').toLowerCase() === String(undoDepartmentCode || '').toLowerCase());
-                  if (!selected) return null;
-                  if (!selected.hasTeamAssigned) {
-                    return <p className="text-xs text-muted">This department is still in notified state and can be undone.</p>;
-                  }
-                  return <p className="text-xs text-amber-400">Undo disabled: this department already assigned a team.</p>;
-                })()}
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setUndoNotifyDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button
-                  className="bg-[#134178] hover:bg-[#0f3256]"
-                  onClick={handleUndoDepartmentNotification}
-                  disabled={(() => {
-                    const selected = notifiedDepartments.find((dept) => String(dept.code || '').toLowerCase() === String(undoDepartmentCode || '').toLowerCase());
-                    return !selected || selected.hasTeamAssigned;
-                  })()}
-                >
-                  Undo Notification
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-
-          <Dialog open={reassignDialogOpen} onOpenChange={setReassignDialogOpen}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Reassign team</DialogTitle>
-                <DialogDescription>
-                  Releases the current team and assigns another. Reason is required.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-2">
-                <div>
-                  <Label>Team</Label>
-                  <Select value={reassignTeamName} onValueChange={setReassignTeamName}>
-                    {({ value, onValueChange, dropdownRect }) => {
-                      const candidateTeams = responderTeams.filter((team) =>
-                        String(team.department_code || '').toLowerCase() === String(assignedDepartmentCodeForTeamActions || incident?.assignedTeamDepartmentCode || '').toLowerCase()
-                      );
-                      return (
-                        <>
-                          <SelectTrigger>
-                            <SelectValue
-                              value={value}
-                              options={candidateTeams.map((team) => ({ value: team.team_name || '', label: `${team.team_name || '—'} (${team.team_status || 'unknown'})` }))}
-                              placeholder="Choose replacement team"
-                            />
-                          </SelectTrigger>
-                          <SelectContent dropdownRect={dropdownRect}>
-                            {candidateTeams.map((team) => (
-                              <SelectItem key={team.team_id || team.team_name} value={team.team_name} onValueChange={onValueChange}>
-                                {team.team_name} ({team.team_status || 'unknown'})
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </>
-                      );
-                    }}
-                  </Select>
-                </div>
-                <div>
-                  <Label>Reason</Label>
-                  <Textarea
-                    value={reassignReason}
-                    onChange={(event) => setReassignReason(event.target.value)}
-                    placeholder="Why is this team being replaced?"
-                    minLength={10}
-                    maxLength={500}
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setReassignDialogOpen(false)}>Cancel</Button>
-                <Button className="bg-[#134178] hover:bg-[#0f3256]" onClick={handleReassignTeam} disabled={reassignLoading || !reassignTeamName}>
-                  {reassignLoading ? 'Saving…' : 'Reassign'}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-
-          <Dialog open={assignTeamDialogOpen} onOpenChange={setAssignTeamDialogOpen}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Select Team</DialogTitle>
-                <DialogDescription>
-                  Assign a team for this department notification. Only available or standby teams can be assigned.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-2">
-                <div>
-                  <Label>Team</Label>
-                  <Select value={assignTeamName} onValueChange={setAssignTeamName} open={assignTeamSelectOpen} onOpenChange={setAssignTeamSelectOpen}>
-                    {({ value, onValueChange, dropdownRect }) => {
-                      const candidateTeams = responderTeams
-                        .filter((team) => String(team.department_code || '').toLowerCase() === String(assignedDepartmentCodeForTeamActions || '').toLowerCase())
-                        .filter((team) => {
-                          const incidentType = incident?.incidentTypeRaw || incident?.emergencyType;
-                          return !incidentType || doesTeamSupportIncidentType(team, incidentType);
-                        });
-                      return (
-                        <>
-                          <SelectTrigger isOpen={assignTeamSelectOpen} onClick={() => setAssignTeamSelectOpen((open) => !open)}>
-                            <SelectValue
-                              value={value}
-                              options={candidateTeams.map((team) => ({ value: team.team_name || '', label: `${team.team_name || '—'} (${team.team_status || 'unknown'})` }))}
-                              placeholder="Choose team"
-                            />
-                          </SelectTrigger>
-                          <SelectContent isOpen={assignTeamSelectOpen} dropdownRect={dropdownRect}>
-                            {candidateTeams.map((team) => {
-                              const status = String(team.team_status || 'available').toLowerCase();
-                              const assignable = status.includes('available') || status.includes('standby');
-                              return (
-                                <SelectItem
-                                  key={`${team.team_id || team.team_name}`}
-                                  value={team.team_name || ''}
-                                  onSelect={(val) => {
-                                    if (!assignable) return;
-                                    onValueChange(val);
-                                    setAssignTeamSelectOpen(false);
-                                  }}
-                                >
-                                  {team.team_name || '—'} ({team.team_status || 'unknown'}){assignable ? '' : ' - unavailable'}
-                                </SelectItem>
-                              );
-                            })}
-                          </SelectContent>
-                        </>
-                      );
-                    }}
-                  </Select>
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setAssignTeamDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button className="bg-[#134178] hover:bg-[#0f3256]" onClick={handleAssignTeamToIncident} disabled={!assignTeamName}>
-                  Assign Team
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+            </Card>
+          </div>
+          </Tabs.TabPane>
 
           {/* TIMELINE TAB */}
-          <TabsContent value="timeline">
-            <div className={panelClass}>
-              <div className={headerClass}>
-                <div className={iconBoxClass}><Clock className="w-4 h-4" /></div>
-                <h2 className="text-base font-semibold text-foreground">Incident Timeline</h2>
-              </div>
-              <div className="p-4">
+          <Tabs.TabPane key="timeline" tab="Timeline">
+            <Card size="small" title={<span className="inline-flex items-center gap-2"><Clock className="w-4 h-4" /> Incident Timeline</span>}>
                 <div className="relative">
                   {/* Vertical timeline line */}
                   {timeline.length > 1 && (
@@ -3229,35 +2623,30 @@ export function IncidentDetailsPage() {
                     )}
                   </div>
                 </div>
-              </div>
-            </div>
-          </TabsContent>
+            </Card>
+          </Tabs.TabPane>
 
           {/* COORDINATION TAB */}
-          <TabsContent value="coordination">
-            <div className={panelClass}>
-              <div className={headerClass}>
-                <div className={iconBoxClass}><MessageSquare className="w-4 h-4" /></div>
-                <h2 className="text-base font-semibold text-foreground">Cross-Department Coordination</h2>
-              </div>
-              <div className="p-4 space-y-4">
+          <Tabs.TabPane key="coordination" tab="Coordination">
+            <Card size="small" title={<span className="inline-flex items-center gap-2"><MessageSquare className="w-4 h-4" /> Cross-Department Coordination</span>}>
+                <div className="space-y-4">
                 {/* Coordination Notes */}
                 <div className="space-y-3">
                   {coordination.map((note, idx) => (
                     <div key={idx} className={`p-4 rounded-xl border ${isLight ? 'bg-gray-50 border-gray-200' : 'bg-secondary/20 border-border'}`}>
                       <div className="flex items-start justify-between mb-2">
-                        <Badge variant="outline" className="text-xs rounded-lg">
+                        <Tag className="text-xs rounded-lg">
                           {note.department}
-                        </Badge>
+                        </Tag>
                         <span className="text-xs text-muted">{note.timestamp}</span>
                       </div>
                       <p className="text-sm text-foreground mb-3">{note.note}</p>
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-semibold text-foreground">{note.author}</span>
                         <span className="text-xs text-muted">·</span>
-                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5 rounded-md">
+                        <Tag className="text-[10px] px-1.5 py-0.5 rounded-md">
                           {note.roleLabel || getRoleDisplayLabel(note.role) || 'Unknown'}
-                        </Badge>
+                        </Tag>
                         {note.source && (
                           <span className="text-xs text-muted">({note.source})</span>
                         )}
@@ -3269,11 +2658,11 @@ export function IncidentDetailsPage() {
                   )}
                 </div>
 
-                <Separator />
+                <Divider />
 
                 <div>
-                  <Label className="text-sm text-muted">Add Coordination Note</Label>
-                  <Textarea 
+                  <label className="text-sm text-muted">Add Coordination Note</label>
+                  <Input.TextArea 
                     placeholder="Share updates with other departments..."
                     value={coordinationNote}
                     onChange={(e) => setCoordinationNote(e.target.value)}
@@ -3281,37 +2670,42 @@ export function IncidentDetailsPage() {
                     maxLength={500}
                     className={`mt-2 rounded-xl ${isLight ? 'bg-gray-50 border-gray-200' : 'bg-white/5 border-border'}`}
                   />
-                  <Button 
+                  <Button type="primary" 
                     className="w-full mt-3 rounded-xl bg-primary hover:bg-primary-hover"
                     onClick={handleAddCoordinationNote}
                   >
                     Add Note
                   </Button>
                 </div>
-              </div>
-            </div>
-          </TabsContent>
+                </div>
+            </Card>
+          </Tabs.TabPane>
 
           {/* ESCALATION TAB — Real inter-department assistance requests */}
-          <TabsContent value="escalation">
-            <div className={panelClass}>
-              <div className={headerClass}>
-                <div className={iconBoxClass}><HandHelping className="w-4 h-4" /></div>
-                <h2 className="text-base font-semibold text-foreground">
-                  Inter-Department Assistance
+          <Tabs.TabPane
+            key="escalation"
+            tab={(
+              <span className="inline-flex items-center gap-1.5">
+                Escalation
+                {activeEscalationsCount > 0 && (
+                  <span className="flex h-4 min-w-4 px-1 items-center justify-center rounded-full bg-orange-500 text-[9px] font-bold text-white">
+                    {activeEscalationsCount}
+                  </span>
+                )}
+              </span>
+            )}
+          >
+            <Card size="small" title={<span className="inline-flex items-center gap-2"><HandHelping className="w-4 h-4" /> Inter-Department Assistance
                   {activeEscalationsCount > 0 && (
                     <span className="ml-2 inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-full bg-orange-500 text-[10px] font-bold text-white">
                       {activeEscalationsCount}
                     </span>
-                  )}
-                </h2>
-              </div>
-              <div className="p-4">
+                  )}</span>}>
+                <div className="space-y-4">
                 {/* Request button in tab header */}
                 {canRequestEscalation && (
                   <div className="flex justify-end mb-4">
-                    <Button
-                      size="sm"
+                    <Button type="primary"
                       className="gap-2"
                       onClick={() => setEscalationModalOpen(true)}
                     >
@@ -3327,38 +2721,34 @@ export function IncidentDetailsPage() {
                   currentUserDeptId={currentUserDeptId}
                   onStatusUpdate={handleEscalationStatusUpdate}
                 />
-              </div>
-            </div>
-          </TabsContent>
+                </div>
+            </Card>
+          </Tabs.TabPane>
 
           {/* REVIEW TAB (Only shown if review exists) */}
           {review && (
-            <TabsContent value="review">
-              <div className={panelClass}>
-                <div className={headerClass}>
-                  <div className={iconBoxClass}><ThumbsUp className="w-4 h-4" /></div>
-                  <h2 className="text-base font-semibold text-foreground">Post-Incident Review</h2>
-                </div>
-                <div className="p-4 space-y-6">
+            <Tabs.TabPane key="review" tab="Review">
+              <Card size="small" title={<span className="inline-flex items-center gap-2"><ThumbsUp className="w-4 h-4" /> Post-Incident Review</span>}>
+                <div className="space-y-6">
                   <div>
-                    <Label className="text-sm text-muted">Response Time</Label>
+                    <label className="text-sm text-muted">Response Time</label>
                     <div className="flex items-center gap-3 mt-1">
                       <p className="font-medium text-foreground">{review.responseTime}</p>
-                      <Badge className={`rounded-lg ${
+                      <Tag className={`rounded-lg ${
                         review.responseTimeRating === 'Excellent' ? 'bg-severity-resolved/20 text-severity-resolved border-severity-resolved/40' :
                         review.responseTimeRating === 'Good' ? 'bg-secondary/20 text-secondary border-secondary/40' :
                         review.responseTimeRating === 'Fair' ? 'bg-amber-500/20 text-amber-600 border-amber-500/40' :
                         'bg-primary/20 text-primary border-primary/40'
                       }`}>
                         {review.responseTimeRating}
-                      </Badge>
+                      </Tag>
                     </div>
                   </div>
 
-                  <Separator />
+                  <Divider />
 
                   <div>
-                    <Label className="text-sm text-muted mb-2 block">Issues Encountered</Label>
+                    <label className="text-sm text-muted mb-2 block">Issues Encountered</label>
                     <ul className="space-y-2">
                       {review.issuesEncountered.map((issue, idx) => (
                         <li key={idx} className="flex items-start gap-2">
@@ -3369,19 +2759,19 @@ export function IncidentDetailsPage() {
                     </ul>
                   </div>
 
-                  <Separator />
+                  <Divider />
 
                   <div>
-                    <Label className="text-sm text-muted mb-2 block">Supervisor Remarks</Label>
+                    <label className="text-sm text-muted mb-2 block">Supervisor Remarks</label>
                     <p className={`text-sm text-foreground p-3 rounded-xl border ${isLight ? 'bg-primary/10 border-primary/20' : 'bg-primary/20 border-primary/30'}`}>
                       {review.supervisorRemarks}
                     </p>
                   </div>
 
-                  <Separator />
+                  <Divider />
 
                   <div>
-                    <Label className="text-sm text-muted mb-2 block">Recommendations</Label>
+                    <label className="text-sm text-muted mb-2 block">Recommendations</label>
                     <ul className="space-y-2">
                       {review.recommendations.map((rec, idx) => (
                         <li key={idx} className="flex items-start gap-2">
@@ -3392,10 +2782,10 @@ export function IncidentDetailsPage() {
                     </ul>
                   </div>
 
-                  <Separator />
+                  <Divider />
 
                   <div>
-                    <Label className="text-sm text-muted mb-2 block">Overall Rating</Label>
+                    <label className="text-sm text-muted mb-2 block">Overall Rating</label>
                     <div className="flex items-center gap-2">
                       {[...Array(5)].map((_, idx) => (
                         <Star 
@@ -3417,22 +2807,377 @@ export function IncidentDetailsPage() {
                     </p>
                   </div>
                 </div>
-              </div>
-            </TabsContent>
+              </Card>
+            </Tabs.TabPane>
           )}
         </Tabs>
 
+          {/* DIALOGS - Rendered outside cards for proper z-index and portal behavior */}
+          <Modal
+            open={reclassDialogOpen}
+            onCancel={() => setReclassDialogOpen(false)}
+            title="Manual Incident Reclassification"
+            okText={reclassLoading ? 'Saving...' : 'Confirm Reclassification'}
+            okButtonProps={{ disabled: reclassLoading || !reclassType || !reclassSeverity, style: { background: '#134178' }, loading: reclassLoading }}
+            onOk={handleManualReclassify}
+            cancelButtonProps={{ disabled: reclassLoading }}
+          >
+            <p className="text-sm text-muted mb-4">Override AI classification for incident type and severity. This action is audit logged.</p>
+            <div className="space-y-4">
+              {incident?.incidentTypes?.length > 0 && (
+                <div>
+                  <label className="block mb-1">Current classification</label>
+                  <IncidentTypeChips incidentTypes={incident.incidentTypes} />
+                </div>
+              )}
+              <div>
+                <label className="block mb-1">Incident Type</label>
+                <Select
+                  value={reclassType || undefined}
+                  onChange={setReclassType}
+                  placeholder="Select incident type"
+                  style={{ width: '100%' }}
+                  disabled={reclassLoading}
+                  options={[
+                    { value: 'fire', label: 'Fire' },
+                    { value: 'medical', label: 'Medical' },
+                    { value: 'police', label: 'Police' },
+                    { value: 'disaster', label: 'Disaster' },
+                  ]}
+                />
+              </div>
+              <div>
+                <label className="block mb-1">Severity</label>
+                <Select
+                  value={reclassSeverity || undefined}
+                  onChange={setReclassSeverity}
+                  placeholder="Select severity"
+                  style={{ width: '100%' }}
+                  disabled={reclassLoading}
+                  options={[
+                    { value: 'low', label: 'Low' },
+                    { value: 'medium', label: 'Medium' },
+                    { value: 'high', label: 'High' },
+                  ]}
+                />
+              </div>
+              <div>
+                <label className="block mb-1">Reason (required, minimum 10 characters)</label>
+                <Input.TextArea
+                  placeholder="Add context for this manual override..."
+                  value={reclassReason}
+                  onChange={(e) => setReclassReason(e.target.value)}
+                  rows={3}
+                  maxLength={500}
+                  disabled={reclassLoading}
+                />
+              </div>
+            </div>
+          </Modal>
+
+          <Modal
+            open={verifyDialogOpen}
+            onCancel={() => setVerifyDialogOpen(false)}
+            title={USE_BLOCKCHAIN ? 'Save Incident to Blockchain' : 'Finalize & Create Audit Entry'}
+            okText={verifyLoading ? 'Saving...' : 'Confirm Save'}
+            okButtonProps={{ disabled: verifyLoading, loading: verifyLoading, style: { background: '#134178' } }}
+            onOk={handleVerifyIncident}
+            cancelButtonProps={{ disabled: verifyLoading }}
+          >
+            <p className="text-sm text-muted">
+              {USE_BLOCKCHAIN
+                ? 'Are you sure you want to save this closed and reporter-confirmed incident to the blockchain for tamper-proof audit? This action cannot be undone.'
+                : 'Create a permanent audit log entry for this closed and reporter-confirmed incident. This action cannot be undone.'}
+            </p>
+          </Modal>
+
+          <Modal
+            open={closureDialogOpen}
+            onCancel={() => setClosureDialogOpen(false)}
+            title="Close Incident"
+            okText={canMarkResolved ? (resolveLoading ? 'Saving...' : 'Mark Resolved') : (closeLoading ? 'Saving...' : 'Close Incident')}
+            okButtonProps={{
+              disabled: !closureOutcome || !closureClassification || closeLoading || resolveLoading,
+              loading: closeLoading || resolveLoading,
+              style: { background: '#16a34a' },
+            }}
+            onOk={canMarkResolved ? handleMarkResolved : handleCloseIncident}
+          >
+            <p className="text-sm text-muted mb-4">
+              {canMarkResolved
+                ? 'Provide outcome details. The incident stays open until the citizen confirms.'
+                : 'Provide final closure details for this incident. This action is permanent.'}
+            </p>
+            <div className="space-y-4">
+              <div>
+                <label className="block mb-1">Outcome Description</label>
+                <Input.TextArea
+                  placeholder="Describe the final outcome..."
+                  value={closureOutcome}
+                  onChange={(e) => setClosureOutcome(e.target.value)}
+                  rows={3}
+                  maxLength={500}
+                />
+              </div>
+              <div>
+                <label className="block mb-1">Classification</label>
+                <Select
+                  value={closureClassification || undefined}
+                  onChange={setClosureClassification}
+                  placeholder="Select classification"
+                  style={{ width: '100%' }}
+                  options={[
+                    { value: 'Successful Response', label: 'Successful Response' },
+                    { value: 'Partial Success', label: 'Partial Success' },
+                    { value: 'False Alarm', label: 'False Alarm' },
+                    { value: 'Duplicate Report', label: 'Duplicate Report' },
+                    { value: 'No Action Required', label: 'No Action Required' },
+                  ]}
+                />
+              </div>
+            </div>
+          </Modal>
+
+          <Modal
+            open={notifyDialogOpen}
+            onCancel={() => setNotifyDialogOpen(false)}
+            title="Notify Department"
+            okText="Notify Department"
+            okButtonProps={{ disabled: !notifyDepartment || availableNotifyDepartments.length === 0, style: { background: '#134178' } }}
+            onOk={handleNotifyDepartment}
+          >
+            <p className="text-sm text-muted mb-4">Select a department to notify. Team availability is shown to help you choose the best department.</p>
+            <div className="space-y-4">
+              <div>
+                <label className="block mb-1">Department</label>
+                <Select
+                  value={notifyDepartment || undefined}
+                  onChange={setNotifyDepartment}
+                  placeholder="Choose department"
+                  style={{ width: '100%' }}
+                  options={availableNotifyDepartments.map((d) => ({ value: d.code || '', label: d.name || d.code || '—' }))}
+                />
+              </div>
+              {notifyDepartment && (
+                <div className={`rounded-xl border p-3 ${isLight ? 'border-blue-200/80 bg-blue-50/60' : 'border-blue-500/30 bg-blue-500/10'}`}>
+                  <p className="text-xs uppercase tracking-wide text-muted font-semibold mb-2">Department Team Status</p>
+                  {(() => {
+                    const summary = teamSummaryByDepartment[String(notifyDepartment || '').toLowerCase()];
+                    if (!summary) {
+                      return <p className="text-xs text-muted">No team data available for this department yet.</p>;
+                    }
+                    return (
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                        <span className="rounded-md border border-severity-resolved/40 bg-severity-resolved/10 px-2 py-1 text-severity-resolved">Available: {summary.available}</span>
+                        <span className="rounded-md border border-indigo-500/40 bg-indigo-500/10 px-2 py-1 text-indigo-300">Standby: {summary.standby}</span>
+                        <span className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-amber-400">Busy: {summary.busy}</span>
+                        <span className="rounded-md border border-gray-400/40 bg-muted/30 px-2 py-1 text-muted">Off-duty: {summary.offDuty}</span>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+            </div>
+          </Modal>
+
+          <Modal
+            open={statusDialogOpen}
+            onCancel={() => setStatusDialogOpen(false)}
+            title="Team and Responder Status"
+            okText="Close"
+            onOk={() => setStatusDialogOpen(false)}
+            cancelButtonProps={{ style: { display: 'none' } }}
+          >
+            <p className="text-sm text-muted mb-4">Update availability for the team assigned to this incident. Team and member status affect assignment eligibility.</p>
+            <div className="space-y-4">
+              <div>
+                <label className="block mb-1">Assigned team</label>
+                <p className="text-sm text-muted">
+                  {selectedTeamMeta?.team_name || incident?.assignedTeamName || 'No team assigned'} ({notifyDepartment || incident?.assignedDepartmentId || 'n/a'})
+                </p>
+              </div>
+              {selectedTeamMeta?.team_id ? (
+                <>
+                  <div>
+                    <label className="block mb-1">Team Status</label>
+                    <Select
+                      value={String(selectedTeamMeta?.team_status || 'available').toLowerCase()}
+                      onChange={(value) => handleUpdateTeamStatus(value)}
+                      disabled={statusBusy}
+                      style={{ width: '100%' }}
+                      options={[
+                        { value: 'available', label: 'available' },
+                        { value: 'standby', label: 'standby' },
+                        { value: 'busy', label: 'busy' },
+                        { value: 'off-duty', label: 'off-duty' },
+                      ]}
+                      {...statusSelectProps}
+                    />
+                  </div>
+                  <div className="space-y-2 max-h-52 overflow-auto">
+                    <label className="block mb-1">Team Members</label>
+                    {(teamMembersByTeamId[selectedTeamMeta.team_id] || []).map((member) => (
+                      <div key={member.responder_id} className="grid grid-cols-[1fr_auto] items-center gap-2 p-2 rounded-lg border border-border/60">
+                        <div>
+                          <p className="text-sm font-medium text-foreground">{member.name || `Responder ${member.responder_id}`}</p>
+                          <p className="text-xs text-muted">
+                            Supported: {Array.isArray(member.supported_incident_types) && member.supported_incident_types.length
+                              ? member.supported_incident_types.join(', ')
+                              : 'all'}
+                          </p>
+                        </div>
+                        <Select
+                          value={String(member.availability_status || 'available').toLowerCase()}
+                          onChange={(value) => handleUpdateResponderStatus(member.responder_id, value)}
+                          disabled={statusBusy}
+                          style={{ width: 120 }}
+                          options={[
+                            { value: 'available', label: 'available' },
+                            { value: 'standby', label: 'standby' },
+                            { value: 'busy', label: 'busy' },
+                            { value: 'off-duty', label: 'off-duty' },
+                          ]}
+                          {...statusSelectProps}
+                        />
+                      </div>
+                    ))}
+                    {(teamMembersByTeamId[selectedTeamMeta.team_id] || []).length === 0 && (
+                      <p className="text-xs text-muted">No team members found for this team.</p>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <p className="text-sm text-muted">No team assigned to this incident yet. Assign a team from the department dashboard first.</p>
+              )}
+            </div>
+          </Modal>
+
+          <Modal
+            open={undoNotifyDialogOpen}
+            onCancel={() => setUndoNotifyDialogOpen(false)}
+            title="Undo Notified Department"
+            okText="Undo Notification"
+            okButtonProps={{
+              disabled: (() => {
+                const selected = notifiedDepartments.find((dept) => String(dept.code || '').toLowerCase() === String(undoDepartmentCode || '').toLowerCase());
+                return !selected || selected.hasTeamAssigned;
+              })(),
+              style: { background: '#134178' },
+            }}
+            onOk={handleUndoDepartmentNotification}
+          >
+            <p className="text-sm text-muted mb-4">Choose a notified department to remove from this incident. Undo is blocked when that department already assigned a team.</p>
+            <div className="space-y-4">
+              <div>
+                <label className="block mb-1">Notified Department</label>
+                <Select
+                  value={undoDepartmentCode || undefined}
+                  onChange={setUndoDepartmentCode}
+                  style={{ width: '100%' }}
+                  options={notifiedDepartments.map((dept) => ({
+                    value: dept.code,
+                    label: `${dept.name || dept.code}${dept.hasTeamAssigned ? ' (team already assigned)' : ''}`,
+                  }))}
+                />
+              </div>
+              {(() => {
+                const selected = notifiedDepartments.find((dept) => String(dept.code || '').toLowerCase() === String(undoDepartmentCode || '').toLowerCase());
+                if (!selected) return null;
+                if (!selected.hasTeamAssigned) {
+                  return <p className="text-xs text-muted">This department is still in notified state and can be undone.</p>;
+                }
+                return <p className="text-xs text-amber-400">Undo disabled: this department already assigned a team.</p>;
+              })()}
+            </div>
+          </Modal>
+
+          <Modal
+            open={reassignDialogOpen}
+            onCancel={() => setReassignDialogOpen(false)}
+            title="Reassign team"
+            okText={reassignLoading ? 'Saving…' : 'Reassign'}
+            okButtonProps={{ disabled: reassignLoading || !reassignTeamName, loading: reassignLoading, style: { background: '#134178' } }}
+            onOk={handleReassignTeam}
+          >
+            <p className="text-sm text-muted mb-4">Releases the current team and assigns another. Reason is required.</p>
+            <div className="space-y-4">
+              <div>
+                <label className="block mb-1">Team</label>
+                <Select
+                  value={reassignTeamName || undefined}
+                  onChange={setReassignTeamName}
+                  placeholder="Choose replacement team"
+                  style={{ width: '100%' }}
+                  options={responderTeams
+                    .filter((team) => String(team.department_code || '').toLowerCase() === String(assignedDepartmentCodeForTeamActions || incident?.assignedTeamDepartmentCode || '').toLowerCase())
+                    .map((team) => ({
+                      value: team.team_name || '',
+                      label: `${team.team_name || '—'} (${team.team_status || 'unknown'})`,
+                    }))}
+                  {...embeddedStatusSelectProps}
+                />
+              </div>
+              <div>
+                <label className="block mb-1">Reason</label>
+                <Input.TextArea
+                  value={reassignReason}
+                  onChange={(event) => setReassignReason(event.target.value)}
+                  placeholder="Why is this team being replaced?"
+                  maxLength={500}
+                />
+              </div>
+            </div>
+          </Modal>
+
+          <Modal
+            open={assignTeamDialogOpen}
+            onCancel={() => setAssignTeamDialogOpen(false)}
+            title="Select Team"
+            okText="Assign Team"
+            okButtonProps={{ disabled: !assignTeamName, style: { background: '#134178' } }}
+            onOk={handleAssignTeamToIncident}
+          >
+            <p className="text-sm text-muted mb-4">Assign a team for this department notification. Only available or standby teams can be assigned.</p>
+            <div>
+              <label className="block mb-1">Team</label>
+              <Select
+                value={assignTeamName || undefined}
+                onChange={setAssignTeamName}
+                placeholder="Choose team"
+                style={{ width: '100%' }}
+                options={responderTeams
+                  .filter((team) => String(team.department_code || '').toLowerCase() === String(assignedDepartmentCodeForTeamActions || '').toLowerCase())
+                  .filter((team) => {
+                    const incidentType = incident?.incidentTypeRaw || incident?.emergencyType;
+                    return !incidentType || doesTeamSupportIncidentType(team, incidentType);
+                  })
+                  .map((team) => {
+                    const status = String(team.team_status || 'available').toLowerCase();
+                    const assignable = status.includes('available') || status.includes('standby');
+                    return {
+                      value: team.team_name || '',
+                      label: `${team.team_name || '—'} (${team.team_status || 'unknown'})${assignable ? '' : ' - unavailable'}`,
+                      disabled: !assignable,
+                    };
+                  })}
+                {...embeddedStatusSelectProps}
+              />
+            </div>
+          </Modal>
+
         {/* Duplicate Handling Dialog */}
-        <Dialog open={duplicateDialogOpen} onOpenChange={setDuplicateDialogOpen}>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>{incident?.isDuplicate ? 'Duplicate Cluster' : 'Mark as Possible Duplicate'}</DialogTitle>
-              <DialogDescription>
-                {incident?.isDuplicate
-                  ? 'This incident is linked to the following related reports. You can unlink or close with a related report.'
-                  : 'Review similar incidents and link this report as a duplicate if it describes the same incident.'}
-              </DialogDescription>
-            </DialogHeader>
+        <Modal
+          open={duplicateDialogOpen}
+          onCancel={() => setDuplicateDialogOpen(false)}
+          title={incident?.isDuplicate ? 'Duplicate Cluster' : 'Mark as Possible Duplicate'}
+          width={672}
+          footer={null}
+        >
+            <p className="text-sm text-muted mb-4">
+              {incident?.isDuplicate
+                ? 'This incident is linked to the following related reports. You can unlink or close with a related report.'
+                : 'Review similar incidents and link this report as a duplicate if it describes the same incident.'}
+            </p>
             <div className="space-y-4 py-4 max-h-96 overflow-y-auto">
               {duplicateDialogLoading ? (
                 <p className="text-muted">Loading potential duplicates...</p>
@@ -3447,7 +3192,7 @@ export function IncidentDetailsPage() {
                           Report #{dup.report_id}
                         </Link>
                         {dup.confidence != null && (
-                          <Badge variant="outline">{Math.round((dup.confidence || 0) * 100)}% match</Badge>
+                          <Tag>{Math.round((dup.confidence || 0) * 100)}% match</Tag>
                         )}
                       </div>
                       <p className="text-sm text-muted">{dup.reporter_name || `User #${dup.user_id}`}</p>
@@ -3461,8 +3206,6 @@ export function IncidentDetailsPage() {
                     <div className="flex items-center gap-2 shrink-0">
                       {!incident?.isDuplicate && dup.report_id !== Number(id) && (
                         <Button
-                          size="sm"
-                          variant="outline"
                           className="gap-2"
                           disabled={linkDuplicateInProgress}
                           onClick={() => handleMarkDuplicate(dup.report_id)}
@@ -3473,8 +3216,6 @@ export function IncidentDetailsPage() {
                       )}
                       {incident?.isDuplicate && dup.report_id !== Number(id) && String(dup.status || '').toLowerCase() === 'closed' && incident.status !== 'Closed' && (
                         <Button
-                          size="sm"
-                          variant="outline"
                           className="gap-2 text-severity-resolved border-severity-resolved/50"
                           onClick={async () => {
                             try {
@@ -3482,9 +3223,9 @@ export function IncidentDetailsPage() {
                               setDuplicateDialogOpen(false);
                               await fetchIncident();
                               window.dispatchEvent(new CustomEvent('incident:updated', { detail: { incidentId: id } }));
-                              Swal.fire({ icon: 'success', title: 'Incident closed', timer: 1500, showConfirmButton: false });
+                              alertUser({ icon: 'success', title: 'Incident closed', timer: 1500, showConfirmButton: false });
                             } catch (err) {
-                              Swal.fire({ icon: 'error', title: 'Failed', text: err.message || 'Could not close' });
+                              alertUser({ icon: 'error', title: 'Failed', text: err.message || 'Could not close' });
                             }
                           }}
                         >
@@ -3497,10 +3238,9 @@ export function IncidentDetailsPage() {
                 ))
               )}
             </div>
-            <DialogFooter className="flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 justify-end mt-4">
               {!incident?.isDuplicate && (
                 <Button
-                  variant="outline"
                   className="gap-2 text-amber-600 border-amber-200"
                   onClick={() => {
                     setDuplicateDialogOpen(false);
@@ -3512,11 +3252,11 @@ export function IncidentDetailsPage() {
                 </Button>
               )}
               {incident?.isDuplicate && (
-                <Button variant="outline" className="text-amber-600 border-amber-200" onClick={handleUnlinkDuplicate}>
+                <Button className="text-amber-600 border-amber-200" onClick={handleUnlinkDuplicate}>
                   Unlink from duplicate
                 </Button>
               )}
-              <Button variant="outline" onClick={async () => {
+              <Button onClick={async () => {
                 if (!incident?.isDuplicate && incident?.flaggedForReview) {
                   const numericId = /^\d+$/.test(String(id));
                   if (numericId) {
@@ -3525,9 +3265,9 @@ export function IncidentDetailsPage() {
                       setDuplicateDialogOpen(false);
                       await fetchIncident({ silent: true });
                       window.dispatchEvent(new CustomEvent('incident:updated', { detail: { incidentId: id } }));
-                      Swal.fire({ icon: 'success', title: 'Marked as not a duplicate', timer: 1500, showConfirmButton: false });
+                      alertUser({ icon: 'success', title: 'Marked as not a duplicate', timer: 1500, showConfirmButton: false });
                     } catch (err) {
-                      Swal.fire({ icon: 'error', title: 'Failed', text: err.message || 'Could not clear duplicate flag' });
+                      alertUser({ icon: 'error', title: 'Failed', text: err.message || 'Could not clear duplicate flag' });
                     }
                   } else {
                     setDuplicateDialogOpen(false);
@@ -3538,9 +3278,8 @@ export function IncidentDetailsPage() {
               }}>
                 {incident?.isDuplicate ? 'Close' : 'Not a Duplicate'}
               </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+            </div>
+        </Modal>
 
         <BackupRequestDialog
           open={backupDialogOpen}

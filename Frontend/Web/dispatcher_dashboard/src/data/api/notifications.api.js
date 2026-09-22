@@ -1,6 +1,9 @@
 import { API_URL } from '@/core/config/app.config';
 import { getAuthHeaders, parseJsonOrEmpty } from '@/data/api/http';
 
+let notificationsInflight = null;
+let unreadCountInflight = null;
+
 /**
  * Fetch persisted notifications for the current user
  * @param {Object} params
@@ -9,6 +12,8 @@ import { getAuthHeaders, parseJsonOrEmpty } from '@/data/api/http';
  * @returns {Promise<Array>} Array of notification objects
  */
 export async function getNotifications({ limit = 50, offset = 0 } = {}) {
+  if (notificationsInflight) return notificationsInflight;
+  notificationsInflight = (async () => {
   const url = `${API_URL}/api/notifications?limit=${limit}&offset=${offset}`;
   const res = await fetch(url, { headers: getAuthHeaders() });
   if (!res.ok) {
@@ -17,6 +22,10 @@ export async function getNotifications({ limit = 50, offset = 0 } = {}) {
   }
   const body = await res.json();
   return Array.isArray(body) ? body : [];
+  })().finally(() => {
+    notificationsInflight = null;
+  });
+  return notificationsInflight;
 }
 
 /**
@@ -54,6 +63,8 @@ export async function markAllAsRead() {
  * @returns {Promise<number>}
  */
 export async function getUnreadCount() {
+  if (unreadCountInflight) return unreadCountInflight;
+  unreadCountInflight = (async () => {
   const url = `${API_URL}/api/notifications/unread-count`;
   const res = await fetch(url, { headers: getAuthHeaders() });
   if (!res.ok) {
@@ -62,4 +73,8 @@ export async function getUnreadCount() {
   }
   const data = await res.json();
   return typeof data?.count === 'number' ? data.count : 0;
+  })().finally(() => {
+    unreadCountInflight = null;
+  });
+  return unreadCountInflight;
 }

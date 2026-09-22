@@ -44,9 +44,17 @@ export function getAuthToken() {
   return readStore('token');
 }
 
+export const AUTH_READY_EVENT = 'rescuelink:auth-ready';
+
+export function notifyAuthReady() {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent(AUTH_READY_EVENT));
+}
+
 export function persistAuthToken(token) {
   if (!token) return;
   writeStore('token', token);
+  notifyAuthReady();
 }
 
 export function getStoredUser() {

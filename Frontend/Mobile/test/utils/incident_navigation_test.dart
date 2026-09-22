@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rescuelink_mobile/utils/incident_navigation.dart';
 
@@ -91,5 +93,17 @@ void main() {
         isFalse,
       );
     });
+  });
+
+  test('personnel report-id open returns before citizen AI fallback', () {
+    final src = File('lib/utils/incident_navigation.dart').readAsStringSync();
+    final personnel = src.indexOf('if (AuthService().isPersonnelResponder)');
+    final openDetail = src.indexOf('_openPersonnelIncidentDetail', personnel);
+    final personnelReturn = src.indexOf('return;', openDetail);
+    final aiFallback = src.indexOf('getIncidentWithAiFallback');
+    expect(personnel, greaterThan(-1));
+    expect(openDetail, greaterThan(personnel));
+    expect(personnelReturn, greaterThan(openDetail));
+    expect(personnelReturn, lessThan(aiFallback));
   });
 }

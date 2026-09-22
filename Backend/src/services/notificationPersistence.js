@@ -219,11 +219,17 @@ async function getRecipientUserIds(event, data) {
       } catch (_) {}
     }
 
-    // 4. Assigned department staff (Admins, Heads, Personnel, and Responders)
+    // 4. Assigned department staff. For dispatched, skip unassigned field
+    // responders — they are not on the team and a quiet tray tap 403s.
+    // Assigned members already come from dispatches; dept-only amber goes
+    // through getCriticalDispatchRecipients.
     if (numericDeptIds.length > 0) {
+      const deptRoleIn = event === 'incident:dispatched'
+        ? "('department-admin','department-head','personnel')"
+        : "('department-admin','department-head','personnel','responder')";
       const deptRes = await pool.query(
         `SELECT user_id FROM users WHERE department_id = ANY($1::int[])
-          AND REPLACE(LOWER(role), '_', '-') IN ('department-admin','department-head','personnel','responder')`,
+          AND REPLACE(LOWER(role), '_', '-') IN ${deptRoleIn}`,
         [numericDeptIds]
       );
       deptRes.rows.forEach((r) => recipientIds.add(r.user_id));

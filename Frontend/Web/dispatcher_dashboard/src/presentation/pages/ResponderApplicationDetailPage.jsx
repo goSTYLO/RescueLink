@@ -1,17 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Layout } from '@/presentation/components/layout/Layout';
-import { Card } from '@/presentation/components/ui/Card';
-import { Button } from '@/presentation/components/ui/Button';
-import { Badge } from '@/presentation/components/ui/Badge';
 import { Breadcrumb } from '@/presentation/components/common/Breadcrumb';
-import { CheckCircle, XCircle, Clock, FileText, ArrowLeft, Download, ShieldCheck, AlertCircle, Eye, X, Image as ImageIcon, ShieldOff } from 'lucide-react';
-import Swal from 'sweetalert2';
+import { CheckCircle, XCircle, Clock, FileText, ArrowLeft, Download, ShieldCheck, AlertCircle, Eye, ShieldOff } from 'lucide-react';
+import { alertUser } from '@/presentation/feedback/alertUser';
 import { getApplicationById, updateApplicationStatus, revokeResponderRole, getDocumentUrl } from '@/data/api/responderApplications.api';
 import { useTheme } from '@/presentation/context/ThemeContext';
 import { isSuperAdmin } from '@/core/constants';
-import { REVOKE_REASONS, SWAL_PRIMARY } from '@/core/constants/responderRevokeReasons';
-import { attachPasswordToggle } from '@/core/utils/inputUtils';
+import { Button, Card, Form, Input, Modal, Select, Tag } from 'antd';
+import { REVOKE_REASONS } from '@/core/constants/responderRevokeReasons';
 
 function isImageFile(filepath) {
   if (!filepath) return false;
@@ -19,11 +16,18 @@ function isImageFile(filepath) {
   return ['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext);
 }
 
-const FIELD_BADGE_MAP = {
-  medical: { label: 'Medical / First Aid', color: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' },
-  fire: { label: 'Fire Response', color: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20' },
-  police: { label: 'Crime / Law Enforcement', color: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20' },
-  disaster: { label: 'Disaster & Rescue', color: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20' },
+const FIELD_TAG_MAP = {
+  medical: { label: 'Medical / First Aid', color: 'green' },
+  fire: { label: 'Fire Response', color: 'red' },
+  police: { label: 'Crime / Law Enforcement', color: 'blue' },
+  disaster: { label: 'Disaster & Rescue', color: 'gold' },
+};
+
+const STATUS_TAG = {
+  approved: { color: 'green', icon: <CheckCircle className="w-3.5 h-3.5" />, label: 'Approved' },
+  rejected: { color: 'red', icon: <XCircle className="w-3.5 h-3.5" />, label: 'Rejected' },
+  revoked: { color: 'gold', icon: <ShieldOff className="w-3.5 h-3.5" />, label: 'Revoked' },
+  pending: { color: 'gold', icon: <Clock className="w-3.5 h-3.5" />, label: 'Pending Review' },
 };
 
 export function ResponderApplicationDetailPage() {
@@ -38,6 +42,7 @@ export function ResponderApplicationDetailPage() {
   const [reviewNotes, setReviewNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [actionSuccess, setActionSuccess] = useState(null);
+  const [revokeOpen, setRevokeOpen] = useState(false);
 
   const currentUser = JSON.parse(sessionStorage.getItem('user') || '{}');
 
@@ -63,9 +68,15 @@ export function ResponderApplicationDetailPage() {
   }, [fetchDetail]);
 
   const handleDecision = async (status) => {
-    if (!window.confirm(`Are you sure you want to mark this application as ${status.toUpperCase()}?`)) {
-      return;
-    }
+    const proceed = await alertUser({
+      title: 'Update application?',
+      text: `Are you sure you want to mark this application as ${status.toUpperCase()}?`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Yes',
+      cancelButtonText: 'Cancel',
+    });
+    if (!proceed.isConfirmed) return;
 
     setSubmitting(true);
     setError(null);
@@ -84,87 +95,34 @@ export function ResponderApplicationDetailPage() {
     }
   };
 
-  const handleRevoke = async () => {
-    const reasonOptions = REVOKE_REASONS.map(
-      (r) => `<option value="${r.value}">${r.label}</option>`
-    ).join('');
-
-    const result = await Swal.fire({
-      icon: 'warning',
-      title: 'Revoke responder role?',
-      html: `
-        <p class="text-sm text-left mb-3" style="color:#64748b">
-          This will immediately remove <strong>Volunteer First Responder</strong> access for this citizen.
-          They can submit a new application afterward.
-        </p>
-        <label class="block text-sm font-semibold text-left mb-1" for="swal-revoke-reason">Reason</label>
-        <select id="swal-revoke-reason" class="swal2-input" style="width:100%;margin:0 0 12px;padding:8px">
-          <option value="">Select a reason…</option>
-          ${reasonOptions}
-        </select>
-        <div id="swal-revoke-other-wrap" style="display:none">
-          <label class="block text-sm font-semibold text-left mb-1" for="swal-revoke-other">Details (required for Other)</label>
-          <textarea id="swal-revoke-other" class="swal2-textarea" placeholder="Describe the reason (min 10 characters)" rows="3" style="width:100%"></textarea>
-        </div>
-        <label class="block text-sm font-semibold text-left mb-1 mt-3" for="swal-admin-password">Your admin password</label>
-        <input id="swal-admin-password" type="password" class="swal2-input" placeholder="Enter your password to confirm" style="width:100%;margin:0" />
-      `,
-      showCancelButton: true,
-      confirmButtonColor: '#dc2626',
-      cancelButtonColor: '#6b7280',
-      confirmButtonText: 'Revoke role',
-      cancelButtonText: 'Cancel',
-      focusConfirm: false,
-      didOpen: () => {
-        const reasonSelect = document.getElementById('swal-revoke-reason');
-        const otherWrap = document.getElementById('swal-revoke-other-wrap');
-        reasonSelect?.addEventListener('change', () => {
-          if (otherWrap) {
-            otherWrap.style.display = reasonSelect.value === 'other' ? 'block' : 'none';
-          }
-        });
-        attachPasswordToggle('swal-admin-password');
-      },
-      preConfirm: () => {
-        const reason = document.getElementById('swal-revoke-reason')?.value?.trim();
-        const reasonOther = document.getElementById('swal-revoke-other')?.value?.trim();
-        const adminPassword = document.getElementById('swal-admin-password')?.value;
-
-        if (!reason) {
-          Swal.showValidationMessage('Please select a reason.');
-          return false;
-        }
-        if (reason === 'other' && (!reasonOther || reasonOther.length < 10)) {
-          Swal.showValidationMessage('Please provide details (minimum 10 characters) for Other.');
-          return false;
-        }
-        if (!adminPassword) {
-          Swal.showValidationMessage('Admin password is required.');
-          return false;
-        }
-        return {
-          reason,
-          reason_other: reason === 'other' ? reasonOther : undefined,
-          admin_password: adminPassword,
-        };
-      },
-    });
-
-    if (!result.isConfirmed || !result.value) return;
-
+  const submitRevoke = async (values) => {
+    const reason = String(values.reason || '').trim();
+    const reasonOther = String(values.reason_other || '').trim();
+    if (reason === 'other' && reasonOther.length < 10) {
+      alertUser({
+        icon: 'warning',
+        title: 'Details required',
+        text: 'Please provide details (minimum 10 characters) for Other.',
+      });
+      return;
+    }
     setSubmitting(true);
     setError(null);
     setActionSuccess(null);
     try {
-      const updated = await revokeResponderRole(id, result.value);
+      const updated = await revokeResponderRole(id, {
+        reason,
+        reason_other: reason === 'other' ? reasonOther : undefined,
+        admin_password: values.admin_password,
+      });
       setApplication(updated.application);
+      setRevokeOpen(false);
       setActionSuccess('Volunteer first responder role revoked successfully.');
     } catch (err) {
-      Swal.fire({
+      alertUser({
         icon: 'error',
         title: 'Revoke failed',
         text: err.message || 'Could not revoke responder role.',
-        confirmButtonColor: SWAL_PRIMARY,
       });
     } finally {
       setSubmitting(false);
@@ -192,12 +150,14 @@ export function ResponderApplicationDetailPage() {
     return (
       <Layout>
         <div className="p-6 max-w-4xl mx-auto space-y-4">
-          <Button variant="ghost" onClick={() => navigate('/responder-applications')}>
+          <Button type="text" onClick={() => navigate('/responder-applications')}>
             <ArrowLeft className="w-4 h-4 mr-2" /> Back to Applications
           </Button>
-          <Card className="p-6 text-center text-red-500">
-            <AlertCircle className="w-10 h-10 mx-auto mb-2" />
-            <p className="font-semibold">{error || 'Application not found'}</p>
+          <Card size="small">
+            <div className="p-2 text-center text-red-500">
+              <AlertCircle className="w-10 h-10 mx-auto mb-2" />
+              <p className="font-semibold">{error || 'Application not found'}</p>
+            </div>
           </Card>
         </div>
       </Layout>
@@ -209,6 +169,7 @@ export function ResponderApplicationDetailPage() {
       ? `${application.first_name} ${application.last_name}`
       : application.personal_details?.full_name || `Applicant #${application.user_id}`;
   const details = application.personal_details || {};
+  const statusMeta = STATUS_TAG[application.status] || STATUS_TAG.pending;
 
   return (
     <Layout>
@@ -223,7 +184,7 @@ export function ResponderApplicationDetailPage() {
 
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <Button variant="ghost" size="sm" onClick={() => navigate('/responder-applications')} className="mb-2">
+            <Button type="text" onClick={() => navigate('/responder-applications')} className="mb-2 px-0">
               <ArrowLeft className="w-4 h-4 mr-1" /> Back to List
             </Button>
             <h1 className={`text-2xl font-bold ${isLight ? 'text-slate-900' : 'text-white'}`}>
@@ -234,28 +195,9 @@ export function ResponderApplicationDetailPage() {
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
-            {application.status === 'approved' && (
-              <Badge variant="success" className="px-3 py-1.5 text-sm flex items-center gap-1.5">
-                <CheckCircle className="w-4 h-4" /> Approved
-              </Badge>
-            )}
-            {application.status === 'rejected' && (
-              <Badge variant="danger" className="px-3 py-1.5 text-sm flex items-center gap-1.5">
-                <XCircle className="w-4 h-4" /> Rejected
-              </Badge>
-            )}
-            {application.status === 'revoked' && (
-              <Badge variant="warning" className="px-3 py-1.5 text-sm flex items-center gap-1.5">
-                <ShieldOff className="w-4 h-4" /> Revoked
-              </Badge>
-            )}
-            {application.status === 'pending' && (
-              <Badge variant="warning" className="px-3 py-1.5 text-sm flex items-center gap-1.5">
-                <Clock className="w-4 h-4" /> Pending Review
-              </Badge>
-            )}
-          </div>
+          <Tag color={statusMeta.color} icon={statusMeta.icon} style={{ fontSize: 13, padding: '4px 10px' }}>
+            {statusMeta.label}
+          </Tag>
         </div>
 
         {actionSuccess && (
@@ -266,11 +208,14 @@ export function ResponderApplicationDetailPage() {
         )}
 
         {/* Applicant Personal Details */}
-        <Card className="p-6">
-          <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-            <ShieldCheck className="w-5 h-5 text-red-500" /> Personal & Contact Information
-          </h2>
-
+        <Card
+          size="small"
+          title={(
+            <span className="inline-flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5 text-red-500" /> Personal & Contact Information
+            </span>
+          )}
+        >
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
             <div>
               <span className="block text-slate-500 font-medium">Full Name</span>
@@ -298,14 +243,11 @@ export function ResponderApplicationDetailPage() {
                 <div className="flex flex-wrap gap-2">
                   {application.specialization_fields.map((field) => {
                     const normalized = field.toLowerCase();
-                    const badgeMeta = FIELD_BADGE_MAP[normalized] || { label: field.toUpperCase(), color: 'bg-slate-500/10 text-slate-600 border-slate-500/20' };
+                    const tagMeta = FIELD_TAG_MAP[normalized] || { label: field.toUpperCase(), color: 'default' };
                     return (
-                      <span
-                        key={field}
-                        className={`px-2.5 py-1 text-xs font-semibold rounded-md border ${badgeMeta.color}`}
-                      >
-                        {badgeMeta.label}
-                      </span>
+                      <Tag key={field} color={tagMeta.color}>
+                        {tagMeta.label}
+                      </Tag>
                     );
                   })}
                 </div>
@@ -335,11 +277,14 @@ export function ResponderApplicationDetailPage() {
         </Card>
 
         {/* Uploaded Documents & Credentials with In-Page Previews */}
-        <Card className="p-6 space-y-6">
-          <h2 className="text-lg font-bold flex items-center gap-2">
-            <FileText className="w-5 h-5 text-red-500" /> Uploaded Credentials
-          </h2>
-
+        <Card
+          size="small"
+          title={(
+            <span className="inline-flex items-center gap-2">
+              <FileText className="w-5 h-5 text-red-500" /> Uploaded Credentials
+            </span>
+          )}
+        >
           <div className="space-y-6">
             {/* Government ID */}
             <div className="p-4 border rounded-xl border-slate-200 dark:border-slate-800 space-y-3">
@@ -349,13 +294,8 @@ export function ResponderApplicationDetailPage() {
                   <span className="font-semibold text-sm">{application.gov_id_path?.split('/').pop() || 'No ID file uploaded'}</span>
                 </div>
                 {application.gov_id_path && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => openPreview(application.gov_id_path, 'Government ID')}
-                    className="flex items-center gap-1.5"
-                  >
-                    <Eye className="w-4 h-4 text-red-500" /> Preview ID
+                  <Button onClick={() => openPreview(application.gov_id_path, 'Government ID')} icon={<Eye className="w-4 h-4 text-red-500" />}>
+                    Preview ID
                   </Button>
                 )}
               </div>
@@ -388,7 +328,7 @@ export function ResponderApplicationDetailPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {Object.entries(application.field_proof_paths).map(([field, proofPath]) => {
                     const normalized = field.toLowerCase();
-                    const badgeMeta = FIELD_BADGE_MAP[normalized] || { label: field.toUpperCase(), color: 'bg-slate-500/10 text-slate-600 border-slate-500/20' };
+                    const tagMeta = FIELD_TAG_MAP[normalized] || { label: field.toUpperCase(), color: 'default' };
                     const filename = proofPath.split('/').pop();
                     const isImg = isImageFile(proofPath);
                     const docUrl = getDocumentUrl(application.id, proofPath);
@@ -399,14 +339,10 @@ export function ResponderApplicationDetailPage() {
                         className="p-3.5 border rounded-xl border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 space-y-3"
                       >
                         <div className="flex items-center justify-between">
-                          <span className={`px-2.5 py-0.5 text-xs font-bold rounded-md border ${badgeMeta.color}`}>
-                            {badgeMeta.label}
-                          </span>
+                          <Tag color={tagMeta.color}>{tagMeta.label}</Tag>
                           <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => openPreview(proofPath, `Proof for ${badgeMeta.label}`)}
-                            className="text-xs font-semibold"
+                            type="text"
+                            onClick={() => openPreview(proofPath, `Proof for ${tagMeta.label}`)}
                           >
                             <Eye className="w-4 h-4 mr-1 text-red-500" /> View Proof
                           </Button>
@@ -417,7 +353,7 @@ export function ResponderApplicationDetailPage() {
                             <img
                               src={docUrl}
                               alt={filename}
-                              onClick={() => openPreview(proofPath, `Proof for ${badgeMeta.label}`)}
+                              onClick={() => openPreview(proofPath, `Proof for ${tagMeta.label}`)}
                               className="w-16 h-16 rounded-lg object-cover border flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
                             />
                           ) : (
@@ -469,8 +405,7 @@ export function ResponderApplicationDetailPage() {
                           </div>
 
                           <Button
-                            size="sm"
-                            variant="ghost"
+                            type="text"
                             onClick={() => openPreview(certPath, `Certificate ${idx + 1}`)}
                             className="flex-shrink-0"
                           >
@@ -515,8 +450,7 @@ export function ResponderApplicationDetailPage() {
                         </div>
 
                         <Button
-                          size="sm"
-                          variant="ghost"
+                          type="text"
                           onClick={() => openPreview(docPath, `Document ${idx + 1}`)}
                           className="flex-shrink-0"
                         >
@@ -532,43 +466,41 @@ export function ResponderApplicationDetailPage() {
         </Card>
 
         {/* Dispatcher Review & Actions */}
-        <Card className="p-6 space-y-4">
-          <h2 className="text-lg font-bold">Dispatcher Review & Notes</h2>
-
+        <Card size="small" title="Dispatcher Review & Notes">
           {application.status === 'pending' ? (
             <>
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                   Reviewer Notes (Provided to applicant for transparency upon rejection)
                 </label>
-                <textarea
+                <Input.TextArea
                   rows={4}
                   maxLength={500}
                   value={reviewNotes}
                   onChange={(e) => setReviewNotes(e.target.value)}
                   placeholder="Enter review findings, approval comments, or rejection details..."
-                  className="w-full p-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
                   disabled={submitting}
                 />
               </div>
 
-              <div className="flex flex-wrap items-center justify-end gap-3 pt-2">
+              <div className="flex flex-wrap items-center justify-end gap-3 pt-4">
                 <Button
-                  variant="danger"
+                  danger
                   onClick={() => handleDecision('rejected')}
                   disabled={submitting}
-                  className="px-6"
+                  icon={<XCircle className="w-4 h-4" />}
                 >
-                  <XCircle className="w-4 h-4 mr-2" /> Reject Application
+                  Reject Application
                 </Button>
 
                 <Button
-                  variant="primary"
+                  type="primary"
                   onClick={() => handleDecision('approved')}
                   disabled={submitting}
-                  className="px-6 bg-green-600 hover:bg-green-700 text-white"
+                  style={{ background: '#16a34a' }}
+                  icon={<CheckCircle className="w-4 h-4" />}
                 >
-                  <CheckCircle className="w-4 h-4 mr-2" /> Approve & Promote to Responder
+                  Approve & Promote to Responder
                 </Button>
               </div>
             </>
@@ -576,13 +508,13 @@ export function ResponderApplicationDetailPage() {
             <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-slate-500">Review Outcome</span>
-                <Badge
-                  variant={
+                <Tag
+                  color={
                     application.status === 'approved'
-                      ? 'success'
+                      ? 'green'
                       : application.status === 'revoked'
-                        ? 'warning'
-                        : 'danger'
+                        ? 'gold'
+                        : 'red'
                   }
                 >
                   {application.status === 'approved'
@@ -590,7 +522,7 @@ export function ResponderApplicationDetailPage() {
                     : application.status === 'revoked'
                       ? 'Revoked'
                       : 'Rejected'}
-                </Badge>
+                </Tag>
               </div>
 
               {application.revoked_at && (
@@ -621,12 +553,11 @@ export function ResponderApplicationDetailPage() {
               {isSuperAdmin(currentUser.role) && application.status === 'approved' && (
                 <div className="pt-3 border-t border-slate-200 dark:border-slate-700">
                   <Button
-                    variant="danger"
-                    onClick={handleRevoke}
+                    danger
+                    onClick={() => setRevokeOpen(true)}
                     disabled={submitting}
-                    className="w-full sm:w-auto"
+                    icon={<ShieldOff className="w-4 h-4" />}
                   >
-                    <ShieldOff className="w-4 h-4 mr-2" />
                     Revoke Responder Role
                   </Button>
                   <p className="text-xs text-slate-500 mt-2">
@@ -638,52 +569,85 @@ export function ResponderApplicationDetailPage() {
           )}
         </Card>
 
-        {/* In-Page Interactive Document Preview Modal (No New Tabs!) */}
-        {previewDoc && (
-          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl border border-slate-200 dark:border-slate-800">
-              {/* Modal Header */}
-              <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-red-500" />
-                  <h3 className="font-bold text-base">{previewDoc.title}</h3>
-                </div>
-                <div className="flex items-center gap-2">
-                  <a
-                    href={previewDoc.url}
-                    download
-                    className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-semibold flex items-center gap-1"
-                  >
-                    <Download className="w-4 h-4" /> Download
-                  </a>
-                  <button
-                    onClick={() => setPreviewDoc(null)}
-                    className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-800 dark:hover:text-white"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
+        <Modal
+          title="Revoke responder role?"
+          open={revokeOpen}
+          onCancel={() => setRevokeOpen(false)}
+          okText="Revoke role"
+          okButtonProps={{ danger: true, htmlType: 'submit', form: 'revoke-role-form' }}
+          confirmLoading={submitting}
+          destroyOnClose
+        >
+          <p style={{ marginBottom: 12 }}>
+            This will immediately remove Volunteer First Responder access for this citizen.
+            They can submit a new application afterward.
+          </p>
+          <Form
+            id="revoke-role-form"
+            layout="vertical"
+            onFinish={submitRevoke}
+            requiredMark
+          >
+            <Form.Item name="reason" label="Reason" rules={[{ required: true, message: 'Please select a reason.' }]}>
+              <Select
+                options={REVOKE_REASONS}
+                placeholder="Select a reason"
+              />
+            </Form.Item>
+            <Form.Item noStyle shouldUpdate={(prev, next) => prev.reason !== next.reason}>
+              {({ getFieldValue }) => getFieldValue('reason') === 'other' ? (
+                <Form.Item
+                  name="reason_other"
+                  label="Details"
+                  rules={[{ required: true, min: 10, message: 'Please provide details (minimum 10 characters) for Other.' }]}
+                >
+                  <Input.TextArea rows={3} placeholder="Describe the reason (min 10 characters)" />
+                </Form.Item>
+              ) : null}
+            </Form.Item>
+            <Form.Item name="admin_password" label="Your admin password" rules={[{ required: true, message: 'Admin password is required.' }]}>
+              <Input.Password placeholder="Enter your password to confirm" />
+            </Form.Item>
+          </Form>
+        </Modal>
 
-              {/* Modal Body */}
-              <div className="p-6 flex-1 overflow-auto flex items-center justify-center bg-slate-950/20">
-                {previewDoc.isImage ? (
-                  <img
-                    src={previewDoc.url}
-                    alt={previewDoc.title}
-                    className="max-w-full max-h-[70vh] object-contain rounded-lg shadow-md"
-                  />
-                ) : (
-                  <iframe
-                    src={previewDoc.url}
-                    title={previewDoc.title}
-                    className="w-full h-[70vh] rounded-lg border-0"
-                  />
-                )}
-              </div>
-            </div>
-          </div>
-        )}
+        {/* In-Page Interactive Document Preview Modal */}
+        <Modal
+          title={(
+            <span className="inline-flex items-center gap-2">
+              <FileText className="w-5 h-5 text-red-500" />
+              {previewDoc?.title}
+            </span>
+          )}
+          open={Boolean(previewDoc)}
+          onCancel={() => setPreviewDoc(null)}
+          width={896}
+          footer={(
+            <Button
+              href={previewDoc?.url}
+              download
+              icon={<Download className="w-4 h-4" />}
+            >
+              Download
+            </Button>
+          )}
+          destroyOnClose
+          styles={{ body: { maxHeight: '70vh', overflow: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center' } }}
+        >
+          {previewDoc?.isImage ? (
+            <img
+              src={previewDoc.url}
+              alt={previewDoc.title}
+              className="max-w-full max-h-[70vh] object-contain rounded-lg shadow-md"
+            />
+          ) : previewDoc ? (
+            <iframe
+              src={previewDoc.url}
+              title={previewDoc.title}
+              className="w-full h-[70vh] rounded-lg border-0"
+            />
+          ) : null}
+        </Modal>
       </div>
     </Layout>
   );
