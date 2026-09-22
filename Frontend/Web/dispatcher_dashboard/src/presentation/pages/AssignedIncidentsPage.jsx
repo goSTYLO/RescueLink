@@ -8,6 +8,7 @@ import { mapApiIncidentToDisplay } from '@/core/utils/incidentDisplay';
 import { ROLES } from '@/core/constants';
 import { useIncidentWebSocketStatus } from '@/presentation/context/IncidentWebSocketContext';
 import { Breadcrumb } from '@/presentation/components/common/Breadcrumb';
+import { INCIDENT_ACTION_BTN_PROPS, incidentTableRowClickProps } from '@/core/utils/incidentDashboardTable';
 
 function mapApiIncidentToRow(api) {
   return mapApiIncidentToDisplay(api);
@@ -115,11 +116,15 @@ export function AssignedIncidentsPage() {
       key: 'actions',
       render: (_, incident) => (
         <Button
-          type="text"
+          {...INCIDENT_ACTION_BTN_PROPS}
+          color="primary"
+          variant="solid"
           aria-label="View details"
-          icon={<Eye size={16} />}
-          onClick={() => navigate(`/incidents/${incident.id}`)}
-        />
+          icon={<Eye size={12} />}
+          onClick={(e) => { e.stopPropagation(); navigate(`/incidents/${incident.id}`); }}
+        >
+          View
+        </Button>
       ),
     },
   ];
@@ -144,6 +149,7 @@ export function AssignedIncidentsPage() {
             dataSource={incidents}
             pagination={false}
             locale={{ emptyText: 'No incidents assigned to your department yet' }}
+            onRow={(record) => incidentTableRowClickProps(record, navigate)}
           />
         </Card>
       </div>

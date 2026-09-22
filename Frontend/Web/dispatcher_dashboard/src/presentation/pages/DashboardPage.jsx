@@ -22,6 +22,7 @@ import { BackupRequestDialog } from '@/presentation/components/common/BackupRequ
 import { Breadcrumb } from '@/presentation/components/common/Breadcrumb';
 import { useIncidentWebSocketStatus } from '@/presentation/context/IncidentWebSocketContext';
 import { alertUser } from '@/presentation/feedback/alertUser';
+import { INCIDENT_ACTION_BTN_PROPS, incidentTableRowClickProps } from '@/core/utils/incidentDashboardTable';
 
 const POLLING_INTERVAL_MS = 60000;
 const POLLING_WHEN_WS_CONNECTED_MS = 120000;
@@ -735,18 +736,24 @@ export function DashboardPage() {
     {
       title: 'Actions',
       key: 'actions',
+      width: 240,
       render: (_, incident) => (
-        <Space wrap>
+        <Space size={4} wrap={false}>
           <Button
-            icon={<ExternalLink size={14} />}
+            {...INCIDENT_ACTION_BTN_PROPS}
+            color="primary"
+            variant="solid"
+            icon={<ExternalLink size={12} />}
             onClick={(e) => { e.stopPropagation(); navigate(`/incidents/${incident.id}`); }}
           >
             View
           </Button>
           {canVerify && incident.status === 'Closed' && Boolean(incident.reporterConfirmedAt) && (
             <Button
-              type="primary"
-              icon={<CircleCheck size={14} />}
+              {...INCIDENT_ACTION_BTN_PROPS}
+              color="green"
+              variant="solid"
+              icon={<CircleCheck size={12} />}
               onClick={(e) => { e.stopPropagation(); openVerifyModal(incident); }}
             >
               Save
@@ -754,7 +761,10 @@ export function DashboardPage() {
           )}
           {canManageDuplicates && !incident.isDuplicate && /^\d+$/.test(String(incident.id)) && !isArchivedView && (
             <Button
-              icon={<Merge size={14} />}
+              {...INCIDENT_ACTION_BTN_PROPS}
+              color="gold"
+              variant="solid"
+              icon={<Merge size={12} />}
               onClick={(e) => {
                 e.stopPropagation();
                 setIncidentToLinkAsDuplicate(incident);
@@ -766,8 +776,11 @@ export function DashboardPage() {
           )}
           {canArchive && isArchivedView && (
             <Button
+              {...INCIDENT_ACTION_BTN_PROPS}
+              color="cyan"
+              variant="solid"
               disabled={archivingInProgress}
-              icon={<ArchiveRestore size={14} />}
+              icon={<ArchiveRestore size={12} />}
               onClick={(e) => { e.stopPropagation(); handleUnarchiveIncident(incident); }}
             >
               Restore
@@ -775,8 +788,11 @@ export function DashboardPage() {
           )}
           {canArchive && !isArchivedView && incident.status === 'Closed' && !incident.isArchived && (
             <Button
+              {...INCIDENT_ACTION_BTN_PROPS}
+              color="default"
+              variant="outlined"
               disabled={archivingInProgress}
-              icon={<Archive size={14} />}
+              icon={<Archive size={12} />}
               onClick={(e) => { e.stopPropagation(); handleArchiveIncident(incident); }}
             >
               Archive
@@ -944,6 +960,7 @@ export function DashboardPage() {
                 : 'No incidents match the current filters.',
             }}
             scroll={{ x: true }}
+            onRow={(record) => incidentTableRowClickProps(record, navigate)}
           />
         </Card>
 

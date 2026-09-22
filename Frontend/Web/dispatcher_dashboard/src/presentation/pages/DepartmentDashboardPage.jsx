@@ -18,6 +18,7 @@ import { ROLES, normalizeRole } from '@/core/constants';
 import { useIncidentWebSocketStatus } from '@/presentation/context/IncidentWebSocketContext';
 import { Breadcrumb } from '@/presentation/components/common/Breadcrumb';
 import { alertUser } from '@/presentation/feedback/alertUser';
+import { INCIDENT_ACTION_BTN_PROPS, incidentTableRowClickProps } from '@/core/utils/incidentDashboardTable';
 
 function mapApiIncidentToRow(api) {
   return mapApiIncidentToDisplay(api);
@@ -647,17 +648,56 @@ export function DepartmentDashboardPage() {
     {
       title: 'Actions',
       key: 'actions',
+      width: 220,
       render: (_, incident) => (
-        <Space>
+        <Space size={4} wrap={false}>
           {(normalizedRole === ROLES.DEPARTMENT_ADMIN || normalizedRole === ROLES.DEPARTMENT_HEAD) && !isArchivedView && !incident.assignedTeamName && (
-            <Button type="text" icon={<UserPlus size={16} />} onClick={() => openAssignModal(incident.id)} title="Assign personnel" />
+            <Button
+              {...INCIDENT_ACTION_BTN_PROPS}
+              color="blue"
+              variant="solid"
+              icon={<UserPlus size={12} />}
+              title="Assign personnel"
+              onClick={(e) => { e.stopPropagation(); openAssignModal(incident.id); }}
+            >
+              Assign
+            </Button>
           )}
-          <Button type="text" icon={<Eye size={16} />} onClick={() => navigate(`/incidents/${incident.id}`)} title="View details" />
+          <Button
+            {...INCIDENT_ACTION_BTN_PROPS}
+            color="primary"
+            variant="solid"
+            icon={<Eye size={12} />}
+            title="View details"
+            onClick={(e) => { e.stopPropagation(); navigate(`/incidents/${incident.id}`); }}
+          >
+            View
+          </Button>
           {isArchivedView && (
-            <Button type="text" disabled={archivingInProgress} icon={<ArchiveRestore size={16} />} onClick={() => handleUnarchiveIncident(incident)} title="Restore incident" />
+            <Button
+              {...INCIDENT_ACTION_BTN_PROPS}
+              color="cyan"
+              variant="solid"
+              disabled={archivingInProgress}
+              icon={<ArchiveRestore size={12} />}
+              title="Restore incident"
+              onClick={(e) => { e.stopPropagation(); handleUnarchiveIncident(incident); }}
+            >
+              Restore
+            </Button>
           )}
           {!isArchivedView && (incident.status === 'Closed' || incident.status === 'closed') && !incident.isArchived && (
-            <Button type="text" disabled={archivingInProgress} icon={<Archive size={16} />} onClick={() => handleArchiveIncident(incident)} title="Archive incident" />
+            <Button
+              {...INCIDENT_ACTION_BTN_PROPS}
+              color="default"
+              variant="outlined"
+              disabled={archivingInProgress}
+              icon={<Archive size={12} />}
+              title="Archive incident"
+              onClick={(e) => { e.stopPropagation(); handleArchiveIncident(incident); }}
+            >
+              Archive
+            </Button>
           )}
         </Space>
       ),
@@ -829,6 +869,7 @@ export function DepartmentDashboardPage() {
                 ? 'No volunteers have accepted an incident yet.'
                 : 'No incidents match the current filters.',
             }}
+            onRow={(record) => incidentTableRowClickProps(record, navigate)}
           />
         </Card>
 
