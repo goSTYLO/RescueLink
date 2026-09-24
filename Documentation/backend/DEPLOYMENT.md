@@ -79,6 +79,39 @@ Blueprint prompts (`sync: false`): `DATABASE_URL`, `FRONTEND_URL`, and AI `HF_AP
 
 You can still create the two Web Services by hand using the tables below.
 
+### Manual services (you imported `.env` at create time)
+
+Blueprint/`render.yaml` **does not** push env to hand-created services. If you pasted a local `.env`, fix these before relying on audio or private AI routing.
+
+**On `resquelink-ai` only — set or override**
+
+| Variable | Production value | If you imported local AI `.env` |
+|----------|------------------|----------------------------------|
+| `ENVIRONMENT` | `production` | Change from `development` |
+| `STT_PROVIDER` | `api` | Change from `local` |
+| `STT_ENABLE_API_FALLBACK` | `false` | Change from `true` if present |
+| `AI_STARTUP_WARMUP` | `false` | Optional; Dockerfile also defaults false |
+| `AI_STARTUP_WARMUP_WHISPER` | `false` | Same |
+| `HF_API_TOKEN` | Your HF token | **Required** for transcribe/classify-audio (not optional fallback on Render) |
+
+**Delete on `resquelink-ai` (unused in API STT mode):** `STT_LOCAL_MODEL_SIZE`, `STT_DEVICE`, `STT_COMPUTE_TYPE`, `STT_CPU_THREADS`, `STT_BEAM_SIZE`, `STT_CACHE_DIR`, `STT_MODEL_PATH` — they only matter for local Faster-Whisper.
+
+**Service settings (dashboard):** Health check path **`/health`** on the AI service. Root directory **`RescueLink AI`**, Docker, `./Dockerfile`.
+
+**On `resquelink-backend` — verify (do not paste AI `.env` here)**
+
+| Variable | Should be |
+|----------|-----------|
+| `AI_SERVICE_URL` | `https://resquelink-ai.onrender.com` **or** Render internal `host:port` for the AI service — **not** `http://localhost:8000` |
+| `DATABASE_URL` | Supabase pooler URI |
+| `FRONTEND_URL` | Your Vercel origin |
+| `NODE_ENV` | `production` |
+| `JWT_SECRET` | Strong secret (not dev placeholder) |
+
+Optional: matching `AI_SERVICE_TOKEN` (backend) and `AI_INTERNAL_TOKEN` (AI). Clear `FIREBASE_SERVICE_ACCOUNT_PATH`; use `FIREBASE_SERVICE_ACCOUNT_JSON` on the backend if you need Firebase.
+
+Redeploy **AI** after env fixes, then **backend**.
+
 ---
 
 ## Render (backend API)
