@@ -1,4 +1,4 @@
-import { normalizeApiBaseUrl } from '@/core/config/app.config';
+import { normalizeApiBaseUrl } from '@/core/config/normalizeApiBaseUrl';
 
 describe('normalizeApiBaseUrl', () => {
   test('strips trailing slash', () => {
