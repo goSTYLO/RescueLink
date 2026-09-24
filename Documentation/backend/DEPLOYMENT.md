@@ -114,7 +114,7 @@ Set these on the **API** Render service. See also [`Backend/.env.example`](../..
 
 **Not used by code today:** `CORS_ORIGIN` in `.env.example` is legacy; set `FRONTEND_URL` instead.
 
-**Firebase:** On Render set `FIREBASE_SERVICE_ACCOUNT_JSON` to the full service account JSON (single line). Locally you can still use `FIREBASE_SERVICE_ACCOUNT_PATH`.
+**Firebase:** On Render use `FIREBASE_SERVICE_ACCOUNT_JSON` (full service account JSON, one line). Do **not** set `FIREBASE_SERVICE_ACCOUNT_PATH` to a local file path — that file is not on the server. If Firebase is unset, the API still starts; phone/Firebase auth routes fail until you add JSON creds.
 
 **Uploads:** Files go to local disk (`UPLOAD_DIR`). Render’s filesystem is **ephemeral**; incident media and avatars can disappear on restart until uploads move to Supabase Storage (deferred).
 
