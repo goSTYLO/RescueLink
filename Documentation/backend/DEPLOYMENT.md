@@ -9,6 +9,8 @@ Production target stack:
 | PostgreSQL | Supabase | — |
 | AI (FastAPI) | Render Docker **or** [Google Cloud Run](GCP_AI.md) | `RescueLink AI` |
 
+**Recommended regions (PH / SEA):** Supabase **`ap-southeast-1` (Singapore)**, Render web services **`singapore`**, Cloud Run **`asia-southeast1`**. Supabase region is fixed at project creation; moving regions means a new Supabase project and updating Render `DATABASE_URL`.
+
 ```mermaid
 flowchart LR
   vercel["Vercel Vite SPA"] -->|"VITE_API_URL"| renderApi["Render Express API"]
