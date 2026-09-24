@@ -17,4 +17,10 @@ print('Downloaded weights from', url)
 "
 fi
 
+if [ -f "$MODEL_PATH" ]; then
+  python -c "import os; p='$MODEL_PATH'; print('Classifier weights ready:', p, os.path.getsize(p), 'bytes')"
+else
+  echo "WARNING: $MODEL_PATH still missing after entrypoint"
+fi
+
 exec uvicorn api.main:app --host 0.0.0.0 --port "$PORT"

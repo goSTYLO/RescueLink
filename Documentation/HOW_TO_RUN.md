@@ -748,6 +748,31 @@ python -m uvicorn api.main:app --reload --port 8000
 
 ## Test Commands & Integration Testing
 
+### Deployed backend ↔ AI smoke (production)
+
+From your machine (uses seeded reporter; **creates one real incident** on the target API):
+
+```powershell
+cd Backend
+$env:API_BASE_URL = "https://resquelink-backend.onrender.com"
+node scripts/smoke-deployed-e2e-once.js
+```
+
+Direct Cloud Run AI endpoint checks (no backend):
+
+```powershell
+python "RescueLink AI/test/test_ai_endpoints.py" --base-url "https://YOUR_CLOUD_RUN_URL"
+```
+
+Local integration layer (loads `Backend/.env` `AI_SERVICE_URL` / token):
+
+```powershell
+cd Backend
+node -e "require('dotenv').config(); const ai=require('./src/services/aiService'); (async()=>{ console.log('checkAiHealth', await ai.checkAiHealth('deploy-smoke')); console.log(await ai.classifyText('May sunog sa barangay.')); })()"
+```
+
+Pass criteria: AI `/health` shows `model_loaded: true`; E2E script exits 0 with `ai_classification` in the response.
+
 ### Running Full Integration Test Suite
 
 ```powershell

@@ -13,8 +13,11 @@ Deploy the FastAPI microservice from [`RescueLink AI/Dockerfile`](../../RescueLi
 | `STT_COMPUTE_TYPE` | `int8` |
 | `HF_API_TOKEN` | Secret Manager → env (required for primary STT) |
 | `AI_INTERNAL_TOKEN` | Optional; match Render `AI_SERVICE_TOKEN` |
+| `AI_STARTUP_WARMUP` | **`true`** on Cloud Run (4Gi); **`false`** on Render free tier |
+| `AI_STARTUP_WARMUP_WHISPER` | **`true`** on Cloud Run with local STT fallback; **`false`** on Render |
+| `MODEL_WEIGHTS_URL` | `https://huggingface.co/goSTYLO/resquelink-weights/resolve/main/emergency_model.pt` (runtime fallback if `.pt` missing in image) |
 
-Render free tier: keep `STT_ENABLE_LOCAL_FALLBACK=false` (see [`render.yaml`](../../render.yaml)).
+Render free tier: keep `STT_ENABLE_LOCAL_FALLBACK=false` and warmup **false** (see [`render.yaml`](../../render.yaml)). Dockerfile defaults warmup to **false** for the same reason; Cloud Run overrides via deploy env below.
 
 ## Prerequisites
 
@@ -83,12 +86,12 @@ deploy_cloud_run() {
     --region "$REGION" \
     --platform managed \
     --allow-unauthenticated \
-    --memory 2Gi \
+    --memory 4Gi \
     --cpu 1 \
     --timeout 300 \
     --concurrency 1 \
     --port 8080 \
-    --set-env-vars "ENVIRONMENT=production,STT_PROVIDER=api,STT_ENABLE_LOCAL_FALLBACK=true,STT_ENABLE_API_FALLBACK=false,STT_LOCAL_MODEL_SIZE=tiny,STT_DEVICE=cpu,STT_COMPUTE_TYPE=int8,AI_STARTUP_WARMUP=false,AI_STARTUP_WARMUP_WHISPER=false,MODEL_WEIGHTS_URL=https://huggingface.co/goSTYLO/resquelink-weights/resolve/main/emergency_model.pt" \
+    --set-env-vars "ENVIRONMENT=production,STT_PROVIDER=api,STT_ENABLE_LOCAL_FALLBACK=true,STT_ENABLE_API_FALLBACK=false,STT_LOCAL_MODEL_SIZE=tiny,STT_DEVICE=cpu,STT_COMPUTE_TYPE=int8,AI_STARTUP_WARMUP=true,AI_STARTUP_WARMUP_WHISPER=true,MODEL_WEIGHTS_URL=https://huggingface.co/goSTYLO/resquelink-weights/resolve/main/emergency_model.pt" \
     --set-secrets "HF_API_TOKEN=hf-api-token:latest"
 }
 ```
@@ -101,18 +104,63 @@ gcloud run deploy resquelink-ai `
   --region $env:REGION `
   --platform managed `
   --allow-unauthenticated `
-  --memory 2Gi `
+  --memory 4Gi `
   --cpu 1 `
   --timeout 300 `
   --concurrency 1 `
   --port 8080 `
-  --set-env-vars "ENVIRONMENT=production,STT_PROVIDER=api,STT_ENABLE_LOCAL_FALLBACK=true,STT_ENABLE_API_FALLBACK=false,STT_LOCAL_MODEL_SIZE=tiny,STT_DEVICE=cpu,STT_COMPUTE_TYPE=int8,AI_STARTUP_WARMUP=false,AI_STARTUP_WARMUP_WHISPER=false,MODEL_WEIGHTS_URL=https://huggingface.co/goSTYLO/resquelink-weights/resolve/main/emergency_model.pt" `
+  --set-env-vars "ENVIRONMENT=production,STT_PROVIDER=api,STT_ENABLE_LOCAL_FALLBACK=true,STT_ENABLE_API_FALLBACK=false,STT_LOCAL_MODEL_SIZE=tiny,STT_DEVICE=cpu,STT_COMPUTE_TYPE=int8,AI_STARTUP_WARMUP=true,AI_STARTUP_WARMUP_WHISPER=true,MODEL_WEIGHTS_URL=https://huggingface.co/goSTYLO/resquelink-weights/resolve/main/emergency_model.pt" `
   --set-secrets "HF_API_TOKEN=hf-api-token:latest"
 ```
 
 Cloud Run sets **`PORT=8080`**; [`docker-entrypoint.sh`](../../RescueLink%20AI/docker-entrypoint.sh) listens on `$PORT`. Re-running `deploy` keeps env and secrets; you only need to pass them again if you changed variables in the doc.
 
-If the service OOMs, raise memory to **4Gi** or CPU to **2** on the deploy command.
+Default deploy above uses **4Gi** RAM and **startup warmup** (classifier + Whisper). If logs still show OOM, try **`--memory 8Gi`** or **`--cpu 2`**.
+
+---
+
+## Live verification (Cloud Shell)
+
+After `export PROJECT_ID=rescuelink-ai-509607` and `export REGION=asia-southeast1`:
+
+**Env (expect `MODEL_WEIGHTS_URL`, warmup true, HF secret):**
+
+```bash
+gcloud run services describe rescuelink-ai --region "$REGION" \
+  --format="yaml(spec.template.spec.containers[0].env)"
+```
+
+**Memory / CPU:**
+
+```bash
+gcloud run services describe rescuelink-ai --region "$REGION" \
+  --format="yaml(spec.template.spec.containers[0].resources)"
+```
+
+**Classifier load / OOM logs:**
+
+```bash
+gcloud logging read \
+  'resource.type="cloud_run_revision" AND resource.labels.service_name="rescuelink-ai" AND (textPayload:"Classifier load failed" OR textPayload:"Failed to load model" OR textPayload:"Killed" OR textPayload:"OOM")' \
+  --limit 30 --format="value(textPayload)" --freshness=7d
+```
+
+**Weights in image** (from deploy output image ref, use Cloud Run console “Test” or a one-off job):
+
+```bash
+gcloud run services describe rescuelink-ai --region "$REGION" \
+  --format='value(spec.template.spec.containers[0].image)'
+# Expect models/emergency_model.pt ~500MB+ in container logs:
+# "Classifier weights ready: models/emergency_model.pt … bytes"
+```
+
+**HTTP health** (after deploy):
+
+```bash
+curl -s "$(gcloud run services describe rescuelink-ai --region "$REGION" --format='value(status.url)')/health"
+```
+
+Pass: `"model_loaded":true`, `"status":"healthy"`. If stuck: check `"load_error"` and `"weights_bytes"` (new fields from [`api/main.py`](../../RescueLink%20AI/api/main.py)).
 
 ---
 
@@ -124,6 +172,7 @@ If the service OOMs, raise memory to **4Gi** or CPU to **2** on the deploy comma
 | `PROJECT_ID` still `your-gcp-project` | Export real id: `rescuelink-ai-509607`. |
 | Build OK, deploy uses wrong image | `gcloud run deploy` `--image` must match the same string you passed to `--tag`. |
 | Container failed to start / listen on `PORT=8080` | Usually the old image blocked on **weight download** + **import-time model load** before uvicorn bound. **Rebuild** after pulling latest (`lazy classifier` + weights baked in Dockerfile). Use env names from this doc (`STT_LOCAL_MODEL_SIZE`, not `WHISPER_MODEL`). Prefer `deploy_cloud_run` (includes `--timeout 300`). After deploy, `curl …/health` may show `"status":"starting"` until `model_loaded` is true. |
+| `/health` stuck at `model_loaded: false` | Check `load_error` and `weights_bytes` on `/health`. OOM at 2Gi is common — redeploy with **4Gi** + rebuild image. Confirm entrypoint log shows weights size. See [Live verification](#live-verification-cloud-shell). |
 
 ---
 
@@ -164,7 +213,7 @@ Note the service URL from the deploy output. Set Render **`AI_SERVICE_URL`** to 
 
 ## After you pull updates (redeploy)
 
-Use this whenever `main` (or your branch) has new AI code — Dockerfile, `api/`, models config, etc.
+Use this whenever `main` (or your branch) has new AI code — Dockerfile, `api/`, models config, classifier load visibility, etc. **Required** after changes to [`api/main.py`](../../RescueLink%20AI/api/main.py) or [`docker-entrypoint.sh`](../../RescueLink%20AI/docker-entrypoint.sh): rebuild the image and run `deploy_cloud_run` so Cloud Run gets **4Gi**, warmup env, and new `/health` fields (`load_error`, `weights_bytes`).
 
 ```bash
 # From repo root

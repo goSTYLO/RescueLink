@@ -94,6 +94,10 @@ def run_health(base_url: str, headers: dict) -> bool:
     if ok and isinstance(payload, dict):
         required = {"status", "model_loaded", "device"}
         ok = required.issubset(payload.keys())
+        if payload.get("load_error"):
+            print(f"    load_error: {_short_text(str(payload.get('load_error')), 240)}")
+        if payload.get("weights_bytes") is not None:
+            print(f"    weights_bytes: {payload.get('weights_bytes')}")
     return print_result("GET /health", ok, status, started, payload)
 
 
