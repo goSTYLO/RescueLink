@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../theme/app_theme.dart';
 import '../../utils/responsive.dart';
 
 class AccountCreatedScreen extends StatelessWidget {
@@ -31,6 +32,7 @@ class AccountCreatedScreen extends StatelessWidget {
     final screenWidth = MediaQuery.sizeOf(context).width;
     final horizontalPadding = Responsive.horizontalPadding(screenWidth);
     final phoneVerifiedDone = onContinueToVerifyPhone == null;
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -40,7 +42,7 @@ class AccountCreatedScreen extends StatelessWidget {
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              color: const Color(0xFFEF4444),
+              color: AppTheme.primaryRed,
               child: Row(
                 children: [
                   IconButton(
@@ -87,7 +89,7 @@ class AccountCreatedScreen extends StatelessWidget {
                       width: double.infinity,
                       padding: const EdgeInsets.all(24),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: colorScheme.surface,
                         borderRadius: BorderRadius.circular(20),
                         boxShadow: [
                           BoxShadow(
@@ -113,7 +115,7 @@ class AccountCreatedScreen extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 28,
                               fontWeight: FontWeight.bold,
-                              color: Color(0xFF22C55E),
+                              color: AppTheme.successGreen,
                             ),
                           ),
                           if (registeredPhone != null &&
@@ -122,9 +124,9 @@ class AccountCreatedScreen extends StatelessWidget {
                             Text(
                               registeredPhone!,
                               textAlign: TextAlign.center,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 14,
-                                color: Color(0xFF6B7280),
+                                color: colorScheme.onSurfaceVariant,
                               ),
                             ),
                           ],
@@ -135,7 +137,7 @@ class AccountCreatedScreen extends StatelessWidget {
                               child: ElevatedButton(
                                 onPressed: onContinueToVerifyPhone,
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFFEF4444),
+                                  backgroundColor: AppTheme.primaryRed,
                                   padding:
                                       const EdgeInsets.symmetric(vertical: 16),
                                   shape: RoundedRectangleBorder(
@@ -160,7 +162,7 @@ class AccountCreatedScreen extends StatelessWidget {
                                 ? ElevatedButton(
                                     onPressed: _goToLogin,
                                     style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFF22C55E),
+                                      backgroundColor: AppTheme.successGreen,
                                       padding: const EdgeInsets.symmetric(
                                           vertical: 16),
                                       shape: RoundedRectangleBorder(
@@ -182,7 +184,7 @@ class AccountCreatedScreen extends StatelessWidget {
                                       padding: const EdgeInsets.symmetric(
                                           vertical: 16),
                                       side: const BorderSide(
-                                          color: Color(0xFF22C55E)),
+                                          color: AppTheme.successGreen),
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(12),
                                       ),
@@ -190,7 +192,7 @@ class AccountCreatedScreen extends StatelessWidget {
                                     child: const Text(
                                       'Back to Log In',
                                       style: TextStyle(
-                                        color: Color(0xFF22C55E),
+                                        color: AppTheme.successGreen,
                                         fontWeight: FontWeight.w600,
                                         fontSize: 16,
                                       ),
@@ -202,11 +204,10 @@ class AccountCreatedScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 24),
                     Text(
-                      subtitle ??
-                          'Verify your phone to complete registration.',
-                      style: const TextStyle(
+                      subtitle ?? 'Verify your phone to complete registration.',
+                      style: TextStyle(
                         fontSize: 14,
-                        color: Color(0xFF6B7280),
+                        color: colorScheme.onSurfaceVariant,
                       ),
                       textAlign: TextAlign.center,
                     ),
