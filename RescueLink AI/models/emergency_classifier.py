@@ -1,11 +1,15 @@
 import torch
-from transformers import AutoModel
+from transformers import AutoConfig, AutoModel
 
 
 class EmergencyClassifier(torch.nn.Module):
-    def __init__(self, num_incident_types, num_severity_classes, backbone="xlm-roberta-base"):
+    def __init__(self, num_incident_types, num_severity_classes, backbone="xlm-roberta-base", pretrained=True):
         super(EmergencyClassifier, self).__init__()
-        self.backbone = AutoModel.from_pretrained(backbone)
+        if pretrained:
+            self.backbone = AutoModel.from_pretrained(backbone)
+        else:
+            config = AutoConfig.from_pretrained(backbone)
+            self.backbone = AutoModel.from_config(config)
         self.dropout = torch.nn.Dropout(0.3)
 
         # Multi-label incident types (sigmoid head)
@@ -13,6 +17,11 @@ class EmergencyClassifier(torch.nn.Module):
 
         # Single-label severity (softmax head)
         self.severity_classifier = torch.nn.Linear(self.backbone.config.hidden_size, num_severity_classes)
+
+    @classmethod
+    def from_backbone_config(cls, num_incident_types, num_severity_classes, backbone="xlm-roberta-base"):
+        """Architecture only — load fine-tuned weights via load_state_dict after this."""
+        return cls(num_incident_types, num_severity_classes, backbone=backbone, pretrained=False)
 
     def forward(self, input_ids, attention_mask):
         outputs = self.backbone(input_ids=input_ids, attention_mask=attention_mask)

@@ -4,17 +4,21 @@ and optional Hugging Face API fallback for staged rollout.
 """
 
 import os
-import time
-import logging
 import shutil
 import tempfile
+import time
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, Any
 
-import librosa
 import soundfile as sf
 from huggingface_hub import InferenceClient
+
+try:
+    from .decode import decode_audio
+except ImportError:
+    from decode import decode_audio
 
 try:
     import imageio_ffmpeg
@@ -270,7 +274,8 @@ class WhisperHandler:
         self.api_provider: Optional[_WhisperApiProvider] = None
 
         _ensure_ffmpeg_backend()
-        _ensure_cuda_libs_on_path()
+        if self.provider_mode in {"local", "auto"}:
+            _ensure_cuda_libs_on_path()
         self._initialize_providers()
 
         self.usage_stats = {
@@ -353,8 +358,7 @@ class WhisperHandler:
             raise ValueError(f"File too large: {file_size_mb:.1f}MB (max: {self.max_file_size_mb}MB)")
 
         try:
-            y, sr = librosa.load(str(audio_path), sr=None)
-            duration = librosa.get_duration(y=y, sr=sr)
+            y, sr, duration = decode_audio(str(audio_path))
         except Exception as error:
             raise ValueError(f"Could not process audio file: {error!r}")
 
@@ -415,8 +419,7 @@ class WhisperHandler:
                     raise ValueError(f"File too large: {file_size_mb:.1f}MB (max: {self.max_file_size_mb}MB)")
 
                 try:
-                    y, sr = librosa.load(str(path_to_use), sr=None)
-                    duration = librosa.get_duration(y=y, sr=sr)
+                    y, sr, duration = decode_audio(str(path_to_use))
                 except Exception as error:
                     raise ValueError(f"Could not process audio file: {error!r}")
 
@@ -570,3 +573,7 @@ def get_whisper_handler() -> WhisperHandler:
         )
 
     return _whisper_handler
+
+
+def is_whisper_handler_ready() -> bool:
+    return _whisper_handler is not None

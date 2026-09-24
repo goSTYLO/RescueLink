@@ -75,7 +75,7 @@ Commit [`render.yaml`](../../render.yaml) at the repo root, then in Render: **Ne
 | `resquelink-ai` | Docker | `RescueLink AI` | free |
 | `resquelink-backend` | Node | `Backend` | free |
 
-Blueprint prompts (`sync: false`): `DATABASE_URL`, `FRONTEND_URL`. `JWT_SECRET` is generated. `AI_SERVICE_URL` is the AI service `hostport` (backend adds `http://` if the scheme is missing). Optional hardening: set matching `AI_INTERNAL_TOKEN` (AI) and `AI_SERVICE_TOKEN` (API) if you enable service auth.
+Blueprint prompts (`sync: false`): `DATABASE_URL`, `FRONTEND_URL`, and AI `HF_API_TOKEN`. `JWT_SECRET` is generated. `AI_SERVICE_URL` is the AI service `hostport` (backend adds `http://` if the scheme is missing). Optional hardening: set matching `AI_INTERNAL_TOKEN` (AI) and `AI_SERVICE_TOKEN` (API) if you enable service auth.
 
 You can still create the two Web Services by hand using the tables below.
 
@@ -144,7 +144,13 @@ Second Render Web Service for the FastAPI microservice.
 | Dockerfile | `Dockerfile` (repo default in that directory) |
 | Health check path | `/health` |
 
-Render builds from [`RescueLink AI/Dockerfile`](../../RescueLink%20AI/Dockerfile) and routes HTTPS to the container. Uvicorn listens on `0.0.0.0` and Render’s `PORT` (default `7860` locally) via [`docker-entrypoint.sh`](../../RescueLink%20AI/docker-entrypoint.sh).
+Render builds from [`RescueLink AI/Dockerfile`](../../RescueLink%20AI/Dockerfile) (`requirements-prod.txt`, CPU `torch` only) and routes HTTPS to the container. Uvicorn listens on `0.0.0.0` and Render’s `PORT` (default `7860` locally) via [`docker-entrypoint.sh`](../../RescueLink%20AI/docker-entrypoint.sh).
+
+**Local AI (unchanged):** `cd "RescueLink AI" && pip install -r requirements.txt` then `python -m uvicorn api.main:app --reload --host 0.0.0.0 --port 8000`. Keep `STT_PROVIDER=local` from [`.env.example`](../../RescueLink%20AI/.env.example). Do not use `requirements-prod.txt` on your laptop unless you are testing the Docker image.
+
+**Production STT:** HF Inference API (`STT_PROVIDER=api`). Set `HF_API_TOKEN` on the AI service (Blueprint `sync: false`). `/health` reports `stt_ready` after the first audio request (Whisper client is lazy-loaded).
+
+Free-tier RAM is 512Mi. Classifier + PyTorch may still OOM; upgrade `resquelink-ai` to Starter in the dashboard if the deploy is killed.
 
 ### Environment variables (Render AI service)
 
@@ -155,9 +161,10 @@ Set these on the **AI** Render service (not the API service). See [`RescueLink A
 | `AI_INTERNAL_TOKEN` | Optional; if set, API must send the same value as `AI_SERVICE_TOKEN` |
 | `ENVIRONMENT` | `production` |
 | `MODEL_WEIGHTS_URL` | Optional. Default: `https://huggingface.co/goSTYLO/resquelink-weights/resolve/main/emergency_model.pt` (public HF repo; no token required) |
-| `STT_LOCAL_MODEL_SIZE` | Use `tiny` or `base` on small instances; `medium` plus the classifier needs more RAM |
-| `HF_API_TOKEN` | Only if `STT_ENABLE_API_FALLBACK` / HF Inference API STT is used |
-| `STT_ENABLE_API_FALLBACK` | Consider `false` in production to avoid API cost |
+| `STT_PROVIDER` | `api` on Render (Blueprint). Local `.env.example` stays `local` |
+| `STT_ENABLE_API_FALLBACK` | `false` on Render (API is the only STT path) |
+| `HF_API_TOKEN` | **Required** for audio on Render |
+| `AI_STARTUP_WARMUP` / `AI_STARTUP_WARMUP_WHISPER` | `false` on Render |
 | `AI_CORS_ORIGINS` | Optional; leave empty so only the API calls this service server-to-server |
 
 Classifier weights are gitignored in git; [`docker-entrypoint.sh`](../../RescueLink%20AI/docker-entrypoint.sh) downloads them on startup if `models/emergency_model.pt` is missing (default URL above).
@@ -229,6 +236,7 @@ Set production values in the **Vercel** project settings, not in committed `.env
 Operator steps after accounts exist:
 
 - Confirm the Render AI service can reach Hugging Face on first deploy (weights download). Override `MODEL_WEIGHTS_URL` only if you move the file off the default repo.
+- Set `HF_API_TOKEN` on `resquelink-ai` (required for audio transcription). If the container is OOM-killed on free 512Mi, upgrade that service to Starter.
 - Apply Supabase schema + migrations from a machine with `DATABASE_URL` (or `npm run setup-db` on a fresh DB).
 - Set Render (API + AI), Vercel env vars from the tables above; redeploy Vercel after any `VITE_API_URL` change.
 

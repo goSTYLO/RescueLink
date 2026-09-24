@@ -29,7 +29,7 @@ from transformers import AutoTokenizer
 from dotenv import load_dotenv
 
 from models.emergency_classifier import EmergencyClassifier
-from audio.whisper_handler import get_whisper_handler
+from audio.whisper_handler import get_whisper_handler, is_whisper_handler_ready
 from utils.fallback_rules import (
     apply_keyword_fallback,
     decide_fallback_reason,
@@ -125,8 +125,7 @@ def load_model_and_tokenizer():
             print(f"PyTorch Version: {torch.__version__}")
             print(f"{'='*60}\n")
         
-        # Initialize model
-        model = EmergencyClassifier(
+        model = EmergencyClassifier.from_backbone_config(
             num_incident_types=len(meta["incident_type_labels"]),
             num_severity_classes=len(meta["severity_labels"]),
             backbone=meta.get("backbone", "xlm-roberta-base"),
@@ -172,6 +171,7 @@ class HealthResponse(BaseModel):
     status: str
     model_loaded: bool
     device: str
+    stt_ready: bool = False
 
 class TranscriptionResponse(BaseModel):
     transcription: Optional[str]
@@ -314,7 +314,8 @@ def health_check():
     return {
         "status": "healthy",
         "model_loaded": model is not None,
-        "device": str(device)
+        "device": str(device),
+        "stt_ready": is_whisper_handler_ready(),
     }
 
 @app.post("/classify", response_model=EmergencyResponse)
@@ -866,24 +867,7 @@ async def startup_event():
     if not AI_INTERNAL_TOKEN and ENVIRONMENT != "development":
         logger.warning("⚠️ AI_INTERNAL_TOKEN is not set outside development environment")
     
-    # Initialize Whisper handler
-    whisper = None
-    try:
-        whisper = get_whisper_handler()
-        print(f"✓ Whisper Handler initialized ({whisper.provider_mode} mode)")
-        print(f"  - Max duration: {whisper.max_duration}s")
-        print(f"  - Min duration: {whisper.min_duration}s")
-        print(f"  - Max file size: {whisper.max_file_size_mb}MB")
-        print(f"  - Confidence threshold: {whisper.confidence_threshold}")
-        whisper_stats = whisper.get_usage_stats()
-        local_runtime = whisper_stats.get("local_runtime")
-        if local_runtime:
-            print(f"  - STT runtime device: {local_runtime.get('device')}")
-            print(f"  - STT compute type: {local_runtime.get('compute_type')}")
-            print(f"  - STT model: {local_runtime.get('model_size_or_path')}")
-    except Exception as e:
-        print(f"⚠ Whisper Handler NOT available: {e}")
-        print("  - Audio endpoints will return errors until configured")
+    print("• Whisper STT lazy-loads on first audio request (/health stt_ready=false until then)")
 
     # Startup warmup (Session 2): pre-load common inference path to reduce first-request latency
     warmup_enabled = os.getenv("AI_STARTUP_WARMUP", "true").strip().lower() in {"1", "true", "yes", "on"}
@@ -895,39 +879,45 @@ async def startup_event():
         except Exception as e:
             logger.warning(f"Classifier warmup skipped: {e}")
 
-        if whisper and whisper_warmup_enabled:
-            import tempfile
-            import wave
-
-            temp_warmup_wav = None
+        if whisper_warmup_enabled:
             try:
-                sample_rate = 16000
-                duration_seconds = max(float(whisper.min_duration), 1.0)
-                frame_count = int(sample_rate * duration_seconds)
-                silence_bytes = (b"\x00\x00" * frame_count)
-
-                with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as warmup_file:
-                    temp_warmup_wav = warmup_file.name
-
-                with wave.open(temp_warmup_wav, "wb") as wav_file:
-                    wav_file.setnchannels(1)
-                    wav_file.setsampwidth(2)
-                    wav_file.setframerate(sample_rate)
-                    wav_file.writeframes(silence_bytes)
-
-                warmup_result = whisper.transcribe_audio(temp_warmup_wav)
-                if warmup_result.get("success"):
-                    print("✓ Whisper warmup completed")
-                else:
-                    logger.warning(f"Whisper warmup returned non-success: {warmup_result.get('error')}")
+                whisper = get_whisper_handler()
             except Exception as e:
-                logger.warning(f"Whisper warmup skipped: {e}")
-            finally:
-                if temp_warmup_wav and os.path.exists(temp_warmup_wav):
-                    try:
-                        os.remove(temp_warmup_wav)
-                    except Exception:
-                        pass
+                logger.warning(f"Whisper warmup skipped (handler init): {e}")
+                whisper = None
+            if whisper:
+                import tempfile
+                import wave
+
+                temp_warmup_wav = None
+                try:
+                    sample_rate = 16000
+                    duration_seconds = max(float(whisper.min_duration), 1.0)
+                    frame_count = int(sample_rate * duration_seconds)
+                    silence_bytes = (b"\x00\x00" * frame_count)
+
+                    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as warmup_file:
+                        temp_warmup_wav = warmup_file.name
+
+                    with wave.open(temp_warmup_wav, "wb") as wav_file:
+                        wav_file.setnchannels(1)
+                        wav_file.setsampwidth(2)
+                        wav_file.setframerate(sample_rate)
+                        wav_file.writeframes(silence_bytes)
+
+                    warmup_result = whisper.transcribe_audio(temp_warmup_wav)
+                    if warmup_result.get("success"):
+                        print("✓ Whisper warmup completed")
+                    else:
+                        logger.warning(f"Whisper warmup returned non-success: {warmup_result.get('error')}")
+                except Exception as e:
+                    logger.warning(f"Whisper warmup skipped: {e}")
+                finally:
+                    if temp_warmup_wav and os.path.exists(temp_warmup_wav):
+                        try:
+                            os.remove(temp_warmup_wav)
+                        except Exception:
+                            pass
     else:
         print("• Startup warmup disabled (AI_STARTUP_WARMUP=false)")
     

@@ -283,6 +283,12 @@ The API automatically logs warnings at 80% quota (800 calls/day) and errors at 1
 
 ### Step 1: Install Dependencies
 
+Three requirement files:
+
+- `requirements.txt` — local / training (faster-whisper + librosa)
+- `requirements-space.txt` — full CPU / Hugging Face Space image
+- `requirements-prod.txt` — Render Docker only (classifier + HF Whisper API; used by `Dockerfile`)
+
 ```bash
 cd "RescueLink AI"
 pip install -r requirements.txt
@@ -1473,7 +1479,9 @@ RescueLink AI/
 │   └── __init__.py
 ├── RescueLinkAi.ipynb             # Training notebook
 ├── AudioPipelineTest.ipynb        # Testing & operations
-├── requirements.txt               # Python dependencies
+├── requirements.txt               # Local / training dependencies
+├── requirements-space.txt         # Full CPU / Space image
+├── requirements-prod.txt          # Render Docker (no local Whisper)
 ├── .env.example                   # Config template
 ├── README.md                       # This file
 └── [other files]

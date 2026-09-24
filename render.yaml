@@ -1,5 +1,6 @@
 # Render Blueprint — Vercel hosts the dashboard; this file deploys the two API services.
 # Dashboard: New → Blueprint → this repo. Free-tier web services (one instance each).
+# resquelink-ai: classifier + HF Whisper API. Free (512Mi) may still OOM; upgrade Starter if it does.
 # https://render.com/docs/blueprint-spec
 
 services:
@@ -13,8 +14,16 @@ services:
     envVars:
       - key: ENVIRONMENT
         value: production
-      - key: STT_LOCAL_MODEL_SIZE
-        value: base
+      - key: STT_PROVIDER
+        value: api
+      - key: STT_ENABLE_API_FALLBACK
+        value: "false"
+      - key: AI_STARTUP_WARMUP
+        value: "false"
+      - key: AI_STARTUP_WARMUP_WHISPER
+        value: "false"
+      - key: HF_API_TOKEN
+        sync: false
       - key: MODEL_WEIGHTS_URL
         value: https://huggingface.co/goSTYLO/resquelink-weights/resolve/main/emergency_model.pt
 
