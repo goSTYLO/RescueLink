@@ -1,0 +1,50 @@
+# Render Blueprint — Vercel hosts the dashboard; this file deploys the two API services.
+# Dashboard: New → Blueprint → this repo. Free-tier web services (one instance each).
+# https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: resquelink-ai
+    runtime: docker
+    plan: free
+    rootDir: RescueLink AI
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: STT_LOCAL_MODEL_SIZE
+        value: base
+      - key: MODEL_WEIGHTS_URL
+        value: https://huggingface.co/goSTYLO/resquelink-weights/resolve/main/emergency_model.pt
+      - key: AI_INTERNAL_TOKEN
+        sync: false
+
+  - type: web
+    name: resquelink-backend
+    runtime: node
+    plan: free
+    rootDir: Backend
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: FRONTEND_URL
+        sync: false
+      - key: AI_INTERNAL_TOKEN
+        fromService:
+          name: resquelink-ai
+          type: web
+          envVarKey: AI_INTERNAL_TOKEN
+      # Private-network host:port (no scheme). Backend prefixes http:// if missing.
+      - key: AI_SERVICE_URL
+        fromService:
+          name: resquelink-ai
+          type: web
+          property: hostport

@@ -2,6 +2,7 @@
 
 require('dotenv').config();
 const { Pool } = require('pg');
+const { getPgPoolConfig, formatDatabaseTarget } = require('../src/config/pgPool');
 const bcryptjs = require('bcryptjs');
 const { ROLES } = require('../src/config/roles');
 const { encrypt } = require('../src/utils/encryption');
@@ -29,11 +30,9 @@ if (!DATABASE_URL) {
 }
 
 console.log('🌱 Seeding database...');
-console.log(`📍 Database URL: ${DATABASE_URL}`);
+console.log(`📍 Database: ${formatDatabaseTarget(DATABASE_URL)}`);
 
-const pool = new Pool({
-  connectionString: DATABASE_URL,
-});
+const pool = new Pool(getPgPoolConfig());
 
 async function hashPassword(password) {
   const salt = await bcryptjs.genSalt(10);

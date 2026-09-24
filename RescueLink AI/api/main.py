@@ -77,11 +77,18 @@ async def add_request_id_middleware(request: Request, call_next):
     response.headers["x-request-id"] = request_id
     return response
 
-# Add CORS middleware for frontend integration
+def _parse_cors_origins():
+    raw = os.getenv("AI_CORS_ORIGINS", "").strip()
+    if not raw:
+        return []
+    return [origin.strip() for origin in raw.split(",") if origin.strip()]
+
+
+_cors_origins = _parse_cors_origins()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Adjust in production
-    allow_credentials=True,
+    allow_origins=_cors_origins,
+    allow_credentials=bool(_cors_origins),
     allow_methods=["*"],
     allow_headers=["*"],
 )

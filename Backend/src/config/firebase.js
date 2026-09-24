@@ -4,7 +4,7 @@ require('dotenv').config();
 
 // Initialization options:
 // 1) If FIREBASE_SERVICE_ACCOUNT_PATH is set, load the JSON file from that path.
-// 2) Else if FIREBASE_SERVICE_ACCOUNT_KEY is set, parse the JSON string.
+// 2) Else if FIREBASE_SERVICE_ACCOUNT_JSON or FIREBASE_SERVICE_ACCOUNT_KEY is set, parse the JSON string (Render).
 // 3) Else if GOOGLE_APPLICATION_CREDENTIALS is set, firebase-admin will use it automatically.
 
 let initialized = false;
@@ -13,7 +13,8 @@ function init() {
   if (initialized) return admin;
 
   const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH;
-  const key = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+  const key =
+    process.env.FIREBASE_SERVICE_ACCOUNT_JSON || process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
 
   try {
     if (serviceAccountPath) {

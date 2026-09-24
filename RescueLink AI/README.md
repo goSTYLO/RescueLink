@@ -1,3 +1,9 @@
+---
+title: RescueLink AI
+sdk: docker
+app_port: 7860
+---
+
 # RescueLink AI - Audio Pipeline & Emergency Classification Microservice
 
 **Version**: 2.1.3  

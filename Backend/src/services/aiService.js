@@ -9,8 +9,11 @@ const FormData = require('form-data');
 const { normalizeAiIncidentTypes } = require('../utils/incidentTypeNormalize');
 require('dotenv').config();
 
-// Configuration
-const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://localhost:8000';
+// Configuration. Render fromService injects hostport (no scheme); local uses a full URL.
+const rawAiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:8000';
+const AI_SERVICE_URL = /^https?:\/\//i.test(rawAiServiceUrl)
+  ? rawAiServiceUrl.replace(/\/+$/, '')
+  : `http://${String(rawAiServiceUrl).replace(/\/+$/, '')}`;
 const AI_SERVICE_TOKEN = process.env.AI_SERVICE_TOKEN || null;
 const AI_CONFIDENCE_THRESHOLD = parseFloat(process.env.AI_CONFIDENCE_THRESHOLD) || 0.3;
 const AI_LOW_CONFIDENCE_THRESHOLD = parseFloat(process.env.AI_LOW_CONFIDENCE_THRESHOLD) || 0.7;
