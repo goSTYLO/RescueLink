@@ -29,6 +29,66 @@ Render free tier: keep `STT_ENABLE_LOCAL_FALLBACK=false` and warmup **false** (s
 gcloud services enable run.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com secretmanager.googleapis.com
 ```
 
+## Cloud Shell cheat sheet (every new session)
+
+Cloud Shell **does not** define `deploy_cloud_run` for you. That name is only a **Bash function in this doc** unless you paste it or use the repo script below.
+
+**Recommended — one script (build + deploy + health curl):**
+
+```bash
+cd ~/RescueLink/"RescueLink AI"
+chmod +x scripts/cloud-run-build-deploy.sh   # once per clone
+./scripts/cloud-run-build-deploy.sh
+```
+
+Optional flags: `--build-only` (after a successful build, deploy only with `--deploy-only`).
+
+**Manual — set variables, then build and deploy:**
+
+```bash
+export PROJECT_ID=rescuelink-ai-509607
+export REGION=asia-southeast1
+export IMAGE="gcr.io/${PROJECT_ID}/rescuelink-ai:latest"
+gcloud config set project "$PROJECT_ID"
+echo "IMAGE=$IMAGE"   # MUST show gcr.io/rescuelink-ai-509607/resquelink-ai:latest (not gcr.io/-ai-509607/...)
+
+cd ~/RescueLink/"RescueLink AI"
+gcloud builds submit --tag "$IMAGE" .
+
+# Paste the deploy_cloud_run function from [Shared deploy flags](#shared-deploy-flags) below, then:
+deploy_cloud_run
+```
+
+If you see **`deploy_cloud_run: command not found`**, you skipped defining the function — run `./scripts/cloud-run-build-deploy.sh --deploy-only` or paste the `gcloud run deploy ...` block from [Shared deploy flags](#shared-deploy-flags).
+
+Persist helpers in Cloud Shell (optional, once):
+
+```bash
+grep -q 'deploy_cloud_run' ~/.bashrc 2>/dev/null || cat >> ~/.bashrc <<'EOF'
+
+# RescueLink Cloud Run (edit PROJECT_ID if needed)
+export PROJECT_ID=rescuelink-ai-509607
+export REGION=asia-southeast1
+export IMAGE="gcr.io/${PROJECT_ID}/rescuelink-ai:latest"
+deploy_cloud_run() {
+  gcloud run deploy resquelink-ai \
+    --image "$IMAGE" \
+    --region "$REGION" \
+    --platform managed \
+    --allow-unauthenticated \
+    --memory 4Gi \
+    --cpu 1 \
+    --timeout 300 \
+    --concurrency 1 \
+    --port 8080 \
+    --set-env-vars "ENVIRONMENT=production,STT_PROVIDER=api,STT_ENABLE_LOCAL_FALLBACK=true,STT_ENABLE_API_FALLBACK=false,STT_LOCAL_MODEL_SIZE=tiny,STT_DEVICE=cpu,STT_COMPUTE_TYPE=int8,AI_STARTUP_WARMUP=true,AI_STARTUP_WARMUP_WHISPER=true,MODEL_WEIGHTS_URL=https://huggingface.co/goSTYLO/resquelink-weights/resolve/main/emergency_model.pt" \
+    --set-secrets "HF_API_TOKEN=hf-api-token:latest"
+}
+EOF
+```
+
+Open a **new** Cloud Shell tab (or `source ~/.bashrc`) before calling `deploy_cloud_run`.
+
 ## Shell variables (reuse every deploy)
 
 `gcloud builds submit --tag` requires a full registry path: **`gcr.io/...`** or **`REGION-docker.pkg.dev/...`**. A bare name like `rescuelink-ai` or an empty `$IMAGE` causes:
@@ -76,10 +136,12 @@ $env:IMAGE = "$env:REGION-docker.pkg.dev/$env:PROJECT_ID/rescuelink/resquelink-a
 gcloud config set project $env:PROJECT_ID
 ```
 
-Shared deploy flags (first deploy and after pull):
+### Shared deploy flags
+
+Not a system command — define this function in your shell, add it to `~/.bashrc` (see [cheat sheet](#cloud-shell-cheat-sheet-every-new-session)), or use [`scripts/cloud-run-build-deploy.sh`](../../RescueLink%20AI/scripts/cloud-run-build-deploy.sh).
 
 ```bash
-# Bash — save as a function or paste before each `gcloud run deploy`
+# Bash — paste and run once per session, or use the repo script
 deploy_cloud_run() {
   gcloud run deploy resquelink-ai \
     --image "$IMAGE" \
@@ -168,6 +230,8 @@ Pass: `"model_loaded":true`, `"status":"healthy"`. If stuck: check `"load_error"
 
 | Symptom | Fix |
 |---------|-----|
+| `deploy_cloud_run: command not found` | The function is not installed by default. Run [`RescueLink AI/scripts/cloud-run-build-deploy.sh`](../../RescueLink%20AI/scripts/cloud-run-build-deploy.sh) or paste `deploy_cloud_run() { ... }` from [Shared deploy flags](#shared-deploy-flags), then call it again. |
+| `invalid reference format` / `gcr.io/-ai-509607/...` | `PROJECT_ID` was empty when you set `IMAGE`. Run `export PROJECT_ID=rescuelink-ai-509607` and `export IMAGE="gcr.io/${PROJECT_ID}/rescuelink-ai:latest"`, then `echo "$IMAGE"` before build. |
 | `Tag value must be in the gcr.io or pkg.dev namespace` | Run `echo "$IMAGE"`. Set `IMAGE` to a full `gcr.io/PROJECT/NAME:tag` or `REGION-docker.pkg.dev/...` path (see above). Do not run `gcloud builds submit --tag "$IMAGE"` until `echo` looks correct. |
 | `PROJECT_ID` still `your-gcp-project` | Export real id: `rescuelink-ai-509607`. |
 | Build OK, deploy uses wrong image | `gcloud run deploy` `--image` must match the same string you passed to `--tag`. |
@@ -201,11 +265,11 @@ From repo root, after shell variables are set:
 ```bash
 git pull
 cd "RescueLink AI"    # directory name has a space — quote it
-echo "$IMAGE"         # sanity check before build
-gcloud builds submit --tag "$IMAGE" .
-deploy_cloud_run   # or paste the full gcloud run deploy block from above
+./scripts/cloud-run-build-deploy.sh
 cd ..
 ```
+
+Or manual build + deploy: see [Cloud Shell cheat sheet](#cloud-shell-cheat-sheet-every-new-session).
 
 Note the service URL from the deploy output. Set Render **`AI_SERVICE_URL`** to that HTTPS URL (no trailing slash).
 
@@ -220,10 +284,11 @@ Use this whenever `main` (or your branch) has new AI code — Dockerfile, `api/`
 git pull
 
 cd "RescueLink AI"
-gcloud builds submit --tag "$IMAGE" .
-deploy_cloud_run
+./scripts/cloud-run-build-deploy.sh
 cd ..
 ```
+
+Or: `gcloud builds submit --tag "$IMAGE" .` then `./scripts/cloud-run-build-deploy.sh --deploy-only` (after exporting `IMAGE`).
 
 Optional: tag the image with the git commit for rollback:
 

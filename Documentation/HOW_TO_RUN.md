@@ -764,6 +764,8 @@ Direct Cloud Run AI endpoint checks (no backend):
 python "RescueLink AI/test/test_ai_endpoints.py" --base-url "https://YOUR_CLOUD_RUN_URL"
 ```
 
+Cloud Run **build + deploy** (Google Cloud Shell): see [`Documentation/backend/GCP_AI.md`](backend/GCP_AI.md) — run `RescueLink AI/scripts/cloud-run-build-deploy.sh`.
+
 Local integration layer (loads `Backend/.env` `AI_SERVICE_URL` / token):
 
 ```powershell
