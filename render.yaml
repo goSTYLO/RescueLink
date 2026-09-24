@@ -18,6 +18,8 @@ services:
         value: api
       - key: STT_ENABLE_API_FALLBACK
         value: "false"
+      - key: STT_ENABLE_LOCAL_FALLBACK
+        value: "false"
       - key: AI_STARTUP_WARMUP
         value: "false"
       - key: AI_STARTUP_WARMUP_WHISPER

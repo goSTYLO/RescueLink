@@ -7,13 +7,13 @@ Production target stack:
 | Dispatcher dashboard (Vite SPA) | Vercel | `Frontend/Web/dispatcher_dashboard` |
 | API + WebSocket | Render Web Service (Node) | `Backend` |
 | PostgreSQL | Supabase | — |
-| AI (FastAPI) | Render Web Service (Docker) | `RescueLink AI` |
+| AI (FastAPI) | Render Docker **or** [Google Cloud Run](GCP_AI.md) | `RescueLink AI` |
 
 ```mermaid
 flowchart LR
   vercel["Vercel Vite SPA"] -->|"VITE_API_URL"| renderApi["Render Express API"]
   renderApi -->|"DATABASE_URL SSL"| supabase["Supabase Postgres"]
-  renderApi -->|"AI_SERVICE_URL"| renderAi["Render AI Docker"]
+  renderApi -->|"AI_SERVICE_URL"| aiHost["AI Docker Render or Cloud Run"]
 ```
 
 Mobile (Flutter) and blockchain are **not** part of this four-platform map. Keep `VITE_USE_BLOCKCHAIN=false` until a blockchain host exists.
@@ -195,8 +195,9 @@ Set these on the **AI** Render service (not the API service). See [`RescueLink A
 | `ENVIRONMENT` | `production` |
 | `MODEL_WEIGHTS_URL` | Optional. Default: `https://huggingface.co/goSTYLO/resquelink-weights/resolve/main/emergency_model.pt` (public HF repo; no token required) |
 | `STT_PROVIDER` | `api` on Render (Blueprint). Local `.env.example` stays `local` |
-| `STT_ENABLE_API_FALLBACK` | `false` on Render (API is the only STT path) |
-| `HF_API_TOKEN` | **Required** for audio on Render |
+| `STT_ENABLE_API_FALLBACK` | `false` on Render (local-first → API is dev-only here) |
+| `STT_ENABLE_LOCAL_FALLBACK` | `false` on Render free tier; `true` on [Cloud Run](GCP_AI.md) |
+| `HF_API_TOKEN` | **Required** for primary API STT on Render / Cloud Run |
 | `AI_STARTUP_WARMUP` / `AI_STARTUP_WARMUP_WHISPER` | `false` on Render |
 | `AI_CORS_ORIGINS` | Optional; leave empty so only the API calls this service server-to-server |
 
