@@ -144,8 +144,17 @@ app.use('/api/analytics', analyticsRoutes);
 // Phase 2 placeholder — Responder Applications (returns 501 until implemented)
 app.use('/api/responder-applications', responderApplicationRoutes);
 
-// Basic health route
-app.get('/health', (req, res) => res.json({ status: 'ok' }));
+// Basic health route (includes read-only Storage probe when configured)
+app.get('/health', async (req, res) => {
+  const { probeBucketConnection } = require('./services/storageService');
+  let storage;
+  try {
+    storage = await probeBucketConnection();
+  } catch (err) {
+    storage = { configured: true, ok: false, error: err.message };
+  }
+  res.json({ status: 'ok', storage });
+});
 
 // Error handler
 app.use((err, req, res, next) => {

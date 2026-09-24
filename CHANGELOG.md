@@ -9,6 +9,7 @@
 - Render `FRONTEND_URL` set to production dashboard [`https://rescue-link-front.vercel.app`](https://rescue-link-front.vercel.app) for CORS.
 - Production uploads: private Supabase bucket `rescuelink-media` (Singapore) with local `uploads/` fallback; incident photos and avatars convert to WebP. Application IDs stay original files.
 - Backend uses **pnpm** (`Backend/pnpm-lock.yaml`); Render build runs `corepack enable && pnpm install --frozen-lockfile`.
+- `/health` reports Supabase Storage reachability; `pnpm check:storage` / `tests/storageIntegration.test.js` for local round-trip checks.
 
 ## 2026-09-24
 

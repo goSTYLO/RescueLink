@@ -160,6 +160,39 @@ function sendObject(res, buffer, storedPath, disposition = 'inline') {
   res.send(buffer);
 }
 
+/** Read-only check: service role can reach the bucket (no upload). */
+async function probeBucketConnection() {
+  if (!isConfigured()) {
+    return { configured: false, mode: 'disk' };
+  }
+  const bucket = bucketName();
+  const client = getClient();
+  const { error } = await client.storage.from(bucket).list('_healthcheck', { limit: 1 });
+  if (error) {
+    return { configured: true, ok: false, bucket, error: error.message };
+  }
+  return { configured: true, ok: true, bucket };
+}
+
+/** Upload → download → delete; for scripts and integration tests. */
+async function probeStorageRoundTrip() {
+  if (!isConfigured()) {
+    throw new Error('Storage env not configured');
+  }
+  const key = `_healthcheck/connectivity-${Date.now()}.txt`;
+  const payload = Buffer.from(`rescuelink-storage-ok-${Date.now()}`);
+  await writeObject(key, payload, 'text/plain');
+  const got = await readObject(key);
+  if (!got || !got.equals(payload)) {
+    throw new Error('Downloaded bytes do not match upload');
+  }
+  await removeObject(key);
+  if (await readObject(key)) {
+    throw new Error('Object still readable after delete');
+  }
+  return { ok: true, bucket: bucketName(), key };
+}
+
 module.exports = {
   isConfigured,
   bucketName,
@@ -172,4 +205,6 @@ module.exports = {
   moveObject,
   materializeToTemp,
   sendObject,
+  probeBucketConnection,
+  probeStorageRoundTrip,
 };

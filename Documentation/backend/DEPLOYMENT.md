@@ -164,6 +164,17 @@ Set on Render:
 - `STORAGE_BUCKET=rescuelink-media`
 - `SUPABASE_SERVICE_ROLE_KEY` — Dashboard → API → **service_role** (`sync: false` in Blueprint)
 
+**Verify Storage (local):** copy the same three vars into `Backend/.env`, then:
+
+```bash
+cd Backend
+pnpm check:storage              # list bucket (read-only)
+pnpm check:storage:roundtrip    # upload → download → delete
+pnpm test:storage               # Jest integration (round-trip: STORAGE_INTEGRATION_ROUNDTRIP=1)
+```
+
+**Verify Storage (Render):** after deploy, `GET /health` includes `storage: { configured: true, ok: true, bucket: "rescuelink-media" }`.
+
 **Blockchain:** Optional `BLOCKCHAIN_SERVICE_URL`; leave unset unless you host that service.
 
 ### Local parity
