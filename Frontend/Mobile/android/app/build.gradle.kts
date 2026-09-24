@@ -1,3 +1,6 @@
+import com.android.build.api.artifact.SingleArtifact
+import java.io.File
+
 plugins {
     id("com.android.application")
     // START: FlutterFire Configuration
@@ -34,6 +37,54 @@ android {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
+        }
+    }
+}
+
+// AGP 9+: rename release APK after packaging (Flutter reads from Gradle output).
+androidComponents {
+    onVariants { variant ->
+        if (variant.buildType != "release") return@onVariants
+
+        val apkFolder = variant.artifacts.get(SingleArtifact.APK)
+        val loader = variant.artifacts.getBuiltArtifactsLoader()
+        val variantName = variant.name
+        val capitalizedVariant =
+            variantName.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+
+        val flutterApkDir = layout.buildDirectory.dir("outputs/flutter-apk")
+
+        val renameTask = tasks.register("rename${capitalizedVariant}Apk") {
+            inputs.files(apkFolder)
+            outputs.upToDateWhen { false }
+
+            doLast {
+                val builtArtifacts = loader.load(apkFolder.get()) ?: return@doLast
+                builtArtifacts.elements.forEach { element ->
+                    val apkFile = File(element.outputFile)
+                    val safeName = (element.versionName ?: "0").replace(Regex("[\\\\/:*?\"<>|]"), "_")
+                    val versionCode = element.versionCode ?: 1
+                    val outputFileName = "RescueLink_App_${safeName}_$versionCode.apk"
+                    val namedApk = if (apkFile.exists() && apkFile.name != outputFileName) {
+                        val target = File(apkFile.parentFile, outputFileName)
+                        apkFile.renameTo(target)
+                        target
+                    } else {
+                        apkFile
+                    }
+                    if (!namedApk.exists()) return@forEach
+
+                    val flutterOut = flutterApkDir.get().asFile
+                    flutterOut.mkdirs()
+                    // Branded artifact for distribution; keep app-release.apk for Flutter CLI discovery.
+                    namedApk.copyTo(File(flutterOut, outputFileName), overwrite = true)
+                    namedApk.copyTo(File(flutterOut, "app-release.apk"), overwrite = true)
+                }
+            }
+        }
+
+        tasks.matching { it.name == "assemble$capitalizedVariant" }.configureEach {
+            finalizedBy(renameTask)
         }
     }
 }
