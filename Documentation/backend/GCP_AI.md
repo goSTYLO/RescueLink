@@ -33,6 +33,8 @@ gcloud services enable run.googleapis.com artifactregistry.googleapis.com cloudb
 
 Cloud Shell **does not** define `deploy_cloud_run` for you. That name is only a **Bash function in this doc** unless you paste it or use the repo script below.
 
+**One-time per GCP project** (before first deploy): enable Secret Manager, create HF secret, grant Cloud Run access — [One-time setup](#one-time-setup).
+
 **Recommended — one script (build + deploy + health curl):**
 
 ```bash
@@ -237,24 +239,42 @@ Pass: `"model_loaded":true`, `"status":"healthy"`. If stuck: check `"load_error"
 | Build OK, deploy uses wrong image | `gcloud run deploy` `--image` must match the same string you passed to `--tag`. |
 | Container failed to start / listen on `PORT=8080` | Usually the old image blocked on **weight download** + **import-time model load** before uvicorn bound. **Rebuild** after pulling latest (`lazy classifier` + weights baked in Dockerfile). Use env names from this doc (`STT_LOCAL_MODEL_SIZE`, not `WHISPER_MODEL`). Prefer `deploy_cloud_run` (includes `--timeout 300`). After deploy, `curl …/health` may show `"status":"starting"` until `model_loaded` is true. |
 | `/health` stuck at `model_loaded: false` | Check `load_error` and `weights_bytes` on `/health`. OOM at 2Gi is common — redeploy with **4Gi** + rebuild image. Confirm entrypoint log shows weights size. See [Live verification](#live-verification-cloud-shell). |
+| `Secret Manager API has not been used... or it is disabled` | Run `gcloud services enable secretmanager.googleapis.com` on the project, wait ~2 minutes, complete [One-time setup](#one-time-setup) (`hf-api-token` secret + IAM), retry `./scripts/cloud-run-build-deploy.sh --deploy-only`. |
+| `Secret ... hf-api-token was not found` | Create the secret per [One-time setup](#one-time-setup). Do not paste tokens into git or chat. |
 
 ---
 
 ## One-time setup
 
-Artifact Registry (Option B only) and HF secret (skip if already created):
+Run once per GCP project **`rescuelink-ai-509607`** before `./scripts/cloud-run-build-deploy.sh` (deploy mounts `HF_API_TOKEN` from Secret Manager).
 
 ```bash
+export PROJECT_ID=rescuelink-ai-509607
+export REGION=asia-southeast1
+gcloud config set project "$PROJECT_ID"
+
+# Required for --set-secrets on Cloud Run deploy
+gcloud services enable secretmanager.googleapis.com run.googleapis.com cloudbuild.googleapis.com
+
+# Artifact Registry (Option B only):
 gcloud artifacts repositories create rescuelink \
   --repository-format=docker \
   --location="$REGION" \
   2>/dev/null || true
 
-# Only if secret does not exist yet:
+# Hugging Face token for STT API (replace with your token; never commit it)
 echo -n "YOUR_HF_TOKEN" | gcloud secrets create hf-api-token --data-file=-
-# To rotate token later:
+# If secret already exists, add a new version instead:
 # echo -n "NEW_TOKEN" | gcloud secrets versions add hf-api-token --data-file=-
+
+# Cloud Run default runtime SA must read the secret
+PROJECT_NUMBER="$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')"
+gcloud secrets add-iam-policy-binding hf-api-token \
+  --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
+  --role="roles/secretmanager.secretAccessor"
 ```
+
+Wait **1–2 minutes** after enabling Secret Manager API, then deploy.
 
 ---
 

@@ -257,14 +257,27 @@ flutter test
 
 ### Building for Production
 
-**Android:**
-```bash
-flutter build apk --release
+Version **name** and **build number** come from `pubspec.yaml` (`version: 1.0.0+1` → name `1.0.0`, build `1`). Scripts sync `lib/config/app_version.generated.dart` and pass Flutter `--build-name` / `--build-number`.
+
+**Windows (recommended):**
+```bat
+build_release.bat
+run_release.bat
 ```
+
+Release APK is named `RescueLink_App_<version>_<build>.apk` via `android/app/build.gradle.kts` (Gradle renames after `assembleRelease`). Output: `build/app/outputs/flutter-apk/` (e.g. `RescueLink_App_1.0.0_1.apk`).
+
+**Manual (same flags):**
+```bash
+flutter build apk --release --build-name=1.0.0 --build-number=1
+flutter run --release --build-name=1.0.0 --build-number=1
+```
+
+Optional env overrides before running the script: `FLUTTER_BUILD_NAME`, `FLUTTER_BUILD_NUMBER`.
 
 **iOS:**
 ```bash
-flutter build ios --release
+flutter build ios --release --build-name=1.0.0 --build-number=1
 ```
 
 ## Architecture Guidelines

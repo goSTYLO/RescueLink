@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../config/app_version.generated.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/gradient_header.dart';
 
@@ -17,7 +18,8 @@ class AboutScreen extends StatefulWidget {
 }
 
 class _AboutScreenState extends State<AboutScreen> {
-  static const String _appVersion = '1.0.0';
+  static String get _appVersion =>
+      '$kAppVersionName ($kAppBuildNumber)';
 
   @override
   Widget build(BuildContext context) {

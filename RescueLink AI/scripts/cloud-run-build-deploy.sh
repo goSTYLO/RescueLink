@@ -38,6 +38,17 @@ fi
 gcloud config set project "$PROJECT_ID"
 echo "PROJECT_ID=$PROJECT_ID REGION=$REGION IMAGE=$IMAGE"
 
+if [[ "$DO_DEPLOY" -eq 1 ]]; then
+  echo "==> Enabling APIs (Secret Manager required for HF_API_TOKEN mount)"
+  gcloud services enable secretmanager.googleapis.com run.googleapis.com
+  if ! gcloud secrets describe hf-api-token >/dev/null 2>&1; then
+    echo "ERROR: Secret hf-api-token not found in project $PROJECT_ID."
+    echo "  One-time: echo -n 'YOUR_HF_TOKEN' | gcloud secrets create hf-api-token --data-file=-"
+    echo "  Then grant Cloud Run access — see Documentation/backend/GCP_AI.md § One-time setup"
+    exit 1
+  fi
+fi
+
 if [[ "$DO_BUILD" -eq 1 ]]; then
   echo "==> Cloud Build: $IMAGE"
   gcloud builds submit --tag "$IMAGE" .
