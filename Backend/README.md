@@ -258,14 +258,14 @@ Latest reliability fixes applied:
 | `AI_HEALTH_PRECHECK_ENABLED` | Enables per-request AI `/health` precheck before classification (`default: false`) | No |
 | `AI_CIRCUIT_FAILURE_THRESHOLD` | Consecutive AI request failures before opening circuit (`default: 3`) | No |
 | `AI_CIRCUIT_RESET_MS` | Circuit open duration in milliseconds (`default: 30000`) | No |
-| `FILE_SCAN_FAIL_OPEN` | If `true`, accepts uploads when deep scanner is unavailable and flags them (`default: true`) | No |
-| `FILE_DEEP_SCAN_ENABLED` | Enables async deep scan workflow (`default: true`) | No |
-| `FILE_DEEP_SCAN_ENGINE` | Deep scan engine identifier (`stub`, `clamav`, etc.) | No |
-| `FILE_SCANNER_AVAILABLE` | Marks scanner runtime availability (`default: false`) | No |
+| `FILE_SCAN_FAIL_OPEN` | If `true`, accepts uploads when ClamAV is unavailable and flags them for follow-up (`default: true`). Production should prefer `false`. | No |
+| `FILE_DEEP_SCAN_ENABLED` | Enables deep scan path (`default: true`) | No |
+| `FILE_DEEP_SCAN_ENGINE` | Deep scan engine (`stub` for local/CI, `clamav` for production) | No |
+| `FILE_SCANNER_AVAILABLE` | Marks ClamAV runtime as available (`default: false`). Set `true` in production with a reachable daemon. | No |
 | `CLAMAV_HOST` | ClamAV daemon host (`default: 127.0.0.1`) | No |
 | `CLAMAV_PORT` | ClamAV daemon port (`default: 3310`) | No |
 | `CLAMAV_TIMEOUT_MS` | ClamAV stream scan timeout (`default: 15000`) | No |
-| `FILE_SCAN_RETRY_CRON` | Cron schedule for scan retry worker (`default: */10 * * * *`) | No |
+| `FILE_SCAN_RETRY_CRON` | Cron for retrying legacy `pending`/`unscanned` incident rows (`default: */10 * * * *`) | No |
 | `FILE_SCAN_MAX_BATCH` | Max incidents processed per scan retry run (`default: 30`) | No |
 | `QUARANTINE_DIR` | Directory used for quarantined files (`default: uploads/quarantine`) | No |
 | `IMAGE_COMPRESSION_ENABLED` | Enables image compression before save (`default: true`) | No |
@@ -295,18 +295,20 @@ See [API Documentation](../Documentation/backend/API_DOCUMENTATION.md) for full 
 
 ## File uploads
 
-Incident reports can include audio and media. Use `POST /api/incidents/with-audio` with `multipart/form-data`:
-- `audio` – Single audio file (wav, mp3, m4a, flac), max 25MB
-- `media` – Up to 5 photos/videos (jpg, png, mp4, mov, avi)
+Durable multipart uploads (all share the same pre-store security gate in `runUploadSecurityChecks`):
+- `POST /api/incidents/with-audio` — `audio` + optional `media`
+- `POST /api/auth/me/avatar` — `avatar`
+- `POST /api/responder-applications` — government ID / certificates / proofs
 
 Server-side upload protections and optimizations:
 - **Quick security gate (sync):** signature validation + blocked binary/script signatures + extension mismatch rejection
-- **Deep scan workflow (async):** queued scan status (`pending`, `clean`, `unscanned`, `quarantined`, `error`)
-- **Fail-open mode:** if scanner is unavailable and `FILE_SCAN_FAIL_OPEN=true`, incident is accepted but flagged for follow-up
-- **Quarantine support:** suspicious files are moved to `QUARANTINE_DIR` and blocked from download
+- **ClamAV pre-store gate (sync):** when `FILE_DEEP_SCAN_ENGINE=clamav` and `FILE_SCANNER_AVAILABLE=true`, every file buffer is INSTREAM-scanned **before** `writeObject`; infected uploads return **400** and are never stored
+- **Fail-open mode:** if ClamAV is unavailable and `FILE_SCAN_FAIL_OPEN=true`, upload may be accepted and (for incidents) flagged `unscanned` for the retry worker; production should set `FILE_SCAN_FAIL_OPEN=false`
+- **Retry worker:** cron re-scans legacy incident rows still `pending`/`unscanned`; quarantines threats found after the fact
+- **Quarantine support:** suspicious incident files are moved to `QUARANTINE_DIR` and blocked from download
 - **Compression:** photos are resized/compressed (Sharp), videos are transcoded/compressed (FFmpeg) before storage
 
-`/api/incidents/with-audio` responses now include `security_scan` metadata so clients can display scan status.
+`/api/incidents/with-audio` responses include `security_scan` metadata. When ClamAV already cleaned the upload at middleware time, `scan_status` is `clean` immediately.
 
 ### Incident verify response additions
 

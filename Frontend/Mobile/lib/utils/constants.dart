@@ -16,7 +16,13 @@ class AppConstants {
   static const String endpointLogin = '$apiAuth/login';
   static const String endpointVerifyOtp = '$apiAuth/verify-otp';
   static const String endpointResendOtp = '$apiAuth/resend-otp';
-  /// Legacy Firebase onboard (forgot-password may still use Firebase; signup uses verify-otp).
+  static const String endpointForgotPasswordSms = '$apiAuth/forgot-password/sms';
+  static const String endpointForgotPasswordSmsResend =
+      '$apiAuth/forgot-password/sms/resend';
+  static const String endpointForgotPasswordSmsVerify =
+      '$apiAuth/forgot-password/sms/verify';
+  static const String endpointResetPassword = '$apiAuth/reset-password';
+  /// Legacy Firebase onboard (signup uses verify-otp).
   static const String endpointOnboardPhone = '$apiAuth/onboard-phone';
 
   // Incident Endpoints

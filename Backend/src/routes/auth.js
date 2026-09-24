@@ -15,6 +15,9 @@ router.post('/dispatcher/signup', authController.dispatcherSignup);
 // Onboard via phone: client should obtain a Firebase ID token after phone verification
 // then send it here along with the desired password.
 router.post('/onboard-phone', authController.onboardPhone);
+router.post('/forgot-password/sms', authController.forgotPasswordSms);
+router.post('/forgot-password/sms/resend', authController.resendForgotPasswordSms);
+router.post('/forgot-password/sms/verify', authController.verifyForgotPasswordSms);
 router.post('/reset-password', authController.resetPassword);
 router.post('/forgot-password', authController.forgotPassword);
 router.post('/reset-password-with-token', authController.resetPasswordWithToken);

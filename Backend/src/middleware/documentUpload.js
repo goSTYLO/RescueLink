@@ -55,26 +55,28 @@ const validateDocumentSizes = (req, res, next) => {
 
 const validateDocumentSecurity = (req, res, next) => {
   if (!req.files) return next();
-  const scanResult = runUploadSecurityChecks(req.files);
+  runUploadSecurityChecks(req.files)
+    .then((scanResult) => {
+      if (scanResult.quick.status === 'blocked') {
+        return res.status(400).json({
+          success: false,
+          message: 'File security scan blocked one or more uploads',
+          scan: scanResult,
+        });
+      }
 
-  if (scanResult.quick.status === 'blocked') {
-    return res.status(400).json({
-      success: false,
-      message: 'File security scan blocked one or more uploads',
-      scan: scanResult,
-    });
-  }
+      if (scanResult.deep.status === 'unavailable' && !FILE_SCAN_FAIL_OPEN) {
+        return res.status(503).json({
+          success: false,
+          message: 'Upload security scanner unavailable. Please try again later.',
+          scan: scanResult,
+        });
+      }
 
-  if (scanResult.deep.status === 'unavailable' && !FILE_SCAN_FAIL_OPEN) {
-    return res.status(503).json({
-      success: false,
-      message: 'Upload security scanner unavailable. Please try again later.',
-      scan: scanResult,
-    });
-  }
-
-  req.uploadSecurity = scanResult;
-  next();
+      req.uploadSecurity = scanResult;
+      next();
+    })
+    .catch(next);
 };
 
 const documentMulter = multer({

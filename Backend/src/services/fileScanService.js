@@ -2,12 +2,14 @@
  * File Security Scan Service
  * Hybrid scanning approach:
  * 1) Synchronous quick checks (signature + basic malware indicators)
- * 2) Asynchronous deep scan queue (placeholder for ClamAV/other engines)
+ * 2) Synchronous ClamAV INSTREAM on upload buffers before durable storage
+ * 3) Background retry worker for legacy pending/unscanned incident rows
  */
 
 require('dotenv').config();
 const fs = require('fs').promises;
 const fsSync = require('fs');
+const os = require('os');
 const path = require('path');
 const net = require('net');
 const { materializeToTemp } = require('./storageService');
@@ -263,19 +265,117 @@ const normalizeIncomingFiles = (filesObj = {}) => {
   return allFiles;
 };
 
-const runUploadSecurityChecks = (filesObj = {}) => {
+const scanBufferWithClamAv = async (buffer) => {
+  const tempPath = path.join(
+    os.tmpdir(),
+    `clamav-upload-${Date.now()}-${Math.random().toString(36).slice(2)}.bin`
+  );
+  try {
+    await fs.writeFile(tempPath, buffer || Buffer.alloc(0));
+    return await scanFileWithClamAv(tempPath);
+  } finally {
+    await fs.unlink(tempPath).catch(() => null);
+  }
+};
+
+// ponytail: test seam only — swap ClamAV buffer scanner without mocking TCP; restore via null
+let scanBufferImpl = scanBufferWithClamAv;
+const setScanBufferForTests = (fn) => {
+  scanBufferImpl = typeof fn === 'function' ? fn : scanBufferWithClamAv;
+};
+
+const runUploadSecurityChecks = async (filesObj = {}) => {
   const files = normalizeIncomingFiles(filesObj);
   const quick = runQuickScan(files);
   const deep = getDeepScanStatus();
 
+  if (quick.status === 'blocked') {
+    return {
+      quick,
+      deep,
+      requires_follow_up: false,
+    };
+  }
+
   if (deep.status === 'unavailable') {
     console.warn(`⚠️ Deep scan unavailable (engine=${deep.engine}, fail_open=${deep.fail_open})`);
+    return {
+      quick,
+      deep,
+      requires_follow_up: deep.fail_open,
+    };
+  }
+
+  if (deep.status === 'ready' && FILE_DEEP_SCAN_ENGINE === 'clamav') {
+    for (const file of files) {
+      try {
+        const result = await scanBufferImpl(file.buffer);
+        if (result.status === 'infected') {
+          console.warn(`⛔ Upload blocked by ClamAV: ${file.originalname} (${result.signature || 'unknown'})`);
+          return {
+            quick: {
+              status: 'blocked',
+              findings: [{
+                file: file.originalname,
+                severity: 'high',
+                type: 'clamav_threat',
+                detail: result.signature || result.reason || 'threat_detected',
+              }],
+            },
+            deep: {
+              ...deep,
+              status: 'blocked',
+              scanned: true,
+              signature: result.signature || null,
+            },
+            requires_follow_up: false,
+          };
+        }
+      } catch (error) {
+        console.error(`❌ ClamAV scan failed for ${file.originalname}:`, error.message);
+        if (!FILE_SCAN_FAIL_OPEN) {
+          return {
+            quick,
+            deep: {
+              ...deep,
+              status: 'unavailable',
+              fail_open: false,
+              reason: `scan_failed:${error.message}`,
+              scanned: false,
+            },
+            requires_follow_up: false,
+          };
+        }
+        return {
+          quick,
+          deep: {
+            ...deep,
+            status: 'unavailable',
+            fail_open: true,
+            reason: `scan_failed:${error.message}`,
+            scanned: false,
+          },
+          requires_follow_up: true,
+        };
+      }
+    }
+
+    console.log(`✅ ClamAV pre-store scan clean for ${files.length} file(s)`);
+    return {
+      quick,
+      deep: {
+        ...deep,
+        status: 'clean',
+        scanned: true,
+      },
+      requires_follow_up: false,
+    };
   }
 
   return {
     quick,
     deep,
-    requires_follow_up: deep.status === 'unavailable' && deep.fail_open,
+    requires_follow_up: false,
   };
 };
 
@@ -315,7 +415,16 @@ const computeInitialScanStatus = ({ uploadSecurity, deepScanResult }) => {
     return {
       scan_status: 'unscanned',
       scan_engine: deepScanResult?.engine || FILE_DEEP_SCAN_ENGINE,
-      scan_error: deepScanResult?.reason || 'scanner_unavailable',
+      scan_error: deepScanResult?.reason || uploadSecurity.deep?.reason || 'scanner_unavailable',
+    };
+  }
+
+  // Pre-store ClamAV already cleaned the buffers — do not leave pending for cron
+  if (uploadSecurity.deep?.scanned && uploadSecurity.deep?.status === 'clean') {
+    return {
+      scan_status: 'clean',
+      scan_engine: uploadSecurity.deep.engine || FILE_DEEP_SCAN_ENGINE,
+      scan_error: null,
     };
   }
 
@@ -432,6 +541,8 @@ const performDeepScan = async ({ filePaths = [] }) => {
 
 module.exports = {
   runUploadSecurityChecks,
+  scanBufferWithClamAv,
+  setScanBufferForTests,
   queueDeepScanJob,
   performDeepScan,
   computeInitialScanStatus,

@@ -40,22 +40,25 @@ const avatarUploadMiddleware = (req, res, next) => {
       return res.status(400).json({ message: 'Avatar exceeds maximum allowed size of 1MB' });
     }
 
-    const scanResult = runUploadSecurityChecks({ avatar: [req.file] });
-    if (scanResult.quick.status === 'blocked') {
-      return res.status(400).json({
-        message: 'File security scan blocked the upload',
-        scan: scanResult,
-      });
-    }
-    if (scanResult.deep.status === 'unavailable' && !FILE_SCAN_FAIL_OPEN) {
-      return res.status(503).json({
-        message: 'Upload security scanner unavailable. Please try again later.',
-        scan: scanResult,
-      });
-    }
+    runUploadSecurityChecks({ avatar: [req.file] })
+      .then((scanResult) => {
+        if (scanResult.quick.status === 'blocked') {
+          return res.status(400).json({
+            message: 'File security scan blocked the upload',
+            scan: scanResult,
+          });
+        }
+        if (scanResult.deep.status === 'unavailable' && !FILE_SCAN_FAIL_OPEN) {
+          return res.status(503).json({
+            message: 'Upload security scanner unavailable. Please try again later.',
+            scan: scanResult,
+          });
+        }
 
-    req.uploadSecurity = scanResult;
-    next();
+        req.uploadSecurity = scanResult;
+        next();
+      })
+      .catch(next);
   });
 };
 

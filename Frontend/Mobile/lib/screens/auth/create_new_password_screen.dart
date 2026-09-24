@@ -5,14 +5,14 @@ import '../../widgets/gradient_header.dart';
 
 class CreateNewPasswordScreen extends StatefulWidget {
   final String phoneNumber;
-  final String? idToken;
+  final String? resetToken;
   final VoidCallback? onBack;
   final void Function(String newPassword)? onResetPassword;
 
   const CreateNewPasswordScreen({
     super.key,
     required this.phoneNumber,
-    this.idToken,
+    this.resetToken,
     this.onBack,
     this.onResetPassword,
   });
@@ -98,7 +98,7 @@ class _CreateNewPasswordScreenState extends State<CreateNewPasswordScreen> {
       );
       return;
     }
-    if (widget.idToken == null || widget.idToken!.isEmpty) {
+    if (widget.resetToken == null || widget.resetToken!.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Verification expired. Please start over.'),
@@ -109,7 +109,10 @@ class _CreateNewPasswordScreenState extends State<CreateNewPasswordScreen> {
       return;
     }
     setState(() => _isLoading = true);
-    final result = await AuthService().resetPassword(widget.idToken!, _passwordController.text);
+    final result = await AuthService().resetPassword(
+      widget.resetToken!,
+      _passwordController.text,
+    );
     if (!mounted) return;
     setState(() => _isLoading = false);
     if (result['success'] == true) {

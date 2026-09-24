@@ -1,19 +1,28 @@
 # Security Operations Runbook
 
 ## Scope
-This runbook covers upload scanner outages, fail-open triage, and quarantine workflow for incident multimedia uploads.
+This runbook covers upload scanner outages, fail-open triage, and quarantine workflow for durable multipart uploads (incident media, avatars, responder application documents).
 
-## Scanner Modes
-- `clean`: Deep scan completed and no threat found.
-- `pending`: Uploaded and queued for deep scan.
+## Pre-store ClamAV gate
+When `FILE_DEEP_SCAN_ENGINE=clamav` and `FILE_SCANNER_AVAILABLE=true`, middleware runs ClamAV on in-memory buffers **before** durable storage (`writeObject`). Infected uploads are rejected with **400** and never written. Avatars and application documents use the same gate (they have no separate quarantine worker).
+
+Production should set:
+- `FILE_DEEP_SCAN_ENGINE=clamav`
+- `FILE_SCANNER_AVAILABLE=true`
+- `FILE_SCAN_FAIL_OPEN=false` (reject rather than store when ClamAV is down)
+- Reachable `CLAMAV_HOST` / `CLAMAV_PORT`
+
+## Scanner Modes (incident rows)
+- `clean`: ClamAV already passed at upload time, or retry worker completed with no threat.
+- `pending`: Legacy/backlog row queued for deep scan (should be rare when pre-store ClamAV is enabled).
 - `unscanned`: Scanner unavailable, upload accepted in fail-open mode.
-- `quarantined`: Threat detected; files moved to quarantine.
+- `quarantined`: Threat detected by retry worker; files moved to quarantine.
 - `error`: Scanner/deep-scan processing failed.
 
 ## Outage Handling (Fail-Open)
 When `FILE_SCAN_FAIL_OPEN=true` and scanner is unavailable:
-1. Incident is still created to preserve emergency reporting continuity.
-2. Response includes `security_scan.fail_open_flagged=true`.
+1. Upload may still be accepted (incident created to preserve emergency reporting continuity).
+2. Incident response includes `security_scan.fail_open_flagged=true`.
 3. Incident scan state is set to `unscanned` and picked up by retry worker.
 
 ### Immediate Operator Actions
@@ -22,7 +31,7 @@ When `FILE_SCAN_FAIL_OPEN=true` and scanner is unavailable:
 3. Prioritize high-severity incidents with `scan_status=unscanned`.
 
 ## Quarantine Triage
-When deep scan returns threat:
+When the retry worker deep scan returns a threat (legacy/fail-open rows only):
 1. Files are moved to `QUARANTINE_DIR`.
 2. Incident is marked `quarantined=true`, `scan_status=quarantined`.
 3. Audio/media download endpoints return `403`.
@@ -34,7 +43,7 @@ When deep scan returns threat:
 
 ## Recovery Checklist
 1. Restore scanner availability.
-2. Ensure queue worker catches up pending/unscanned incidents.
+2. Ensure retry worker catches up `pending`/`unscanned` incidents.
 3. Verify scan status transitions from `unscanned`/`pending` to `clean` or `quarantined`.
 4. Export list of affected incidents for audit report.
 
@@ -42,3 +51,4 @@ When deep scan returns threat:
 - Scanner unreachable for > 5 minutes.
 - Count of `unscanned` incidents exceeds threshold.
 - Any `quarantined` incident in last 24 hours.
+- Spike in **400** upload rejections with `clamav_threat` findings.
