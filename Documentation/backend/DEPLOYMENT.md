@@ -57,7 +57,12 @@ cd Backend
 npm run setup-db   # fresh DB: schema + all migrations
 # or, if schema already applied:
 npm run migrate
+npm run seed-db -- --count=10 --days=14   # test users — see ACCOUNTS.md
 ```
+
+**Production seed:** Use the same `DATABASE_URL` as Render and the **same `ENCRYPTION_KEY` as Render** (seed encrypts PII at rest). Credentials: [`ACCOUNTS.md`](ACCOUNTS.md).
+
+**Mobile prod API:** `API_BASE_URL=https://resquelink-backend.onrender.com` (no trailing slash) in `.env` or `--dart-define` at build time.
 
 There is no Supabase CLI migration history in this repo; re-running migration SQL on a live DB may error if objects already exist. Use a fresh project for the first apply.
 
@@ -140,7 +145,7 @@ Set these on the **API** Render service. See also [`Backend/.env.example`](../..
 | `NODE_ENV` | Yes | `production` (enables DB SSL) |
 | `DATABASE_URL` | Yes | Supabase Postgres URI |
 | `JWT_SECRET` | Yes | 32+ random bytes; generate with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
-| `FRONTEND_URL` | Yes | Vercel origin, e.g. `https://your-app.vercel.app` — **only variable used for CORS** (`Backend/src/app.js`) |
+| `FRONTEND_URL` | Yes | Vercel origin, e.g. `https://rescue-link-front.vercel.app` — **only variable used for CORS** (`Backend/src/app.js`) |
 | `AI_SERVICE_URL` | Yes | Blueprint sets this from `resquelink-ai` `hostport` (private network). Manual create: public origin `https://resquelink-ai.onrender.com` |
 | `AI_SERVICE_TOKEN` | Optional | Same value as `AI_INTERNAL_TOKEN` on the AI service if you enable `x-ai-service-token` auth |
 | `LOG_LEVEL` | No | `info` in production |
@@ -290,6 +295,7 @@ Still not in repo (optional follow-up):
 | API still calls `localhost:8000` | Render API `AI_SERVICE_URL` unset (Blueprint should inject AI `hostport`) |
 | AI health check fails on Render | Container not listening on Render `PORT`; check Dockerfile/entrypoint |
 | Dashboard calls wrong API | Rebuild Vercel after changing `VITE_API_URL` |
+| `Failed to parse URL` / `your-backend-service.onrender.com](https://...` | `VITE_API_URL` must be a **plain origin only**, e.g. `https://resquelink-backend.onrender.com` — no markdown, no `/api/...` suffix. Redeploy Vercel after fixing. |
 | `JWT_SECRET must be set` | Set on Render API in production |
 | DB connect / SSL errors | Use session pooler URI; check `NODE_ENV=production` and `DATABASE_SSL` |
 | Token works after logout | Run migration `add_token_blacklist.sql` (included in `npm run migrate`) |

@@ -6,6 +6,8 @@
 - Cloud Run deploy runbook: [`Documentation/backend/GCP_AI.md`](Documentation/backend/GCP_AI.md) (AI on GCP; backend stays on Render).
 - Cloud Run startup: classifier loads after uvicorn binds (background thread); prod image bakes `emergency_model.pt` at build time so the container listens on `PORT` within the startup timeout.
 - Production DB moved to Supabase **`ap-southeast-1`** (`RescueLink DB Singapore`); Render **`resquelink-backend`** already **`singapore`** — `DATABASE_URL` + `AI_SERVICE_URL` (Cloud Run) synced via Render MCP.
+- Render `FRONTEND_URL` set to production dashboard [`https://rescue-link-front.vercel.app`](https://rescue-link-front.vercel.app) for CORS.
+- Production Supabase seeded (`npm run seed-db -- --count=10 --days=14`); mobile prod `API_BASE_URL` documented as `https://resquelink-backend.onrender.com`.
 
 ## 2026-09-24
 
