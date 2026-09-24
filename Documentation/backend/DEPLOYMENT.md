@@ -130,7 +130,7 @@ Redeploy **AI** after env fixes, then **backend**.
 | Name | `resquelink-backend` |
 | Root directory | `Backend` |
 | Environment | Node |
-| Build command | `npm install` (Blueprint) or `npm ci` |
+| Build command | `corepack enable && pnpm install --frozen-lockfile` (Blueprint) |
 | Start command | `npm start` |
 | Health check path | `/health` |
 
@@ -156,7 +156,13 @@ Set these on the **API** Render service. See also [`Backend/.env.example`](../..
 
 **Firebase:** On Render use `FIREBASE_SERVICE_ACCOUNT_JSON` (full service account JSON, one line). Do **not** set `FIREBASE_SERVICE_ACCOUNT_PATH` to a local file path — that file is not on the server. If Firebase is unset, the API still starts; phone/Firebase auth routes fail until you add JSON creds.
 
-**Uploads:** Files go to local disk (`UPLOAD_DIR`). Render’s filesystem is **ephemeral**; incident media and avatars can disappear on restart until uploads move to Supabase Storage (deferred).
+**Uploads:** Incident audio/photos/videos, avatars, and application docs go to private Supabase Storage bucket **`rescuelink-media`** when `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are set. Missing those vars falls back to local `uploads/` (local testing). Clients still fetch bytes through authenticated API routes (not public bucket URLs). Incident photos and avatars are converted to **WebP** on the server; application documents stay original JPEG/PNG/PDF.
+
+Set on Render:
+
+- `SUPABASE_URL=https://euudugvceidxbbidprxf.supabase.co`
+- `STORAGE_BUCKET=rescuelink-media`
+- `SUPABASE_SERVICE_ROLE_KEY` — Dashboard → API → **service_role** (`sync: false` in Blueprint)
 
 **Blockchain:** Optional `BLOCKCHAIN_SERVICE_URL`; leave unset unless you host that service.
 
@@ -164,8 +170,8 @@ Set these on the **API** Render service. See also [`Backend/.env.example`](../..
 
 ```bash
 cd Backend
-npm ci
-npm start
+pnpm install
+pnpm start
 ```
 
 ---
@@ -283,7 +289,7 @@ Operator steps after accounts exist:
 
 Still not in repo (optional follow-up):
 
-- **Upload persistence** – Supabase Storage (or Render disk) for incident media; local `UPLOAD_DIR` is ephemeral on Render.
+- **Upload persistence** – Supabase Storage (`rescuelink-media`) when env is set; local `uploads/` fallback without `SUPABASE_SERVICE_ROLE_KEY`.
 
 ---
 

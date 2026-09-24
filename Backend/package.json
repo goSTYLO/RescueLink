@@ -2,6 +2,7 @@
   "name": "rescue-link-backend",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@11.25.0",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
@@ -42,6 +43,7 @@
     "nodemailer": "^8.0.1",
     "pg": "^8.11.2",
     "sharp": "^0.34.4",
+    "@supabase/supabase-js": "^2.49.8",
     "ws": "^8.19.0"
   },
   "devDependencies": {

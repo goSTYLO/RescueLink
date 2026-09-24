@@ -14,15 +14,14 @@ const { queueDeepScanJob, computeInitialScanStatus } = require('../services/file
 const { verifyIncidentOnBlockchain } = require('../services/blockchainService');
 const { findPotentialDuplicates, linkAsDuplicate, getDuplicateInfo } = require('../services/duplicateDetectionService');
 const duplicateConfig = require('../config/duplicateDetection');
-const { saveAudioFile, saveMediaFiles, deleteIncidentFiles, fileExists, getAbsolutePath } = require('../utils/fileValidation');
+const { saveAudioFile, saveMediaFiles, deleteIncidentFiles } = require('../utils/fileValidation');
 const { logDispatcherAction, logUserAction } = require('../utils/auditLog');
 const { ROLES } = require('../config/roles');
 const { isResourceOwner, getOwnershipFilter } = require('../utils/ownership');
 const { buildIncidentEventPayload, emitIncidentEvent } = require('../utils/incidentEvents');
 const { attachBackupVolunteers, findEligibleNearbyVolunteerUserIds, pushCriticalToNearbyVolunteers } = require('./incidentAcceptance');
-const path = require('path');
-const fs = require('fs').promises;
 const { tryDecryptValue } = require('../utils/encryption');
+const { readObject, sendObject } = require('../services/storageService');
 
 /** Reporter or volunteer who accepted the incident may read full incident detail. */
 function canReadOwnOrAcceptedIncident(user, incident) {
@@ -1085,22 +1084,12 @@ const incidentController = {
         return res.status(403).json({ error: 'Audio file is quarantined and unavailable for download' });
       }
 
-      const absolutePath = getAbsolutePath(incident.audio_path);
-      const exists = await fileExists(incident.audio_path);
-
-      if (!exists) {
+      const buffer = await readObject(incident.audio_path);
+      if (!buffer) {
         return res.status(404).json({ error: 'Audio file not found on server' });
       }
 
-      const filename = path.basename(incident.audio_path);
-      res.download(absolutePath, filename, (err) => {
-        if (err) {
-          console.error('Error downloading audio:', err);
-          if (!res.headersSent) {
-            res.status(500).json({ error: 'Failed to download audio file' });
-          }
-        }
-      });
+      sendObject(res, buffer, incident.audio_path, 'attachment');
 
     } catch (error) {
       console.error('Error downloading audio:', error);
@@ -1154,27 +1143,18 @@ const incidentController = {
       }
       // Remove angle brackets and stray brackets if present (corrupted/copy-paste paths)
       mediaPath = mediaPath.replace(/^[\[<]+|[\]>]+$/g, '').trim();
-      const normalizedPath = mediaPath.startsWith('uploads/') || mediaPath.startsWith('uploads\\')
-        ? mediaPath.replace(/\\/g, '/')
-        : `uploads/incidents/${mediaPath}`.replace(/\\/g, '/');
-      const absolutePath = path.resolve(process.cwd(), normalizedPath);
-      const exists = await fileExists(normalizedPath);
+      const normalizedPath = mediaPath.replace(/\\/g, '/');
+      const objectKey = (normalizedPath.startsWith('uploads/') || normalizedPath.startsWith('incidents/') || normalizedPath.startsWith('quarantine/'))
+        ? normalizedPath
+        : `incidents/${validatedId}/${normalizedPath}`;
 
-      if (!exists) {
-        console.warn(`[backend][incident][downloadMedia] report_id=${validatedId} index=${validatedIndex} path=${normalizedPath} absolute=${absolutePath} exists=false`);
+      const buffer = await readObject(objectKey);
+      if (!buffer) {
+        console.warn(`[backend][incident][downloadMedia] report_id=${validatedId} index=${validatedIndex} path=${objectKey} exists=false`);
         return res.status(404).json({ error: 'Media file not found on server' });
       }
 
-      const filename = path.basename(normalizedPath);
-      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-      res.sendFile(absolutePath, (err) => {
-        if (err) {
-          console.error('Error downloading media:', err);
-          if (!res.headersSent) {
-            res.status(500).json({ error: 'Failed to download media file' });
-          }
-        }
-      });
+      sendObject(res, buffer, objectKey, 'attachment');
 
     } catch (error) {
       console.error('Error downloading media:', error);

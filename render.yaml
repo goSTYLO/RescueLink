@@ -34,7 +34,7 @@ services:
     runtime: node
     plan: free
     rootDir: Backend
-    buildCommand: npm install
+    buildCommand: corepack enable && pnpm install --frozen-lockfile
     startCommand: npm start
     healthCheckPath: /health
     envVars:
@@ -45,6 +45,12 @@ services:
       - key: JWT_SECRET
         generateValue: true
       - key: FRONTEND_URL
+        sync: false
+      - key: SUPABASE_URL
+        value: https://euudugvceidxbbidprxf.supabase.co
+      - key: STORAGE_BUCKET
+        value: rescuelink-media
+      - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
       # Private-network host:port (no scheme). Backend prefixes http:// if missing.
       - key: AI_SERVICE_URL

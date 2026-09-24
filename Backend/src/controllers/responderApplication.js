@@ -1,5 +1,5 @@
 const path = require('path');
-const fs = require('fs').promises;
+const { writeObject, readObject, sendObject } = require('../services/storageService');
 const ResponderApplication = require('../models/responderApplication');
 const User = require('../models/user');
 const Responder = require('../models/responder');
@@ -14,7 +14,14 @@ const {
 } = require('../constants/responderRevokeReasons');
 const { validateInteger, validatePagination } = require('../utils/validation');
 
-const UPLOAD_BASE_DIR = path.join(process.cwd(), 'uploads', 'responder-applications');
+async function saveFileToDisk(userId, file) {
+  const ext = path.extname(file.originalname || file.filename || '').toLowerCase() || '.bin';
+  const safeBaseName = path.basename(file.originalname || 'file', ext).replace(/[^a-zA-Z0-9_-]/g, '_');
+  const filename = `${Date.now()}_${safeBaseName}${ext}`;
+  const objectKey = `applications/${userId}/${filename}`;
+  await writeObject(objectKey, file.buffer);
+  return objectKey;
+}
 
 function emitApplicationEvent(req, event, payload) {
   try {
@@ -25,22 +32,6 @@ function emitApplicationEvent(req, event, payload) {
   } catch (err) {
     console.warn('[emitApplicationEvent] WebSocket broadcast notice:', err.message);
   }
-}
-
-/**
- * Save in-memory file buffer to local disk safely
- */
-async function saveFileToDisk(userId, file) {
-  const userDir = path.join(UPLOAD_BASE_DIR, String(userId));
-  await fs.mkdir(userDir, { recursive: true });
-
-  const ext = path.extname(file.originalname || file.filename || '').toLowerCase() || '.bin';
-  const safeBaseName = path.basename(file.originalname || 'file', ext).replace(/[^a-zA-Z0-9_-]/g, '_');
-  const filename = `${Date.now()}_${safeBaseName}${ext}`;
-  const filePath = path.join(userDir, filename);
-
-  await fs.writeFile(filePath, file.buffer);
-  return path.join('uploads', 'responder-applications', String(userId), filename).replace(/\\/g, '/');
 }
 
 const responderApplicationController = {
@@ -492,21 +483,25 @@ const responderApplicationController = {
         return res.status(403).json({ error: 'Forbidden. You do not have access to these documents.' });
       }
 
-      const filePath = path.join(UPLOAD_BASE_DIR, String(application.user_id), filename);
-
-      // Guard against path traversal
-      if (!filePath.startsWith(UPLOAD_BASE_DIR)) {
-        return res.status(400).json({ error: 'Invalid document path.' });
+      const keys = [
+        `applications/${application.user_id}/${filename}`,
+        `uploads/responder-applications/${application.user_id}/${filename}`,
+      ];
+      let buffer = null;
+      let usedKey = keys[0];
+      for (const key of keys) {
+        buffer = await readObject(key);
+        if (buffer) {
+          usedKey = key;
+          break;
+        }
       }
-
-      try {
-        await fs.access(filePath);
-      } catch {
+      if (!buffer) {
         return res.status(404).json({ error: 'Document file not found.' });
       }
 
       res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-      res.sendFile(filePath);
+      sendObject(res, buffer, usedKey);
     } catch (error) {
       console.error('Error serving application document:', error);
       if (error.message.includes('must be')) return res.status(400).json({ error: error.message });

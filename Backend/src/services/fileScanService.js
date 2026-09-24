@@ -10,6 +10,7 @@ const fs = require('fs').promises;
 const fsSync = require('fs');
 const path = require('path');
 const net = require('net');
+const { materializeToTemp } = require('./storageService');
 
 const FILE_SCAN_FAIL_OPEN = String(process.env.FILE_SCAN_FAIL_OPEN || 'true').toLowerCase() === 'true';
 const FILE_DEEP_SCAN_ENABLED = String(process.env.FILE_DEEP_SCAN_ENABLED || 'true').toLowerCase() === 'true';
@@ -26,6 +27,7 @@ const BLOCKED_SIGNATURES = [
 ];
 
 const SIGNATURES = {
+  '.webp': [Buffer.from([0x52, 0x49, 0x46, 0x46])], // RIFF (WEBP at offset 8)
   '.jpg': [Buffer.from([0xff, 0xd8, 0xff])],
   '.jpeg': [Buffer.from([0xff, 0xd8, 0xff])],
   '.png': [Buffer.from([0x89, 0x50, 0x4e, 0x47])],
@@ -51,6 +53,11 @@ const includesAtOffset = (buffer, signature, offset) => {
 const validateBySignature = (file, ext) => {
   const signatures = SIGNATURES[ext];
   if (!signatures || signatures.length === 0) return true;
+
+  if (ext === '.webp') {
+    return startsWithSignature(file.buffer, Buffer.from([0x52, 0x49, 0x46, 0x46]))
+      && includesAtOffset(file.buffer, Buffer.from('WEBP'), 8);
+  }
 
   if (ext === '.mp4' || ext === '.m4a' || ext === '.mov') {
     return signatures.some((sig) => includesAtOffset(file.buffer, sig, 4));
@@ -368,11 +375,15 @@ const performDeepScan = async ({ filePaths = [] }) => {
 
   const infectedFiles = [];
   for (const relativePath of filePaths) {
-    const absolutePath = path.join(process.cwd(), relativePath);
+    let tempPath = null;
     try {
+      tempPath = await materializeToTemp(relativePath);
+      if (!tempPath) {
+        continue;
+      }
       const result = FILE_DEEP_SCAN_ENGINE === 'clamav'
-        ? await scanFileWithClamAv(absolutePath)
-        : await detectSimulatedThreat(absolutePath);
+        ? await scanFileWithClamAv(tempPath)
+        : await detectSimulatedThreat(tempPath);
 
       const infected = FILE_DEEP_SCAN_ENGINE === 'clamav'
         ? result.status === 'infected'
@@ -393,6 +404,10 @@ const performDeepScan = async ({ filePaths = [] }) => {
         scanned_at: null,
         infected_files: [],
       };
+    } finally {
+      if (tempPath) {
+        await fs.unlink(tempPath).catch(() => null);
+      }
     }
   }
 

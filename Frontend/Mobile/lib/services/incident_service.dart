@@ -466,6 +466,9 @@ class IncidentService {
     if (contentType.contains('image/png')) {
       return '$fallback.png';
     }
+    if (contentType.contains('image/webp')) {
+      return '$fallback.webp';
+    }
     if (contentType.contains('video/mp4')) {
       return '$fallback.mp4';
     }

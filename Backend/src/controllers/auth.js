@@ -1,5 +1,3 @@
-const fs = require('fs').promises;
-const path = require('path');
 const jwt = require('jsonwebtoken');
 const User = require('../models/user');
 const { hashPassword, comparePassword } = require('../utils/hash');
@@ -13,6 +11,8 @@ const TokenBlacklist = require('../models/tokenBlacklist');
 const DispatcherOtp = require('../models/dispatcherOtp');
 const { sendOtpEmail } = require('../services/email');
 const { ROLES } = require('../config/roles');
+const { compressPhoto } = require('../services/mediaCompressionService');
+const { writeObject, readObject, removeObject, sendObject } = require('../services/storageService');
 const Department = require('../models/department');
 const pool = require('../config/db');
 const { verifyRecaptchaToken } = require('../services/recaptcha');
@@ -30,8 +30,6 @@ const WEB_EMAIL_AUTH_ROLES = [
 function canUseWebEmailAuth(role) {
   return WEB_EMAIL_AUTH_ROLES.includes(role);
 }
-
-const AVATAR_DIR = path.join(process.cwd(), 'uploads', 'avatars');
 
 async function buildUserPayload(user) {
   let department = null;
@@ -60,16 +58,7 @@ async function buildUserPayload(user) {
 
 async function deleteAvatarFile(profileImagePath) {
   if (!profileImagePath) return;
-  const absolute = path.isAbsolute(profileImagePath)
-    ? profileImagePath
-    : path.join(process.cwd(), profileImagePath);
-  try {
-    await fs.unlink(absolute);
-  } catch (err) {
-    if (err.code !== 'ENOENT') {
-      console.warn('⚠️ Failed to delete avatar file:', err.message);
-    }
-  }
+  await removeObject(profileImagePath);
 }
 
 // Register: validate + CAPTCHA + hold pending payload + IPROG OTP.
@@ -727,18 +716,15 @@ exports.uploadAvatar = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    const ext = path.extname(req.file.originalname || '').toLowerCase() || '.jpg';
-    await fs.mkdir(AVATAR_DIR, { recursive: true });
-    const filename = `${userId}${ext}`;
-    const relativePath = path.join('uploads', 'avatars', filename).replace(/\\/g, '/');
-    const absolutePath = path.join(AVATAR_DIR, filename);
+    const compressed = await compressPhoto(req.file.buffer, req.file.originalname);
+    const ext = compressed.outputExt || '.webp';
+    const objectKey = `avatars/${userId}/avatar${ext}`;
 
-    await fs.writeFile(absolutePath, req.file.buffer);
-    if (user.profile_image && user.profile_image !== relativePath) {
+    if (user.profile_image && user.profile_image !== objectKey) {
       await deleteAvatarFile(user.profile_image);
     }
-
-    await User.updateProfileImage(userId, relativePath);
+    await writeObject(objectKey, compressed.buffer);
+    await User.updateProfileImage(userId, objectKey);
     const updated = await User.findById(userId);
     res.json({ user: await buildUserPayload(updated) });
   } catch (err) {
@@ -759,16 +745,11 @@ exports.getAvatar = async (req, res) => {
       return res.status(404).json({ message: 'No profile image' });
     }
 
-    const absolutePath = path.isAbsolute(user.profile_image)
-      ? user.profile_image
-      : path.join(process.cwd(), user.profile_image);
-
-    res.sendFile(absolutePath, (err) => {
-      if (err && !res.headersSent) {
-        console.error('❌ Get avatar error:', err.message);
-        res.status(404).json({ message: 'Profile image not found' });
-      }
-    });
+    const buffer = await readObject(user.profile_image);
+    if (!buffer) {
+      return res.status(404).json({ message: 'Profile image not found' });
+    }
+    sendObject(res, buffer, user.profile_image);
   } catch (err) {
     console.error('❌ Get avatar error:', err.message);
     res.status(500).json({ message: 'Failed to fetch avatar' });

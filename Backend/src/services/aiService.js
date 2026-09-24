@@ -303,21 +303,21 @@ const processIncidentWithAudio = async (audioBuffer, filename, description = nul
  * @returns {Promise<Object>} Classification result
  */
 const retryClassification = async (audioPath) => {
-  const fs = require('fs').promises;
   const path = require('path');
-  
+  const { readObject } = require('./storageService');
+
   try {
-    // Read audio file from disk
-    const fullPath = path.join(process.cwd(), audioPath);
-    const audioBuffer = await fs.readFile(fullPath);
+    const audioBuffer = await readObject(audioPath);
+    if (!audioBuffer) {
+      throw new Error(`Audio object not found: ${audioPath}`);
+    }
     const filename = path.basename(audioPath);
-    
-    console.log(`🔄 Retrying classification for: ${audioPath}`);
-    
-    // Attempt classification
+
+    console.log(`Retrying classification for: ${audioPath}`);
+
     return await processIncidentWithAudio(audioBuffer, filename, null, { requestId: `retry-${Date.now()}` });
   } catch (error) {
-    console.error(`❌ Retry failed for ${audioPath}:`, error.message);
+    console.error(`Retry failed for ${audioPath}:`, error.message);
     throw error;
   }
 };

@@ -47,56 +47,30 @@ const createTempPath = (ext) => {
  */
 async function compressPhoto(buffer, filename) {
   if (!sharp) {
-    const size = buffer.length;
     const ext = path.extname(filename || '').toLowerCase() || '.jpg';
-    return { buffer, width: 0, height: 0, size, outputExt: ext };
-  }
-
-  const ext = path.extname(filename || '').toLowerCase() || '.jpg';
-  const isPng = ext === '.png';
-
-  if (buffer.length <= MAX_PHOTO_SIZE) {
-    const meta = await sharp(buffer, { failOn: 'none' }).metadata();
-    const outputExt = isPng ? '.png' : '.jpg';
-    return {
-      buffer,
-      width: meta.width || 0,
-      height: meta.height || 0,
-      size: buffer.length,
-      outputExt,
-    };
+    return { buffer, width: 0, height: 0, size: buffer.length, outputExt: ext };
   }
 
   try {
-    let quality = isPng ? 80 : 78;
+    let quality = 80;
     let width = 1920;
     let output;
 
-    // Iteratively reduce quality/dimensions until under target
     for (let attempt = 0; attempt < 8; attempt++) {
-      let pipeline = sharp(buffer, { failOn: 'none' })
+      output = await sharp(buffer, { failOn: 'none' })
         .rotate()
-        .resize({ width, withoutEnlargement: true });
-
-      if (isPng) {
-        output = await pipeline
-          .png({ compressionLevel: 9, palette: true, quality })
-          .toBuffer();
-      } else {
-        output = await pipeline
-          .jpeg({ quality, mozjpeg: true })
-          .toBuffer();
-      }
+        .resize({ width, withoutEnlargement: true })
+        .webp({ quality })
+        .toBuffer();
 
       if (output.length <= MAX_PHOTO_SIZE) {
         const meta = await sharp(output, { failOn: 'none' }).metadata();
-        const outputExt = isPng ? '.png' : '.jpg';
         return {
           buffer: output,
           width: meta.width || 0,
           height: meta.height || 0,
           size: output.length,
-          outputExt,
+          outputExt: '.webp',
         };
       }
 
@@ -104,29 +78,29 @@ async function compressPhoto(buffer, filename) {
       width = Math.max(640, Math.floor(width * 0.8));
     }
 
-    // Last resort: aggressive compression
-    const pipeline = sharp(buffer, { failOn: 'none' })
+    output = await sharp(buffer, { failOn: 'none' })
       .rotate()
-      .resize({ width: 1280, withoutEnlargement: true });
-    output = await pipeline.jpeg({ quality: 50, mozjpeg: true }).toBuffer();
+      .resize({ width: 960, withoutEnlargement: true })
+      .webp({ quality: 40 })
+      .toBuffer();
     const meta = await sharp(output, { failOn: 'none' }).metadata();
     return {
       buffer: output,
       width: meta.width || 0,
       height: meta.height || 0,
       size: output.length,
-      outputExt: '.jpg',
+      outputExt: '.webp',
     };
   } catch (err) {
     console.warn('Photo compression failed, using original:', err.message);
-    const meta = await sharp(buffer, { failOn: 'none' }).metadata();
-    const outputExt = isPng ? '.png' : '.jpg';
+    const meta = await sharp(buffer, { failOn: 'none' }).metadata().catch(() => ({}));
+    const ext = path.extname(filename || '').toLowerCase() || '.jpg';
     return {
       buffer,
       width: meta.width || 0,
       height: meta.height || 0,
       size: buffer.length,
-      outputExt,
+      outputExt: ext,
     };
   }
 }

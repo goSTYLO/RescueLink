@@ -276,7 +276,8 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
     final lower = path.toLowerCase();
     return lower.endsWith('.jpg') ||
         lower.endsWith('.jpeg') ||
-        lower.endsWith('.png');
+        lower.endsWith('.png') ||
+        lower.endsWith('.webp');
   }
 
   bool _isVideoPath(String path) {
