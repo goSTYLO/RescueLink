@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../bloc/auth/auth_bloc.dart';
 import '../../bloc/auth/auth_event.dart';
 import '../../bloc/auth/auth_state.dart';
+import '../../theme/app_theme.dart';
 import '../../utils/app_config.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/recaptcha_webview.dart';
@@ -89,7 +90,7 @@ class _VerificationOtpScreenState extends State<VerificationOtpScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Please enter a valid 6-digit code.'),
-          backgroundColor: Color(0xFFEF4444),
+          backgroundColor: AppTheme.primaryRed,
         ),
       );
       return;
@@ -122,18 +123,19 @@ class _VerificationOtpScreenState extends State<VerificationOtpScreen> {
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                   child: Row(
                     children: [
-                      const Text(
+                      Text(
                         "Verify you're human",
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFF111827),
+                          color: Theme.of(ctx).colorScheme.onSurface,
                         ),
                       ),
                       const Spacer(),
                       IconButton(
                         onPressed: () => Navigator.of(ctx).pop(),
-                        icon: const Icon(Icons.close, color: Color(0xFF6B7280)),
+                        icon: Icon(Icons.close,
+                            color: Theme.of(ctx).colorScheme.onSurfaceVariant),
                       ),
                     ],
                   ),
@@ -170,9 +172,9 @@ class _VerificationOtpScreenState extends State<VerificationOtpScreen> {
         return;
       }
       authBloc.add(ResendOtpRequested(
-            phone: widget.phoneNumber,
-            captchaToken: token,
-          ));
+        phone: widget.phoneNumber,
+        captchaToken: token,
+      ));
       _startResendTimer();
     } finally {
       if (mounted) setState(() => _resendInFlight = false);
@@ -184,6 +186,7 @@ class _VerificationOtpScreenState extends State<VerificationOtpScreen> {
     final titleSize = Responsive.brandTitleSize(width);
     final subtitleSize = Responsive.brandSubtitleSize(width);
     final compact = Responsive.isCompact(width);
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Row(
       mainAxisSize: MainAxisSize.max,
@@ -205,12 +208,13 @@ class _VerificationOtpScreenState extends State<VerificationOtpScreen> {
                     TextSpan(
                         text: 'Rescue',
                         style: TextStyle(
-                            color: Theme.of(context).brightness == Brightness.dark
-                                ? Colors.white
-                                : const Color(0xFF0F172A))),
+                            color:
+                                Theme.of(context).brightness == Brightness.dark
+                                    ? Colors.white
+                                    : const Color(0xFF0F172A))),
                     const TextSpan(
                         text: 'Link',
-                        style: TextStyle(color: Color(0xFFFF6B6B))),
+                        style: TextStyle(color: AppTheme.primaryRed)),
                   ],
                 ),
                 maxLines: 1,
@@ -219,7 +223,8 @@ class _VerificationOtpScreenState extends State<VerificationOtpScreen> {
               Text(
                 'Emergency Response and Safety',
                 style: TextStyle(
-                    color: const Color(0xFF6B7280), fontSize: subtitleSize),
+                    color: colorScheme.onSurfaceVariant,
+                    fontSize: subtitleSize),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -235,13 +240,12 @@ class _VerificationOtpScreenState extends State<VerificationOtpScreen> {
     return BlocConsumer<AuthBloc, AuthState>(
       listener: (context, state) {
         if (state is OtpError || state is AuthError) {
-          final message = state is OtpError
-              ? state.message
-              : (state as AuthError).message;
+          final message =
+              state is OtpError ? state.message : (state as AuthError).message;
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(message),
-              backgroundColor: const Color(0xFFEF4444),
+              backgroundColor: AppTheme.primaryRed,
               duration: const Duration(seconds: 4),
               behavior: SnackBarBehavior.floating,
               margin: const EdgeInsets.all(16),
@@ -254,7 +258,7 @@ class _VerificationOtpScreenState extends State<VerificationOtpScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('A new verification code has been sent.'),
-              backgroundColor: Color(0xFF22C55E),
+              backgroundColor: AppTheme.successGreen,
               behavior: SnackBarBehavior.floating,
             ),
           );
@@ -273,9 +277,11 @@ class _VerificationOtpScreenState extends State<VerificationOtpScreen> {
         final headingSize = compact ? 24.0 : 26.0;
         final otpBoxWidth = compact ? 38.0 : 44.0;
         final canTapResend = _canResend && !isVerifying && !_resendInFlight;
+        final colorScheme = Theme.of(context).colorScheme;
+        const locationPink = Color(0xFFEC4899);
 
         return Scaffold(
-          backgroundColor: Colors.white,
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
           body: SafeArea(
             child: SingleChildScrollView(
               padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
@@ -288,8 +294,8 @@ class _VerificationOtpScreenState extends State<VerificationOtpScreen> {
                       alignment: Alignment.centerLeft,
                       child: IconButton(
                         onPressed: isVerifying ? null : widget.onBack,
-                        icon: const Icon(Icons.arrow_back,
-                            color: Color(0xFF374151)),
+                        icon: Icon(Icons.arrow_back,
+                            color: colorScheme.onSurface),
                       ),
                     ),
                   ],
@@ -310,32 +316,34 @@ class _VerificationOtpScreenState extends State<VerificationOtpScreen> {
                     style: TextStyle(
                       fontSize: headingSize,
                       fontWeight: FontWeight.bold,
-                      color: const Color(0xFF111827),
+                      color: colorScheme.onSurface,
                     ),
                   ),
                   const SizedBox(height: 6),
-                  const Text(
+                  Text(
                     'Enter the code sent to your phone',
                     textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
+                    style: TextStyle(
+                        fontSize: 14, color: colorScheme.onSurfaceVariant),
                   ),
                   const SizedBox(height: 24),
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF9FAFB),
+                      color: colorScheme.surface,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFFE5E7EB)),
+                      border: Border.all(
+                          color: colorScheme.outline.withValues(alpha: 0.5)),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
+                        Text(
                           'Location Verified',
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
-                            color: Color(0xFF111827),
+                            color: colorScheme.onSurface,
                           ),
                         ),
                         const SizedBox(height: 8),
@@ -343,12 +351,12 @@ class _VerificationOtpScreenState extends State<VerificationOtpScreen> {
                           children: [
                             Container(
                               padding: const EdgeInsets.all(6),
-                              decoration: const BoxDecoration(
-                                color: Color(0xFFFCE7F3),
+                              decoration: BoxDecoration(
+                                color: locationPink.withValues(alpha: 0.14),
                                 shape: BoxShape.circle,
                               ),
                               child: const Icon(Icons.location_on,
-                                  color: Color(0xFFEC4899), size: 20),
+                                  color: locationPink, size: 20),
                             ),
                             const SizedBox(width: 10),
                             Expanded(
@@ -357,15 +365,17 @@ class _VerificationOtpScreenState extends State<VerificationOtpScreen> {
                                 children: [
                                   Text(
                                     cityRegion,
-                                    style: const TextStyle(
-                                        fontSize: 13, color: Color(0xFF6B7280)),
+                                    style: TextStyle(
+                                        fontSize: 13,
+                                        color: colorScheme.onSurfaceVariant),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                   Text(
                                     barangay,
-                                    style: const TextStyle(
-                                        fontSize: 13, color: Color(0xFF6B7280)),
+                                    style: TextStyle(
+                                        fontSize: 13,
+                                        color: colorScheme.onSurfaceVariant),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                   ),
@@ -373,7 +383,8 @@ class _VerificationOtpScreenState extends State<VerificationOtpScreen> {
                                   const Row(
                                     children: [
                                       Icon(Icons.check_circle,
-                                          color: Color(0xFF22C55E), size: 16),
+                                          color: AppTheme.successGreen,
+                                          size: 16),
                                       SizedBox(width: 4),
                                       Expanded(
                                         child: Text(
@@ -382,7 +393,7 @@ class _VerificationOtpScreenState extends State<VerificationOtpScreen> {
                                           overflow: TextOverflow.ellipsis,
                                           style: TextStyle(
                                               fontSize: 12,
-                                              color: Color(0xFF22C55E),
+                                              color: AppTheme.successGreen,
                                               fontWeight: FontWeight.w500),
                                         ),
                                       ),
@@ -400,9 +411,10 @@ class _VerificationOtpScreenState extends State<VerificationOtpScreen> {
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF9FAFB),
+                      color: colorScheme.surface,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFFE5E7EB)),
+                      border: Border.all(
+                          color: colorScheme.outline.withValues(alpha: 0.5)),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -411,31 +423,33 @@ class _VerificationOtpScreenState extends State<VerificationOtpScreen> {
                           children: [
                             Container(
                               padding: const EdgeInsets.all(8),
-                              decoration: const BoxDecoration(
-                                color: Color(0xFFDBEAFE),
+                              decoration: BoxDecoration(
+                                color: AppTheme.primaryBlue
+                                    .withValues(alpha: 0.14),
                                 shape: BoxShape.circle,
                               ),
                               child: const Icon(Icons.phone_android,
-                                  color: Color(0xFF2563EB), size: 22),
+                                  color: AppTheme.primaryBlue, size: 22),
                             ),
                             const SizedBox(width: 12),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Text(
+                                  Text(
                                     'Enter OTP Code',
                                     style: TextStyle(
                                       fontSize: 16,
                                       fontWeight: FontWeight.bold,
-                                      color: Color(0xFF111827),
+                                      color: colorScheme.onSurface,
                                     ),
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
                                     'Sent to ${widget.phoneNumber}',
-                                    style: const TextStyle(
-                                        fontSize: 13, color: Color(0xFF6B7280)),
+                                    style: TextStyle(
+                                        fontSize: 13,
+                                        color: colorScheme.onSurfaceVariant),
                                   ),
                                 ],
                               ),
@@ -443,9 +457,8 @@ class _VerificationOtpScreenState extends State<VerificationOtpScreen> {
                           ],
                         ),
                         const SizedBox(height: 20),
-                        Wrap(
-                          alignment: WrapAlignment.spaceBetween,
-                          runSpacing: 8,
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                           children: List.generate(6, (i) {
                             return SizedBox(
                               width: otpBoxWidth,
@@ -456,24 +469,33 @@ class _VerificationOtpScreenState extends State<VerificationOtpScreen> {
                                 keyboardType: TextInputType.number,
                                 textAlign: TextAlign.center,
                                 maxLength: 1,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 20,
                                   fontWeight: FontWeight.w600,
-                                  color: Color(0xFF111827),
+                                  color: colorScheme.onSurface,
                                 ),
                                 decoration: InputDecoration(
                                   counterText: '',
+                                  filled: true,
+                                  fillColor: colorScheme.surface,
                                   contentPadding:
                                       const EdgeInsets.symmetric(vertical: 12),
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(8),
-                                    borderSide: const BorderSide(
-                                        color: Color(0xFFD1D5DB)),
+                                    borderSide: BorderSide(
+                                        color: colorScheme.outline
+                                            .withValues(alpha: 0.5)),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                    borderSide: BorderSide(
+                                        color: colorScheme.outline
+                                            .withValues(alpha: 0.5)),
                                   ),
                                   focusedBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(8),
                                     borderSide: const BorderSide(
-                                        color: Color(0xFF2563EB), width: 2),
+                                        color: AppTheme.primaryBlue, width: 2),
                                   ),
                                 ),
                                 inputFormatters: [
@@ -490,37 +512,51 @@ class _VerificationOtpScreenState extends State<VerificationOtpScreen> {
                           }),
                         ),
                         const SizedBox(height: 16),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            IconButton(
-                              onPressed: canTapResend
-                                  ? () => _resendOtp(context)
-                                  : null,
-                              icon: const Icon(Icons.refresh,
-                                  color: Color(0xFFEF4444), size: 20),
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(),
-                            ),
-                            const SizedBox(width: 6),
-                            TextButton(
-                              onPressed: canTapResend
-                                  ? () => _resendOtp(context)
-                                  : null,
-                              child: Text(
-                                canTapResend
-                                    ? 'Resend OTP'
-                                    : 'Resend OTP in ${_resendCountdown}s',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: canTapResend
-                                      ? const Color(0xFFEF4444)
-                                      : const Color(0xFF6B7280),
-                                  fontWeight: FontWeight.w500,
+                        Center(
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                onPressed: canTapResend
+                                    ? () => _resendOtp(context)
+                                    : null,
+                                icon: Icon(Icons.refresh,
+                                    color: canTapResend
+                                        ? AppTheme.primaryRed
+                                        : colorScheme.onSurfaceVariant,
+                                    size: 20),
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                                visualDensity: VisualDensity.compact,
+                              ),
+                              const SizedBox(width: 6),
+                              TextButton(
+                                onPressed: canTapResend
+                                    ? () => _resendOtp(context)
+                                    : null,
+                                style: TextButton.styleFrom(
+                                  padding: EdgeInsets.zero,
+                                  minimumSize: Size.zero,
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                  visualDensity: VisualDensity.compact,
+                                ),
+                                child: Text(
+                                  canTapResend
+                                      ? 'Resend OTP'
+                                      : 'Resend OTP in ${_resendCountdown}s',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: canTapResend
+                                        ? AppTheme.primaryRed
+                                        : colorScheme.onSurfaceVariant,
+                                    fontWeight: FontWeight.w500,
+                                  ),
                                 ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                         const SizedBox(height: 16),
                         SizedBox(
@@ -530,7 +566,7 @@ class _VerificationOtpScreenState extends State<VerificationOtpScreen> {
                                 ? null
                                 : () => _verifyOtp(context),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFFEF4444),
+                              backgroundColor: AppTheme.primaryRed,
                               padding: const EdgeInsets.symmetric(vertical: 14),
                               shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12)),
@@ -562,20 +598,21 @@ class _VerificationOtpScreenState extends State<VerificationOtpScreen> {
                     padding: const EdgeInsets.symmetric(
                         horizontal: 14, vertical: 12),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFEFF6FF),
+                      color: AppTheme.primaryBlue.withValues(alpha: 0.14),
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: const Color(0xFFBFDBFE)),
+                      border: Border.all(
+                          color: AppTheme.primaryBlue.withValues(alpha: 0.45)),
                     ),
-                    child: const Row(
+                    child: Row(
                       children: [
-                        Icon(Icons.check_circle,
-                            color: Color(0xFF2563EB), size: 22),
-                        SizedBox(width: 10),
+                        const Icon(Icons.check_circle,
+                            color: AppTheme.primaryBlue, size: 22),
+                        const SizedBox(width: 10),
                         Expanded(
                           child: Text(
                             'Verification ensures only Dagupan City residents can report emergencies',
                             style: TextStyle(
-                                fontSize: 13, color: Color(0xFF1E40AF)),
+                                fontSize: 13, color: colorScheme.onSurface),
                           ),
                         ),
                       ],

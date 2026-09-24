@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import '../../theme/app_theme.dart';
 import '../../utils/app_config.dart';
 import '../../utils/responsive.dart';
 import '../../services/auth_service.dart';
@@ -94,7 +95,7 @@ class _VerifyDagupanResidencyScreenState
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(locResult['error'] as String? ?? 'Location error'),
-              backgroundColor: Colors.red,
+              backgroundColor: AppTheme.primaryRed,
             ),
           );
         }
@@ -144,7 +145,7 @@ class _VerifyDagupanResidencyScreenState
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Location Error: $e'),
-            backgroundColor: Colors.red,
+            backgroundColor: AppTheme.primaryRed,
           ),
         );
       }
@@ -162,6 +163,7 @@ class _VerifyDagupanResidencyScreenState
     final subtitleSize = Responsive.brandSubtitleSize(width);
     final compact = Responsive.isCompact(width);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Row(
       children: [
@@ -185,11 +187,12 @@ class _VerifyDagupanResidencyScreenState
                     TextSpan(
                       text: 'Rescue',
                       style: TextStyle(
-                          color: isDark ? Colors.white : const Color(0xFF0F172A)),
+                          color:
+                              isDark ? Colors.white : const Color(0xFF0F172A)),
                     ),
                     const TextSpan(
                       text: 'Link',
-                      style: TextStyle(color: Color(0xFFFF6B6B)),
+                      style: TextStyle(color: AppTheme.primaryRed),
                     ),
                   ],
                 ),
@@ -199,7 +202,8 @@ class _VerifyDagupanResidencyScreenState
               Text(
                 'Emergency Response and Safety',
                 style: TextStyle(
-                    color: const Color(0xFF6B7280), fontSize: subtitleSize),
+                    color: colorScheme.onSurfaceVariant,
+                    fontSize: subtitleSize),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -211,6 +215,7 @@ class _VerifyDagupanResidencyScreenState
   }
 
   Widget _buildMap(double width) {
+    final colorScheme = Theme.of(context).colorScheme;
     final barangay = widget.selectedBarangay ?? 'Barangay Poblacion Oeste';
     final center = (_currentLat != null && _currentLng != null)
         ? LatLng(_currentLat!, _currentLng!)
@@ -222,7 +227,8 @@ class _VerifyDagupanResidencyScreenState
           point: LatLng(_currentLat!, _currentLng!),
           width: 40,
           height: 40,
-          child: const Icon(Icons.location_on, color: Color(0xFFEF4444), size: 36),
+          child: const Icon(Icons.location_on,
+              color: AppTheme.primaryRed, size: 36),
         ),
       );
     }
@@ -230,9 +236,9 @@ class _VerifyDagupanResidencyScreenState
     return Container(
       height: Responsive.isCompact(width) ? 200 : 240,
       decoration: BoxDecoration(
-        color: const Color(0xFFF3F4F6),
+        color: colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        border: Border.all(color: colorScheme.outline.withValues(alpha: 0.5)),
       ),
       clipBehavior: Clip.antiAlias,
       child: Stack(
@@ -256,9 +262,9 @@ class _VerifyDagupanResidencyScreenState
           ),
           if (_isVerifying)
             Container(
-              color: Colors.white54,
+              color: colorScheme.surface.withValues(alpha: 0.54),
               child: const Center(
-                child: CircularProgressIndicator(color: Color(0xFFEF4444)),
+                child: CircularProgressIndicator(color: AppTheme.primaryRed),
               ),
             ),
           Positioned(
@@ -268,31 +274,32 @@ class _VerifyDagupanResidencyScreenState
             child: Material(
               elevation: 2,
               borderRadius: BorderRadius.circular(8),
-              color: Colors.white,
+              color: colorScheme.surface,
               child: Padding(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 child: Row(
                   children: [
-                    const Icon(Icons.map_outlined,
-                        size: 18, color: Color(0xFF6B7280)),
+                    Icon(Icons.map_outlined,
+                        size: 18, color: colorScheme.onSurfaceVariant),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         barangay,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
-                          color: Color(0xFF111827),
+                          color: colorScheme.onSurface,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     const SizedBox(width: 8),
-                    const Text(
+                    Text(
                       'Dagupan City',
-                      style: TextStyle(fontSize: 11, color: Color(0xFF6B7280)),
+                      style: TextStyle(
+                          fontSize: 11, color: colorScheme.onSurfaceVariant),
                     ),
                   ],
                 ),
@@ -305,25 +312,28 @@ class _VerifyDagupanResidencyScreenState
   }
 
   Widget _buildStatusCard() {
+    final colorScheme = Theme.of(context).colorScheme;
+
     if (_isVerifying) {
       return Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: const Color(0xFFFEF3C7),
+          color: AppTheme.warningAmber.withValues(alpha: 0.14),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFFCD34D)),
+          border:
+              Border.all(color: AppTheme.warningAmber.withValues(alpha: 0.45)),
         ),
-        child: const Row(
+        child: Row(
           children: [
-            SizedBox(
+            const SizedBox(
               width: 28,
               height: 28,
               child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation(Color(0xFFF59E0B)),
+                valueColor: AlwaysStoppedAnimation(AppTheme.warningAmber),
                 strokeWidth: 2,
               ),
             ),
-            SizedBox(width: 12),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -333,12 +343,13 @@ class _VerifyDagupanResidencyScreenState
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: Color(0xFF92400E),
+                      color: colorScheme.onSurface,
                     ),
                   ),
                   Text(
                     'Please wait while we verify your GPS location...',
-                    style: TextStyle(fontSize: 13, color: Color(0xFFB45309)),
+                    style: TextStyle(
+                        fontSize: 13, color: colorScheme.onSurfaceVariant),
                   ),
                 ],
               ),
@@ -352,30 +363,31 @@ class _VerifyDagupanResidencyScreenState
       return Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: const Color(0xFFFEE2E2),
+          color: AppTheme.primaryRed.withValues(alpha: 0.14),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFFCAFA8)),
+          border:
+              Border.all(color: AppTheme.primaryRed.withValues(alpha: 0.45)),
         ),
         child: Row(
           children: [
-            const Icon(Icons.error, color: Color(0xFFDC2626), size: 28),
+            const Icon(Icons.error, color: AppTheme.primaryRed, size: 28),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Location Verification Failed',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: Color(0xFF7F1D1D),
+                      color: colorScheme.onSurface,
                     ),
                   ),
                   Text(
                     _verificationMessage ?? 'Unable to verify location',
-                    style:
-                        const TextStyle(fontSize: 13, color: Color(0xFFB91C1C)),
+                    style: TextStyle(
+                        fontSize: 13, color: colorScheme.onSurfaceVariant),
                   ),
                 ],
               ),
@@ -389,30 +401,32 @@ class _VerifyDagupanResidencyScreenState
       return Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: const Color(0xFFDCFCE7),
+          color: AppTheme.successGreen.withValues(alpha: 0.14),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFF86EFAC)),
+          border:
+              Border.all(color: AppTheme.successGreen.withValues(alpha: 0.45)),
         ),
         child: Row(
           children: [
-            const Icon(Icons.check_circle, color: Color(0xFF22C55E), size: 28),
+            const Icon(Icons.check_circle,
+                color: AppTheme.successGreen, size: 28),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Inside Dagupan City',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: Color(0xFF166534),
+                      color: colorScheme.onSurface,
                     ),
                   ),
                   Text(
                     _verificationMessage ?? 'Location verified',
-                    style:
-                        const TextStyle(fontSize: 13, color: Color(0xFF15803D)),
+                    style: TextStyle(
+                        fontSize: 13, color: colorScheme.onSurfaceVariant),
                   ),
                 ],
               ),
@@ -425,30 +439,30 @@ class _VerifyDagupanResidencyScreenState
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFFFEE2E2),
+        color: AppTheme.primaryRed.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFFCAFA8)),
+        border: Border.all(color: AppTheme.primaryRed.withValues(alpha: 0.45)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.location_off, color: Color(0xFFDC2626), size: 28),
+          const Icon(Icons.location_off, color: AppTheme.primaryRed, size: 28),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'Outside Dagupan City',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFF7F1D1D),
+                    color: colorScheme.onSurface,
                   ),
                 ),
                 Text(
                   _verificationMessage ?? 'You are outside service area',
-                  style:
-                      const TextStyle(fontSize: 13, color: Color(0xFFB91C1C)),
+                  style: TextStyle(
+                      fontSize: 13, color: colorScheme.onSurfaceVariant),
                 ),
               ],
             ),
@@ -465,6 +479,7 @@ class _VerifyDagupanResidencyScreenState
     final horizontalPadding = Responsive.horizontalPadding(screenWidth);
     final compact = Responsive.isCompact(screenWidth);
     final headingSize = compact ? 24.0 : 28.0;
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -483,7 +498,7 @@ class _VerifyDagupanResidencyScreenState
                 style: TextStyle(
                   fontSize: headingSize,
                   fontWeight: FontWeight.bold,
-                  color: Theme.of(context).colorScheme.onSurface,
+                  color: colorScheme.onSurface,
                 ),
               ),
               const SizedBox(height: 6),
@@ -492,7 +507,7 @@ class _VerifyDagupanResidencyScreenState
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 14,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  color: colorScheme.onSurfaceVariant,
                 ),
               ),
               const SizedBox(height: 20),
@@ -503,24 +518,26 @@ class _VerifyDagupanResidencyScreenState
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF9FAFB),
+                  color: colorScheme.surface,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFE5E7EB)),
+                  border: Border.all(
+                      color: colorScheme.outline.withValues(alpha: 0.5)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'Selected Barangay',
-                      style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+                      style: TextStyle(
+                          fontSize: 12, color: colorScheme.onSurfaceVariant),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       barangay,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
-                        color: Color(0xFF111827),
+                        color: colorScheme.onSurface,
                       ),
                     ),
                     if (_currentLat != null && _currentLng != null)
@@ -528,9 +545,9 @@ class _VerifyDagupanResidencyScreenState
                         padding: const EdgeInsets.only(top: 8),
                         child: Text(
                           'Lat: ${_currentLat!.toStringAsFixed(5)}, Lng: ${_currentLng!.toStringAsFixed(5)}',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 11,
-                            color: Color(0xFF9CA3AF),
+                            color: colorScheme.onSurfaceVariant,
                           ),
                         ),
                       ),
@@ -548,16 +565,18 @@ class _VerifyDagupanResidencyScreenState
                           height: 20,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Icon(Icons.refresh,
-                          size: 20, color: Color(0xFF374151)),
+                      : Icon(Icons.refresh,
+                          size: 20, color: colorScheme.onSurface),
                   label: Text(
                     _isVerifying ? 'Verifying...' : 'Refresh GPS',
-                    style: const TextStyle(
-                        color: Color(0xFF374151), fontWeight: FontWeight.w500),
+                    style: TextStyle(
+                        color: colorScheme.onSurface,
+                        fontWeight: FontWeight.w500),
                   ),
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 14),
-                    side: const BorderSide(color: Color(0xFFE5E7EB)),
+                    side: BorderSide(
+                        color: colorScheme.outline.withValues(alpha: 0.5)),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12)),
                   ),
@@ -578,8 +597,9 @@ class _VerifyDagupanResidencyScreenState
                         }
                       : null,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFEF4444),
-                    disabledBackgroundColor: const Color(0xFFD1D5DB),
+                    backgroundColor: AppTheme.primaryRed,
+                    disabledBackgroundColor:
+                        colorScheme.outline.withValues(alpha: 0.35),
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12)),
@@ -608,14 +628,14 @@ class _VerifyDagupanResidencyScreenState
                     onPressed: widget.onLocationVerificationFailed,
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
-                      side: const BorderSide(color: Color(0xFFEF4444)),
+                      side: const BorderSide(color: AppTheme.primaryRed),
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12)),
                     ),
                     child: const Text(
                       'Go Back to Sign Up',
                       style: TextStyle(
-                        color: Color(0xFFEF4444),
+                        color: AppTheme.primaryRed,
                         fontWeight: FontWeight.w600,
                         fontSize: 16,
                       ),

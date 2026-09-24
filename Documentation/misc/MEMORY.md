@@ -1,5 +1,13 @@
 # RescueLink Memory
 
+## Registration theme consistency (2026-09-23)
+
+- Sign Up, Dagupan residency, OTP, and Account Created screens use `Theme.of` / `colorScheme` for surfaces and text, and `AppTheme` brand tokens (`primaryRed`, `primaryBlue`, `successGreen`, `warningAmber`) for CTAs and semantic panels.
+- Logo "Link" uses `AppTheme.primaryRed` (was `#FF6B6B`). OTP scaffold no longer forces `Colors.white`.
+- Semantic panels use alpha-tinted brand tokens so warning/error/success/info stay distinct in light and dark mode.
+
+Added: 2026-09-23 — registration flow theme consistency.
+
 ## Dispatcher web UI (2026-09-22)
 
 - Dispatcher pages use Ant Design (shell, compact `Card`/`Table`, forms, modals). Insights chart panels and the incidents table use the same compact cards and shared `buildAntdTheme`; filter controls still use the legacy UI `Select`/`Input` kit. The shared sidebar/header is Ant Design for every role. Brand color stays `#134178` with the existing light/dark mode. Feedback dialogs go through `alertUser` (`modal` / `message` / `notification`) instead of SweetAlert2. The shell is pinned to the viewport (only the page scrolls). Light mode uses grey chrome (`#e5e7eb`) and a grey page (`#f3f4f6`); dark mode keeps navy containers. Selected tabs use amber (`#b45309`). Responder and team availability tags share one map: available green, standby gold, busy red, off-duty grey. Volunteer on-incident labels use the same helper (assigned blue, en route gold, on scene orange, resolved green).
