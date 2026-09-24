@@ -27,7 +27,7 @@ Mobile (Flutter) and blockchain are **not** part of this four-platform map. Keep
 Create accounts in this order so each dashboard has a real URL to paste into the next.
 
 1. **Supabase** – Create a project. Copy the **session pooler** URI (IPv4-friendly) or direct URI from **Connect**. Never commit credentials.
-2. **Render (Blueprint)** – New → Blueprint → this repo. [`render.yaml`](../../render.yaml) creates `resquelink-ai` (Docker, root `RescueLink AI`) and `resquelink-backend` (Node, root `Backend`). Paste `DATABASE_URL`, `FRONTEND_URL`, and `AI_INTERNAL_TOKEN` when prompted. `AI_SERVICE_URL` is wired automatically to the AI service `hostport` on Render’s private network.
+2. **Render (Blueprint)** – New → Blueprint → this repo. [`render.yaml`](../../render.yaml) creates `resquelink-ai` (Docker, root `RescueLink AI`) and `resquelink-backend` (Node, root `Backend`). Paste `DATABASE_URL` and `FRONTEND_URL` when prompted. `AI_SERVICE_URL` is wired automatically to the AI service `hostport` on Render’s private network.
 3. **Vercel** – Import the repo, **Root Directory** `Frontend/Web/dispatcher_dashboard`, framework **Vite**, build `npm run build`, output `dist`. Set `VITE_API_URL` to the Render **API** HTTPS origin (`https://resquelink-backend.onrender.com`, no trailing slash).
 
 **After Vercel has a URL:** set Render backend `FRONTEND_URL` to that exact origin (one URL; the API does not read `CORS_ORIGIN`) and redeploy the API if you did not set it during Blueprint create.
@@ -75,7 +75,7 @@ Commit [`render.yaml`](../../render.yaml) at the repo root, then in Render: **Ne
 | `resquelink-ai` | Docker | `RescueLink AI` | free |
 | `resquelink-backend` | Node | `Backend` | free |
 
-Blueprint prompts (`sync: false`): `DATABASE_URL`, `FRONTEND_URL`, `AI_INTERNAL_TOKEN` (shared to the API via `fromService`). `JWT_SECRET` is generated. `AI_SERVICE_URL` is the AI service `hostport` (backend adds `http://` if the scheme is missing).
+Blueprint prompts (`sync: false`): `DATABASE_URL`, `FRONTEND_URL`. `JWT_SECRET` is generated. `AI_SERVICE_URL` is the AI service `hostport` (backend adds `http://` if the scheme is missing). Optional hardening: set matching `AI_INTERNAL_TOKEN` (AI) and `AI_SERVICE_TOKEN` (API) if you enable service auth.
 
 You can still create the two Web Services by hand using the tables below.
 
@@ -107,7 +107,7 @@ Set these on the **API** Render service. See also [`Backend/.env.example`](../..
 | `JWT_SECRET` | Yes | 32+ random bytes; generate with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
 | `FRONTEND_URL` | Yes | Vercel origin, e.g. `https://your-app.vercel.app` — **only variable used for CORS** (`Backend/src/app.js`) |
 | `AI_SERVICE_URL` | Yes | Blueprint sets this from `resquelink-ai` `hostport` (private network). Manual create: public origin `https://resquelink-ai.onrender.com` |
-| `AI_INTERNAL_TOKEN` | Recommended | Same value as on the Render AI service; secures backend→AI calls when configured |
+| `AI_SERVICE_TOKEN` | Optional | Same value as `AI_INTERNAL_TOKEN` on the AI service if you enable `x-ai-service-token` auth |
 | `LOG_LEVEL` | No | `info` in production |
 | `SMTP_*` | If using email | Password reset / notifications |
 | `IPROG_*`, `RECAPTCHA_SECRET_KEY` | If using those flows | Server-side only |
@@ -152,7 +152,7 @@ Set these on the **AI** Render service (not the API service). See [`RescueLink A
 
 | Variable | Notes |
 |----------|--------|
-| `AI_INTERNAL_TOKEN` | Match the API Render service |
+| `AI_INTERNAL_TOKEN` | Optional; if set, API must send the same value as `AI_SERVICE_TOKEN` |
 | `ENVIRONMENT` | `production` |
 | `MODEL_WEIGHTS_URL` | Optional. Default: `https://huggingface.co/goSTYLO/resquelink-weights/resolve/main/emergency_model.pt` (public HF repo; no token required) |
 | `STT_LOCAL_MODEL_SIZE` | Use `tiny` or `base` on small instances; `medium` plus the classifier needs more RAM |
@@ -207,7 +207,7 @@ Set production values in the **Vercel** project settings, not in committed `.env
 - [ ] `NODE_ENV=production` on Render API service
 - [ ] Strong `JWT_SECRET`; never use example values
 - [ ] `FRONTEND_URL` set to the real Vercel origin (single origin)
-- [ ] `AI_INTERNAL_TOKEN` set on both Render services (API + AI), same value
+- [ ] (Optional) `AI_INTERNAL_TOKEN` on AI + `AI_SERVICE_TOKEN` on API, same value
 - [ ] All secrets only in platform dashboards; never commit `.env`
 
 ### Database

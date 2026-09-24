@@ -17,8 +17,6 @@ services:
         value: base
       - key: MODEL_WEIGHTS_URL
         value: https://huggingface.co/goSTYLO/resquelink-weights/resolve/main/emergency_model.pt
-      - key: AI_INTERNAL_TOKEN
-        sync: false
 
   - type: web
     name: resquelink-backend
@@ -37,11 +35,6 @@ services:
         generateValue: true
       - key: FRONTEND_URL
         sync: false
-      - key: AI_INTERNAL_TOKEN
-        fromService:
-          name: resquelink-ai
-          type: web
-          envVarKey: AI_INTERNAL_TOKEN
       # Private-network host:port (no scheme). Backend prefixes http:// if missing.
       - key: AI_SERVICE_URL
         fromService:
