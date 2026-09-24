@@ -1,0 +1,54 @@
+# Render Blueprint — Vercel hosts the dashboard; this file deploys the two API services.
+# Dashboard: New → Blueprint → this repo. Free-tier web services (one instance each).
+# resquelink-ai: classifier + HF Whisper API. Free (512Mi) may still OOM; upgrade Starter if it does.
+# https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: resquelink-ai
+    runtime: docker
+    plan: free
+    rootDir: RescueLink AI
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: STT_PROVIDER
+        value: api
+      - key: STT_ENABLE_API_FALLBACK
+        value: "false"
+      - key: STT_ENABLE_LOCAL_FALLBACK
+        value: "false"
+      - key: AI_STARTUP_WARMUP
+        value: "false"
+      - key: AI_STARTUP_WARMUP_WHISPER
+        value: "false"
+      - key: HF_API_TOKEN
+        sync: false
+      - key: MODEL_WEIGHTS_URL
+        value: https://huggingface.co/goSTYLO/resquelink-weights/resolve/main/emergency_model.pt
+
+  - type: web
+    name: resquelink-backend
+    runtime: node
+    plan: free
+    rootDir: Backend
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: FRONTEND_URL
+        sync: false
+      # Private-network host:port (no scheme). Backend prefixes http:// if missing.
+      - key: AI_SERVICE_URL
+        fromService:
+          name: resquelink-ai
+          type: web
+          property: hostport

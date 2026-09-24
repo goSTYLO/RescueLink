@@ -14,7 +14,7 @@ const PORT = process.env.PORT || 3000;
     const wss = initWebSocket(server);
     app.locals.wss = wss;
 
-    server.listen(PORT, () => {
+    server.listen(PORT, '0.0.0.0', () => {
       const url = `http://localhost:${PORT}`;
       console.log(`Server listening on port ${PORT}`);
       console.log(`Backend URL: ${url}`);

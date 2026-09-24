@@ -4,6 +4,7 @@ require('dotenv').config();
 const fs = require('fs/promises');
 const path = require('path');
 const { Pool } = require('pg');
+const { getPgPoolConfig, formatDatabaseTarget } = require('../src/config/pgPool');
 const { encrypt } = require('../src/utils/encryption');
 const { ROLES } = require('../src/config/roles');
 const { checkAiHealth, processIncidentWithAudio } = require('../src/services/aiService');
@@ -15,7 +16,7 @@ if (!DATABASE_URL) {
   process.exit(1);
 }
 
-const pool = new Pool({ connectionString: DATABASE_URL });
+const pool = new Pool(getPgPoolConfig());
 const args = new Set(process.argv.slice(2));
 const shouldReset = args.has('--reset');
 const requestedCountArg = process.argv.slice(2).find((arg) => arg.startsWith('--count='));
@@ -198,7 +199,7 @@ async function seedIncidents() {
   const client = await pool.connect();
   try {
     console.log('🎧 Seeding incidents from real audio samples...');
-    console.log(`📍 Database URL: ${DATABASE_URL}`);
+    console.log(`📍 Database: ${formatDatabaseTarget(DATABASE_URL)}`);
 
     const reporterRows = await client.query(
       `SELECT user_id

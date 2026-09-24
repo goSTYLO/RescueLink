@@ -1,0 +1,14 @@
+# Production Docker (Cloud Run / Render). Local dev: pip install -r requirements.txt
+# Install torch separately in the Dockerfile (CPU wheel).
+transformers>=4.35.0
+numpy>=1.24.0
+soundfile>=0.12.1
+ctranslate2>=4.6.3
+faster-whisper>=1.0.3
+fastapi>=0.104.0
+uvicorn>=0.24.0
+pydantic>=2.0.0
+python-multipart>=0.0.6
+huggingface_hub>=0.18.0
+requests>=2.31.0
+python-dotenv>=1.0.0

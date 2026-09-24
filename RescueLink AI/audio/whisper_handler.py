@@ -4,17 +4,21 @@ and optional Hugging Face API fallback for staged rollout.
 """
 
 import os
-import time
-import logging
 import shutil
 import tempfile
+import time
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, Any
 
-import librosa
 import soundfile as sf
 from huggingface_hub import InferenceClient
+
+try:
+    from .decode import decode_audio
+except ImportError:
+    from decode import decode_audio
 
 try:
     import imageio_ffmpeg
@@ -251,6 +255,7 @@ class WhisperHandler:
         confidence_threshold: float = 0.7,
         stt_provider: Optional[str] = None,
         enable_api_fallback: Optional[bool] = None,
+        enable_local_fallback: Optional[bool] = None,
     ):
         self.hf_api_token = hf_api_token or os.getenv("HF_API_TOKEN")
         self.model_id = model_id
@@ -265,12 +270,18 @@ class WhisperHandler:
             if enable_api_fallback is not None
             else _to_bool(os.getenv("STT_ENABLE_API_FALLBACK"), default=False)
         )
+        self.enable_local_fallback = (
+            enable_local_fallback
+            if enable_local_fallback is not None
+            else _to_bool(os.getenv("STT_ENABLE_LOCAL_FALLBACK"), default=False)
+        )
 
         self.local_provider: Optional[_WhisperLocalProvider] = None
         self.api_provider: Optional[_WhisperApiProvider] = None
 
         _ensure_ffmpeg_backend()
-        _ensure_cuda_libs_on_path()
+        if self._wants_local_provider():
+            _ensure_cuda_libs_on_path()
         self._initialize_providers()
 
         self.usage_stats = {
@@ -289,14 +300,20 @@ class WhisperHandler:
         if self.api_provider:
             active_providers.append("api")
         logger.info(
-            "✓ Whisper Handler initialized (mode=%s, providers=%s, fallback=%s)",
+            "✓ Whisper Handler initialized (mode=%s, providers=%s, api_fallback=%s, local_fallback=%s)",
             self.provider_mode,
             ",".join(active_providers) if active_providers else "none",
             self.enable_api_fallback,
+            self.enable_local_fallback,
         )
 
+    def _wants_local_provider(self) -> bool:
+        if self.provider_mode in {"local", "auto"}:
+            return True
+        return self.provider_mode == "api" and self.enable_local_fallback
+
     def _initialize_providers(self) -> None:
-        wants_local = self.provider_mode in {"local", "auto"}
+        wants_local = self._wants_local_provider()
         wants_api = self.provider_mode == "api" or self.enable_api_fallback or self.provider_mode == "auto"
 
         if wants_local:
@@ -335,8 +352,12 @@ class WhisperHandler:
                 self.api_provider = None
                 logger.warning(f"HF Whisper API provider initialization failed: {error}")
 
-        if self.provider_mode == "api" and not self.api_provider:
-            raise ValueError("STT_PROVIDER=api requires valid HF_API_TOKEN")
+        if self.provider_mode == "api" and not self.api_provider and not self.local_provider:
+            raise ValueError(
+                "STT_PROVIDER=api requires HF_API_TOKEN or working local fallback (STT_ENABLE_LOCAL_FALLBACK=true)"
+            )
+        if self.provider_mode == "api" and not self.api_provider and self.local_provider:
+            logger.warning("HF API token missing or invalid; local Whisper will serve STT requests")
 
         if self.provider_mode in {"local", "auto"} and not self.local_provider and not self.api_provider:
             raise ValueError(
@@ -353,8 +374,7 @@ class WhisperHandler:
             raise ValueError(f"File too large: {file_size_mb:.1f}MB (max: {self.max_file_size_mb}MB)")
 
         try:
-            y, sr = librosa.load(str(audio_path), sr=None)
-            duration = librosa.get_duration(y=y, sr=sr)
+            y, sr, duration = decode_audio(str(audio_path))
         except Exception as error:
             raise ValueError(f"Could not process audio file: {error!r}")
 
@@ -383,10 +403,25 @@ class WhisperHandler:
                 local_error = error
                 logger.warning(f"Local transcription failed: {error}")
 
-        if self.provider_mode == "api" and self.api_provider is not None:
-            api_result = self.api_provider.transcribe(audio_path, language=language)
-            api_result["fallback_used"] = False
-            return api_result
+        if self.provider_mode == "api":
+            api_error: Optional[Exception] = None
+            if self.api_provider is not None:
+                try:
+                    api_result = self.api_provider.transcribe(audio_path, language=language)
+                    api_result["fallback_used"] = False
+                    return api_result
+                except Exception as error:
+                    api_error = error
+                    logger.warning(f"HF API transcription failed: {error}")
+            if self.local_provider is not None and self.enable_local_fallback:
+                local_result = self.local_provider.transcribe(audio_path, language=language)
+                local_result["fallback_used"] = api_error is not None
+                if api_error is not None:
+                    local_result["fallback_reason"] = str(api_error)
+                return local_result
+            if api_error is not None:
+                raise api_error
+            raise RuntimeError("No available STT provider for transcription")
 
         can_fallback_to_api = self.enable_api_fallback and self.api_provider is not None
         if can_fallback_to_api:
@@ -415,8 +450,7 @@ class WhisperHandler:
                     raise ValueError(f"File too large: {file_size_mb:.1f}MB (max: {self.max_file_size_mb}MB)")
 
                 try:
-                    y, sr = librosa.load(str(path_to_use), sr=None)
-                    duration = librosa.get_duration(y=y, sr=sr)
+                    y, sr, duration = decode_audio(str(path_to_use))
                 except Exception as error:
                     raise ValueError(f"Could not process audio file: {error!r}")
 
@@ -567,6 +601,11 @@ def get_whisper_handler() -> WhisperHandler:
             confidence_threshold=float(os.getenv("WHISPER_CONFIDENCE_THRESHOLD", 0.7)),
             stt_provider=os.getenv("STT_PROVIDER", "local"),
             enable_api_fallback=_to_bool(os.getenv("STT_ENABLE_API_FALLBACK"), default=False),
+            enable_local_fallback=_to_bool(os.getenv("STT_ENABLE_LOCAL_FALLBACK"), default=False),
         )
 
     return _whisper_handler
+
+
+def is_whisper_handler_ready() -> bool:
+    return _whisper_handler is not None

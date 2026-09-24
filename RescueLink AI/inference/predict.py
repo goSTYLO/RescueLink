@@ -34,7 +34,7 @@ def load_model_and_tokenizer():
 
     tokenizer = AutoTokenizer.from_pretrained(meta.get("backbone", "xlm-roberta-base"))
 
-    model = EmergencyClassifier(
+    model = EmergencyClassifier.from_backbone_config(
         num_incident_types=len(meta["incident_type_labels"]),
         num_severity_classes=len(meta["severity_labels"]),
         backbone=meta.get("backbone", "xlm-roberta-base"),
