@@ -11,6 +11,8 @@ for _p in sys.path:
                     os.environ["PATH"] = _pth + os.pathsep + _path
         break
 
+import asyncio
+import threading
 import torch
 import json
 import logging
@@ -145,8 +147,26 @@ def load_model_and_tokenizer():
     except Exception as e:
         raise RuntimeError(f"Failed to load model: {e}")
 
-# Load once at startup
-model, tokenizer, meta, device = load_model_and_tokenizer()
+# Metadata only at import — heavy weights load after uvicorn binds (Cloud Run / Render)
+meta = load_metadata()
+model = None
+tokenizer = None
+device = None
+_classifier_lock = threading.Lock()
+
+
+def ensure_classifier_loaded() -> None:
+    """Load XLM-R classifier once; safe to call from any thread."""
+    global model, tokenizer, device
+    if model is not None:
+        return
+    with _classifier_lock:
+        if model is not None:
+            return
+        loaded_model, loaded_tokenizer, _, loaded_device = load_model_and_tokenizer()
+        model = loaded_model
+        tokenizer = loaded_tokenizer
+        device = loaded_device
 
 # ---------- Schemas ----------
 
@@ -259,6 +279,7 @@ def _apply_keyword_fallback(text: str) -> tuple[list[str], str, dict[str, list[s
 
 
 def _predict_text(text: str, threshold: float):
+    ensure_classifier_loaded()
     encoding = tokenizer(
         text,
         truncation=True,
@@ -311,10 +332,11 @@ def _confidence_summary(predicted_types: list[str], confidence_scores: dict[str,
 @app.get("/health", response_model=HealthResponse)
 def health_check():
     """Health check endpoint"""
+    loaded = model is not None
     return {
-        "status": "healthy",
-        "model_loaded": model is not None,
-        "device": str(device),
+        "status": "healthy" if loaded else "starting",
+        "model_loaded": loaded,
+        "device": str(device) if device is not None else "pending",
         "stt_ready": is_whisper_handler_ready(),
     }
 
@@ -853,16 +875,17 @@ def reset_audio_stats():
 
 @app.on_event("startup")
 async def startup_event():
+    asyncio.create_task(asyncio.to_thread(ensure_classifier_loaded))
+
     print("=" * 60)
     print("RescueLink AI - Emergency Classifier API (v2.1.0)")
     print("=" * 60)
     print(f"Model: {meta.get('backbone', 'xlm-roberta-base')}")
     print(f"Incident Types: {meta['incident_type_labels']}")
     print(f"Severities: {meta['severity_labels']}")
-    print(f"Device: {device}")
     print(f"Threshold: {meta.get('threshold', 0.5)}")
     print("")
-    print("✓ Emergency Classifier loaded")
+    print("• Emergency Classifier loading in background (/health model_loaded until ready)")
 
     if not AI_INTERNAL_TOKEN and ENVIRONMENT != "development":
         logger.warning("⚠️ AI_INTERNAL_TOKEN is not set outside development environment")

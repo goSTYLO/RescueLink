@@ -4,6 +4,7 @@
 
 - STT: HF API first with optional local Faster-Whisper fallback (`STT_ENABLE_LOCAL_FALLBACK`). Production Docker restores `faster-whisper` + prefetches `tiny`; Render Blueprint keeps local fallback off for 512Mi.
 - Cloud Run deploy runbook: [`Documentation/backend/GCP_AI.md`](Documentation/backend/GCP_AI.md) (AI on GCP; backend stays on Render).
+- Cloud Run startup: classifier loads after uvicorn binds (background thread); prod image bakes `emergency_model.pt` at build time so the container listens on `PORT` within the startup timeout.
 
 ## 2026-09-24
 

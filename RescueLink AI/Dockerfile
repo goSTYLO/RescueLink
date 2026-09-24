@@ -14,6 +14,11 @@ RUN pip install --no-cache-dir --upgrade pip \
 COPY models/label_meta.json models/label_meta.json
 RUN python -c "import json; from transformers import AutoConfig, AutoTokenizer; name=json.load(open('models/label_meta.json')).get('backbone','xlm-roberta-base'); AutoConfig.from_pretrained(name); AutoTokenizer.from_pretrained(name)"
 
+# Bake classifier weights (runtime entrypoint download blocked Cloud Run startup)
+ARG MODEL_WEIGHTS_URL=https://huggingface.co/goSTYLO/resquelink-weights/resolve/main/emergency_model.pt
+RUN mkdir -p models \
+  && python -c "import urllib.request; url='${MODEL_WEIGHTS_URL}'; urllib.request.urlretrieve(url, 'models/emergency_model.pt'); print('weights:', url)"
+
 # Prefetch tiny Whisper for STT_ENABLE_LOCAL_FALLBACK (Cloud Run cold start)
 RUN python -c "from faster_whisper import WhisperModel; WhisperModel('tiny', device='cpu', compute_type='int8')"
 
