@@ -759,7 +759,7 @@ export function InsightsPage() {
           {superAdmin && departmentId ? (
             <button
               type="button"
-              className="rounded-full border border-[rgba(19,65,120,0.35)] px-2 py-1 text-muted hover:text-foreground"
+              className="rounded-sm border border-[rgba(19,65,120,0.35)] px-2 py-1 text-muted hover:text-foreground"
               onClick={() => patchParams({ department_id: '' })}
             >
               Department: {overview?.department?.name || (departmentId === 'volunteers' ? 'Volunteers' : departmentId)} ×
@@ -770,7 +770,7 @@ export function InsightsPage() {
               <button
                 key={key}
                 type="button"
-                className="rounded-full border border-[rgba(19,65,120,0.35)] px-2 py-1 text-muted hover:text-foreground"
+                className="rounded-sm border border-[rgba(19,65,120,0.35)] px-2 py-1 text-muted hover:text-foreground"
                 onClick={() => patchParams({ [key]: '' })}
               >
                 {label}: {titleCase(value)} ×
@@ -778,12 +778,12 @@ export function InsightsPage() {
             ) : null
           ))}
           {excludeDuplicates ? (
-            <button type="button" className="rounded-full border border-[rgba(19,65,120,0.35)] px-2 py-1 text-muted" onClick={() => patchParams({ exclude_duplicates: undefined })}>
+            <button type="button" className="rounded-sm border border-[rgba(19,65,120,0.35)] px-2 py-1 text-muted" onClick={() => patchParams({ exclude_duplicates: undefined })}>
               Exclude duplicates ×
             </button>
           ) : null}
           {!includeArchived ? (
-            <button type="button" className="rounded-full border border-[rgba(19,65,120,0.35)] px-2 py-1 text-muted" onClick={() => patchParams({ include_archived: undefined })}>
+            <button type="button" className="rounded-sm border border-[rgba(19,65,120,0.35)] px-2 py-1 text-muted" onClick={() => patchParams({ include_archived: undefined })}>
               Archives hidden ×
             </button>
           ) : null}

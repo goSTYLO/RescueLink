@@ -287,7 +287,7 @@ export function ResponderApplicationDetailPage() {
         >
           <div className="space-y-6">
             {/* Government ID */}
-            <div className="p-4 border rounded-xl border-slate-200 dark:border-slate-800 space-y-3">
+            <div className="p-4 border rounded-md border-slate-200 dark:border-slate-800 space-y-3">
               <div className="flex items-center justify-between">
                 <div>
                   <span className="text-xs font-bold text-red-500 uppercase tracking-wider block">Government ID (Required)</span>
@@ -320,7 +320,7 @@ export function ResponderApplicationDetailPage() {
 
             {/* Per-Field Proof of Qualification */}
             {application.field_proof_paths && Object.keys(application.field_proof_paths).length > 0 ? (
-              <div className="p-4 border rounded-xl border-slate-200 dark:border-slate-800 space-y-4">
+              <div className="p-4 border rounded-md border-slate-200 dark:border-slate-800 space-y-4">
                 <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
                   Proof of Qualification per Specialization Field
                 </span>
@@ -336,7 +336,7 @@ export function ResponderApplicationDetailPage() {
                     return (
                       <div
                         key={field}
-                        className="p-3.5 border rounded-xl border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 space-y-3"
+                        className="p-3.5 border rounded-md border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 space-y-3"
                       >
                         <div className="flex items-center justify-between">
                           <Tag color={tagMeta.color}>{tagMeta.label}</Tag>
@@ -375,7 +375,7 @@ export function ResponderApplicationDetailPage() {
               </div>
             ) : (
               /* Legacy Fallback: General Certificates */
-              <div className="p-4 border rounded-xl border-slate-200 dark:border-slate-800 space-y-3">
+              <div className="p-4 border rounded-md border-slate-200 dark:border-slate-800 space-y-3">
                 <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Training Certificates & Proofs</span>
                 {(!application.certificate_paths || application.certificate_paths.length === 0) ? (
                   <p className="text-sm text-slate-400 italic">No certificates attached.</p>
@@ -420,7 +420,7 @@ export function ResponderApplicationDetailPage() {
             )}
 
             {/* Other Documents */}
-            <div className="p-4 border rounded-xl border-slate-200 dark:border-slate-800 space-y-3">
+            <div className="p-4 border rounded-md border-slate-200 dark:border-slate-800 space-y-3">
               <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Other Supporting Documents</span>
               {(!application.other_doc_paths || application.other_doc_paths.length === 0) ? (
                 <p className="text-sm text-slate-400 italic">No other supporting documents attached.</p>
@@ -505,7 +505,7 @@ export function ResponderApplicationDetailPage() {
               </div>
             </>
           ) : (
-            <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 space-y-3">
+            <div className="p-4 rounded-md border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-slate-500">Review Outcome</span>
                 <Tag

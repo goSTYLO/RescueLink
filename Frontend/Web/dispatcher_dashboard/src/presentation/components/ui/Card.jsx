@@ -1,7 +1,7 @@
 export function Card({ children, className = '', hover = true }) {
   const hoverClasses = hover ? 'hover-lift cursor-pointer' : '';
   return (
-    <div className={`bg-card rounded-xl border border-[rgba(19,65,120,0.35)] shadow-card transition-all duration-300 ${hoverClasses} ${className}`}>
+    <div className={`bg-card rounded-md border border-[rgba(19,65,120,0.35)] shadow-card transition-all duration-300 ${hoverClasses} ${className}`}>
       {children}
     </div>
   );

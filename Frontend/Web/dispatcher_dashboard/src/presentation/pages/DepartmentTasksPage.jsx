@@ -57,7 +57,7 @@ export function DepartmentTasksPage() {
   const deptPersonnel = departmentId && mockPersonnelByDept && mockPersonnelByDept[departmentId] ? mockPersonnelByDept[departmentId] : [];
   const deptUnits = departmentId && mockUnitsByDept && mockUnitsByDept[departmentId] ? mockUnitsByDept[departmentId] : [];
 
-  const heroCardClass = `rounded-3xl border overflow-hidden transition-all duration-300 ${isLight ? 'glass neumorphic-light bg-white/80 border-gray-200/80 shadow-[8px_8px_24px_rgba(209,213,219,0.5),-8px_-8px_24px_rgba(255,255,255,0.9)]' : 'glass neumorphic-dark bg-card/60 border-white/10 shadow-[8px_8px_24px_rgba(0,0,0,0.35),-6px_-6px_20px_rgba(19,65,120,0.2)]'}`;
+  const heroCardClass = `rounded-md border overflow-hidden transition-all duration-300 ${isLight ? 'glass neumorphic-light bg-white/80 border-gray-200/80 shadow-[8px_8px_24px_rgba(209,213,219,0.5),-8px_-8px_24px_rgba(255,255,255,0.9)]' : 'glass neumorphic-dark bg-card/60 border-white/10 shadow-[8px_8px_24px_rgba(0,0,0,0.35),-6px_-6px_20px_rgba(19,65,120,0.2)]'}`;
   const heroIconClass = `w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isLight ? 'neumorphic-light-inset bg-gray-100 text-primary' : 'neumorphic-dark-inset bg-white/10 text-primary'}`;
 
   return (
@@ -76,7 +76,7 @@ export function DepartmentTasksPage() {
         </div>
 
         {activeIncidents.length > 0 && (
-          <Card className="bg-amber-500/10 border-amber-500/30 p-4 rounded-2xl">
+          <Card className="bg-amber-500/10 border-amber-500/30 p-4 rounded-md">
             <div className="flex items-start gap-3">
               <AlertCircle className="w-5 h-5 text-amber-500 mt-0.5" />
               <div>
@@ -95,7 +95,7 @@ export function DepartmentTasksPage() {
             const assignedUnits = deptUnits.filter((u) => u.assignedIncident === incident.id);
 
             return (
-              <Card key={incident.id} className="p-6 rounded-2xl border border-border">
+              <Card key={incident.id} className="p-6 rounded-md border border-border">
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
@@ -183,7 +183,7 @@ export function DepartmentTasksPage() {
         </div>
 
         {activeIncidents.length === 0 && (
-          <Card className="p-12 rounded-2xl border border-border">
+          <Card className="p-12 rounded-md border border-border">
             <div className="text-center text-muted">
               <AlertCircle className="w-12 h-12 text-muted mx-auto mb-3" />
               <p className="text-lg font-medium">No Active Tasks</p>
@@ -192,7 +192,7 @@ export function DepartmentTasksPage() {
           </Card>
         )}
 
-        <Card className="p-4 bg-primary/5 border-primary/20 rounded-2xl">
+        <Card className="p-4 bg-primary/5 border-primary/20 rounded-md">
           <h3 className="font-semibold text-foreground mb-2">Task View</h3>
           <ul className="text-sm text-muted space-y-1 list-disc list-inside">
             <li>This page shows all incidents assigned to your department that are not yet resolved or closed</li>

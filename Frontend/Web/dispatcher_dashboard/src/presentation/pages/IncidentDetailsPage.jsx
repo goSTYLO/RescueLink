@@ -518,12 +518,12 @@ export function IncidentDetailsPage() {
         {hasBadges && (
           <div className="flex flex-wrap gap-1.5 pt-0.5">
             {incident.aiKeywordPromoted && (
-              <Tag className="rounded-lg text-[10px] border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300">
+              <Tag className="rounded-sm text-[10px] border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300">
                 Keyword-assisted
               </Tag>
             )}
             {incident.aiFallbackUsed && (
-              <Tag className="rounded-lg text-[10px] border-orange-500/40 bg-orange-500/10 text-orange-700 dark:text-orange-300">
+              <Tag className="rounded-sm text-[10px] border-orange-500/40 bg-orange-500/10 text-orange-700 dark:text-orange-300">
                 Keyword fallback
               </Tag>
             )}
@@ -1783,7 +1783,7 @@ export function IncidentDetailsPage() {
         </Button>
       )}
       {effectivelyResolved && !incident.reporterConfirmedAt && (
-        <Tag className="rounded-lg border-border">
+        <Tag className="rounded-sm border-border">
           Awaiting reporter confirmation or dispatcher close
         </Tag>
       )}
@@ -1799,7 +1799,7 @@ export function IncidentDetailsPage() {
             <span className="text-xs text-muted animate-pulse">Updated just now</span>
           )}
         </div>
-        <div ref={dispatchSectionRef} className={`sticky top-2 z-30 mb-3 rounded-2xl border px-3 py-2 ${isLight ? 'bg-white/95 border-gray-200/80 backdrop-blur' : 'bg-card/90 border-white/10 backdrop-blur'}`}>
+        <div ref={dispatchSectionRef} className={`sticky top-2 z-30 mb-3 rounded-md border px-3 py-2 ${isLight ? 'bg-white/95 border-gray-200/80 backdrop-blur' : 'bg-card/90 border-white/10 backdrop-blur'}`}>
           <div className="flex flex-wrap items-center gap-2">
             {renderPrimaryActions({ compact: true })}
           </div>
@@ -1808,13 +1808,13 @@ export function IncidentDetailsPage() {
           )}
           <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
             {duplicateCluster.length > 1 && (
-              <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 border ${isLight ? 'border-amber-300 bg-amber-50 text-amber-700' : 'border-amber-500/40 bg-amber-500/10 text-amber-300'}`}>
+              <span className={`inline-flex items-center gap-1 rounded-sm px-2 py-0.5 border ${isLight ? 'border-amber-300 bg-amber-50 text-amber-700' : 'border-amber-500/40 bg-amber-500/10 text-amber-300'}`}>
                 <AlertCircle className="w-3 h-3" />
                 {duplicateCluster.length} related report(s)
               </span>
             )}
             {(incident?.isDuplicate || incident?.flaggedForReview) && (
-              <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 border ${isLight ? 'border-orange-400 bg-orange-50 text-orange-600' : 'border-orange-500/40 bg-orange-500/10 text-orange-300'}`}>
+              <span className={`inline-flex items-center gap-1 rounded-sm px-2 py-0.5 border ${isLight ? 'border-orange-400 bg-orange-50 text-orange-600' : 'border-orange-500/40 bg-orange-500/10 text-orange-300'}`}>
                 <AlertTriangle className="w-3 h-3" />
                 {incident?.isDuplicate ? 'Duplicate' : 'Possible Duplicate'}
               </span>
@@ -1861,13 +1861,13 @@ export function IncidentDetailsPage() {
               <div className="flex items-center gap-3 flex-wrap">
                   <h1 className="text-2xl font-semibold text-foreground">{incident.id}</h1>
                   {incident.highPriority && (
-                    <Tag className="bg-primary/20 text-primary border-primary/50 rounded-lg">
+                    <Tag className="bg-primary/20 text-primary border-primary/50 rounded-sm">
                       <AlertTriangle className="w-3 h-3 mr-1" />
                       High Priority
                     </Tag>
                   )}
                   {(incident.isDuplicate || incident.flaggedForReview) && (
-                    <Tag className={`rounded-lg ${incident.isDuplicate ? 'bg-card text-muted border-border' : 'bg-orange-500/10 text-orange-600 border-orange-500/40'}`}>
+                    <Tag className={`rounded-sm ${incident.isDuplicate ? 'bg-card text-muted border-border' : 'bg-orange-500/10 text-orange-600 border-orange-500/40'}`}>
                       <Copy className="w-3 h-3 mr-1" />
                       {incident.isDuplicate ? 'Duplicate' : 'Possible Duplicate'}
                     </Tag>
@@ -1903,59 +1903,59 @@ export function IncidentDetailsPage() {
                 )}
               </div>
               <div className="flex items-center gap-2 flex-wrap">
-                <Tag className={`${getStatusColor(incident.status)} rounded-lg px-3 py-1`}>
+                <Tag className={`${getStatusColor(incident.status)} rounded-sm px-3 py-1`}>
                   {incident.status}
                 </Tag>
                 {autoBadge && (
-                  <Tag className={`${autoBadge.className} border rounded-lg px-3 py-1`}>
+                  <Tag className={`${autoBadge.className} border rounded-sm px-3 py-1`}>
                     {autoBadge.label}
                   </Tag>
                 )}
                 {incident.autoAssignmentMismatch && (
-                  <Tag className="bg-orange-500/20 text-orange-700 border border-orange-500/40 rounded-lg px-3 py-1">
+                  <Tag className="bg-orange-500/20 text-orange-700 border border-orange-500/40 rounded-sm px-3 py-1">
                     Type/team mismatch
                   </Tag>
                 )}
-                <VolunteerStatusBadge responderStatus={incident.responderStatus} className="rounded-lg px-3 py-1" />
+                <VolunteerStatusBadge responderStatus={incident.responderStatus} className="rounded-sm px-3 py-1" />
                 {hasOpenBackupUi(incident) && (
                   <BackupRequestedBadge
                     status={incident.openBackupStatus || 'pending'}
                     onClick={() => setBackupDialogOpen(true)}
                   />
                 )}
-                <Tag className={`${getSeverityColor(incident.severity)} rounded-lg px-3 py-1`}>
+                <Tag className={`${getSeverityColor(incident.severity)} rounded-sm px-3 py-1`}>
                   {incident.severity}
                 </Tag>
-                <Tag className="rounded-lg border-border">
+                <Tag className="rounded-sm border-border">
                   {incident.verified ? 'Verified' : 'Not Verified'}
                 </Tag>
                 {getConfidencePercent(incident.aiConfidenceScore) != null && (
-                  <Tag className="rounded-lg border-border">
+                  <Tag className="rounded-sm border-border">
                     Model {getConfidencePercent(incident.aiConfidenceScore)}% ({getConfidenceLabel(incident.aiConfidenceScore)})
                   </Tag>
                 )}
                 {getConfidencePercent(incident.aiSttConfidence) != null && (
-                  <Tag className="rounded-lg border-border">
+                  <Tag className="rounded-sm border-border">
                     STT {getConfidencePercent(incident.aiSttConfidence)}%
                   </Tag>
                 )}
                 {incident.aiKeywordPromoted && (
-                  <Tag className="rounded-lg border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300">
+                  <Tag className="rounded-sm border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300">
                     Keyword-assisted
                   </Tag>
                 )}
                 {incident.aiFallbackUsed && (
-                  <Tag className="rounded-lg border-orange-500/40 bg-orange-500/10 text-orange-700 dark:text-orange-300">
+                  <Tag className="rounded-sm border-orange-500/40 bg-orange-500/10 text-orange-700 dark:text-orange-300">
                     Keyword fallback
                   </Tag>
                 )}
                 {effectivelyResolved && (
-                  <Tag className="rounded-lg border-border">
+                  <Tag className="rounded-sm border-border">
                     {incident.reporterConfirmedAt ? 'Reporter confirmed' : 'Awaiting reporter confirmation or dispatcher close'}
                   </Tag>
                 )}
                 {incident.status === 'Closed' && (
-                  <Tag className="rounded-lg border-border">
+                  <Tag className="rounded-sm border-border">
                     {incident.reporterConfirmedAt ? 'Closed after reporter confirmation' : 'Closed by dispatcher'}
                   </Tag>
                 )}
@@ -1963,12 +1963,12 @@ export function IncidentDetailsPage() {
             </div>
 
             {latestVerificationMeta?.tx_hash && (
-              <div className={`p-3 rounded-xl border ${isLight ? 'bg-emerald-50/80 border-emerald-200/80' : 'bg-emerald-500/10 border-emerald-500/30'}`}>
+              <div className={`p-3 rounded-md border ${isLight ? 'bg-emerald-50/80 border-emerald-200/80' : 'bg-emerald-500/10 border-emerald-500/30'}`}>
                 <p className="text-xs uppercase tracking-wide text-muted font-semibold mb-1">
                   {USE_BLOCKCHAIN ? 'Latest Blockchain Verification' : 'Latest Audit Finalization'}
                 </p>
                 <div className="flex flex-wrap items-center gap-2 text-sm">
-                  <Tag className="rounded-lg border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                  <Tag className="rounded-sm border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
                     {USE_BLOCKCHAIN ? 'Blockchain Verified' : 'Audit Entry Created'}
                   </Tag>
                   {latestVerificationMeta.block_number != null && (
@@ -1983,18 +1983,18 @@ export function IncidentDetailsPage() {
               </div>
             )}
 
-            <div className={`flex flex-wrap items-center gap-3 p-3 rounded-xl border text-sm ${isLight ? 'bg-gray-50/70 border-gray-200/80' : 'bg-white/5 border-white/10'}`}>
-              <span className="rounded-lg border border-border px-3 py-1 font-medium"><strong>Status:</strong> {incident.status}</span>
-              <span className="rounded-lg border border-border px-3 py-1 font-medium"><strong>Severity:</strong> {incident.severity}</span>
-              <span className="rounded-lg border border-border px-3 py-1 font-medium inline-flex items-center gap-2">
+            <div className={`flex flex-wrap items-center gap-3 p-3 rounded-md border text-sm ${isLight ? 'bg-gray-50/70 border-gray-200/80' : 'bg-white/5 border-white/10'}`}>
+              <span className="rounded-sm border border-border px-3 py-1 font-medium"><strong>Status:</strong> {incident.status}</span>
+              <span className="rounded-sm border border-border px-3 py-1 font-medium"><strong>Severity:</strong> {incident.severity}</span>
+              <span className="rounded-sm border border-border px-3 py-1 font-medium inline-flex items-center gap-2">
                 <strong>Type:</strong>
                 <IncidentTypeChips incidentTypes={incident.incidentTypes} compact />
               </span>
-              <span className="rounded-lg border border-border px-3 py-1 truncate max-w-[220px] font-medium" title={incident.reporterName}><strong>Reporter:</strong> {incident.reporterName}</span>
-              <span className="rounded-lg border border-border px-3 py-1 truncate max-w-[220px] font-medium" title={incident.reporterPhone}><strong>Contact:</strong> {incident.reporterPhone}</span>
-              <span className="rounded-lg border border-border px-3 py-1 truncate max-w-[220px] font-medium" title={incident.barangay}><strong>Barangay:</strong> {incident.barangay}</span>
+              <span className="rounded-sm border border-border px-3 py-1 truncate max-w-[220px] font-medium" title={incident.reporterName}><strong>Reporter:</strong> {incident.reporterName}</span>
+              <span className="rounded-sm border border-border px-3 py-1 truncate max-w-[220px] font-medium" title={incident.reporterPhone}><strong>Contact:</strong> {incident.reporterPhone}</span>
+              <span className="rounded-sm border border-border px-3 py-1 truncate max-w-[220px] font-medium" title={incident.barangay}><strong>Barangay:</strong> {incident.barangay}</span>
               {(incident?.isDuplicate || incident?.flaggedForReview) && (
-                <span className={`inline-flex items-center gap-1 rounded-lg px-3 py-1 font-semibold border ${isLight ? 'border-orange-400 bg-orange-50 text-orange-700' : 'border-orange-500/40 bg-orange-500/10 text-orange-300'}`}>
+                <span className={`inline-flex items-center gap-1 rounded-sm px-3 py-1 font-semibold border ${isLight ? 'border-orange-400 bg-orange-50 text-orange-700' : 'border-orange-500/40 bg-orange-500/10 text-orange-300'}`}>
                   <AlertTriangle className="w-3.5 h-3.5" />
                   {incident?.isDuplicate ? 'Duplicate' : 'Possible Duplicate'}
                 </span>
@@ -2002,7 +2002,7 @@ export function IncidentDetailsPage() {
             </div>
 
             {/* Incident Description - Top Priority */}
-            <div className={`p-4 rounded-xl border ${isLight ? 'bg-blue-50/70 border-blue-200/80' : 'bg-blue-500/10 border-blue-500/30'}`}>
+            <div className={`p-4 rounded-md border ${isLight ? 'bg-blue-50/70 border-blue-200/80' : 'bg-blue-500/10 border-blue-500/30'}`}>
               <div className="flex items-start gap-2 mb-2">
                 <FileText className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
                 <p className="text-xs uppercase tracking-wide text-muted font-semibold">Incident Description</p>
@@ -2023,7 +2023,7 @@ export function IncidentDetailsPage() {
             </div>
 
             {duplicateCluster.length > 1 && (
-              <div className={`rounded-xl border ${isLight ? 'bg-amber-50/70 border-amber-200/80' : 'bg-amber-500/10 border-amber-500/30'}`}>
+              <div className={`rounded-md border ${isLight ? 'bg-amber-50/70 border-amber-200/80' : 'bg-amber-500/10 border-amber-500/30'}`}>
                 <button
                   type="button"
                   className="flex w-full items-center justify-between gap-2 p-3 text-left hover:opacity-90 transition-opacity"
@@ -2079,7 +2079,7 @@ export function IncidentDetailsPage() {
               </div>
             )}
 
-            <div className={`p-3 rounded-xl border ${isLight ? 'bg-white/80 border-gray-200/80' : 'bg-white/5 border-white/10'}`}>
+            <div className={`p-3 rounded-md border ${isLight ? 'bg-white/80 border-gray-200/80' : 'bg-white/5 border-white/10'}`}>
               <div className="flex items-center justify-between gap-2 mb-2">
                 <div className="flex items-start gap-2 mb-2">
                   <FileText className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
@@ -2119,7 +2119,7 @@ export function IncidentDetailsPage() {
           <div className="space-y-6">
             {/* Pending Assistance Alert Banner for Target Department */}
             {escalations.some((e) => String(e.to_department_id) === String(currentUserDeptId) && e.status === 'pending') && (
-              <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-2xl bg-orange-500/10 border border-orange-500/30 text-orange-400">
+              <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-md bg-orange-500/10 border border-orange-500/30 text-orange-400">
                 <div className="flex items-center gap-2.5">
                   <HandHelping className="w-5 h-5 text-orange-400 shrink-0" />
                   <div>
@@ -2144,7 +2144,7 @@ export function IncidentDetailsPage() {
                     <IncidentMap
                       latitude={incident.location.lat}
                       longitude={incident.location.lng}
-                      className="w-full h-48 rounded-xl overflow-hidden border border-border"
+                      className="w-full h-48 rounded-md overflow-hidden border border-border"
                     />
                     {(incidentMapOpenStreetUrl || incidentMapGoogleUrl) && (
                       <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -2170,7 +2170,7 @@ export function IncidentDetailsPage() {
                     )}
                   </div>
 
-                  <div className={`rounded-xl border ${isLight ? 'bg-gray-50/70 border-gray-200/80' : 'bg-white/5 border-white/10'}`}>
+                  <div className={`rounded-md border ${isLight ? 'bg-gray-50/70 border-gray-200/80' : 'bg-white/5 border-white/10'}`}>
                     <button
                       type="button"
                       className="flex w-full items-center justify-between gap-2 p-3 text-left hover:opacity-90 transition-opacity"
@@ -2185,11 +2185,11 @@ export function IncidentDetailsPage() {
                     <div className="px-3 pb-3 pt-0 space-y-3">
                       <div className="flex flex-wrap gap-3 justify-center">
                         {mediaLoading ? (
-                          <div className="w-full p-6 bg-muted/20 rounded-xl border border-border flex items-center justify-center">
+                          <div className="w-full p-6 bg-muted/20 rounded-md border border-border flex items-center justify-center">
                             <p className="text-sm text-muted">Loading media...</p>
                           </div>
                         ) : mediaError ? (
-                          <div className="w-full p-6 bg-muted/20 rounded-xl border border-dashed border-border flex items-center justify-center">
+                          <div className="w-full p-6 bg-muted/20 rounded-md border border-dashed border-border flex items-center justify-center">
                             <p className="text-sm text-muted">{mediaError}</p>
                           </div>
                         ) : (incident.mediaPaths || []).length > 0 ? (
@@ -2202,7 +2202,7 @@ export function IncidentDetailsPage() {
                               const isVideoByPath = /\.(mp4|webm|mov|avi)$/i.test(String(media?.path || ''));
                               const isVideo = isVideoByContentType || (media?.url && isVideoByPath);
                               return (
-                                <div key={idx} className="aspect-square w-32 bg-muted/30 rounded-xl flex items-center justify-center border border-border overflow-hidden">
+                                <div key={idx} className="aspect-square w-32 bg-muted/30 rounded-md flex items-center justify-center border border-border overflow-hidden">
                                   {media?.url ? (
                                     isImage ? (
                                       <button
@@ -2268,7 +2268,7 @@ export function IncidentDetailsPage() {
                             </Modal>
                           </>
                         ) : (
-                          <div className="w-full p-6 bg-muted/20 rounded-xl border border-dashed border-border flex items-center justify-center">
+                          <div className="w-full p-6 bg-muted/20 rounded-md border border-dashed border-border flex items-center justify-center">
                             <p className="text-sm text-muted">No photos provided for this incident</p>
                           </div>
                         )}
@@ -2277,14 +2277,14 @@ export function IncidentDetailsPage() {
                     )}
                   </div>
 
-                  <div className={`p-3 rounded-xl border ${isLight ? 'bg-gray-50/70 border-gray-200/80' : 'bg-white/5 border-white/10'}`}>
+                  <div className={`p-3 rounded-md border ${isLight ? 'bg-gray-50/70 border-gray-200/80' : 'bg-white/5 border-white/10'}`}>
                     <p className="text-xs uppercase tracking-wide text-muted font-semibold mb-1">Workflow Guide</p>
                     <p className="text-xs text-muted">Pending → Verified → In Progress → Resolved → Closed</p>
                   </div>
 
                   {/* TEAM & RESPONDER STATUS SECTION */}
                   {(incident?.assignedDepartment || incident?.assignedDepartmentId || incident?.assignedTeamName || (isSuggested && (incident?.suggestedTeamName || incident?.suggestedDepartmentCode))) && (
-                    <div className={`p-4 rounded-xl border ${isLight ? 'bg-blue-50/70 border-blue-200/80' : 'bg-blue-500/10 border-blue-500/30'}`}>
+                    <div className={`p-4 rounded-md border ${isLight ? 'bg-blue-50/70 border-blue-200/80' : 'bg-blue-500/10 border-blue-500/30'}`}>
                       <div className="flex items-start gap-2 mb-3">
                         <Users className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
                         <p className="text-xs uppercase tracking-wide text-muted font-semibold">Team Assignment & Status</p>
@@ -2498,7 +2498,7 @@ export function IncidentDetailsPage() {
                   })()}
 
                   {(incident.closureData || incident.status === 'Closed') && (
-                    <div className={`p-3 rounded-xl border ${isLight ? 'border-severity-resolved/40 bg-severity-resolved/10' : 'border-severity-resolved/30 bg-severity-resolved/10'}`}>
+                    <div className={`p-3 rounded-md border ${isLight ? 'border-severity-resolved/40 bg-severity-resolved/10' : 'border-severity-resolved/30 bg-severity-resolved/10'}`}>
                       <p className="text-xs uppercase tracking-wide text-muted font-semibold mb-2">Closure Information</p>
                       <p className="text-sm text-foreground"><span className="text-muted">Closed By:</span> {incident.closureData?.closedBy || (incident.closedByUserId ? `User #${incident.closedByUserId}` : 'System')}</p>
                       <p className="text-sm text-foreground"><span className="text-muted">Closed At:</span> {incident.closureData?.closedAt || incident.closedAt || '—'}</p>
@@ -2598,7 +2598,7 @@ export function IncidentDetailsPage() {
                             <IconComponent className="w-5 h-5" />
                           </div>
                           {/* Event card */}
-                          <div className={`flex-1 p-4 rounded-xl border ${isLight ? 'bg-white border-gray-200' : 'bg-white/5 border-white/10'}`}>
+                          <div className={`flex-1 p-4 rounded-md border ${isLight ? 'bg-white border-gray-200' : 'bg-white/5 border-white/10'}`}>
                             <div className="flex items-start justify-between gap-4">
                               <div className="flex-1">
                                 <p className="font-semibold text-foreground">{label}</p>
@@ -2633,9 +2633,9 @@ export function IncidentDetailsPage() {
                 {/* Coordination Notes */}
                 <div className="space-y-3">
                   {coordination.map((note, idx) => (
-                    <div key={idx} className={`p-4 rounded-xl border ${isLight ? 'bg-gray-50 border-gray-200' : 'bg-secondary/20 border-border'}`}>
+                    <div key={idx} className={`p-4 rounded-md border ${isLight ? 'bg-gray-50 border-gray-200' : 'bg-secondary/20 border-border'}`}>
                       <div className="flex items-start justify-between mb-2">
-                        <Tag className="text-xs rounded-lg">
+                        <Tag className="text-xs rounded-sm">
                           {note.department}
                         </Tag>
                         <span className="text-xs text-muted">{note.timestamp}</span>
@@ -2734,7 +2734,7 @@ export function IncidentDetailsPage() {
                     <label className="text-sm text-muted">Response Time</label>
                     <div className="flex items-center gap-3 mt-1">
                       <p className="font-medium text-foreground">{review.responseTime}</p>
-                      <Tag className={`rounded-lg ${
+                      <Tag className={`rounded-sm ${
                         review.responseTimeRating === 'Excellent' ? 'bg-severity-resolved/20 text-severity-resolved border-severity-resolved/40' :
                         review.responseTimeRating === 'Good' ? 'bg-secondary/20 text-secondary border-secondary/40' :
                         review.responseTimeRating === 'Fair' ? 'bg-amber-500/20 text-amber-600 border-amber-500/40' :
@@ -2763,7 +2763,7 @@ export function IncidentDetailsPage() {
 
                   <div>
                     <label className="text-sm text-muted mb-2 block">Supervisor Remarks</label>
-                    <p className={`text-sm text-foreground p-3 rounded-xl border ${isLight ? 'bg-primary/10 border-primary/20' : 'bg-primary/20 border-primary/30'}`}>
+                    <p className={`text-sm text-foreground p-3 rounded-md border ${isLight ? 'bg-primary/10 border-primary/20' : 'bg-primary/20 border-primary/30'}`}>
                       {review.supervisorRemarks}
                     </p>
                   </div>
@@ -2959,7 +2959,7 @@ export function IncidentDetailsPage() {
                 />
               </div>
               {notifyDepartment && (
-                <div className={`rounded-xl border p-3 ${isLight ? 'border-blue-200/80 bg-blue-50/60' : 'border-blue-500/30 bg-blue-500/10'}`}>
+                <div className={`rounded-md border p-3 ${isLight ? 'border-blue-200/80 bg-blue-50/60' : 'border-blue-500/30 bg-blue-500/10'}`}>
                   <p className="text-xs uppercase tracking-wide text-muted font-semibold mb-2">Department Team Status</p>
                   {(() => {
                     const summary = teamSummaryByDepartment[String(notifyDepartment || '').toLowerCase()];

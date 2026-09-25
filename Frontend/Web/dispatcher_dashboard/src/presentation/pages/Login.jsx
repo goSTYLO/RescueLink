@@ -181,7 +181,7 @@ export default function Login({ onSuccess, onForgotPasswordClick }) {
       </Form>
 
       {DEV_MODE && (
-        <div className="mt-8 bg-card/80 border border-border rounded-xl p-4">
+        <div className="mt-8 bg-card/80 border border-border rounded-md p-4">
           <p className="text-sm font-semibold text-amber-500 dark:text-amber-400 mb-3">🚧 Development Mode - Quick Navigation:</p>
           <div className="grid grid-cols-2 gap-2">
             {['/dashboard', '/map', '/departments', '/audit', '/adminactions', '/profile', '/settings', '/forgot-password', '/enter-code', '/create-password'].map((path) => (
@@ -193,7 +193,7 @@ export default function Login({ onSuccess, onForgotPasswordClick }) {
         </div>
       )}
 
-      <div className="mt-8 bg-card/80 border border-border rounded-xl p-4 flex items-start gap-3">
+      <div className="mt-8 bg-card/80 border border-border rounded-md p-4 flex items-start gap-3">
         <svg className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
         </svg>

@@ -124,7 +124,7 @@ export function DepartmentVehiclesPage() {
     return <Badge className="bg-muted text-muted-foreground">{status || '—'}</Badge>;
   };
 
-  const heroCardClass = `rounded-3xl border overflow-hidden transition-all duration-300 ${isLight ? 'glass neumorphic-light bg-white/80 border-gray-200/80 shadow-[8px_8px_24px_rgba(209,213,219,0.5),-8px_-8px_24px_rgba(255,255,255,0.9)]' : 'glass neumorphic-dark bg-card/60 border-white/10 shadow-[8px_8px_24px_rgba(0,0,0,0.35),-6px_-6px_20px_rgba(19,65,120,0.2)]'}`;
+  const heroCardClass = `rounded-md border overflow-hidden transition-all duration-300 ${isLight ? 'glass neumorphic-light bg-white/80 border-gray-200/80 shadow-[8px_8px_24px_rgba(209,213,219,0.5),-8px_-8px_24px_rgba(255,255,255,0.9)]' : 'glass neumorphic-dark bg-card/60 border-white/10 shadow-[8px_8px_24px_rgba(0,0,0,0.35),-6px_-6px_20px_rgba(19,65,120,0.2)]'}`;
   const heroIconClass = `w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isLight ? 'neumorphic-light-inset bg-gray-100 text-primary' : 'neumorphic-dark-inset bg-white/10 text-primary'}`;
 
   return (
@@ -143,7 +143,7 @@ export function DepartmentVehiclesPage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card className="p-4 rounded-2xl border border-border">
+          <Card className="p-4 rounded-md border border-border">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted">Total Vehicles</p>
@@ -154,7 +154,7 @@ export function DepartmentVehiclesPage() {
               </div>
             </div>
           </Card>
-          <Card className="p-4 rounded-2xl border border-border">
+          <Card className="p-4 rounded-md border border-border">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted">Available</p>
@@ -165,7 +165,7 @@ export function DepartmentVehiclesPage() {
               </div>
             </div>
           </Card>
-          <Card className="p-4 rounded-2xl border border-border">
+          <Card className="p-4 rounded-md border border-border">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted">Deployed</p>
@@ -176,7 +176,7 @@ export function DepartmentVehiclesPage() {
               </div>
             </div>
           </Card>
-          <Card className="p-4 rounded-2xl border border-border">
+          <Card className="p-4 rounded-md border border-border">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted">Maintenance</p>
@@ -190,12 +190,12 @@ export function DepartmentVehiclesPage() {
         </div>
 
         {error && (
-          <div className="rounded-2xl border border-destructive/50 bg-destructive/10 px-4 py-3 text-destructive text-sm">
+          <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-destructive text-sm">
             {error}
           </div>
         )}
 
-        <Card className="rounded-2xl border border-border overflow-hidden">
+        <Card className="rounded-md border border-border overflow-hidden">
           <div className="p-4 border-b border-border flex items-center justify-between flex-wrap gap-2">
             <h2 className="text-xl font-semibold text-foreground">Fleet</h2>
             {user.role === ROLES.DEPARTMENT_ADMIN && (

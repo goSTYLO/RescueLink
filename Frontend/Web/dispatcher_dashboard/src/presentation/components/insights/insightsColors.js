@@ -1,6 +1,6 @@
 /** Semantic colors + chrome for Insights CAD/EOC dashboard (hex for charts, Tailwind for UI). */
 
-export const CARD_CHROME = 'bg-card rounded-xl border border-[rgba(19,65,120,0.35)]';
+export const CARD_CHROME = 'bg-card rounded-md border border-[rgba(19,65,120,0.35)]';
 export const KPI_HOVER = 'hover:shadow-md hover:shadow-primary/10 transition-shadow';
 
 const DEPT_PALETTE = ['#134178', '#0ea5e9', '#14b8a6', '#6366f1', '#d97706', '#16a34a', '#dc2626', '#7c3aed'];
