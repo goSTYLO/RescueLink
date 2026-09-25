@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-25
+
+- Cloud Run STT: **local Faster-Whisper `medium` first**, HF API fallback (`STT_ENABLE_API_FALLBACK`); Dockerfile prefetches medium; deploy script and [`GCP_AI.md`](Documentation/backend/GCP_AI.md) aligned.
+- Backend `AI_REQUEST_TIMEOUT` default **150s** (env override; legacy `AI_TRANSCRIPTION_TIMEOUT` still read).
+- Mobile: **180s** timeout for `with-audio` only; cold-start submit copy; **55s** recording cap; snackbar when response is `ai_pending`.
+
 ## 2026-09-24 (continued)
 
 - Mobile release builds: `pubspec.yaml` version sync + `RescueLink_App_<version>_<build>.apk` via Gradle (`android/app/build.gradle.kts`) and optional `build_release.bat` / `run_release.bat`.

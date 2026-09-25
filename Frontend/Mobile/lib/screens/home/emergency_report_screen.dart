@@ -42,6 +42,7 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
   bool _locationLoading = false;
   bool _additionalDetailsExpanded = false;
   static const int _minAudioDurationSeconds = 5;
+  static const int _maxAudioDurationSeconds = 55;
 
   bool _isRecording = false;
   DateTime? _recordingStartedAt;
@@ -81,10 +82,14 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
     _recordingElapsedSeconds = 0;
     _recordingTimer = Timer.periodic(const Duration(milliseconds: 200), (_) {
       if (!mounted || _recordingStartedAt == null) return;
+      final elapsed =
+          DateTime.now().difference(_recordingStartedAt!).inSeconds;
       setState(() {
-        _recordingElapsedSeconds =
-            DateTime.now().difference(_recordingStartedAt!).inSeconds;
+        _recordingElapsedSeconds = elapsed;
       });
+      if (_isRecording && elapsed >= _maxAudioDurationSeconds) {
+        unawaited(_toggleRecording());
+      }
     });
   }
 
@@ -518,6 +523,20 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
                 child: const Text('OK'),
               ),
             ],
+          ),
+        );
+      }
+      final aiPending = response['ai_status'] == 'pending' ||
+          response['ai_pending'] == true ||
+          incident['ai_pending'] == true;
+      if (aiPending && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Report submitted. AI classification is still running — '
+              'check Report History; the dashboard may update in a few minutes.',
+            ),
+            duration: Duration(seconds: 6),
           ),
         );
       }
@@ -999,14 +1018,26 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
               Container(
                 color: Colors.black26,
                 child: const Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      CircularProgressIndicator(strokeWidth: 2),
-                      SizedBox(height: 16),
-                      Text('Submitting...',
-                          style: TextStyle(color: Colors.white, fontSize: 16)),
-                    ],
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 32),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        CircularProgressIndicator(strokeWidth: 2),
+                        SizedBox(height: 16),
+                        Text(
+                          'Submitting…',
+                          style: TextStyle(color: Colors.white, fontSize: 16),
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          'Servers may be waking up on the first request. '
+                          'This can take up to a few minutes.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: Colors.white70, fontSize: 13),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),

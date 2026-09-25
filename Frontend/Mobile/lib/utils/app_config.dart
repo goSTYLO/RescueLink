@@ -30,6 +30,9 @@ class AppConfig {
   // API Timeout
   static const Duration apiTimeout = Duration(seconds: 30);
 
+  /// Incident with-audio: Render + Cloud Run cold start and local STT can exceed 30s.
+  static const Duration audioUploadTimeout = Duration(seconds: 180);
+
   // Pagination
   static const int defaultPageSize = 20;
   static const int maxPageSize = 100;

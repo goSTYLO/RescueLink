@@ -6,12 +6,12 @@ Deploy the FastAPI microservice from [`RescueLink AI/Dockerfile`](../../RescueLi
 
 | Variable | Value |
 |----------|--------|
-| `STT_PROVIDER` | `api` (HF Inference API first) |
-| `STT_ENABLE_LOCAL_FALLBACK` | `true` (Faster-Whisper `tiny` if API fails) |
-| `STT_LOCAL_MODEL_SIZE` | `tiny` (Dockerfile default) |
+| `STT_PROVIDER` | `local` (Faster-Whisper `medium` first) |
+| `STT_ENABLE_API_FALLBACK` | `true` (HF Inference API if local STT fails) |
+| `STT_LOCAL_MODEL_SIZE` | `medium` (baked in Dockerfile) |
 | `STT_DEVICE` | `cpu` |
 | `STT_COMPUTE_TYPE` | `int8` |
-| `HF_API_TOKEN` | Secret Manager → env (required for primary STT) |
+| `HF_API_TOKEN` | Secret Manager → env (fallback STT only; 401 does not block local-first) |
 | `AI_INTERNAL_TOKEN` | Optional; match Render `AI_SERVICE_TOKEN` |
 | `AI_STARTUP_WARMUP` | **`true`** on Cloud Run (4Gi); **`false`** on Render free tier |
 | `AI_STARTUP_WARMUP_WHISPER` | **`true`** on Cloud Run with local STT fallback; **`false`** on Render |
@@ -35,15 +35,40 @@ Cloud Shell **does not** define `deploy_cloud_run` for you. That name is only a 
 
 **One-time per GCP project** (before first deploy): enable Secret Manager, create HF secret, grant Cloud Run access — [One-time setup](#one-time-setup).
 
-**Recommended — one script (build + deploy + health curl):**
+**Recommended — [`scripts/cloud-run-build-deploy.sh`](../../RescueLink%20AI/scripts/cloud-run-build-deploy.sh):**
+
+Run from [`RescueLink AI/`](../../RescueLink%20AI/) (directory name has a space). The script sets `PROJECT_ID`, enables APIs, verifies `hf-api-token` exists on deploy, runs Cloud Build when needed, deploys with the [Shared deploy flags](#shared-deploy-flags), and curls `/health`.
+
+| Mode | Command | Build image? | New Cloud Run revision? | Use when |
+|------|---------|--------------|-------------------------|----------|
+| **Default** (full) | `./scripts/cloud-run-build-deploy.sh` | Yes (`gcloud builds submit`) | Yes | Dockerfile or AI code changed; first deploy after clone |
+| **Deploy only** | `./scripts/cloud-run-build-deploy.sh --deploy-only` | No | Yes | Rotated `hf-api-token` (new secret version); re-apply env/secrets without rebuilding |
+| **Build only** | `./scripts/cloud-run-build-deploy.sh --build-only` | Yes | No | Push `:latest` to GCR; deploy later with `--deploy-only` |
+
+Optional env overrides (same shell session): `PROJECT_ID`, `REGION`, `IMAGE`, `SERVICE_NAME` (defaults: `rescuelink-ai-509607`, `asia-southeast1`, `gcr.io/${PROJECT_ID}/rescuelink-ai:latest`, `resquelink-ai`).
 
 ```bash
 cd ~/RescueLink/"RescueLink AI"
 chmod +x scripts/cloud-run-build-deploy.sh   # once per clone
+
+# Full rebuild + deploy (most code changes)
 ./scripts/cloud-run-build-deploy.sh
+
+# New HF token in Secret Manager only — no Docker rebuild
+echo -n "YOUR_NEW_HF_TOKEN" | gcloud secrets versions add hf-api-token --data-file=-
+./scripts/cloud-run-build-deploy.sh --deploy-only
+
+# Or token-only without the script (same revision roll, mounts latest secret):
+# gcloud run services update resquelink-ai --region asia-southeast1 \
+#   --update-secrets "HF_API_TOKEN=hf-api-token:latest"
+
+# Build now, deploy after you verify IMAGE
+./scripts/cloud-run-build-deploy.sh --build-only
+export IMAGE="gcr.io/${PROJECT_ID}/rescuelink-ai:latest"
+./scripts/cloud-run-build-deploy.sh --deploy-only
 ```
 
-Optional flags: `--build-only` (after a successful build, deploy only with `--deploy-only`).
+Deploy always re-applies STT env vars and `--set-secrets "HF_API_TOKEN=hf-api-token:latest"` from the script; manual Cloud Run console edits to those vars are overwritten on the next deploy.
 
 **Manual — set variables, then build and deploy:**
 
@@ -83,7 +108,7 @@ deploy_cloud_run() {
     --timeout 300 \
     --concurrency 1 \
     --port 8080 \
-    --set-env-vars "ENVIRONMENT=production,STT_PROVIDER=api,STT_ENABLE_LOCAL_FALLBACK=true,STT_ENABLE_API_FALLBACK=false,STT_LOCAL_MODEL_SIZE=tiny,STT_DEVICE=cpu,STT_COMPUTE_TYPE=int8,AI_STARTUP_WARMUP=true,AI_STARTUP_WARMUP_WHISPER=true,MODEL_WEIGHTS_URL=https://huggingface.co/goSTYLO/resquelink-weights/resolve/main/emergency_model.pt" \
+    --set-env-vars "ENVIRONMENT=production,STT_PROVIDER=local,STT_ENABLE_LOCAL_FALLBACK=false,STT_ENABLE_API_FALLBACK=true,STT_LOCAL_MODEL_SIZE=medium,STT_DEVICE=cpu,STT_COMPUTE_TYPE=int8,AI_STARTUP_WARMUP=true,AI_STARTUP_WARMUP_WHISPER=true,MODEL_WEIGHTS_URL=https://huggingface.co/goSTYLO/resquelink-weights/resolve/main/emergency_model.pt" \
     --set-secrets "HF_API_TOKEN=hf-api-token:latest"
 }
 EOF
@@ -155,7 +180,7 @@ deploy_cloud_run() {
     --timeout 300 \
     --concurrency 1 \
     --port 8080 \
-    --set-env-vars "ENVIRONMENT=production,STT_PROVIDER=api,STT_ENABLE_LOCAL_FALLBACK=true,STT_ENABLE_API_FALLBACK=false,STT_LOCAL_MODEL_SIZE=tiny,STT_DEVICE=cpu,STT_COMPUTE_TYPE=int8,AI_STARTUP_WARMUP=true,AI_STARTUP_WARMUP_WHISPER=true,MODEL_WEIGHTS_URL=https://huggingface.co/goSTYLO/resquelink-weights/resolve/main/emergency_model.pt" \
+    --set-env-vars "ENVIRONMENT=production,STT_PROVIDER=local,STT_ENABLE_LOCAL_FALLBACK=false,STT_ENABLE_API_FALLBACK=true,STT_LOCAL_MODEL_SIZE=medium,STT_DEVICE=cpu,STT_COMPUTE_TYPE=int8,AI_STARTUP_WARMUP=true,AI_STARTUP_WARMUP_WHISPER=true,MODEL_WEIGHTS_URL=https://huggingface.co/goSTYLO/resquelink-weights/resolve/main/emergency_model.pt" \
     --set-secrets "HF_API_TOKEN=hf-api-token:latest"
 }
 ```
@@ -173,7 +198,7 @@ gcloud run deploy resquelink-ai `
   --timeout 300 `
   --concurrency 1 `
   --port 8080 `
-  --set-env-vars "ENVIRONMENT=production,STT_PROVIDER=api,STT_ENABLE_LOCAL_FALLBACK=true,STT_ENABLE_API_FALLBACK=false,STT_LOCAL_MODEL_SIZE=tiny,STT_DEVICE=cpu,STT_COMPUTE_TYPE=int8,AI_STARTUP_WARMUP=true,AI_STARTUP_WARMUP_WHISPER=true,MODEL_WEIGHTS_URL=https://huggingface.co/goSTYLO/resquelink-weights/resolve/main/emergency_model.pt" `
+  --set-env-vars "ENVIRONMENT=production,STT_PROVIDER=local,STT_ENABLE_LOCAL_FALLBACK=false,STT_ENABLE_API_FALLBACK=true,STT_LOCAL_MODEL_SIZE=medium,STT_DEVICE=cpu,STT_COMPUTE_TYPE=int8,AI_STARTUP_WARMUP=true,AI_STARTUP_WARMUP_WHISPER=true,MODEL_WEIGHTS_URL=https://huggingface.co/goSTYLO/resquelink-weights/resolve/main/emergency_model.pt" `
   --set-secrets "HF_API_TOKEN=hf-api-token:latest"
 ```
 
