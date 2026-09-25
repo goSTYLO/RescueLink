@@ -713,7 +713,7 @@ export function DepartmentDashboardPage() {
 
   return (
     <Layout>
-      <div className="p-2 sm:p-3 md:p-4 max-w-7xl mx-auto min-h-[calc(100dvh-96px)] flex flex-col gap-2 md:gap-3">
+      <div className="p-4 md:p-6 min-h-[calc(100dvh-96px)] flex flex-col gap-2 md:gap-3">
         <Breadcrumb items={[{ label: 'Home', path: '/department/dashboard' }, { label: 'Department Dashboard' }]} />
 
         <Card

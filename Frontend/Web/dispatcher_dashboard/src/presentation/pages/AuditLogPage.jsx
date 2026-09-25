@@ -267,7 +267,7 @@ export function AuditLogPage() {
 
   return (
     <Layout>
-      <div className="p-8 max-w-7xl mx-auto">
+      <div className="p-4 md:p-6">
         <Breadcrumb items={[{ label: 'Home', path: '/dashboard' }, { label: 'Audit Log' }]} />
 
         <Card size="small" style={{ marginTop: 12, marginBottom: 16 }} title={(

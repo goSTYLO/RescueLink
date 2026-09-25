@@ -373,7 +373,7 @@ export function DepartmentDetailsPage() {
   if (loadingDepartment) {
     return (
       <Layout>
-        <div className="p-4 max-w-7xl mx-auto">
+        <div className="p-4 md:p-6">
           <Breadcrumb items={[{ label: 'Home', path: '/dashboard' }, { label: 'Departments', path: '/departments' }, { label: 'Loading...' }]} />
           <Card size="small" style={{ marginTop: 12 }}>Loading department...</Card>
         </div>
@@ -384,7 +384,7 @@ export function DepartmentDetailsPage() {
   if (!department) {
     return (
       <Layout>
-        <div className="p-4 max-w-7xl mx-auto">
+        <div className="p-4 md:p-6">
           <Breadcrumb items={[{ label: 'Home', path: '/dashboard' }, { label: 'Departments', path: '/departments' }, { label: 'Not found' }]} />
           <Card size="small" style={{ marginTop: 12 }}>
             <p>Department not found.</p>
@@ -410,7 +410,7 @@ export function DepartmentDetailsPage() {
 
   return (
     <Layout>
-      <div className="p-4 max-w-7xl mx-auto" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div className="p-4 md:p-6 flex flex-col gap-3">
         <Breadcrumb items={[{ label: 'Home', path: '/dashboard' }, { label: 'Departments', path: '/departments' }, { label: department?.name || 'Department' }]} />
         <Card
           size="small"

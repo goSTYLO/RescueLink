@@ -167,7 +167,7 @@ const CONTACT_CARDS = [
 export function HelpSupportPage() {
   return (
     <Layout>
-      <div className="p-4 max-w-7xl mx-auto">
+      <div className="p-4 md:p-6">
         <Breadcrumb items={[{ label: 'Home', path: '/dashboard' }, { label: 'Help & Support' }]} />
         <Card
           size="small"

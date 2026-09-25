@@ -129,7 +129,7 @@ export function DepartmentVehiclesPage() {
 
   return (
     <Layout>
-      <div className="p-6 space-y-6 max-w-7xl mx-auto">
+      <div className="p-4 md:p-6 space-y-6">
         <div className={heroCardClass}>
           <div className="p-8 flex flex-wrap items-center gap-6">
             <div className={heroIconClass}>

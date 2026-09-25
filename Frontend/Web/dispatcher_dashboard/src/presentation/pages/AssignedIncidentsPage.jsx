@@ -131,7 +131,7 @@ export function AssignedIncidentsPage() {
 
   return (
     <Layout>
-      <div className="p-4 max-w-7xl mx-auto">
+      <div className="p-4 md:p-6">
         <Breadcrumb items={[{ label: 'Home', path: '/department/dashboard' }, { label: 'Assigned Incidents' }]} />
         <Card size="small" style={{ marginTop: 12 }} title={(
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>

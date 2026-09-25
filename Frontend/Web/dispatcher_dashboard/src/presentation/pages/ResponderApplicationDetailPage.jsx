@@ -149,7 +149,7 @@ export function ResponderApplicationDetailPage() {
   if (error || !application) {
     return (
       <Layout>
-        <div className="p-6 max-w-4xl mx-auto space-y-4">
+        <div className="p-4 md:p-6 space-y-4">
           <Button type="text" onClick={() => navigate('/responder-applications')}>
             <ArrowLeft className="w-4 h-4 mr-2" /> Back to Applications
           </Button>
@@ -173,7 +173,7 @@ export function ResponderApplicationDetailPage() {
 
   return (
     <Layout>
-      <div className="p-6 max-w-5xl mx-auto space-y-6">
+      <div className="p-4 md:p-6 space-y-6">
         <Breadcrumb
           items={[
             { label: 'Home', path: '/dashboard' },
