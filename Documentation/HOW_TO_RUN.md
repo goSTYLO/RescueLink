@@ -82,7 +82,7 @@ JWT_SECRET=<generate-random-32-char-string>
 JWT_EXPIRE=7d
 DISPATCHER_MFA_ENABLED=true
 
-# IPROG SMS OTP (citizen registration) — server-side only; never put these in Flutter
+# IPROG SMS OTP (citizen registration + mobile password reset) — server-side only; never put these in Flutter
 # Docs: https://www.iprogsms.com/api/v1/documentation
 IPROG_API_TOKEN=your_iprog_api_token
 IPROG_API_BASE_URL=https://www.iprogsms.com/api/v1
@@ -135,7 +135,7 @@ PORT=3000
 **Key Secrets (Must Generate):**
 - `JWT_SECRET`: Use `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` to generate
 - `DB_PASSWORD`: Match PostgreSQL password set during installation
-- `IPROG_API_TOKEN`: From the IPROG SMS dashboard (API token / credit token). Required for citizen registration OTP.
+- `IPROG_API_TOKEN`: From the IPROG SMS dashboard (API token / credit token). Required for citizen registration OTP and mobile forgot-password SMS.
 - `RECAPTCHA_SECRET_KEY`: From Google reCAPTCHA admin (secret); Mobile uses only the site key.
 
 **IPROG OTP delivery notes:**

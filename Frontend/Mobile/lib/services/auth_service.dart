@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -45,7 +44,6 @@ class AuthService {
   static const _keyUserRole = 'user_role';
   static const _keyDepartmentCode = 'user_department_code';
   static const _keyDepartmentName = 'user_department_name';
-  String? _verificationId;
 
   // Initialize shared preferences
   Future<void> init() async {
@@ -672,55 +670,6 @@ class AuthService {
     return e164Format;
   }
 
-  // Initiate Firebase phone verification
-  Future<Map<String, dynamic>> initializePhoneVerification(
-    String phoneNumber,
-  ) async {
-    try {
-      // Format phone number to E.164
-      final formattedPhone = _formatPhoneNumberE164(phoneNumber);
-      debugPrint('🔐 Initializing phone verification for: $formattedPhone');
-      
-      final Completer<Map<String, dynamic>> completer = Completer();
-
-      await _firebaseAuth.verifyPhoneNumber(
-        phoneNumber: formattedPhone,
-        timeout: const Duration(seconds: 60),
-        verificationCompleted: (PhoneAuthCredential credential) {
-          // Auto-verification on Android
-          debugPrint('Phone verification auto-completed');
-        },
-        verificationFailed: (FirebaseAuthException e) {
-          debugPrint('Phone verification failed: ${e.message}');
-          if (!completer.isCompleted) {
-            completer.complete({
-              'success': false,
-              'error': e.message ?? 'Phone verification failed',
-            });
-          }
-        },
-        codeSent: (String verificationId, int? forceResendingToken) {
-          _verificationId = verificationId;
-          debugPrint('✅ OTP code sent! Verification ID: ${verificationId.substring(0, 20)}...');
-          if (!completer.isCompleted) {
-            completer.complete({'success': true});
-          }
-        },
-        codeAutoRetrievalTimeout: (String verificationId) {
-          _verificationId = verificationId;
-        },
-      );
-
-      return await completer.future;
-    } catch (e) {
-      debugPrint('❌ Phone verification initialization error: $e');
-      return {
-        'success': false,
-        'error': e.toString(),
-      };
-    }
-  }
-
   /// Verify registration OTP via RescueLink backend (IPROG on server).
   /// Signup flow uses [storeToken]: false and navigates to Login.
   Future<Map<String, dynamic>> verifyOtp({
@@ -754,55 +703,112 @@ class AuthService {
     }
   }
 
-  /// Verify OTP and return Firebase idToken only (for forgot-password flow). Does not call backend.
-  Future<Map<String, dynamic>> verifyOtpAndGetIdToken(String otp) async {
+  /// Request forgot-password SMS OTP via backend (IPROG). Generic success either way.
+  Future<Map<String, dynamic>> requestPasswordResetOtp({
+    required String phone,
+    required String captchaToken,
+  }) async {
     try {
-      if (_verificationId == null) {
-        return {
-          'success': false,
-          'error': 'Verification ID not found. Please request a new code.',
-        };
-      }
-      final credential = PhoneAuthProvider.credential(
-        verificationId: _verificationId!,
-        smsCode: otp,
+      final response = await _apiService.post(
+        AppConstants.endpointForgotPasswordSms,
+        body: {
+          'phone': phone,
+          'captchaToken': captchaToken,
+        },
       );
-      final userCredential = await _firebaseAuth.signInWithCredential(credential);
-      final user = userCredential.user;
-      if (user == null) {
-        return { 'success': false, 'error': 'Verification failed.' };
-      }
-      final idToken = await user.getIdToken();
-      if (idToken == null || idToken.isEmpty) {
-        return { 'success': false, 'error': 'Failed to get verification token.' };
-      }
-      return { 'success': true, 'idToken': idToken };
-    } on FirebaseAuthException catch (e) {
       return {
-        'success': false,
-        'error': e.message ?? 'Invalid or expired code. Please try again.',
+        'success': true,
+        'message': response['message'] as String? ??
+            'If an account exists with this phone number, you will receive a verification code.',
       };
     } catch (e) {
+      final message = e is ApiException ? e.message : null;
       return {
         'success': false,
-        'error': e.toString().contains('invalid') ? 'Invalid code. Please try again.' : 'Verification failed. Please try again.',
+        'error': mapOtpResendError(e, message: message),
+      };
+    }
+  }
+
+  /// Resend forgot-password SMS OTP. Requires a fresh CAPTCHA token.
+  Future<Map<String, dynamic>> resendPasswordResetOtp({
+    required String phone,
+    required String captchaToken,
+  }) async {
+    try {
+      final response = await _apiService.post(
+        AppConstants.endpointForgotPasswordSmsResend,
+        body: {
+          'phone': phone,
+          'captchaToken': captchaToken,
+        },
+      );
+      return {
+        'success': true,
+        'message': response['message'] as String? ??
+            'If an account exists with this phone number, you will receive a verification code.',
+      };
+    } catch (e) {
+      final message = e is ApiException ? e.message : null;
+      return {
+        'success': false,
+        'error': mapOtpResendError(e, message: message),
+      };
+    }
+  }
+
+  /// Verify forgot-password OTP; returns short-lived [resetToken] (no Firebase).
+  Future<Map<String, dynamic>> verifyPasswordResetOtp({
+    required String phone,
+    required String otp,
+  }) async {
+    try {
+      final response = await _apiService.post(
+        AppConstants.endpointForgotPasswordSmsVerify,
+        body: {
+          'phone': phone,
+          'otp': otp,
+        },
+      );
+      final resetToken = response['resetToken'] as String?;
+      if (resetToken == null || resetToken.isEmpty) {
+        return {
+          'success': false,
+          'error': 'Verification failed. Please try again.',
+        };
+      }
+      return {
+        'success': true,
+        'resetToken': resetToken,
+      };
+    } catch (e) {
+      final message = e is ApiException ? e.message : null;
+      return {
+        'success': false,
+        'error': mapOtpVerifyError(e, message: message),
       };
     }
   }
 
   /// Reset password (forgot-password flow). Does not store any token.
-  Future<Map<String, dynamic>> resetPassword(String idToken, String newPassword) async {
+  Future<Map<String, dynamic>> resetPassword(
+    String resetToken,
+    String newPassword,
+  ) async {
     try {
       await _apiService.post(
-        '/api/auth/reset-password',
-        body: { 'idToken': idToken, 'newPassword': newPassword },
+        AppConstants.endpointResetPassword,
+        body: {'resetToken': resetToken, 'newPassword': newPassword},
       );
-      return { 'success': true };
+      return {'success': true};
     } catch (e) {
       if (e is ApiException) {
-        return { 'success': false, 'error': e.message };
+        return {'success': false, 'error': e.message};
       }
-      return { 'success': false, 'error': 'Could not reset password. Please try again.' };
+      return {
+        'success': false,
+        'error': 'Could not reset password. Please try again.',
+      };
     }
   }
 

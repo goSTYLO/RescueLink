@@ -8,7 +8,7 @@ import '../../widgets/gradient_header.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   final VoidCallback? onBackToLogin;
-  final Future<bool> Function(String phone)? onRequestCode;
+  final Future<bool> Function(String phone, String captchaToken)? onRequestCode;
 
   const ForgotPasswordScreen({
     super.key,
@@ -23,6 +23,7 @@ class ForgotPasswordScreen extends StatefulWidget {
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final _phoneController = TextEditingController();
   bool _recaptchaChecked = false;
+  String? _captchaToken;
   bool _isLoading = false;
 
   @override
@@ -72,7 +73,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
   void _showRecaptchaDialog(BuildContext context) {
     if (AppConfig.recaptchaSiteKey.isEmpty) {
-      setState(() => _recaptchaChecked = true);
+      setState(() {
+        _recaptchaChecked = true;
+        _captchaToken = '';
+      });
       return;
     }
     showDialog<void>(
@@ -115,7 +119,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       onSuccess: (token) {
                         if (!ctx.mounted) return;
                         Navigator.of(ctx).pop();
-                        setState(() => _recaptchaChecked = true);
+                        setState(() {
+                          _recaptchaChecked = true;
+                          _captchaToken = token;
+                        });
                       },
                     ),
                   ),
@@ -137,15 +144,15 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       );
       return;
     }
-    if (!_recaptchaChecked) {
+    if (!_recaptchaChecked || _captchaToken == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please confirm you are not a robot')),
       );
       return;
     }
     setState(() => _isLoading = true);
-    final formattedPhone = Validators.formatPhoneForFirebase(phone);
-    final ok = await widget.onRequestCode?.call(formattedPhone) ?? false;
+    final ok =
+        await widget.onRequestCode?.call(phone, _captchaToken!) ?? false;
     if (!mounted) return;
     setState(() => _isLoading = false);
     if (!ok) {

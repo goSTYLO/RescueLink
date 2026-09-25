@@ -94,10 +94,11 @@ Session, Firebase phone verification, profile, location helpers used during onbo
 | `changePassword({currentPassword, newPassword})` | passwords | `POST /api/auth/change-password` | `Map` |
 | `register({..., captchaToken})` | registration + reCAPTCHA token | `POST /api/auth/register` | `Map` (`verificationRequired`; no account until OTP) |
 | `login({phone, password})` | credentials | `POST /api/auth/login` | `Map` (token/user) |
-| `initializePhoneVerification(phone)` | phone | Firebase verify (forgot-password only) | `Map` status |
 | `verifyOtp({phone, otp})` | phone + OTP | `POST /api/auth/verify-otp` (backend/IPROG) | `Map` |
-| `verifyOtpAndGetIdToken(otp)` | OTP | Firebase (forgot-password) | `Map` with idToken |
-| `resetPassword(idToken, newPassword)` | Firebase idToken, password | `POST /api/auth/reset-password` | `Map` |
+| `requestPasswordResetOtp({phone, captchaToken})` | phone + CAPTCHA | `POST /api/auth/forgot-password/sms` | `Map` (generic success) |
+| `resendPasswordResetOtp({phone, captchaToken})` | phone + fresh CAPTCHA | `POST /api/auth/forgot-password/sms/resend` | `Map` |
+| `verifyPasswordResetOtp({phone, otp})` | phone + OTP | `POST /api/auth/forgot-password/sms/verify` | `Map` with `resetToken` |
+| `resetPassword(resetToken, newPassword)` | short-lived JWT, password | `POST /api/auth/reset-password` | `Map` |
 | `resendOtp({phone, captchaToken})` | phone + fresh CAPTCHA | `POST /api/auth/resend-otp` | `Map` |
 | `getCurrentLocation({...})` | optional accuracy | Device GPS | `{success, latitude, longitude, error?}` |
 | `getBarangayFromCoordinates(lat, lng)` | coords | `GET /api/location/barangay` | `String?` |

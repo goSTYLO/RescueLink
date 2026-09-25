@@ -191,8 +191,9 @@ All endpoints under `/api/admin/*` require the `admin` role:
 Create a new incident with required audio and optional media files. Endpoint performs:
 - upload size/type validation,
 - quick security scan (signature + blocked binary/script detection),
+- **ClamAV pre-store scan** when `FILE_DEEP_SCAN_ENGINE=clamav` and `FILE_SCANNER_AVAILABLE=true` (infected → **400**, never stored),
 - optional compression (images/videos),
-- asynchronous deep-scan workflow with fail-open support when configured.
+- incident `scan_status` set to `clean` when ClamAV already passed at middleware; otherwise fail-open/`unscanned` or legacy `pending` for the retry worker.
 
 **Auth Required:** Yes (`user`, `dispatcher`, `admin`)
 
@@ -213,7 +214,7 @@ Create a new incident with required audio and optional media files. Endpoint per
   "message": "Incident reported successfully with AI classification",
   "incident": {
     "report_id": 123,
-    "scan_status": "pending"
+    "scan_status": "clean"
   },
   "ai_classification": {
     "primary_type": "Medical",
@@ -225,10 +226,9 @@ Create a new incident with required audio and optional media files. Endpoint per
       "findings": []
     },
     "deep_scan": {
-      "status": "ready",
-      "engine": "stub",
-      "queued": true,
-      "job_id": "deep-scan-123-1700000000000"
+      "status": "clean",
+      "engine": "clamav",
+      "scanned": true
     },
     "fail_open_flagged": false
   }
@@ -236,14 +236,14 @@ Create a new incident with required audio and optional media files. Endpoint per
 ```
 
 **Common Scan States**
-- `clean`: latest scan completed without threat
-- `pending`: queued for deep scan
+- `clean`: ClamAV (or equivalent) completed without threat — normally at upload time when ClamAV is configured
+- `pending`: legacy backlog queued for deep scan (rare when pre-store ClamAV is enabled)
 - `unscanned`: scanner unavailable but upload accepted (fail-open)
-- `quarantined`: threat found and files moved to quarantine storage
+- `quarantined`: threat found by retry worker and files moved to quarantine storage
 - `error`: scanner processing failure
 
 **Security Error Responses**
-- `400 Bad Request`: quick scan blocked suspicious file
+- `400 Bad Request`: quick scan or ClamAV blocked a suspicious file (`clamav_threat` in findings)
 - `503 Service Unavailable`: scanner unavailable and fail-open disabled
 
 ### Register
@@ -410,6 +410,59 @@ Verify phone number using Firebase and update user's phone verification status. 
 - Updates `phone_verified` to `true`
 - Returns a new JWT token valid for 7 days
 - Requires Firebase Admin SDK configuration
+
+---
+
+### Forgot Password SMS (Mobile)
+
+**POST** `/api/auth/forgot-password/sms`
+
+Send an IPROG SMS OTP for citizen password reset. Generic success whether or not the phone exists (does not reveal account presence). Requires CAPTCHA. Flutter never calls IPROG directly.
+
+**Request Body:**
+
+```json
+{
+  "phone": "09171234567",
+  "captchaToken": "recaptcha-response-token"
+}
+```
+
+**Response:** `200 OK`
+
+```json
+{
+  "success": true,
+  "message": "If an account exists with this phone number, you will receive a verification code."
+}
+```
+
+**Related:**
+
+- `POST /api/auth/forgot-password/sms/resend` — `{ phone, captchaToken }`; sends only when a `password_reset` pending exists
+- `POST /api/auth/forgot-password/sms/verify` — `{ phone, otp }` → `{ success, resetToken }` (JWT, ~15 minutes, purpose `password_reset_phone`)
+
+### Reset Password (Mobile)
+
+**POST** `/api/auth/reset-password`
+
+Complete mobile password reset after SMS OTP verify. Accepts `resetToken` from `/forgot-password/sms/verify` (not a Firebase idToken).
+
+**Request Body:**
+
+```json
+{
+  "resetToken": "jwt_from_sms_verify",
+  "newPassword": "SecurePass1!"
+}
+```
+
+**Response:** `200 OK` — `{ "message": "Password updated successfully" }`
+
+**Notes:**
+
+- Web dispatcher email reset uses `POST /api/auth/forgot-password` and `POST /api/auth/reset-password-with-token` (unchanged)
+- Registration OTP endpoints reject a pending with `purpose: password_reset` (require registration `passwordHash`)
 
 ---
 

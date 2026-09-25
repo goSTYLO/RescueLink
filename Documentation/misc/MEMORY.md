@@ -1,5 +1,24 @@
 # RescueLink Memory
 
+## ClamAV scan-before-store (2026-09-25)
+
+- All durable multipart uploads (`POST /api/incidents/with-audio`, `/api/auth/me/avatar`, `/api/responder-applications`) share `runUploadSecurityChecks` in `fileScanService.js`.
+- When `FILE_DEEP_SCAN_ENGINE=clamav` and `FILE_SCANNER_AVAILABLE=true`, each in-memory buffer is ClamAV-scanned **before** `writeObject`; infected → 400, never stored.
+- `computeInitialScanStatus` marks incidents `clean` when middleware already set `deep.scanned`. Retry cron remains for legacy `pending`/`unscanned` rows only.
+- Production: `clamav` + `FILE_SCANNER_AVAILABLE=true` + prefer `FILE_SCAN_FAIL_OPEN=false`. Regression: `fileScanService.test.js`, `uploadMiddleware.integration.test.js`.
+
+Added: 2026-09-25 — ClamAV pre-store gate for all uploads.
+
+## Mobile forgot-password via IPROG (2026-09-24)
+
+- Citizen forgot-password no longer uses Firebase Phone Auth. Flow: phone + CAPTCHA → `POST /api/auth/forgot-password/sms` → OTP → `…/sms/verify` → `resetToken` → `POST /api/auth/reset-password` with `{ resetToken, newPassword }`.
+- Resend uses `POST /api/auth/forgot-password/sms/resend` + a fresh CAPTCHA (VerifyNumberScreen resend is now tappable).
+- Unknown phones get a generic 200 (no SMS). Pending purpose `password_reset` cannot create an account via registration `verify-otp` / `resend-otp` (those require `passwordHash`).
+- Web dispatcher email reset (`/forgot-password`, `/reset-password-with-token`) unchanged. Flutter never calls IPROG.
+- Regression: `Backend/tests/passwordResetOtp.test.js`.
+
+Added: 2026-09-24 — mobile IPROG password reset.
+
 ## Registration theme consistency (2026-09-23)
 
 - Sign Up, Dagupan residency, OTP, and Account Created screens use `Theme.of` / `colorScheme` for surfaces and text, and `AppTheme` brand tokens (`primaryRed`, `primaryBlue`, `successGreen`, `warningAmber`) for CTAs and semantic panels.
@@ -75,7 +94,7 @@ Added: 2026-09-21 — backend IPROG env template.
 
 - Citizen registration flow is now: SignUp → Dagupan GPS → reCAPTCHA (real token) → `POST /api/auth/register` → OTP screen → `POST /api/auth/verify-otp` → Login.
 - Flutter never calls IPROG; never stores CAPTCHA secret. Resend uses `POST /api/auth/resend-otp` + a fresh CAPTCHA token.
-- Account is treated as incomplete until verify-otp succeeds (no JWT stored from register). Forgot-password still uses Firebase Phone Auth.
+- Account is treated as incomplete until verify-otp succeeds (no JWT stored from register). Mobile forgot-password also uses backend IPROG (see 2026-09-24 MEMORY entry).
 - Backend must implement captcha validation + IPROG send/verify + deferred user creation for end-to-end SMS.
 
 Added: 2026-09-21 — mobile IPROG OTP registration client.

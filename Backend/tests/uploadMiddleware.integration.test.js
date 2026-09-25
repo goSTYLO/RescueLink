@@ -8,6 +8,7 @@ const loadApp = ({ failOpen = true, scannerAvailable = false, engine = 'clamav' 
   process.env.FILE_DEEP_SCAN_ENGINE = engine;
   process.env.FILE_DEEP_SCAN_ENABLED = 'true';
 
+  const fileScan = require('../src/services/fileScanService');
   const { uploadMiddleware } = require('../src/middleware/fileUpload');
   const app = express();
   app.post('/upload', uploadMiddleware, (req, res) => {
@@ -17,7 +18,7 @@ const loadApp = ({ failOpen = true, scannerAvailable = false, engine = 'clamav' 
     });
   });
 
-  return app;
+  return { app, fileScan };
 };
 
 describe('upload middleware integration', () => {
@@ -29,7 +30,7 @@ describe('upload middleware integration', () => {
   });
 
   it('accepts clean upload and attaches security metadata', async () => {
-    const app = loadApp({ failOpen: true, scannerAvailable: false });
+    const { app } = loadApp({ failOpen: true, scannerAvailable: false });
 
     const res = await request(app)
       .post('/upload')
@@ -40,7 +41,7 @@ describe('upload middleware integration', () => {
   });
 
   it('rejects blocked signature upload', async () => {
-    const app = loadApp({ failOpen: true, scannerAvailable: false });
+    const { app } = loadApp({ failOpen: true, scannerAvailable: false });
 
     const res = await request(app)
       .post('/upload')
@@ -52,7 +53,7 @@ describe('upload middleware integration', () => {
   });
 
   it('rejects extension-signature mismatch upload', async () => {
-    const app = loadApp({ failOpen: true, scannerAvailable: false });
+    const { app } = loadApp({ failOpen: true, scannerAvailable: false });
 
     const res = await request(app)
       .post('/upload')
@@ -64,7 +65,7 @@ describe('upload middleware integration', () => {
   });
 
   it('accepts upload in fail-open mode when scanner unavailable', async () => {
-    const app = loadApp({ failOpen: true, scannerAvailable: false, engine: 'clamav' });
+    const { app } = loadApp({ failOpen: true, scannerAvailable: false, engine: 'clamav' });
 
     const res = await request(app)
       .post('/upload')
@@ -73,5 +74,51 @@ describe('upload middleware integration', () => {
     expect(res.status).toBe(200);
     expect(res.body.uploadSecurity.requires_follow_up).toBe(true);
     expect(res.body.uploadSecurity.deep.status).toBe('unavailable');
+  });
+
+  it('rejects ClamAV-infected upload before success handler when scanner ready', async () => {
+    const { app, fileScan } = loadApp({
+      failOpen: false,
+      scannerAvailable: true,
+      engine: 'clamav',
+    });
+    fileScan.setScanBufferForTests(async () => ({
+      status: 'infected',
+      reason: 'threat_detected',
+      signature: 'Eicar-Test-Signature',
+    }));
+
+    const res = await request(app)
+      .post('/upload')
+      .attach('audio', Buffer.from([0x52, 0x49, 0x46, 0x46, 0x00]), 'sample.wav');
+
+    expect(res.status).toBe(400);
+    expect(res.body.scan.quick.findings[0].type).toBe('clamav_threat');
+    expect(res.body.success).toBe(false);
+
+    fileScan.setScanBufferForTests(null);
+  });
+
+  it('accepts ClamAV-clean upload and marks deep.scanned', async () => {
+    const { app, fileScan } = loadApp({
+      failOpen: false,
+      scannerAvailable: true,
+      engine: 'clamav',
+    });
+    fileScan.setScanBufferForTests(async () => ({
+      status: 'clean',
+      reason: null,
+      signature: null,
+    }));
+
+    const res = await request(app)
+      .post('/upload')
+      .attach('audio', Buffer.from([0x52, 0x49, 0x46, 0x46, 0x00]), 'sample.wav');
+
+    expect(res.status).toBe(200);
+    expect(res.body.uploadSecurity.deep.scanned).toBe(true);
+    expect(res.body.uploadSecurity.deep.status).toBe('clean');
+
+    fileScan.setScanBufferForTests(null);
   });
 });

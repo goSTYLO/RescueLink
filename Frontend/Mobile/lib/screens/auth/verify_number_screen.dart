@@ -7,7 +7,7 @@ class VerifyNumberScreen extends StatefulWidget {
   final String phoneNumber;
   final VoidCallback? onBack;
   final Future<void> Function(String code)? onVerifyCode;
-  final void Function()? onResendCode;
+  final Future<bool> Function()? onResendCode;
 
   const VerifyNumberScreen({
     super.key,
@@ -25,6 +25,7 @@ class _VerifyNumberScreenState extends State<VerifyNumberScreen> {
   final List<TextEditingController> _controllers = List.generate(6, (_) => TextEditingController());
   final List<FocusNode> _focusNodes = List.generate(6, (_) => FocusNode());
   bool _isLoading = false;
+  bool _resendInFlight = false;
   int _resendSeconds = 40;
 
   @override
@@ -34,6 +35,7 @@ class _VerifyNumberScreenState extends State<VerifyNumberScreen> {
   }
 
   void _startResendTimer() {
+    setState(() => _resendSeconds = 40);
     Future.doWhile(() async {
       await Future.delayed(const Duration(seconds: 1));
       if (!mounted) return false;
@@ -63,6 +65,20 @@ class _VerifyNumberScreenState extends State<VerifyNumberScreen> {
     await widget.onVerifyCode!(_code);
     if (!mounted) return;
     setState(() => _isLoading = false);
+  }
+
+  Future<void> _resendCode() async {
+    if (_resendSeconds > 0 || _resendInFlight || widget.onResendCode == null) {
+      return;
+    }
+    setState(() => _resendInFlight = true);
+    try {
+      final ok = await widget.onResendCode!();
+      if (!mounted) return;
+      if (ok) _startResendTimer();
+    } finally {
+      if (mounted) setState(() => _resendInFlight = false);
+    }
   }
 
   void _onCodeComplete() {
@@ -176,13 +192,29 @@ class _VerifyNumberScreenState extends State<VerifyNumberScreen> {
               const SizedBox(height: 16),
               const Text('Waiting for code', style: TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
               const SizedBox(height: 4),
-              Text(
-                _resendSeconds > 0 ? 'Resend code in 00:${_resendSeconds.toString().padLeft(2, '0')}' : 'Resend code',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: _resendSeconds > 0 ? const Color(0xFF6B7280) : const Color(0xFFEF4444),
+              if (_resendSeconds > 0)
+                Text(
+                  'Resend code in 00:${_resendSeconds.toString().padLeft(2, '0')}',
+                  style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+                )
+              else
+                TextButton(
+                  onPressed: (_resendInFlight || widget.onResendCode == null)
+                      ? null
+                      : _resendCode,
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: Text(
+                    _resendInFlight ? 'Sending…' : 'Resend code',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFFEF4444),
+                    ),
+                  ),
                 ),
-              ),
               const SizedBox(height: 32),
               SizedBox(
                 width: double.infinity,

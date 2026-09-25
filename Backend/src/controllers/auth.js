@@ -159,7 +159,7 @@ exports.verifyRegistrationOtp = async (req, res) => {
     }
 
     const pending = iprogOtp.getPending(validatedPhone);
-    if (!pending) {
+    if (!pending || !pending.passwordHash) {
       return res.status(400).json({
         message: 'Verification code has expired. Please register again.',
       });
@@ -241,7 +241,7 @@ exports.resendRegistrationOtp = async (req, res) => {
 
     const validatedPhone = validatePhone(phone);
     const pending = iprogOtp.getPending(validatedPhone);
-    if (!pending) {
+    if (!pending || !pending.passwordHash) {
       return res.status(400).json({
         message: 'No pending registration found. Please start registration again.',
       });
@@ -366,24 +366,175 @@ exports.onboardPhone = async (req, res) => {
   }
 };
 
-// Reset password (forgot password flow): verify Firebase idToken, find user by phone, update password.
+const SMS_RESET_GENERIC =
+  'If an account exists with this phone number, you will receive a verification code.';
+
+// Mobile forgot-password: send IPROG OTP when the phone has an account. Generic 200 either way.
+exports.forgotPasswordSms = async (req, res) => {
+  console.log('📱 Forgot-password SMS attempt');
+  try {
+    const { phone, captchaToken } = req.body;
+    if (!phone) {
+      return res.status(400).json({ message: 'Phone is required' });
+    }
+    if (!captchaToken) {
+      return res.status(400).json({ message: 'CAPTCHA verification is required' });
+    }
+
+    const captchaOk = await verifyRecaptchaToken(captchaToken);
+    if (!captchaOk) {
+      return res.status(400).json({ message: 'CAPTCHA verification failed. Please try again.' });
+    }
+
+    const validatedPhone = validatePhone(phone);
+    const user = await User.findByPhone(validatedPhone);
+    if (!user) {
+      return res.status(200).json({ success: true, message: SMS_RESET_GENERIC });
+    }
+
+    iprogOtp.setPending(validatedPhone, { purpose: 'password_reset' });
+    await iprogOtp.sendOtp(validatedPhone);
+
+    console.log('✅ Forgot-password OTP sent:', { phone: validatedPhone });
+    return res.status(200).json({ success: true, message: SMS_RESET_GENERIC });
+  } catch (err) {
+    console.error('❌ Forgot-password SMS error:', err.message);
+    if (err.message.includes('must be') || err.message.includes('Invalid') || err.message.includes('required')) {
+      return res.status(400).json({ message: err.message });
+    }
+    if (err.message.includes('CAPTCHA is not configured') || err.message.includes('IPROG SMS is not configured')) {
+      return res.status(503).json({ message: err.message });
+    }
+    if (err.message.includes('CAPTCHA')) {
+      return res.status(400).json({ message: err.message });
+    }
+    return res.status(502).json({ message: 'Unable to send verification code. Please try again.' });
+  }
+};
+
+// Resend IPROG OTP for a pending password reset (requires fresh CAPTCHA).
+exports.resendForgotPasswordSms = async (req, res) => {
+  console.log('📱 Forgot-password SMS resend attempt');
+  try {
+    const { phone, captchaToken } = req.body;
+    if (!phone) {
+      return res.status(400).json({ message: 'Phone is required' });
+    }
+    if (!captchaToken) {
+      return res.status(400).json({ message: 'CAPTCHA verification is required' });
+    }
+
+    const captchaOk = await verifyRecaptchaToken(captchaToken);
+    if (!captchaOk) {
+      return res.status(400).json({ message: 'CAPTCHA verification failed. Please try again.' });
+    }
+
+    const validatedPhone = validatePhone(phone);
+    const pending = iprogOtp.getPending(validatedPhone);
+    if (!pending || pending.purpose !== 'password_reset') {
+      return res.status(200).json({ success: true, message: SMS_RESET_GENERIC });
+    }
+
+    iprogOtp.setPending(validatedPhone, { purpose: 'password_reset' });
+    await iprogOtp.sendOtp(validatedPhone);
+
+    console.log('✅ Forgot-password OTP resent:', { phone: validatedPhone });
+    return res.status(200).json({ success: true, message: SMS_RESET_GENERIC });
+  } catch (err) {
+    console.error('❌ Forgot-password SMS resend error:', err.message);
+    if (err.message.includes('must be') || err.message.includes('Invalid') || err.message.includes('required')) {
+      return res.status(400).json({ message: err.message });
+    }
+    if (err.message.includes('CAPTCHA is not configured') || err.message.includes('IPROG SMS is not configured')) {
+      return res.status(503).json({ message: err.message });
+    }
+    if (err.message.includes('CAPTCHA')) {
+      return res.status(400).json({ message: err.message });
+    }
+    return res.status(502).json({ message: 'Unable to resend code. Please try again.' });
+  }
+};
+
+// Confirm IPROG OTP for password reset; return short-lived resetToken (no Firebase).
+exports.verifyForgotPasswordSms = async (req, res) => {
+  console.log('📱 Forgot-password SMS verify attempt');
+  try {
+    const { phone, otp } = req.body;
+    if (!phone || !otp) {
+      return res.status(400).json({ message: 'Phone and otp are required' });
+    }
+
+    const validatedPhone = validatePhone(phone);
+    const code = String(otp).trim();
+    if (!/^\d{6}$/.test(code)) {
+      return res.status(400).json({ message: 'OTP must be 6 digits' });
+    }
+
+    const pending = iprogOtp.getPending(validatedPhone);
+    if (!pending || pending.purpose !== 'password_reset') {
+      return res.status(400).json({
+        message: 'Verification code has expired. Please request a new code.',
+      });
+    }
+
+    const result = await iprogOtp.verifyOtp(validatedPhone, code);
+    if (!result.ok) {
+      if (result.expired) {
+        return res.status(401).json({ message: 'Verification code has expired.' });
+      }
+      return res.status(401).json({ message: 'Invalid verification code.' });
+    }
+
+    iprogOtp.clearPending(validatedPhone);
+
+    const resetToken = jwt.sign(
+      { phone: validatedPhone, purpose: 'password_reset_phone' },
+      JWT_SECRET,
+      { expiresIn: '15m' }
+    );
+
+    console.log('✅ Forgot-password OTP verified:', { phone: validatedPhone });
+    return res.status(200).json({
+      success: true,
+      resetToken,
+      message: 'Phone verified. You can set a new password.',
+    });
+  } catch (err) {
+    console.error('❌ Forgot-password SMS verify error:', err.message);
+    if (err.message.includes('must be') || err.message.includes('Invalid') || err.message.includes('required')) {
+      return res.status(400).json({ message: err.message });
+    }
+    if (err.message.includes('IPROG SMS is not configured')) {
+      return res.status(503).json({ message: err.message });
+    }
+    return res.status(500).json({ message: 'Unable to verify your code. Please try again.' });
+  }
+};
+
+// Reset password (mobile forgot-password): verify short-lived resetToken from SMS OTP verify.
 exports.resetPassword = async (req, res) => {
   try {
-    const { idToken, newPassword } = req.body;
-    if (!idToken || !newPassword) {
-      return res.status(400).json({ message: 'idToken and newPassword are required' });
+    const { resetToken, newPassword } = req.body;
+    if (!resetToken || !newPassword) {
+      return res.status(400).json({ message: 'resetToken and newPassword are required' });
     }
 
-    const validatedToken = validateString(idToken, 'idToken', 1, 2048);
+    const validatedToken = validateString(resetToken, 'resetToken', 1, 2048);
     const validatedPassword = validatePassword(newPassword);
 
-    const decoded = await firebaseAdmin.auth().verifyIdToken(validatedToken);
-    const phone = decoded.phone_number;
-    if (!phone) {
-      return res.status(400).json({ message: 'ID token does not contain a phone number' });
+    let decoded;
+    try {
+      decoded = jwt.verify(validatedToken, JWT_SECRET);
+    } catch (jwtErr) {
+      return res.status(401).json({ message: 'Invalid or expired verification. Please request a new code.' });
     }
 
-    const user = await User.findByPhone(phone);
+    if (decoded.purpose !== 'password_reset_phone' || !decoded.phone) {
+      return res.status(401).json({ message: 'Invalid or expired verification. Please request a new code.' });
+    }
+
+    const validatedPhone = validatePhone(decoded.phone);
+    const user = await User.findByPhone(validatedPhone);
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
@@ -396,9 +547,6 @@ exports.resetPassword = async (req, res) => {
     console.error('❌ Reset password error:', err.message);
     if (err.message.includes('must be') || err.message.includes('Invalid') || err.message.includes('at least')) {
       return res.status(400).json({ message: err.message });
-    }
-    if (err.code === 'auth/invalid-id-token' || err.code === 'auth/id-token-expired') {
-      return res.status(401).json({ message: 'Invalid or expired verification. Please request a new code.' });
     }
     res.status(500).json({ message: 'Password reset failed' });
   }

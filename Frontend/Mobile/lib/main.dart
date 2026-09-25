@@ -104,7 +104,7 @@ class _AuthNavigatorState extends State<AuthNavigator> with WidgetsBindingObserv
   bool _showSignUp = false;
   String? _forgotFlowScreen;
   String _forgotPhoneNumber = '';
-  String? _forgotPasswordIdToken;
+  String? _forgotPasswordResetToken;
 
   // Sign-up flow: form → Dagupan → CAPTCHA → register → OTP → Login
   Map<String, String>? _pendingSignUpData;
@@ -208,6 +208,7 @@ class _AuthNavigatorState extends State<AuthNavigator> with WidgetsBindingObserv
     setState(() {
       _forgotFlowScreen = 'forgot_password';
       _forgotPhoneNumber = '';
+      _forgotPasswordResetToken = null;
     });
   }
 
@@ -246,7 +247,7 @@ class _AuthNavigatorState extends State<AuthNavigator> with WidgetsBindingObserv
       _returnToReportsTab = false;
       _newPhoneNumberForOtp = '';
       _verificationStep = null;
-      _forgotPasswordIdToken = null;
+      _forgotPasswordResetToken = null;
     });
   }
 
@@ -835,14 +836,17 @@ class _AuthNavigatorState extends State<AuthNavigator> with WidgetsBindingObserv
       }
     }
 
-    // Forgot password flow
+    // Forgot password flow (IPROG OTP via backend — no Firebase Phone Auth)
     if (_forgotFlowScreen != null) {
       switch (_forgotFlowScreen!) {
         case 'forgot_password':
           return ForgotPasswordScreen(
             onBackToLogin: _backToLogin,
-            onRequestCode: (phone) async {
-              final r = await AuthService().initializePhoneVerification(phone);
+            onRequestCode: (phone, captchaToken) async {
+              final r = await AuthService().requestPasswordResetOtp(
+                phone: phone,
+                captchaToken: captchaToken,
+              );
               if (r['success'] != true) {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -870,7 +874,10 @@ class _AuthNavigatorState extends State<AuthNavigator> with WidgetsBindingObserv
             phoneNumber: _forgotPhoneNumber,
             onBack: () => setState(() => _forgotFlowScreen = 'forgot_password'),
             onVerifyCode: (code) async {
-              final r = await AuthService().verifyOtpAndGetIdToken(code);
+              final r = await AuthService().verifyPasswordResetOtp(
+                phone: _forgotPhoneNumber,
+                otp: code,
+              );
               if (r['success'] != true) {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -886,10 +893,43 @@ class _AuthNavigatorState extends State<AuthNavigator> with WidgetsBindingObserv
               }
               if (context.mounted) {
                 setState(() {
-                  _forgotPasswordIdToken = r['idToken'] as String?;
+                  _forgotPasswordResetToken = r['resetToken'] as String?;
                   _forgotFlowScreen = 'verified';
                 });
               }
+            },
+            onResendCode: () async {
+              final captchaToken = await _obtainSignupCaptchaToken();
+              if (!mounted) return false;
+              if (captchaToken == null) return false;
+              final r = await AuthService().resendPasswordResetOtp(
+                phone: _forgotPhoneNumber,
+                captchaToken: captchaToken,
+              );
+              if (r['success'] != true) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(r['error'] as String? ??
+                          'Unable to resend code. Please try again.'),
+                      backgroundColor: const Color(0xFFEF4444),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+                return false;
+              }
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'If an account exists with this phone number, you will receive a verification code.',
+                    ),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              }
+              return true;
             },
           );
         case 'verified':
@@ -905,11 +945,11 @@ class _AuthNavigatorState extends State<AuthNavigator> with WidgetsBindingObserv
         case 'create_new_password':
           return CreateNewPasswordScreen(
             phoneNumber: _forgotPhoneNumber,
-            idToken: _forgotPasswordIdToken,
+            resetToken: _forgotPasswordResetToken,
             onBack: () => setState(() => _forgotFlowScreen = 'verified'),
             onResetPassword: (newPassword) {
               setState(() {
-                _forgotPasswordIdToken = null;
+                _forgotPasswordResetToken = null;
                 _forgotFlowScreen = 'password_updated';
               });
             },
