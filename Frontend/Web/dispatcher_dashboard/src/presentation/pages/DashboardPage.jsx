@@ -2,7 +2,7 @@ import { Layout } from '@/presentation/components/layout/Layout';
 import { Alert, Button, Card, Input, Modal, Pagination, Select, Space, Switch, Table, Tabs, Tag } from 'antd';
 import { Activity, ArrowUpDown, ArrowUp, ArrowDown, LayoutList, CircleCheck, ExternalLink, Merge, Archive, ArchiveRestore, Search } from 'lucide-react';
 import { incidents as mockIncidents, barangays } from '@/data/mock/mockData';
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getIncidents, verifyIncident, linkDuplicate, acknowledgeBackupRequest, archiveIncident, unarchiveIncident } from '@/data/api/incidents.api';
 import { getDepartmentById, getDepartments } from '@/data/api/departments.api';
@@ -23,6 +23,9 @@ import { Breadcrumb } from '@/presentation/components/common/Breadcrumb';
 import { useIncidentWebSocketStatus } from '@/presentation/context/IncidentWebSocketContext';
 import { alertUser } from '@/presentation/feedback/alertUser';
 import { INCIDENT_ACTION_BTN_PROPS, incidentTableRowClickProps } from '@/core/utils/incidentDashboardTable';
+import { countIncidentOverviewKpis } from '@/core/utils/incidentOverviewKpis';
+import { IncidentOverviewKpiTags } from '@/presentation/components/dashboard/IncidentOverviewKpiTags';
+import { kpiTagColor } from '@/presentation/components/insights/insightsColors';
 
 const POLLING_INTERVAL_MS = 60000;
 const POLLING_WHEN_WS_CONNECTED_MS = 120000;
@@ -67,6 +70,7 @@ export function DashboardPage() {
   const navigate = useNavigate();
   const { isConnected: wsConnected } = useIncidentWebSocketStatus();
   const [incidents, setIncidents] = useState([]);
+  const [overviewIncidents, setOverviewIncidents] = useState([]);
   const [totalIncidentsCount, setTotalIncidentsCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -148,6 +152,7 @@ export function DashboardPage() {
       const startIndex = (activeCurrentPage - 1) * activeItemsPerPage;
       const pageItems = filteredMock.slice(startIndex, startIndex + activeItemsPerPage);
       setIncidents(dedupeIncidentsById(pageItems));
+      setOverviewIncidents(dedupeIncidentsById(filteredMock));
       setTotalIncidentsCount(filteredMock.length);
       setLoading(false);
       setError(null);
@@ -177,6 +182,25 @@ export function DashboardPage() {
       const mapped = Array.isArray(result?.items) ? result.items.map(mapApiIncidentToDashboard) : [];
       setIncidents(dedupeIncidentsById(mapped));
       setTotalIncidentsCount(Number(result?.totalCount || 0));
+      try {
+        const overviewResult = await getIncidents({
+          limit: 100,
+          offset: 0,
+          status: apiStatus,
+          severity_level: apiSeverity,
+          incident_type: apiType,
+          barangay: apiBarangay,
+          exclude_duplicates: activeHideDuplicates,
+          volunteer_accepted: isVolunteerView,
+          archived: isArchivedView,
+          search: searchQuery.trim() || undefined,
+          withMeta: false,
+        });
+        const overviewList = Array.isArray(overviewResult) ? overviewResult : (overviewResult?.items || []);
+        setOverviewIncidents(dedupeIncidentsById(overviewList.map(mapApiIncidentToDashboard)));
+      } catch {
+        setOverviewIncidents(dedupeIncidentsById(mapped));
+      }
     } catch (err) {
       const message = err.message || 'Failed to fetch incidents';
       if (message.toLowerCase().includes('rate limited')) {
@@ -184,6 +208,7 @@ export function DashboardPage() {
       }
       setError(message);
       setIncidents([]);
+      setOverviewIncidents([]);
       setTotalIncidentsCount(0);
     } finally {
       setLoading(false);
@@ -603,7 +628,11 @@ export function DashboardPage() {
     }
   };
 
-  const criticalIncidents = incidents.filter((i) => i.severity === 'Critical');
+  const criticalIncidents = overviewIncidents.filter((i) => i.severity === 'Critical');
+  const overviewKpiCounts = useMemo(
+    () => countIncidentOverviewKpis(overviewIncidents, { totalOverride: totalIncidentsCount }),
+    [overviewIncidents, totalIncidentsCount],
+  );
 
   const typeOptions = [
     { value: 'All', label: 'All Types' },
@@ -817,10 +846,9 @@ export function DashboardPage() {
             </span>
           )}
           extra={(
-            <Space wrap>
-              <Tag>Total: {totalIncidentsCount}</Tag>
-              <Tag color="red">Critical: {criticalIncidents.length}</Tag>
-              <Tag>Filtered: {totalIncidentsCount}</Tag>
+            <Space wrap size={[4, 8]}>
+              <IncidentOverviewKpiTags counts={overviewKpiCounts} />
+              <Tag color={kpiTagColor('critical')}>Critical: {criticalIncidents.length}</Tag>
               <span style={{ fontSize: 12, opacity: 0.7 }}>Polling every 30s</span>
             </Space>
           )}

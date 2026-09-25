@@ -47,6 +47,8 @@ describe('insightsColors', () => {
 
   it('adds KPI accent border classes', () => {
     expect(kpiAccentClass('critical')).toContain('border-l-red');
+    expect(kpiAccentClass('total_assigned')).toContain('border-l-blue');
+    expect(kpiAccentClass('resolved')).toContain('border-l-emerald');
   });
 
   it('uses distinct green for Volunteers department bar', () => {

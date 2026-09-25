@@ -107,13 +107,33 @@ export function slaHealthColor(pct) {
 export function kpiAccentClass(metricId) {
   const map = {
     incidents: 'border-l-4 border-l-blue-600',
+    total_assigned: 'border-l-4 border-l-blue-600',
     critical: 'border-l-4 border-l-red-600',
     first_action: 'border-l-4 border-l-amber-500',
+    awaiting_action: 'border-l-4 border-l-amber-500',
     dispatch: 'border-l-4 border-l-sky-600',
+    in_progress: 'border-l-4 border-l-sky-600',
     arrival: 'border-l-4 border-l-teal-600',
     resolve: 'border-l-4 border-l-emerald-600',
+    resolved: 'border-l-4 border-l-emerald-600',
   };
   return map[norm(metricId)] || '';
+}
+
+/** Ant Design Tag colors for dashboard incident overview KPIs. */
+export function kpiTagColor(metricId) {
+  const map = {
+    total_assigned: 'blue',
+    awaiting_action: 'gold',
+    in_progress: 'geekblue',
+    resolved: 'green',
+    incidents: 'blue',
+    critical: 'red',
+    first_action: 'gold',
+    dispatch: 'cyan',
+    resolve: 'green',
+  };
+  return map[norm(metricId)] || 'default';
 }
 
 /** Choropleth fill rgba; stronger ramp than legacy local helper. */

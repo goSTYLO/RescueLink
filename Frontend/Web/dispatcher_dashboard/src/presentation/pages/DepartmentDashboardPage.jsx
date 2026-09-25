@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Layout } from '@/presentation/components/layout/Layout';
 import { Alert, Button, Card, Input, Modal, Pagination, Select, Space, Table, Tabs, Tag } from 'antd';
@@ -19,6 +19,8 @@ import { useIncidentWebSocketStatus } from '@/presentation/context/IncidentWebSo
 import { Breadcrumb } from '@/presentation/components/common/Breadcrumb';
 import { alertUser } from '@/presentation/feedback/alertUser';
 import { INCIDENT_ACTION_BTN_PROPS, incidentTableRowClickProps } from '@/core/utils/incidentDashboardTable';
+import { countIncidentOverviewKpis } from '@/core/utils/incidentOverviewKpis';
+import { IncidentOverviewKpiTags } from '@/presentation/components/dashboard/IncidentOverviewKpiTags';
 
 function mapApiIncidentToRow(api) {
   return mapApiIncidentToDisplay(api);
@@ -339,6 +341,11 @@ export function DepartmentDashboardPage() {
   }, [currentPage, totalPages]);
 
   const activeIncidents = departmentIncidents.filter((i) => isIncidentActiveForDashboard(i));
+  const overviewKpiCounts = useMemo(
+    () => countIncidentOverviewKpis(departmentIncidents),
+    [departmentIncidents],
+  );
+  const pendingEscalationCount = departmentIncidents.filter((i) => i.hasPendingEscalation).length;
 
   const getAssignment = useCallback((incident) => {
     if (incident?.assignedTeamName) {
@@ -706,76 +713,63 @@ export function DepartmentDashboardPage() {
 
   return (
     <Layout>
-      <div className="p-6 space-y-6 max-w-7xl mx-auto">
+      <div className="p-2 sm:p-3 md:p-4 max-w-7xl mx-auto min-h-[calc(100dvh-96px)] flex flex-col gap-2 md:gap-3">
         <Breadcrumb items={[{ label: 'Home', path: '/department/dashboard' }, { label: 'Department Dashboard' }]} />
 
-        <Card size="small" title={(
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-            <Activity size={18} />
-            Incident Overview
-          </span>
-        )} extra={<Tag color="blue">{departmentIncidents.length} total</Tag>}>
-          <p style={{ marginBottom: 12 }}>{user.department || 'Department'} — Assigned Incidents</p>
-
-          {activeIncidents.length > 0 && !loading && (
-            <Alert
-              type="warning"
-              showIcon
-              icon={<AlertCircle size={16} />}
-              message={<span><strong>{activeIncidents.length} active incident{activeIncidents.length !== 1 ? 's' : ''}</strong> requiring response.</span>}
-              style={{ marginBottom: 12 }}
-            />
+        <Card
+          size="small"
+          title={(
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+              <Activity size={18} />
+              Incident Overview
+            </span>
           )}
-
-          {departmentIncidents.some((i) => i.hasPendingEscalation) && !loading && (
-            <Alert
-              type="warning"
-              showIcon
-              icon={<HandHelping size={16} />}
-              message={(
-                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                  <span>
-                    <strong>
-                      {departmentIncidents.filter((i) => i.hasPendingEscalation).length} inter-department assistance request{departmentIncidents.filter((i) => i.hasPendingEscalation).length !== 1 ? 's' : ''}
-                    </strong>{' '}
-                    awaiting response.
-                  </span>
-                  {departmentIncidents.find((i) => i.hasPendingEscalation) && (
-                    <Button
-                      onClick={() => {
-                        const first = departmentIncidents.find((i) => i.hasPendingEscalation);
-                        if (first) navigate(`/incidents/${first.id}?tab=escalation`);
-                      }}
-                      icon={<Eye size={14} />}
-                    >
-                      Review Assistance
-                    </Button>
-                  )}
-                </div>
-              )}
-              style={{ marginBottom: 12 }}
-            />
+          extra={(
+            <Space wrap size={[4, 8]}>
+              <IncidentOverviewKpiTags counts={overviewKpiCounts} />
+              <span style={{ fontSize: 12, opacity: 0.7 }}>{user.department || 'Department'}</span>
+              <span style={{ fontSize: 12, opacity: 0.7 }}>Polling every 30s</span>
+            </Space>
           )}
+        />
 
-          <Space wrap size="middle">
-            <Card size="small" style={{ minWidth: 120 }}>
-              <div style={{ fontSize: 11, opacity: 0.7 }}>Total Assigned</div>
-              <div style={{ fontSize: 20, fontWeight: 700 }}>{departmentIncidents.length}</div>
-            </Card>
-            <Card size="small" style={{ minWidth: 120 }}>
-              <div style={{ fontSize: 11, opacity: 0.7 }}>Awaiting Action</div>
-              <div style={{ fontSize: 20, fontWeight: 700 }}>{departmentIncidents.filter((i) => i.status === 'Verified' || i.status === 'verified' || i.status === 'New').length}</div>
-            </Card>
-            <Card size="small" style={{ minWidth: 120 }}>
-              <div style={{ fontSize: 11, opacity: 0.7 }}>In Progress</div>
-              <div style={{ fontSize: 20, fontWeight: 700 }}>{departmentIncidents.filter((i) => i.status === 'In Progress' || i.status === 'in-progress').length}</div>
-            </Card>
-            <Card size="small" style={{ minWidth: 120 }}>
-              <div style={{ fontSize: 11, opacity: 0.7 }}>Resolved</div>
-              <div style={{ fontSize: 20, fontWeight: 700 }}>{departmentIncidents.filter((i) => i.status === 'Resolved' || i.status === 'resolved').length}</div>
-            </Card>
-          </Space>
-        </Card>
+        {activeIncidents.length > 0 && !loading && (
+          <Alert
+            type="warning"
+            showIcon
+            icon={<AlertCircle size={16} />}
+            message={<span><strong>{activeIncidents.length} active incident{activeIncidents.length !== 1 ? 's' : ''}</strong> requiring response.</span>}
+          />
+        )}
+
+        {pendingEscalationCount > 0 && !loading && (
+          <Alert
+            type="warning"
+            showIcon
+            icon={<HandHelping size={16} />}
+            message={(
+              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                <span>
+                  <strong>
+                    {pendingEscalationCount} inter-department assistance request{pendingEscalationCount !== 1 ? 's' : ''}
+                  </strong>{' '}
+                  awaiting response.
+                </span>
+                {departmentIncidents.find((i) => i.hasPendingEscalation) && (
+                  <Button
+                    onClick={() => {
+                      const first = departmentIncidents.find((i) => i.hasPendingEscalation);
+                      if (first) navigate(`/incidents/${first.id}?tab=escalation`);
+                    }}
+                    icon={<Eye size={14} />}
+                  >
+                    Review Assistance
+                  </Button>
+                )}
+              </div>
+            )}
+          />
+        )}
 
         {error && (
           <Alert
@@ -783,12 +777,12 @@ export function DepartmentDashboardPage() {
             showIcon
             message={error}
             action={<Button onClick={() => fetchIncidents()}>Retry</Button>}
-            style={{ marginBottom: 12 }}
           />
         )}
 
         <Card
           size="small"
+          style={{ flex: 1 }}
           title={(
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
               <LayoutList size={16} />
