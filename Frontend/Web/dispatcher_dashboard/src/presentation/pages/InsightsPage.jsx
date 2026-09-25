@@ -690,10 +690,20 @@ export function InsightsPage() {
     return record;
   });
 
+  const showFilterChips = Boolean(
+    (superAdmin && departmentId)
+    || incidentType
+    || severity
+    || status
+    || barangay
+    || excludeDuplicates
+    || !includeArchived,
+  );
+
   return (
     <ConfigProvider theme={insightsTheme}>
     <Layout>
-      <div className="insights-root p-4 md:p-6 space-y-10">
+      <div className="insights-root p-4 md:p-6 flex flex-col gap-6">
         <Breadcrumb items={[{ label: 'Home', path: '/dashboard' }, { label: 'Insights' }]} />
         <header className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -748,44 +758,48 @@ export function InsightsPage() {
           </div>
         </header>
 
-        <Card size="small" className="insights-filters sticky top-0 z-20 print:static">
-          <details className="md:hidden">
-            <summary className="cursor-pointer text-sm font-medium py-1">Filters</summary>
-            <div className="flex flex-wrap gap-2 items-end pt-2">{filterControls}</div>
-          </details>
-          <div className="hidden md:flex flex-wrap gap-2 items-end">{filterControls}</div>
-        </Card>
-        <div className="flex flex-wrap gap-1.5 text-xs print:hidden">
-          {superAdmin && departmentId ? (
-            <button
-              type="button"
-              className="rounded-sm border border-[rgba(19,65,120,0.35)] px-2 py-1 text-muted hover:text-foreground"
-              onClick={() => patchParams({ department_id: '' })}
-            >
-              Department: {overview?.department?.name || (departmentId === 'volunteers' ? 'Volunteers' : departmentId)} ×
-            </button>
-          ) : null}
-          {[[incidentType, 'incident_type', 'Type'], [severity, 'severity_level', 'Severity'], [status, 'status', 'Status'], [barangay, 'barangay', 'Barangay']].map(([value, key, label]) => (
-            value ? (
-              <button
-                key={key}
-                type="button"
-                className="rounded-sm border border-[rgba(19,65,120,0.35)] px-2 py-1 text-muted hover:text-foreground"
-                onClick={() => patchParams({ [key]: '' })}
-              >
-                {label}: {titleCase(value)} ×
-              </button>
-            ) : null
-          ))}
-          {excludeDuplicates ? (
-            <button type="button" className="rounded-sm border border-[rgba(19,65,120,0.35)] px-2 py-1 text-muted" onClick={() => patchParams({ exclude_duplicates: undefined })}>
-              Exclude duplicates ×
-            </button>
-          ) : null}
-          {!includeArchived ? (
-            <button type="button" className="rounded-sm border border-[rgba(19,65,120,0.35)] px-2 py-1 text-muted" onClick={() => patchParams({ include_archived: undefined })}>
-              Archives hidden ×
-            </button>
+        <div className="space-y-2">
+          <Card size="small" className="insights-filters sticky top-0 z-20 print:static">
+            <details className="md:hidden">
+              <summary className="cursor-pointer text-sm font-medium py-1">Filters</summary>
+              <div className="flex flex-wrap gap-2 items-end pt-2">{filterControls}</div>
+            </details>
+            <div className="hidden md:flex flex-wrap gap-2 items-end">{filterControls}</div>
+          </Card>
+          {showFilterChips ? (
+            <div className="flex flex-wrap gap-1.5 text-xs print:hidden">
+              {superAdmin && departmentId ? (
+                <button
+                  type="button"
+                  className="rounded-sm border border-[rgba(19,65,120,0.35)] px-2 py-1 text-muted hover:text-foreground"
+                  onClick={() => patchParams({ department_id: '' })}
+                >
+                  Department: {overview?.department?.name || (departmentId === 'volunteers' ? 'Volunteers' : departmentId)} ×
+                </button>
+              ) : null}
+              {[[incidentType, 'incident_type', 'Type'], [severity, 'severity_level', 'Severity'], [status, 'status', 'Status'], [barangay, 'barangay', 'Barangay']].map(([value, key, label]) => (
+                value ? (
+                  <button
+                    key={key}
+                    type="button"
+                    className="rounded-sm border border-[rgba(19,65,120,0.35)] px-2 py-1 text-muted hover:text-foreground"
+                    onClick={() => patchParams({ [key]: '' })}
+                  >
+                    {label}: {titleCase(value)} ×
+                  </button>
+                ) : null
+              ))}
+              {excludeDuplicates ? (
+                <button type="button" className="rounded-sm border border-[rgba(19,65,120,0.35)] px-2 py-1 text-muted" onClick={() => patchParams({ exclude_duplicates: undefined })}>
+                  Exclude duplicates ×
+                </button>
+              ) : null}
+              {!includeArchived ? (
+                <button type="button" className="rounded-sm border border-[rgba(19,65,120,0.35)] px-2 py-1 text-muted" onClick={() => patchParams({ include_archived: undefined })}>
+                  Archives hidden ×
+                </button>
+              ) : null}
+            </div>
           ) : null}
         </div>
 
@@ -795,7 +809,7 @@ export function InsightsPage() {
         {loading && <p className="text-muted text-sm">Loading snapshot…</p>}
 
         {!loading && overview && (
-          <>
+          <div className="flex flex-col gap-10">
             <section id="insights-kpis" className="scroll-mt-24 space-y-4">
               <h2 className="text-lg font-semibold">Headline</h2>
               <Row gutter={[12, 12]} className="insights-kpi-row">
@@ -1048,7 +1062,7 @@ export function InsightsPage() {
                 </ChartCard>
               </section>
             )}
-          </>
+          </div>
         )}
 
         {!loading && !overview && !error && <EmptyNote />}
