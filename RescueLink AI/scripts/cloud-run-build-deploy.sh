@@ -66,7 +66,7 @@ if [[ "$DO_DEPLOY" -eq 1 ]]; then
     --timeout 300 \
     --concurrency 1 \
     --port 8080 \
-    --set-env-vars "ENVIRONMENT=production,STT_PROVIDER=api,STT_ENABLE_LOCAL_FALLBACK=true,STT_ENABLE_API_FALLBACK=false,STT_LOCAL_MODEL_SIZE=tiny,STT_DEVICE=cpu,STT_COMPUTE_TYPE=int8,AI_STARTUP_WARMUP=true,AI_STARTUP_WARMUP_WHISPER=true,MODEL_WEIGHTS_URL=https://huggingface.co/goSTYLO/resquelink-weights/resolve/main/emergency_model.pt" \
+    --set-env-vars "ENVIRONMENT=production,STT_PROVIDER=local,STT_ENABLE_LOCAL_FALLBACK=false,STT_ENABLE_API_FALLBACK=true,STT_LOCAL_MODEL_SIZE=medium,STT_DEVICE=cpu,STT_COMPUTE_TYPE=int8,AI_STARTUP_WARMUP=true,AI_STARTUP_WARMUP_WHISPER=true,MODEL_WEIGHTS_URL=https://huggingface.co/goSTYLO/resquelink-weights/resolve/main/emergency_model.pt" \
     --set-secrets "HF_API_TOKEN=hf-api-token:latest"
 
   echo "==> Health"

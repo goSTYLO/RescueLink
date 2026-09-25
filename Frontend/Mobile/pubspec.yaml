@@ -4,7 +4,7 @@ publish_to: 'none'
 
 # version: <name>+<build-number> — Android versionName / versionCode; iOS CFBundleShortVersionString / CFBundleVersion.
 # Override at build time: FLUTTER_BUILD_NAME / FLUTTER_BUILD_NUMBER, or flutter --build-name / --build-number.
-version: 1.0.0+2
+version: 1.0.1+2
 
 environment:
   sdk: '>=3.0.0 <4.0.0'

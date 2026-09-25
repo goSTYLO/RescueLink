@@ -186,21 +186,23 @@ class IncidentService {
     }
 
     _logInfo(
-        '[mobile][incident][reportWithAudio] request_id=$requestId status=start url=$uri audio_bytes=${audioBytes.length} media_count=${mediaFiles?.length ?? 0} timeout_s=${AppConfig.apiTimeout.inSeconds}');
+        '[mobile][incident][reportWithAudio] request_id=$requestId status=start url=$uri audio_bytes=${audioBytes.length} media_count=${mediaFiles?.length ?? 0} timeout_s=${AppConfig.audioUploadTimeout.inSeconds}');
 
     http.StreamedResponse streamedResponse;
     http.Response response;
     try {
-      streamedResponse = await request.send().timeout(AppConfig.apiTimeout);
+      streamedResponse =
+          await request.send().timeout(AppConfig.audioUploadTimeout);
       response = await http.Response.fromStream(streamedResponse)
-          .timeout(AppConfig.apiTimeout);
+          .timeout(AppConfig.audioUploadTimeout);
       stopwatch.stop();
     } on TimeoutException {
       stopwatch.stop();
       _logError(
           '[mobile][incident][reportWithAudio] request_id=$requestId status=timeout latency_ms=${stopwatch.elapsedMilliseconds} url=$uri');
       throw IncidentServiceException(
-        'Connection timed out while uploading audio. Check API_BASE_URL (${AppConfig.apiBaseUrl}) and network connectivity.',
+        'This is taking longer than usual (servers may be waking up). '
+        'Your report may still have been saved — check Report History in a minute.',
       );
     } on SocketException catch (error) {
       stopwatch.stop();

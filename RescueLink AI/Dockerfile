@@ -19,17 +19,17 @@ ARG MODEL_WEIGHTS_URL=https://huggingface.co/goSTYLO/resquelink-weights/resolve/
 RUN mkdir -p models \
   && python -c "import urllib.request; url='${MODEL_WEIGHTS_URL}'; urllib.request.urlretrieve(url, 'models/emergency_model.pt'); print('weights:', url)"
 
-# Prefetch tiny Whisper for STT_ENABLE_LOCAL_FALLBACK (Cloud Run cold start)
-RUN python -c "from faster_whisper import WhisperModel; WhisperModel('tiny', device='cpu', compute_type='int8')"
+# Prefetch medium Whisper for local-first STT (Cloud Run cold start)
+RUN python -c "from faster_whisper import WhisperModel; WhisperModel('medium', device='cpu', compute_type='int8')"
 
 COPY . .
 RUN chmod +x docker-entrypoint.sh
 
 ENV ENVIRONMENT=production
-ENV STT_PROVIDER=api
-ENV STT_ENABLE_API_FALLBACK=false
-ENV STT_ENABLE_LOCAL_FALLBACK=true
-ENV STT_LOCAL_MODEL_SIZE=tiny
+ENV STT_PROVIDER=local
+ENV STT_ENABLE_API_FALLBACK=true
+ENV STT_ENABLE_LOCAL_FALLBACK=false
+ENV STT_LOCAL_MODEL_SIZE=medium
 ENV STT_DEVICE=cpu
 ENV STT_COMPUTE_TYPE=int8
 ENV AI_STARTUP_WARMUP=false
