@@ -42,7 +42,7 @@ function getStoredAssignments() {
 
 export function DepartmentDashboardPage() {
   const navigate = useNavigate();
-  const { isConnected: wsConnected } = useIncidentWebSocketStatus();
+  const { status: wsStatus, isConnected: wsConnected } = useIncidentWebSocketStatus();
   const user = JSON.parse(sessionStorage.getItem('user') || '{}');
   const departmentId = user.departmentId || user.department_id;
 
@@ -728,7 +728,15 @@ export function DepartmentDashboardPage() {
             <Space wrap size={[4, 8]}>
               <IncidentOverviewKpiTags counts={overviewKpiCounts} />
               <span style={{ fontSize: 12, opacity: 0.7 }}>{user.department || 'Department'}</span>
-              <span style={{ fontSize: 12, opacity: 0.7 }}>Polling every 30s</span>
+              <span style={{ fontSize: 12, opacity: 0.7 }} aria-live="polite">
+                {wsConnected ? (
+                  `Live — updates on incident activity (backup every ${POLLING_WHEN_WS_CONNECTED_MS / 1000}s)`
+                ) : wsStatus === 'reconnecting' ? (
+                  `Connecting live feed… · backup every ${POLLING_INTERVAL_MS / 1000}s`
+                ) : (
+                  `Polling every ${POLLING_INTERVAL_MS / 1000}s`
+                )}
+              </span>
             </Space>
           )}
         />

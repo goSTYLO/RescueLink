@@ -26,9 +26,9 @@ import { INCIDENT_ACTION_BTN_PROPS, incidentTableRowClickProps } from '@/core/ut
 import { countIncidentOverviewKpis } from '@/core/utils/incidentOverviewKpis';
 import { IncidentOverviewKpiTags } from '@/presentation/components/dashboard/IncidentOverviewKpiTags';
 import { kpiTagColor } from '@/presentation/components/insights/insightsColors';
+import { createIncidentUpdatedScheduler } from '@/core/utils/insightsRealtime';
 
 const POLLING_INTERVAL_MS = 60000;
-const POLLING_WHEN_WS_CONNECTED_MS = 120000;
 
 function mapStatusFilterToApi(value) {
   if (value === 'Pending') return 'pending';
@@ -68,7 +68,7 @@ function dedupeIncidentsById(items) {
 export function DashboardPage() {
   const rateLimitUntilRef = useRef(0);
   const navigate = useNavigate();
-  const { isConnected: wsConnected } = useIncidentWebSocketStatus();
+  const { status: wsStatus, isConnected: wsConnected } = useIncidentWebSocketStatus();
   const [incidents, setIncidents] = useState([]);
   const [overviewIncidents, setOverviewIncidents] = useState([]);
   const [totalIncidentsCount, setTotalIncidentsCount] = useState(0);
@@ -135,7 +135,7 @@ export function DashboardPage() {
   const activeCurrentPage = isVolunteerView ? volunteerCurrentPage : currentPage;
   const activeItemsPerPage = isVolunteerView ? volunteerItemsPerPage : itemsPerPage;
 
-  const fetchIncidents = useCallback(async () => {
+  const fetchIncidents = useCallback(async (isSilent = false) => {
     if (Date.now() < rateLimitUntilRef.current) {
       return;
     }
@@ -154,12 +154,12 @@ export function DashboardPage() {
       setIncidents(dedupeIncidentsById(pageItems));
       setOverviewIncidents(dedupeIncidentsById(filteredMock));
       setTotalIncidentsCount(filteredMock.length);
-      setLoading(false);
+      if (!isSilent) setLoading(false);
       setError(null);
       return;
     }
-    setLoading(true);
-    setError(null);
+    if (!isSilent) setLoading(true);
+    if (!isSilent) setError(null);
     try {
       const apiStatus = mapStatusFilterToApi(activeFilterStatus);
       const apiSeverity = mapSeverityFilterToApi(activeFilterSeverity);
@@ -206,12 +206,14 @@ export function DashboardPage() {
       if (message.toLowerCase().includes('rate limited')) {
         rateLimitUntilRef.current = Date.now() + 30000;
       }
-      setError(message);
-      setIncidents([]);
-      setOverviewIncidents([]);
-      setTotalIncidentsCount(0);
+      if (!isSilent) {
+        setError(message);
+        setIncidents([]);
+        setOverviewIncidents([]);
+        setTotalIncidentsCount(0);
+      }
     } finally {
-      setLoading(false);
+      if (!isSilent) setLoading(false);
     }
   }, [activeCurrentPage, activeFilterBarangay, activeFilterSeverity, activeFilterStatus, activeFilterType, activeItemsPerPage, activeHideDuplicates, isVolunteerView, isArchivedView, searchQuery]);
 
@@ -255,14 +257,19 @@ export function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    fetchIncidents();
-    const intervalMs = wsConnected ? POLLING_WHEN_WS_CONNECTED_MS : POLLING_INTERVAL_MS;
-    const intervalId = setInterval(fetchIncidents, intervalMs);
-    const handleIncidentUpdated = () => fetchIncidents();
+    fetchIncidents(false);
+    const silentRefresh = () => fetchIncidents(true);
+    const scheduler = createIncidentUpdatedScheduler(silentRefresh);
+    const handleIncidentUpdated = () => scheduler.handle();
     window.addEventListener('incident:updated', handleIncidentUpdated);
+    let intervalId = null;
+    if (!wsConnected) {
+      intervalId = setInterval(silentRefresh, POLLING_INTERVAL_MS);
+    }
     return () => {
-      clearInterval(intervalId);
+      if (intervalId) clearInterval(intervalId);
       window.removeEventListener('incident:updated', handleIncidentUpdated);
+      scheduler.cancel();
     };
   }, [fetchIncidents, wsConnected]);
 
@@ -849,7 +856,15 @@ export function DashboardPage() {
             <Space wrap size={[4, 8]}>
               <IncidentOverviewKpiTags counts={overviewKpiCounts} />
               <Tag color={kpiTagColor('critical')}>Critical: {criticalIncidents.length}</Tag>
-              <span style={{ fontSize: 12, opacity: 0.7 }}>Polling every 30s</span>
+              <span style={{ fontSize: 12, opacity: 0.7 }} aria-live="polite">
+                {wsConnected ? (
+                  'Live — updates on incident activity'
+                ) : wsStatus === 'reconnecting' ? (
+                  `Connecting live feed… · refresh every ${POLLING_INTERVAL_MS / 1000}s`
+                ) : (
+                  `Polling every ${POLLING_INTERVAL_MS / 1000}s`
+                )}
+              </span>
             </Space>
           )}
         />
@@ -859,7 +874,7 @@ export function DashboardPage() {
             type="warning"
             showIcon
             message={error}
-            action={<Button onClick={fetchIncidents}>Retry</Button>}
+            action={<Button onClick={() => fetchIncidents(false)}>Retry</Button>}
           />
         )}
 

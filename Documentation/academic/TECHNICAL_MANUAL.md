@@ -413,7 +413,7 @@ Other titled events include `incident:status_updated`, `incident:verified`, `inc
 
 | Behavior | Where | Calls |
 |----------|-------|-------|
-| Queue filter/sort | `DashboardPage` | `getIncidents` |
+| Queue filter/sort + live refresh | `DashboardPage` | `getIncidents` + debounced `incident:updated` when WS connected; 60s poll when offline; overview caption reflects live vs poll |
 | Verify / reclassify / status | `IncidentDetailsPage` | `verifyIncident`, `reclassifyIncident`, `updateIncidentStatus` |
 | Duplicate link/unlink | detail + dialogs | `linkDuplicate`, `unlinkDuplicate`, `clearDuplicateFlag` |
 | Dispatch / confirm suggestion | detail / dispatch UI | `createDispatch`, `confirmSuggestion`, `reassignTeam` |
