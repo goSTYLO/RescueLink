@@ -109,12 +109,47 @@ async function loadUnits(filters) {
   }
 }
 
+const SHEET_SLUG = {
+  headline: 'headline',
+  response_matrix: 'response-matrix',
+  volume: 'incident-volume',
+  peak: 'peak-demand',
+  types: 'incident-types',
+  barangays: 'barangays',
+  type_barangay: 'type-barangay',
+  channels: 'reporting-channels',
+  exceptions: 'dispatch-exceptions',
+  funnel: 'escalation-funnel',
+  utilization: 'resource-utilization',
+  outcomes: 'resolution-outcomes',
+  department: 'by-department',
+  incidents: 'incidents',
+};
+
+function sheetSlug(sheet) {
+  if (!sheet) return 'full-report';
+  if (SHEET_SLUG[sheet]) return SHEET_SLUG[sheet];
+  return String(sheet).replace(/_/g, '-').replace(/[^\w-]/g, '');
+}
+
+function manilaExportStamp(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).formatToParts(date);
+  const get = (type) => parts.find((p) => p.type === type)?.value || '';
+  return `${get('year')}${get('month')}${get('day')}-${get('hour')}${get('minute')}${get('second')}`;
+}
+
 function exportFilename(filters, ext, sheet) {
-  const dept = filters.department_code || (filters.volunteer_scope ? 'volunteers' : 'all');
-  const fromDay = String(filters.from).slice(0, 10);
-  const toDay = String(filters.to).slice(0, 10);
-  const suffix = sheet ? `-${sheet}` : '';
-  return `insights-${dept}-${fromDay}-to-${toDay}${suffix}.${ext}`;
+  const slug = sheetSlug(sheet);
+  return `insights-${slug}-${manilaExportStamp()}.${ext}`;
 }
 
 function handleError(res, error, fallback) {

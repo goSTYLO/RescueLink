@@ -61,7 +61,7 @@ export function ChartCard({
         <button
           type="button"
           className="inline-flex items-center justify-center min-h-11 min-w-11 rounded-md text-muted hover:text-foreground disabled:opacity-50"
-          aria-label={`Print ${title} to PDF`}
+          aria-label={`Download ${title} as PDF`}
           disabled={exportDisabled}
           onClick={(event) => {
             event.stopPropagation();

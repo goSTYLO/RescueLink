@@ -47,6 +47,7 @@ import { MetricHelp } from '@/presentation/components/insights/MetricHelp';
 import { BarangayChoropleth } from '@/presentation/components/insights/BarangayChoropleth';
 import { BarangayTypesCell } from '@/presentation/components/insights/BarangayTypesCell';
 import { getAnalyticsIncidents, getAnalyticsOverview, downloadAnalyticsXlsx } from '@/data/api/analytics.api';
+import { downloadInsightsPdf } from '@/core/utils/insightsExport';
 import { getDepartments } from '@/data/api/departments.api';
 import { getStoredUser } from '@/core/auth/session';
 import { isDepartmentAdmin, isSuperAdmin, normalizeRole, getDefaultRouteByRole } from '@/core/constants';
@@ -535,30 +536,22 @@ export function InsightsPage() {
     }
   }
 
-  function printChartPdf(chartId) {
-    document.body.classList.remove('insights-print-single-mode');
-    document.querySelectorAll('.insights-print-focus').forEach((el) => {
-      el.classList.remove('insights-print-focus');
-    });
-    const escaped = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(chartId) : chartId;
-    const node = document.querySelector(`[data-insights-chart="${escaped}"]`);
-    if (!node) return;
-    const cleanup = () => {
-      document.body.classList.remove('insights-print-single-mode');
-      node.classList.remove('insights-print-focus');
-      window.removeEventListener('afterprint', cleanup);
-    };
-    document.body.classList.add('insights-print-single-mode');
-    node.classList.add('insights-print-focus');
-    window.addEventListener('afterprint', cleanup);
-    window.print();
+  async function onExportPdf(chartId) {
+    setExporting(true);
+    try {
+      await downloadInsightsPdf(chartId != null ? { chartId } : {});
+    } catch (err) {
+      setError(err.message || 'PDF export failed');
+    } finally {
+      setExporting(false);
+    }
   }
 
   const chartExport = (sheetId, printId = sheetId) => ({
     exportChartId: sheetId,
     ...(printId !== sheetId ? { printChartId: printId } : {}),
     onExportExcel: () => onExportXlsx(sheetId),
-    onExportPdf: () => printChartPdf(printId),
+    onExportPdf: () => onExportPdf(printId),
     exportDisabled: exporting,
   });
 
@@ -791,7 +784,7 @@ export function InsightsPage() {
                 <span>Updated {lastRefreshedAt.toLocaleTimeString('en-PH', { timeZone: 'Asia/Manila', hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
               ) : null}
             </p>
-            <div className="hidden print:block text-xs text-foreground mt-2 space-y-0.5">
+            <div id="insights-export-cover" className="hidden text-xs text-foreground mt-2 space-y-0.5">
               <p>RescueLink · Dagupan City</p>
               <p>Department: {departmentLabel}</p>
               <p>Range: {from} – {to}</p>
@@ -800,7 +793,7 @@ export function InsightsPage() {
             </div>
           </div>
           <div className="flex flex-wrap gap-2 print:hidden">
-            <Button variant="outline" size="sm" onClick={() => window.print()} disabled={exporting} className="gap-2">
+            <Button variant="outline" size="sm" onClick={() => onExportPdf()} disabled={exporting} className="gap-2">
               <Printer className="w-4 h-4" aria-hidden /> PDF
             </Button>
             <Button variant="outline" size="sm" onClick={() => onExportXlsx()} disabled={exporting} className="gap-2">
@@ -1233,8 +1226,8 @@ export function InsightsPage() {
               <button
                 type="button"
                 className="inline-flex items-center justify-center min-h-11 min-w-11 rounded-md text-muted hover:text-foreground disabled:opacity-50"
-                aria-label="Print incidents to PDF"
-                onClick={() => printChartPdf('incidents')}
+                aria-label="Download incidents as PDF"
+                onClick={() => onExportPdf('incidents')}
                 disabled={exporting}
               >
                 <Printer className="w-4 h-4" aria-hidden />

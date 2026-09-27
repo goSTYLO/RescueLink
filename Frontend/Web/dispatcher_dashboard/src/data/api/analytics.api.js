@@ -1,4 +1,5 @@
 import { API_URL } from '@/core/config/app.config';
+import { buildInsightsExportFilename, slugFromChartId } from '@/core/utils/insightsExport';
 import { createRequestId, getAuthHeaders, parseErrorMessage, parseJsonOrEmpty } from '@/data/api/http';
 
 const inflight = new Map();
@@ -96,11 +97,20 @@ async function downloadAnalyticsFile(url, fallbackName, failLabel) {
 }
 
 export async function downloadAnalyticsCsv(params = {}) {
-  await downloadAnalyticsFile(analyticsExportUrl(params), 'insights-export.csv', 'Failed to export CSV');
+  await downloadAnalyticsFile(
+    analyticsExportUrl(params),
+    buildInsightsExportFilename('full-report', 'csv'),
+    'Failed to export CSV',
+  );
 }
 
 export async function downloadAnalyticsXlsx(params = {}) {
-  await downloadAnalyticsFile(analyticsXlsxUrl(params), 'insights-export.xlsx', 'Failed to export Excel');
+  const slug = params.sheet ? slugFromChartId(params.sheet) : 'full-report';
+  await downloadAnalyticsFile(
+    analyticsXlsxUrl(params),
+    buildInsightsExportFilename(slug, 'xlsx'),
+    'Failed to export Excel',
+  );
 }
 
 export async function getBarangaysGeojson() {
