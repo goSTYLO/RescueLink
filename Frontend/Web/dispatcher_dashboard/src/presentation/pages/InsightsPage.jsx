@@ -535,6 +535,33 @@ export function InsightsPage() {
     }
   }
 
+  function printChartPdf(chartId) {
+    document.body.classList.remove('insights-print-single-mode');
+    document.querySelectorAll('.insights-print-focus').forEach((el) => {
+      el.classList.remove('insights-print-focus');
+    });
+    const escaped = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(chartId) : chartId;
+    const node = document.querySelector(`[data-insights-chart="${escaped}"]`);
+    if (!node) return;
+    const cleanup = () => {
+      document.body.classList.remove('insights-print-single-mode');
+      node.classList.remove('insights-print-focus');
+      window.removeEventListener('afterprint', cleanup);
+    };
+    document.body.classList.add('insights-print-single-mode');
+    node.classList.add('insights-print-focus');
+    window.addEventListener('afterprint', cleanup);
+    window.print();
+  }
+
+  const chartExport = (sheetId, printId = sheetId) => ({
+    exportChartId: sheetId,
+    ...(printId !== sheetId ? { printChartId: printId } : {}),
+    onExportExcel: () => onExportXlsx(sheetId),
+    onExportPdf: () => printChartPdf(printId),
+    exportDisabled: exporting,
+  });
+
   const filterControls = (
     <>
       <label className="text-xs text-muted">
@@ -773,7 +800,7 @@ export function InsightsPage() {
             </div>
           </div>
           <div className="flex flex-wrap gap-2 print:hidden">
-            <Button variant="outline" size="sm" onClick={() => window.print()} className="gap-2">
+            <Button variant="outline" size="sm" onClick={() => window.print()} disabled={exporting} className="gap-2">
               <Printer className="w-4 h-4" aria-hidden /> PDF
             </Button>
             <Button variant="outline" size="sm" onClick={() => onExportXlsx()} disabled={exporting} className="gap-2">
@@ -782,8 +809,9 @@ export function InsightsPage() {
           </div>
         </header>
 
-        <div className="space-y-2">
-          <Card size="small" className="insights-filters sticky top-0 z-20 print:static">
+        <div className="insights-scroll-body flex flex-col gap-6">
+        <div className="insights-filters-bar sticky top-0 z-[450] -mx-4 px-4 md:-mx-6 md:px-6 py-2 space-y-2 bg-background border-b border-[rgba(19,65,120,0.12)] shadow-sm print:static print:hidden">
+          <Card size="small" className="insights-filters">
             <details className="md:hidden">
               <summary className="cursor-pointer text-sm font-medium py-1">Filters</summary>
               <div className="flex flex-wrap gap-2 items-end pt-2">{filterControls}</div>
@@ -791,7 +819,7 @@ export function InsightsPage() {
             <div className="hidden md:flex flex-wrap gap-2 items-end">{filterControls}</div>
           </Card>
           {showFilterChips ? (
-            <div className="flex flex-wrap gap-1.5 text-xs print:hidden">
+            <div className="flex flex-wrap gap-1.5 text-xs">
               {superAdmin && departmentId ? (
                 <button
                   type="button"
@@ -834,9 +862,9 @@ export function InsightsPage() {
 
         {!loading && overview && (
           <div className="flex flex-col gap-10">
-            <section id="insights-kpis" className="scroll-mt-24 space-y-4">
+            <section id="insights-kpis" className="scroll-mt-24 space-y-4 insights-pdf-page" data-insights-chart="headline">
               <h2 className="text-lg font-semibold insights-section-title">Headline</h2>
-              <Row gutter={[12, 12]} className="insights-kpi-row">
+              <Row gutter={[12, 12]} className="insights-kpi-row print:hidden">
                 <Col xs={24} sm={12} xl={4}>
                   <InsightStat
                     metricId="incidents"
@@ -862,7 +890,7 @@ export function InsightsPage() {
                   <InsightStat metricId="resolve" title="Resolution time" value={clocks.resolve?.n ? formatClock(clocks.resolve.p50_seconds) : '—'} hint={clockHint(clocks.resolve, 'No resolve/close timestamps')} />
                 </Col>
               </Row>
-              <Row gutter={[12, 12]} className="insights-kpi-row">
+              <Row gutter={[12, 12]} className="insights-kpi-row print:hidden">
                 <Col xs={24} sm={12} xl={4}>
                   <SlaStat metricId="dispatch_sla" label="Dispatch SLA" pct={kpis.dispatch_sla} barLabel="≤ 8 min (internal, not NFPA)" />
                 </Col>
@@ -904,7 +932,7 @@ export function InsightsPage() {
 
             <section id="insights-performance" className="scroll-mt-24 space-y-4">
               <h2 className="text-lg font-semibold insights-section-title">Response performance</h2>
-              <ChartCard title="Response matrix" metricId="response_matrix" footer="Cells are p50 / p90 / p95. Null clocks excluded." onExport={() => onExportXlsx('response_matrix')} exportDisabled={exporting}>
+              <ChartCard title="Response matrix" metricId="response_matrix" footer="Cells are p50 / p90 / p95. Null clocks excluded." {...chartExport('response_matrix')}>
                 <div className="insights-scroll-panel">
                   <Table
                     size="small"
@@ -918,7 +946,7 @@ export function InsightsPage() {
               </ChartCard>
               <Row gutter={[16, 16]} className="insights-row-equal">
                 <Col xs={24} xl={14}>
-                  <ChartCard className="insights-print-allow-break" title="Incident volume" metricId="volume" onExport={() => onExportXlsx('volume')} exportDisabled={exporting}>
+                  <ChartCard className="insights-print-allow-break" title="Incident volume" metricId="volume" {...chartExport('volume')}>
                     <VolumeAreaChart data={volumeData} isLight={isLight} animKey={`vol-${chartAnimKey}`} />
                     <PrintTable
                       columns={[
@@ -931,7 +959,7 @@ export function InsightsPage() {
                   </ChartCard>
                 </Col>
                 <Col xs={24} xl={10}>
-                  <ChartCard title="Peak demand" metricId="peak_demand" onExport={() => onExportXlsx('peak')} exportDisabled={exporting}>
+                  <ChartCard className="insights-print-short-card" title="Peak demand" metricId="peak_demand" {...chartExport('peak')}>
                     <dl className="insights-chart-frame grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm content-center">
                       <div>
                         <dt className="text-xs text-muted inline-flex items-center gap-1"><BarChart3 className="w-3.5 h-3.5" aria-hidden /> Peak day</dt>
@@ -985,7 +1013,7 @@ export function InsightsPage() {
                   )}
                 </p>
               </div>
-              <ChartCard className="insights-print-allow-break" title="Incident types" metricId="demand_types" onExport={() => onExportXlsx('types')} exportDisabled={exporting}>
+              <ChartCard className="insights-print-allow-break" title="Incident types" metricId="demand_types" {...chartExport('types')}>
                 <div className="insights-scroll-panel">
                   <TypeProgressList
                     key={`types-${chartAnimKey}`}
@@ -1000,7 +1028,7 @@ export function InsightsPage() {
               </ChartCard>
               <Row gutter={[16, 16]} className="insights-row-equal">
                 <Col xs={24} xl={12}>
-                  <ChartCard className="min-w-0 overflow-hidden relative z-0 insights-print-allow-break" title="Geographic demand" metricId="barangay_map" footer="Click a barangay to filter. Unknown names are not on the map." onExport={() => onExportXlsx('barangays')} exportDisabled={exporting}>
+                  <ChartCard className="min-w-0 overflow-hidden relative z-0 insights-print-allow-break" title="Geographic demand" metricId="barangay_map" footer="Click a barangay to filter. Unknown names are not on the map." {...chartExport('barangays', 'barangays_map')}>
                     <BarangayChoropleth
                       barangays={demand.barangays}
                       selected={barangay}
@@ -1019,14 +1047,14 @@ export function InsightsPage() {
                   </ChartCard>
                 </Col>
                 <Col xs={24} xl={12}>
-                  <ChartCard className="min-w-0 insights-print-allow-break" title="Top barangays" metricId="barangay_map" onExport={() => onExportXlsx('barangays')} exportDisabled={exporting}>
+                  <ChartCard className="min-w-0 insights-print-allow-break" title="Top barangays" metricId="barangay_map" {...chartExport('barangays', 'barangays_top')}>
                     <BarangayDemandTable rows={demand.barangays} patchParams={patchParams} />
                   </ChartCard>
                 </Col>
               </Row>
               <Row gutter={[16, 16]} className="insights-row-equal">
                 <Col xs={24} xl={14}>
-                  <ChartCard className="insights-print-allow-break" title="Type × barangay" metricId="demand_types" onExport={() => onExportXlsx('type_barangay')} exportDisabled={exporting}>
+                  <ChartCard className="insights-print-allow-break" title="Type × barangay" metricId="demand_types" {...chartExport('type_barangay')}>
                     <div className="insights-scroll-panel">
                       {typeMatrixRows.length ? (
                         <Table
@@ -1042,7 +1070,7 @@ export function InsightsPage() {
                   </ChartCard>
                 </Col>
                 <Col xs={24} xl={10}>
-                  <ChartCard className="insights-print-allow-break" title="Reporting channels" metricId="demand_types" onExport={() => onExportXlsx('channels')} exportDisabled={exporting}>
+                  <ChartCard className="insights-print-short-card" title="Reporting channels" metricId="demand_types" {...chartExport('channels')}>
                     <DonutChart
                       isLight={isLight}
                       animKey={`ch-${chartAnimKey}`}
@@ -1066,8 +1094,7 @@ export function InsightsPage() {
                   title="Dispatch exceptions"
                   metricId="exceptions"
                   footer="Counts are incidents with at least one recorded exception type."
-                  onExport={() => onExportXlsx('exceptions')}
-                  exportDisabled={exporting}
+                  {...chartExport('exceptions')}
                 >
                   <ExceptionBreakdownCard anyPct={overview.exceptions?.any_pct} slices={exceptionSlices} />
                   <PrintTable
@@ -1080,8 +1107,7 @@ export function InsightsPage() {
                   title="Escalation funnel"
                   metricId="escalation_funnel"
                   footer={`Processing p50 ${formatClock(funnel.processing_p50_seconds)} (accepted/declined). Rates are % of escalated.`}
-                  onExport={() => onExportXlsx('funnel')}
-                  exportDisabled={exporting}
+                  {...chartExport('funnel')}
                 >
                   {funnel.escalated ? (
                     <div>
@@ -1094,7 +1120,7 @@ export function InsightsPage() {
                     rows={funnel.escalated ? funnelRows : []}
                   />
                 </ChartCard>
-                <ChartCard className="insights-print-allow-break" title="Resource utilization" metricId="utilization" footer="Deployment duration is not stored (no release time on unit usage)." onExport={() => onExportXlsx('utilization')} exportDisabled={exporting}>
+                <ChartCard className="insights-print-allow-break" title="Resource utilization" metricId="utilization" footer="Deployment duration is not stored (no release time on unit usage)." {...chartExport('utilization')}>
                   <dl className="grid grid-cols-2 gap-3 text-sm mb-4 print:hidden">
                     <div>Units used<br /><strong>{overview.utilization?.units_used ?? 0}</strong></div>
                     <div>Dispatches<br /><strong>{overview.utilization?.dispatch_count ?? 0}</strong></div>
@@ -1122,7 +1148,7 @@ export function InsightsPage() {
                     ]}
                   />
                 </ChartCard>
-                <ChartCard className="insights-print-allow-break" title="Resolution outcomes" metricId="outcomes" onExport={() => onExportXlsx('outcomes')} exportDisabled={exporting}>
+                <ChartCard className="insights-print-allow-break" title="Resolution outcomes" metricId="outcomes" {...chartExport('outcomes')}>
                   <DonutChart
                     isLight={isLight}
                     animKey={`out-${chartAnimKey}`}
@@ -1145,8 +1171,7 @@ export function InsightsPage() {
                   title="By department"
                   metricId="department_clocks"
                   footer="Chart may double-count multi-department incidents. Unique headline KPIs do not. Primary = first dispatch department; supporting = later dispatch or escalation-only."
-                  onExport={() => onExportXlsx('department')}
-                  exportDisabled={exporting}
+                  {...chartExport('department')}
                 >
                   <RankedBarChart
                     isLight={isLight}
@@ -1183,6 +1208,7 @@ export function InsightsPage() {
 
         {!loading && !overview && !error && <EmptyNote />}
 
+        <div className="insights-pdf-page" data-insights-chart="incidents">
         <Card
           id="insights-table"
           size="small"
@@ -1194,15 +1220,26 @@ export function InsightsPage() {
             </span>
           )}
           extra={(
-            <button
-              type="button"
-              className="print:hidden inline-flex items-center justify-center min-h-11 min-w-11 rounded-md text-muted hover:text-foreground"
-              aria-label="Export incidents"
-              onClick={() => onExportXlsx('incidents')}
-              disabled={exporting}
-            >
-              <Download className="w-4 h-4" aria-hidden />
-            </button>
+            <span className="print:hidden inline-flex items-center">
+              <button
+                type="button"
+                className="inline-flex items-center justify-center min-h-11 min-w-11 rounded-md text-muted hover:text-foreground disabled:opacity-50"
+                aria-label="Export incidents to Excel"
+                onClick={() => onExportXlsx('incidents')}
+                disabled={exporting}
+              >
+                <Download className="w-4 h-4" aria-hidden />
+              </button>
+              <button
+                type="button"
+                className="inline-flex items-center justify-center min-h-11 min-w-11 rounded-md text-muted hover:text-foreground disabled:opacity-50"
+                aria-label="Print incidents to PDF"
+                onClick={() => printChartPdf('incidents')}
+                disabled={exporting}
+              >
+                <Printer className="w-4 h-4" aria-hidden />
+              </button>
+            </span>
           )}
         >
           <div style={{ marginBottom: 12, width: '100%', maxWidth: 480 }}>
@@ -1252,6 +1289,8 @@ export function InsightsPage() {
           />
           <p className="text-xs text-muted mt-2 print:hidden">Print/PDF includes this page of the table. Use Excel for the full filtered set.</p>
         </Card>
+        </div>
+        </div>
       </div>
     </Layout>
     </ConfigProvider>

@@ -2,7 +2,7 @@
 
 ## 2026-09-27
 
-- Insights: **Excel** export (one sheet per chart, data bars on counts) plus per-chart downloads; PDF print groups each chart with its table. `GET /api/analytics/export.xlsx` (`sheet=` optional). CSV endpoint remains.
+- Insights: **Excel** export (one sheet per chart, data bars on counts) plus per-chart Excel/PDF icons; header **PDF** prints the full report (one page per chart + table). Sticky filter bar while scrolling; print layout unclips app shell overflow. `GET /api/analytics/export.xlsx` (`sheet=` optional). CSV endpoint remains.
 
 ## 2026-09-25
 

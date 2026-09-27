@@ -1,5 +1,5 @@
 import { Card } from 'antd';
-import { Download } from 'lucide-react';
+import { Download, Printer } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, LineChart, Line, Legend, PieChart, Pie, Cell } from 'recharts';
 import { MetricHelp } from '@/presentation/components/insights/MetricHelp';
 import {
@@ -19,7 +19,21 @@ import {
 const AXIS = { stroke: 'currentColor', fontSize: 12 };
 const RECHART_ANIM = { isAnimationActive: 'auto', animationDuration: 600, animationBegin: 0 };
 
-export function ChartCard({ title, metricId, children, className = '', onClick, footer, uniform = true, onExport, exportDisabled = false }) {
+export function ChartCard({
+  title,
+  metricId,
+  children,
+  className = '',
+  onClick,
+  footer,
+  uniform = true,
+  exportChartId,
+  printChartId,
+  onExportExcel,
+  onExportPdf,
+  exportDisabled = false,
+}) {
+  const chartKey = printChartId || exportChartId;
   const cardTitle = title ? (
     <span className="inline-flex items-center gap-0.5 text-sm font-semibold">
       {title}
@@ -27,25 +41,45 @@ export function ChartCard({ title, metricId, children, className = '', onClick, 
     </span>
   ) : null;
 
-  return (
-    <Card
-      size="small"
-      className={`h-full ${className}`}
-      title={cardTitle}
-      extra={onExport ? (
+  const exportExtra = (onExportExcel || onExportPdf) ? (
+    <span className="print:hidden inline-flex items-center">
+      {onExportExcel ? (
         <button
           type="button"
-          className="print:hidden inline-flex items-center justify-center min-h-11 min-w-11 rounded-md text-muted hover:text-foreground disabled:opacity-50"
-          aria-label={`Export ${title}`}
+          className="inline-flex items-center justify-center min-h-11 min-w-11 rounded-md text-muted hover:text-foreground disabled:opacity-50"
+          aria-label={`Export ${title} to Excel`}
           disabled={exportDisabled}
           onClick={(event) => {
             event.stopPropagation();
-            if (!exportDisabled) onExport();
+            if (!exportDisabled) onExportExcel();
           }}
         >
           <Download className="w-4 h-4" aria-hidden />
         </button>
       ) : null}
+      {onExportPdf ? (
+        <button
+          type="button"
+          className="inline-flex items-center justify-center min-h-11 min-w-11 rounded-md text-muted hover:text-foreground disabled:opacity-50"
+          aria-label={`Print ${title} to PDF`}
+          disabled={exportDisabled}
+          onClick={(event) => {
+            event.stopPropagation();
+            if (!exportDisabled) onExportPdf();
+          }}
+        >
+          <Printer className="w-4 h-4" aria-hidden />
+        </button>
+      ) : null}
+    </span>
+  ) : null;
+
+  const card = (
+    <Card
+      size="small"
+      className={`h-full ${className}`}
+      title={cardTitle}
+      extra={exportExtra}
     >
       <div
         className={uniform ? 'insights-card-body flex flex-col flex-1 min-h-0' : 'flex-1 min-h-0'}
@@ -55,6 +89,14 @@ export function ChartCard({ title, metricId, children, className = '', onClick, 
       </div>
       {footer ? <p className="text-xs text-muted mt-2 shrink-0">{footer}</p> : null}
     </Card>
+  );
+
+  if (!chartKey) return card;
+
+  return (
+    <div className="insights-pdf-page h-full flex flex-col min-h-0" data-insights-chart={chartKey}>
+      {card}
+    </div>
   );
 }
 

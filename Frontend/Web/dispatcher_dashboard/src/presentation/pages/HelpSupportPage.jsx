@@ -40,7 +40,7 @@ const GUIDES = [
     steps: [
       'Open Insights from the sidebar. Super Admin starts city-wide and can pick a department; Department Admin is locked to their own.',
       'Use date presets, type, severity, status, and barangay filters (the URL is shareable). On a phone, open the Filters disclosure first.',
-      'Read headline clocks and SLA cards, then scroll: response matrix, demand map, operations, incident table. Each ? explains the metric. Export Excel (one sheet per chart, data bars update if you edit numbers) or print to PDF (each chart prints with its table).',
+      'Read headline clocks and SLA cards, then scroll: response matrix, demand map, operations, incident table. Each ? explains the metric. Header Excel downloads the full workbook; each chart has Excel and PDF icons for that chart only. Header PDF prints the full report (cover, then one page per chart with its table). Per-chart PDF uses the printer icon on that card.',
     ],
   },
   {

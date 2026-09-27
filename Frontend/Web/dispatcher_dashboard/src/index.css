@@ -367,6 +367,18 @@
     --color-foreground: #111827;
     --color-muted: #4b5563;
   }
+  html,
+  body,
+  .ant-layout,
+  .ant-layout-sider,
+  .layout-main-scroll,
+  .insights-root,
+  .insights-scroll-body {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    min-height: 0;
+  }
   body {
     background: #fff !important;
     color: #111827 !important;
@@ -374,9 +386,37 @@
   .print\:hidden,
   nav,
   aside,
+  .ant-layout-sider,
+  .layout-app-header,
   header:has(img),
-  .insights-filters {
+  .insights-filters-bar {
     display: none !important;
+  }
+  body:not(.insights-print-single-mode) .insights-pdf-page {
+    break-before: page;
+    page-break-before: always;
+  }
+  body:not(.insights-print-single-mode) .insights-pdf-page[data-insights-chart="headline"] {
+    break-before: auto;
+    page-break-before: auto;
+  }
+  body.insights-print-single-mode .insights-root > header {
+    display: none !important;
+  }
+  body.insights-print-single-mode .insights-root::before {
+    display: none !important;
+  }
+  body.insights-print-single-mode .insights-scroll-body > *:not(:has(.insights-print-focus)) {
+    display: none !important;
+  }
+  body.insights-print-single-mode .insights-pdf-page:not(.insights-print-focus) {
+    display: none !important;
+  }
+  body.insights-print-single-mode section > h2.insights-section-title {
+    display: none !important;
+  }
+  body.insights-print-single-mode .insights-print-focus > h2.insights-section-title {
+    display: block !important;
   }
   .insights-root {
     padding: 0 !important;
@@ -395,10 +435,14 @@
     page-break-after: avoid;
   }
   .insights-root .ant-card {
-    break-inside: avoid;
-    page-break-inside: avoid;
+    break-inside: auto;
+    page-break-inside: auto;
     box-shadow: none !important;
     overflow: visible !important;
+  }
+  .insights-root .insights-print-short-card.ant-card {
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
   .insights-root .insights-print-allow-break.ant-card,
   .insights-root .insights-print-allow-break {

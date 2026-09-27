@@ -534,7 +534,9 @@ export function Layout({ children }) {
           boxSizing: 'border-box',
         }}
       >
-        <Header style={{
+        <Header
+          className="layout-app-header"
+          style={{
           display: 'flex',
           alignItems: 'center',
           gap: 16,
@@ -625,7 +627,7 @@ export function Layout({ children }) {
           </Dropdown>
         </Header>
         <NotificationPromptBanner />
-        <Content style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
+        <Content className="layout-main-scroll" style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
           {children}
         </Content>
       </AntLayout>
