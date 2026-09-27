@@ -3,6 +3,7 @@
 ## 2026-09-27
 
 - Insights: **Excel** and **PDF** download as files (`insights-{chart}-YYYYMMDD-HHmmss`, Asia/Manila). PDF uses html2canvas + jsPDF (one page per chart, on-screen colors); Excel remains data tables with data bars. Sticky filter bar; per-chart export icons. `GET /api/analytics/export.xlsx` (`sheet=` optional). CSV endpoint remains.
+- Audit log: **Excel** export via `GET /api/audit-logs/export.xlsx` with Insights-style workbook chrome (navy header, gray column headers); filename `audit-log-YYYYMMDD-HHmmss.xlsx`.
 
 ## 2026-09-25
 

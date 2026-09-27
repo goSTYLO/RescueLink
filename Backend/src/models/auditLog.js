@@ -47,6 +47,57 @@ function decodeAuditRow(row) {
 }
 
 const AuditLog = {
+  EXPORT_ROW_CAP: 10000,
+
+  async countMatching({ user_id = null, action = null, resource_type = null, from = null, to = null } = {}) {
+    let query = `
+      SELECT COUNT(*)::int AS total
+      FROM dispatcher_audit_logs al
+      WHERE 1=1
+    `;
+    const params = [];
+    let paramCount = 0;
+    if (user_id) {
+      paramCount++;
+      query += ` AND al.user_id = $${paramCount}`;
+      params.push(user_id);
+    }
+    if (action) {
+      paramCount++;
+      query += ` AND al.action = $${paramCount}`;
+      params.push(action);
+    }
+    if (resource_type) {
+      paramCount++;
+      query += ` AND al.resource_type = $${paramCount}`;
+      params.push(resource_type);
+    }
+    if (from) {
+      paramCount++;
+      query += ` AND al.created_at >= $${paramCount}`;
+      params.push(from);
+    }
+    if (to) {
+      paramCount++;
+      query += ` AND al.created_at <= $${paramCount}`;
+      params.push(to);
+    }
+    const res = await pool.query(query, params);
+    return res.rows[0]?.total ?? 0;
+  },
+
+  async findForExport({ user_id = null, action = null, resource_type = null, from = null, to = null } = {}) {
+    return AuditLog.findAll({
+      user_id,
+      action,
+      resource_type,
+      from,
+      to,
+      limit: AuditLog.EXPORT_ROW_CAP,
+      offset: 0,
+    });
+  },
+
   async create({ user_id, action, resource_type, resource_id = null, details = null, ip_address = null, user_agent = null }) {
     const res = await pool.query(
       `INSERT INTO dispatcher_audit_logs(user_id, action, resource_type, resource_id, details, ip_address, user_agent)
@@ -57,7 +108,7 @@ const AuditLog = {
   },
 
   async findAll({ user_id = null, action = null, resource_type = null, from = null, to = null, limit = 50, offset = 0 } = {}) {
-    const cappedLimit = Math.min(limit, 100);
+    const cappedLimit = Math.min(limit, AuditLog.EXPORT_ROW_CAP);
     let query = `
       SELECT al.id, al.user_id, al.action, al.resource_type, al.resource_id, al.details, al.ip_address, al.user_agent, al.created_at,
              u.email AS user_email, u.first_name AS user_first_name, u.last_name AS user_last_name

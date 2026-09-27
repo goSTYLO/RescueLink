@@ -1,7 +1,7 @@
 import logoIcon from '@/presentation/assets/logo_icon.png';
 import { useTheme } from '@/presentation/context/ThemeContext';
 
-export function BrandLogo({ iconOnly = false, size = 'md', className = '' }) {
+export function BrandLogo({ iconOnly = false, size = 'md', className = '', squircleMark = false }) {
   const { theme } = useTheme();
   const isLight = theme === 'light';
 
@@ -14,13 +14,29 @@ export function BrandLogo({ iconOnly = false, size = 'md', className = '' }) {
 
   const s = sizes[size] || sizes.md;
 
+  const logoMark = (
+    <img
+      src={logoIcon}
+      alt="RescueLink Icon"
+      className={
+        squircleMark && isLight
+          ? 'w-full h-full object-contain'
+          : `${s.icon} object-contain flex-shrink-0`
+      }
+    />
+  );
+
   return (
     <div className={`flex items-center gap-3 select-none ${className}`}>
-      <img
-        src={logoIcon}
-        alt="RescueLink Icon"
-        className={`${s.icon} object-contain flex-shrink-0`}
-      />
+      {squircleMark && isLight ? (
+        <span
+          className={`inline-flex items-center justify-center flex-shrink-0 ${s.icon} bg-gray-300 rounded-[22%] p-1`}
+        >
+          {logoMark}
+        </span>
+      ) : (
+        logoMark
+      )}
       {!iconOnly && (
         <div className="flex flex-col justify-center leading-none">
           <div className={`font-bold tracking-tight ${s.title} ${isLight ? 'text-gray-900' : 'text-white'}`}>

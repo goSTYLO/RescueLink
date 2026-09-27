@@ -1,4 +1,5 @@
 import { API_URL } from '@/core/config/app.config';
+import { formatInsightsExportStamp } from '@/core/utils/insightsExport';
 import { createRequestId, getAuthHeaders, parseErrorMessage, parseJsonOrEmpty } from '@/data/api/http';
 
 const CACHE_TTL_MS = 30_000;
@@ -103,4 +104,41 @@ export async function getAdminLogs({ limit = 50, offset = 0, action, from, to } 
     throw new Error(parseErrorMessage(data, 'Failed to fetch admin logs'));
   }
   return data;
+}
+
+function saveBlob(blob, filename) {
+  const href = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = href;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(href);
+}
+
+/**
+ * Download filtered audit logs as styled Excel (.xlsx).
+ */
+export async function downloadAuditLogXlsx({ action, resource_type, from, to } = {}) {
+  const requestId = createRequestId('web-audit-export');
+  const params = new URLSearchParams();
+  if (action) params.set('action', action);
+  if (resource_type) params.set('resource_type', resource_type);
+  if (from) params.set('from', from);
+  if (to) params.set('to', to);
+  const query = params.toString();
+  const fallback = `audit-log-${formatInsightsExportStamp()}.xlsx`;
+  const response = await fetch(`${API_URL}/api/audit-logs/export.xlsx${query ? `?${query}` : ''}`, {
+    method: 'GET',
+    headers: getAuthHeaders({ requestId, includeContentType: false }),
+  });
+  const data = await parseJsonOrEmpty(response);
+  if (!response.ok) {
+    throw new Error(parseErrorMessage(data, 'Failed to export audit log'));
+  }
+  const blob = await response.blob();
+  const disposition = response.headers.get('content-disposition') || '';
+  const match = disposition.match(/filename="([^"]+)"/);
+  saveBlob(blob, match?.[1] || fallback);
 }

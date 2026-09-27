@@ -108,6 +108,7 @@ const endpoints = [
 
   // Audit
   { method: 'get', path: '/api/audit-logs' },
+  { method: 'get', path: '/api/audit-logs/export.xlsx' },
 
   // Admin
   { method: 'get', path: '/api/admin/users' },

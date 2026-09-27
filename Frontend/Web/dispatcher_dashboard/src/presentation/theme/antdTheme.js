@@ -1,6 +1,8 @@
 import { theme as antdTheme } from 'antd';
 
-const LIGHT_PAGE = '#f3f4f6';
+const LIGHT_PAGE = '#e5e7eb';
+const LIGHT_CARD = '#eef0f3';
+const LIGHT_INPUT = '#e8eaed';
 const LIGHT_CHROME = '#e5e7eb';
 const LIGHT_BORDER = '#d1d5db';
 const DARK_CHROME = '#0c1b33';
@@ -18,7 +20,8 @@ export function buildAntdTheme(isLight) {
       ...(isLight
         ? {
           colorBgLayout: LIGHT_PAGE,
-          colorBgContainer: '#ffffff',
+          colorBgContainer: LIGHT_CARD,
+          colorBgElevated: LIGHT_CARD,
           colorBorder: LIGHT_BORDER,
           colorBorderSecondary: LIGHT_CHROME,
           colorText: '#111827',
@@ -52,9 +55,9 @@ export function buildAntdTheme(isLight) {
       },
       Input: isLight
         ? {
-          colorBgContainer: '#f9fafb',
-          activeBg: '#ffffff',
-          hoverBg: '#f9fafb',
+          colorBgContainer: LIGHT_INPUT,
+          activeBg: LIGHT_CARD,
+          hoverBg: LIGHT_INPUT,
         }
         : {
           colorBgContainer: '#111A2C',

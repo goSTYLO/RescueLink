@@ -57,7 +57,7 @@ export function DepartmentTasksPage() {
   const deptPersonnel = departmentId && mockPersonnelByDept && mockPersonnelByDept[departmentId] ? mockPersonnelByDept[departmentId] : [];
   const deptUnits = departmentId && mockUnitsByDept && mockUnitsByDept[departmentId] ? mockUnitsByDept[departmentId] : [];
 
-  const heroCardClass = `rounded-md border overflow-hidden transition-all duration-300 ${isLight ? 'glass neumorphic-light bg-white/80 border-gray-200/80 shadow-[8px_8px_24px_rgba(209,213,219,0.5),-8px_-8px_24px_rgba(255,255,255,0.9)]' : 'glass neumorphic-dark bg-card/60 border-white/10 shadow-[8px_8px_24px_rgba(0,0,0,0.35),-6px_-6px_20px_rgba(19,65,120,0.2)]'}`;
+  const heroCardClass = `rounded-md border overflow-hidden transition-all duration-300 ${isLight ? 'glass neumorphic-light bg-card/80 border-gray-200/80 shadow-[8px_8px_24px_rgba(209,213,219,0.5),-8px_-8px_24px_rgba(255,255,255,0.9)]' : 'glass neumorphic-dark bg-card/60 border-white/10 shadow-[8px_8px_24px_rgba(0,0,0,0.35),-6px_-6px_20px_rgba(19,65,120,0.2)]'}`;
   const heroIconClass = `w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isLight ? 'neumorphic-light-inset bg-gray-100 text-primary' : 'neumorphic-dark-inset bg-white/10 text-primary'}`;
 
   return (

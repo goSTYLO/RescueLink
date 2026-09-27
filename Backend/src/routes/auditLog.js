@@ -9,6 +9,8 @@ const { ROLES } = require('../config/roles');
 // Dispatchers see only their own; admins see all
 router.get('/', authMiddleware, authorize([ROLES.DISPATCHER, ROLES.ADMIN]), auditLogController.getAll);
 
+router.get('/export.xlsx', authMiddleware, authorize([ROLES.DISPATCHER, ROLES.ADMIN]), auditLogController.exportXlsx);
+
 // Get admin-only audit logs - Admin role required
 router.get('/admin', authMiddleware, authorize([ROLES.ADMIN]), auditLogController.getAdminLogs);
 

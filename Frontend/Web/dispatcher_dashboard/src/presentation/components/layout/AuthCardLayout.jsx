@@ -14,12 +14,12 @@ export function AuthCardLayout({ children, illustration, tagline = 'One Tap. One
     'w-full max-w-5xl rounded-3xl overflow-hidden flex flex-col md:flex-row min-h-[520px] max-h-[90vh]',
     'transition-all duration-300',
     'glass border',
-    'bg-white/90 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.15)] border-gray-200/80',
+    'bg-card/90 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.15)] border-gray-200/80',
     'dark:bg-card/90 dark:shadow-[0_25px_50px_-12px_rgba(0,0,0,0.4)] dark:border-white/10',
     'neumorphic-light dark:neumorphic-dark',
   ].join(' ');
 
-  const formPanelClass = 'auth-form-panel bg-white dark:bg-card';
+  const formPanelClass = 'auth-form-panel bg-card dark:bg-card';
   const brandPanelClass = [
     'border-l',
     'bg-gradient-to-br from-primary/15 via-primary/10 to-secondary/20 border-gray-200/80',

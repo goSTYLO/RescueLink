@@ -1,5 +1,5 @@
 import { Layout } from '@/presentation/components/layout/Layout';
-import { Alert, Button, Card, Input, Pagination, Select, Space, Table, Tabs, Tag } from 'antd';
+import { Alert, Card, Input, Pagination, Select, Space, Table, Tabs, Tag } from 'antd';
 import {
   ScrollText,
   Hash,
@@ -9,9 +9,11 @@ import {
   ListChecks,
   RefreshCw,
   Link2,
+  Download,
 } from 'lucide-react';
-import { getAuditLogs } from '@/data/api/auditLog.api';
+import { getAuditLogs, downloadAuditLogXlsx } from '@/data/api/auditLog.api';
 import { Breadcrumb } from '@/presentation/components/common/Breadcrumb';
+import { Button } from '@/presentation/components/ui/Button';
 import { useState, useEffect, useCallback } from 'react';
 
 // Feature flag — mirrors USE_BLOCKCHAIN in Backend/.env
@@ -128,6 +130,7 @@ export function AuditLogPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(5);
   const [activeTab, setActiveTab] = useState('all');
+  const [exporting, setExporting] = useState(false);
 
   const fetchLogs = useCallback(async () => {
     setLoading(true);
@@ -168,32 +171,24 @@ export function AuditLogPage() {
     setCurrentPage(1);
   }, [filterAction, filterResourceType, filterFrom, filterTo, activeTab]);
 
-  const exportLogsAsCsv = () => {
-    if (!logs.length) return;
-    const header = ['timestamp', 'user', 'action', 'resource_type', 'resource_id', 'details'];
-    const rows = logs.map((log) => {
-      const details = formatDetailsForDisplay(log);
-      const userValue = log.user_email || ([log.user_first_name, log.user_last_name].filter(Boolean).join(' ') || (log.user_id != null ? `User #${log.user_id}` : ''));
-      return [
-        formatTimestamp(log.created_at),
-        userValue,
-        formatActionLabel(log.action),
-        log.resource_type || '',
-        log.resource_id != null ? String(log.resource_id) : '',
-        details,
-      ].map((field) => `"${String(field).replace(/"/g, '""')}"`).join(',');
-    });
-    const csv = [header.join(','), ...rows].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `audit-log-${new Date().toISOString().slice(0, 10)}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  };
+  async function onExportExcel() {
+    setExporting(true);
+    setError(null);
+    try {
+      const fromParam = filterFrom ? new Date(filterFrom).toISOString() : undefined;
+      const toParam = filterTo ? new Date(filterTo + 'T23:59:59.999Z').toISOString() : undefined;
+      await downloadAuditLogXlsx({
+        action: filterAction || undefined,
+        resource_type: filterResourceType || undefined,
+        from: fromParam,
+        to: toParam,
+      });
+    } catch (err) {
+      setError(err.message || 'Excel export failed');
+    } finally {
+      setExporting(false);
+    }
+  }
 
   const showBlockchainCols = activeTab === 'blockchain' && USE_BLOCKCHAIN;
 
@@ -267,58 +262,63 @@ export function AuditLogPage() {
 
   return (
     <Layout>
-      <div className="p-4 md:p-6">
+      <div className="p-4 md:p-6 flex flex-col gap-6">
         <Breadcrumb items={[{ label: 'Home', path: '/dashboard' }, { label: 'Audit Log' }]} />
 
-        <Card size="small" style={{ marginTop: 12, marginBottom: 16 }} title={(
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-            <ScrollText size={18} />
-            Dispatcher Audit Log
-          </span>
-        )}>
-          <p style={{ margin: 0 }}>Logins, password changes, and dispatch actions for accountability and audit.</p>
-        </Card>
+        <header className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold text-foreground flex items-center gap-2">
+              <ScrollText className="w-6 h-6" aria-hidden />
+              Dispatcher Audit Log
+            </h1>
+            <p className="text-sm text-muted mt-1">
+              Logins, password changes, and dispatch actions for accountability and audit.
+            </p>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => onExportExcel()} disabled={exporting || loading} className="gap-2">
+            <Download className="w-4 h-4" aria-hidden /> Excel
+          </Button>
+        </header>
 
-        <Space wrap size="middle" style={{ marginBottom: 16, width: '100%' }}>
-          <Card size="small" style={{ minWidth: 160 }}>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <Card size="small" className="h-full">
             <Space>
-              <Hash size={18} />
+              <Hash size={18} className="text-muted" aria-hidden />
               <div>
-                <div style={{ fontSize: 12, opacity: 0.7 }}>Total records</div>
-                <div style={{ fontSize: 20, fontWeight: 700 }}>{logs.length}</div>
+                <div className="text-xs text-muted">Total records (loaded)</div>
+                <div className="text-xl font-semibold tabular-nums">{logs.length}</div>
               </div>
             </Space>
           </Card>
-          <Card size="small" style={{ minWidth: 160 }}>
+          <Card size="small" className="h-full">
             <Space>
-              <Shield size={18} />
+              <Shield size={18} className="text-muted" aria-hidden />
               <div>
-                <div style={{ fontSize: 12, opacity: 0.7 }}>Auth actions</div>
-                <div style={{ fontSize: 20, fontWeight: 700 }}>
+                <div className="text-xs text-muted">Auth actions</div>
+                <div className="text-xl font-semibold tabular-nums">
                   {logs.filter((l) => l.resource_type === 'auth').length}
                 </div>
               </div>
             </Space>
           </Card>
-          <Card size="small" style={{ minWidth: 160 }}>
+          <Card size="small" className="h-full">
             <Space>
-              <Send size={18} />
+              <Send size={18} className="text-muted" aria-hidden />
               <div>
-                <div style={{ fontSize: 12, opacity: 0.7 }}>Dispatch actions</div>
-                <div style={{ fontSize: 20, fontWeight: 700 }}>
+                <div className="text-xs text-muted">Dispatch actions</div>
+                <div className="text-xl font-semibold tabular-nums">
                   {logs.filter((l) => l.resource_type === 'dispatch').length}
                 </div>
               </div>
             </Space>
           </Card>
-        </Space>
+        </div>
 
         <Card
           size="small"
-          style={{ marginBottom: 16 }}
           title={(
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-              <Filter size={16} />
+            <span className="inline-flex items-center gap-2 text-sm font-semibold">
+              <Filter size={16} aria-hidden />
               Filters
             </span>
           )}
@@ -352,20 +352,20 @@ export function AuditLogPage() {
               onChange={(e) => setFilterTo(e.target.value)}
               style={{ maxWidth: 160 }}
             />
-            <Button icon={<RefreshCw size={14} />} onClick={() => fetchLogs()}>
-              Refresh
-            </Button>
-            <Button icon={<Send size={14} />} onClick={exportLogsAsCsv} disabled={!logs.length}>
-              Export CSV
+            <Button variant="outline" size="sm" onClick={() => fetchLogs()} className="gap-2">
+              <RefreshCw className="w-4 h-4" aria-hidden /> Refresh
             </Button>
           </Space>
+          <p className="text-xs text-muted mt-3 mb-0">
+            Excel export uses these filters and includes up to 10,000 matching rows (not just this page).
+          </p>
         </Card>
 
         <Card
           size="small"
           title={(
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-              <ListChecks size={16} />
+            <span className="inline-flex items-center gap-2 text-sm font-semibold">
+              <ListChecks size={16} aria-hidden />
               {activeTab === 'blockchain' && USE_BLOCKCHAIN
                 ? `Blockchain logs (${blockchainLogs.length})`
                 : `Activity log (${logs.length})`}

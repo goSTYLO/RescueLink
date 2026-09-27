@@ -214,7 +214,7 @@ export function GlobalSearch() {
           role="listbox"
           className={`absolute left-0 right-0 top-full mt-2 z-[100] rounded-xl border shadow-xl overflow-hidden ${
             isLight
-              ? 'bg-white border-gray-200 shadow-[0_12px_32px_-8px_rgba(0,0,0,0.15)]'
+              ? 'bg-card border-gray-200 shadow-[0_12px_32px_-8px_rgba(0,0,0,0.15)]'
               : 'bg-card border-border shadow-[0_12px_32px_-8px_rgba(0,0,0,0.4)]'
           }`}
         >

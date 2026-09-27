@@ -1799,7 +1799,7 @@ export function IncidentDetailsPage() {
             <span className="text-xs text-muted animate-pulse">Updated just now</span>
           )}
         </div>
-        <div ref={dispatchSectionRef} className={`sticky top-2 z-30 mb-3 rounded-md border px-3 py-2 ${isLight ? 'bg-white/95 border-gray-200/80 backdrop-blur' : 'bg-card/90 border-white/10 backdrop-blur'}`}>
+        <div ref={dispatchSectionRef} className={`sticky top-2 z-30 mb-3 rounded-md border px-3 py-2 ${isLight ? 'bg-card/95 border-gray-200/80 backdrop-blur' : 'bg-card/90 border-white/10 backdrop-blur'}`}>
           <div className="flex flex-wrap items-center gap-2">
             {renderPrimaryActions({ compact: true })}
           </div>
@@ -2079,7 +2079,7 @@ export function IncidentDetailsPage() {
               </div>
             )}
 
-            <div className={`p-3 rounded-md border ${isLight ? 'bg-white/80 border-gray-200/80' : 'bg-white/5 border-white/10'}`}>
+            <div className={`p-3 rounded-md border ${isLight ? 'bg-card/80 border-gray-200/80' : 'bg-white/5 border-white/10'}`}>
               <div className="flex items-center justify-between gap-2 mb-2">
                 <div className="flex items-start gap-2 mb-2">
                   <FileText className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
@@ -2310,7 +2310,7 @@ export function IncidentDetailsPage() {
                         {incident?.assignedTeamName && (
                           <div>
                             <p className="text-xs text-muted mb-1">Assigned Team</p>
-                            <div className={`p-2 rounded-lg border ${isLight ? 'bg-white/50 border-blue-200/50' : 'bg-white/5 border-blue-500/20'}`}>
+                            <div className={`p-2 rounded-lg border ${isLight ? 'bg-background/80 border-blue-200/50' : 'bg-white/5 border-blue-500/20'}`}>
                               <p className="text-sm font-medium text-foreground">{incident.assignedTeamName}</p>
                             </div>
                           </div>
@@ -2322,7 +2322,7 @@ export function IncidentDetailsPage() {
                               {incident.assignedTeamRoster.map((member) => (
                                 <div
                                   key={member.responder_id || member.name}
-                                  className={`p-2 rounded-lg border text-sm ${isLight ? 'bg-white/50 border-blue-200/50' : 'bg-white/5 border-blue-500/20'}`}
+                                  className={`p-2 rounded-lg border text-sm ${isLight ? 'bg-background/80 border-blue-200/50' : 'bg-white/5 border-blue-500/20'}`}
                                 >
                                   <div className="flex items-center justify-between gap-2">
                                     <span className="font-medium text-foreground">{member.name || `Responder ${member.responder_id}`}</span>
@@ -2598,7 +2598,7 @@ export function IncidentDetailsPage() {
                             <IconComponent className="w-5 h-5" />
                           </div>
                           {/* Event card */}
-                          <div className={`flex-1 p-4 rounded-md border ${isLight ? 'bg-white border-gray-200' : 'bg-white/5 border-white/10'}`}>
+                          <div className={`flex-1 p-4 rounded-md border ${isLight ? 'bg-card border-gray-200' : 'bg-white/5 border-white/10'}`}>
                             <div className="flex items-start justify-between gap-4">
                               <div className="flex-1">
                                 <p className="font-semibold text-foreground">{label}</p>

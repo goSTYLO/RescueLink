@@ -475,7 +475,7 @@ export function Layout({ children }) {
             height: 64,
             padding: isCollapsed ? '0 4px' : '0 12px 0 16px',
           }}>
-            <BrandLogo iconOnly={isCollapsed} size={isCollapsed ? 'md' : 'lg'} />
+            <BrandLogo iconOnly={isCollapsed} size={isCollapsed ? 'md' : 'lg'} squircleMark />
             <Button
               type="text"
               aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
