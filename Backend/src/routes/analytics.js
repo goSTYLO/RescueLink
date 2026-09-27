@@ -12,6 +12,7 @@ router.use(authorize([ROLES.ADMIN, ROLES.DEPARTMENT_ADMIN]));
 router.get('/overview', analyticsController.overview);
 router.get('/incidents', analyticsController.incidents);
 router.get('/export.csv', analyticsController.exportCsv);
+router.get('/export.xlsx', analyticsController.exportXlsx);
 router.get('/barangays.geojson', analyticsController.barangaysGeojson);
 
 module.exports = router;

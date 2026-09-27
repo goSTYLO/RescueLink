@@ -46,7 +46,7 @@ import { buildTypeBarangayMatrix, matrixCellStyle } from '@/presentation/compone
 import { MetricHelp } from '@/presentation/components/insights/MetricHelp';
 import { BarangayChoropleth } from '@/presentation/components/insights/BarangayChoropleth';
 import { BarangayTypesCell } from '@/presentation/components/insights/BarangayTypesCell';
-import { getAnalyticsIncidents, getAnalyticsOverview, downloadAnalyticsCsv } from '@/data/api/analytics.api';
+import { getAnalyticsIncidents, getAnalyticsOverview, downloadAnalyticsXlsx } from '@/data/api/analytics.api';
 import { getDepartments } from '@/data/api/departments.api';
 import { getStoredUser } from '@/core/auth/session';
 import { isDepartmentAdmin, isSuperAdmin, normalizeRole, getDefaultRouteByRole } from '@/core/constants';
@@ -226,6 +226,30 @@ function SlaStat({ metricId, label, pct, hint, barLabel }) {
 
 function EmptyNote() {
   return <p className="text-sm text-muted">No incidents in this range. Widen the dates.</p>;
+}
+
+function PrintTable({ columns, rows }) {
+  if (!rows?.length) return null;
+  return (
+    <table className="insights-print-table">
+      <thead>
+        <tr>
+          {columns.map((col) => (
+            <th key={col.key || col.title}>{col.title}</th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((row, index) => (
+          <tr key={row.key ?? index}>
+            {columns.map((col) => (
+              <td key={col.key || col.title}>{row[col.dataIndex] ?? ''}</td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
 }
 
 function BarangayDemandTable({ rows, patchParams }) {
@@ -500,12 +524,12 @@ export function InsightsPage() {
     { title: 'Created', dataIndex: 'created_at', render: (value) => formatWhen(value) },
   ], []);
 
-  async function onExportCsv() {
+  async function onExportXlsx(sheet) {
     setExporting(true);
     try {
-      await downloadAnalyticsCsv(filterParams);
+      await downloadAnalyticsXlsx({ ...filterParams, sheet });
     } catch (err) {
-      setError(err.message || 'CSV export failed');
+      setError(err.message || 'Excel export failed');
     } finally {
       setExporting(false);
     }
@@ -752,8 +776,8 @@ export function InsightsPage() {
             <Button variant="outline" size="sm" onClick={() => window.print()} className="gap-2">
               <Printer className="w-4 h-4" aria-hidden /> PDF
             </Button>
-            <Button variant="outline" size="sm" onClick={onExportCsv} disabled={exporting} className="gap-2">
-              <Download className="w-4 h-4" aria-hidden /> CSV
+            <Button variant="outline" size="sm" onClick={() => onExportXlsx()} disabled={exporting} className="gap-2">
+              <Download className="w-4 h-4" aria-hidden /> Excel
             </Button>
           </div>
         </header>
@@ -811,7 +835,7 @@ export function InsightsPage() {
         {!loading && overview && (
           <div className="flex flex-col gap-10">
             <section id="insights-kpis" className="scroll-mt-24 space-y-4">
-              <h2 className="text-lg font-semibold">Headline</h2>
+              <h2 className="text-lg font-semibold insights-section-title">Headline</h2>
               <Row gutter={[12, 12]} className="insights-kpi-row">
                 <Col xs={24} sm={12} xl={4}>
                   <InsightStat
@@ -855,11 +879,32 @@ export function InsightsPage() {
                   <SlaStat metricId="duplicate_rate" label="Duplicate rate" pct={kpis.duplicate_rate} barLabel="Marked duplicate" />
                 </Col>
               </Row>
+              <PrintTable
+                columns={[{ title: 'Metric', dataIndex: 'metric' }, { title: 'Value', dataIndex: 'value' }]}
+                rows={[
+                  { key: 'incidents', metric: 'Total incidents', value: kpis.incidents ?? 0 },
+                  { key: 'critical', metric: 'Critical', value: kpis.critical ?? 0 },
+                  { key: 'open', metric: 'Open', value: kpis.open ?? 0 },
+                  { key: 'closed', metric: 'Closed', value: kpis.closed ?? 0 },
+                  { key: 'unserved', metric: 'Unserved', value: kpis.unserved ?? 0 },
+                  { key: 'overdue', metric: 'Overdue', value: kpis.overdue ?? 0 },
+                ]}
+              />
+              <PrintTable
+                columns={[{ title: 'Metric', dataIndex: 'metric' }, { title: 'Percent', dataIndex: 'value' }]}
+                rows={[
+                  { key: 'dup', metric: 'Duplicate rate', value: kpis.duplicate_rate ?? 0 },
+                  { key: 'unserved_pct', metric: 'Unserved', value: kpis.unserved_pct ?? 0 },
+                  { key: 'overdue_pct', metric: 'Overdue', value: kpis.overdue_pct ?? 0 },
+                  { key: 'dispatch_sla', metric: 'Dispatch SLA', value: kpis.dispatch_sla ?? 0 },
+                  { key: 'arrival_sla', metric: 'Arrival SLA', value: kpis.arrival_sla ?? 0 },
+                ]}
+              />
             </section>
 
             <section id="insights-performance" className="scroll-mt-24 space-y-4">
-              <h2 className="text-lg font-semibold">Response performance</h2>
-              <ChartCard title="Response matrix" metricId="response_matrix" footer="Cells are p50 / p90 / p95. Null clocks excluded.">
+              <h2 className="text-lg font-semibold insights-section-title">Response performance</h2>
+              <ChartCard title="Response matrix" metricId="response_matrix" footer="Cells are p50 / p90 / p95. Null clocks excluded." onExport={() => onExportXlsx('response_matrix')} exportDisabled={exporting}>
                 <div className="insights-scroll-panel">
                   <Table
                     size="small"
@@ -873,12 +918,20 @@ export function InsightsPage() {
               </ChartCard>
               <Row gutter={[16, 16]} className="insights-row-equal">
                 <Col xs={24} xl={14}>
-                  <ChartCard title="Incident volume" metricId="volume">
+                  <ChartCard className="insights-print-allow-break" title="Incident volume" metricId="volume" onExport={() => onExportXlsx('volume')} exportDisabled={exporting}>
                     <VolumeAreaChart data={volumeData} isLight={isLight} animKey={`vol-${chartAnimKey}`} />
+                    <PrintTable
+                      columns={[
+                        { title: 'Period', dataIndex: 'label' },
+                        { title: 'This period', dataIndex: 'current' },
+                        { title: 'Previous period', dataIndex: 'previous' },
+                      ]}
+                      rows={volumeData}
+                    />
                   </ChartCard>
                 </Col>
                 <Col xs={24} xl={10}>
-                  <ChartCard title="Peak demand" metricId="peak_demand">
+                  <ChartCard title="Peak demand" metricId="peak_demand" onExport={() => onExportXlsx('peak')} exportDisabled={exporting}>
                     <dl className="insights-chart-frame grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm content-center">
                       <div>
                         <dt className="text-xs text-muted inline-flex items-center gap-1"><BarChart3 className="w-3.5 h-3.5" aria-hidden /> Peak day</dt>
@@ -898,6 +951,16 @@ export function InsightsPage() {
                         <p className="text-xs text-muted">avg {overview.concurrent?.avg ?? overview.peak?.avg_concurrent ?? 0}</p>
                       </div>
                     </dl>
+                    <PrintTable
+                      columns={[{ title: 'Metric', dataIndex: 'metric' }, { title: 'Value', dataIndex: 'value' }]}
+                      rows={[
+                        { key: 'day', metric: 'Peak day', value: overview.peak?.busiest_weekday || '—' },
+                        { key: 'hour', metric: 'Peak hour', value: overview.peak?.peak_hour_band || '—' },
+                        { key: 'volume', metric: 'Peak incident volume', value: overview.peak?.peak_volume ?? 0 },
+                        { key: 'max', metric: 'Max concurrent', value: overview.peak?.max_concurrent ?? overview.concurrent?.max ?? 0 },
+                        { key: 'avg', metric: 'Avg concurrent', value: overview.concurrent?.avg ?? overview.peak?.avg_concurrent ?? 0 },
+                      ]}
+                    />
                   </ChartCard>
                 </Col>
               </Row>
@@ -905,7 +968,7 @@ export function InsightsPage() {
 
             <section id="insights-demand" className="scroll-mt-24 space-y-4">
               <div>
-                <h2 className="text-lg font-semibold">What &amp; where</h2>
+                <h2 className="text-lg font-semibold insights-section-title">What &amp; where</h2>
                 <p className="text-sm text-muted mt-1">
                   Barangay:{' '}
                   {barangay ? (
@@ -922,7 +985,7 @@ export function InsightsPage() {
                   )}
                 </p>
               </div>
-              <ChartCard title="Incident types" metricId="demand_types">
+              <ChartCard className="insights-print-allow-break" title="Incident types" metricId="demand_types" onExport={() => onExportXlsx('types')} exportDisabled={exporting}>
                 <div className="insights-scroll-panel">
                   <TypeProgressList
                     key={`types-${chartAnimKey}`}
@@ -930,27 +993,40 @@ export function InsightsPage() {
                     onRowClick={(row) => patchParams({ incident_type: row?.key })}
                   />
                 </div>
+                <PrintTable
+                  columns={[{ title: 'Type', dataIndex: 'label' }, { title: 'Count', dataIndex: 'count' }, { title: 'Percent', dataIndex: 'pct' }]}
+                  rows={(demand.types || []).map((row) => ({ key: row.key, label: titleCase(row.key), count: row.count, pct: row.pct }))}
+                />
               </ChartCard>
               <Row gutter={[16, 16]} className="insights-row-equal">
                 <Col xs={24} xl={12}>
-                  <ChartCard className="min-w-0 overflow-hidden relative z-0" title="Geographic demand" metricId="barangay_map" footer="Click a barangay to filter. Unknown names are not on the map.">
+                  <ChartCard className="min-w-0 overflow-hidden relative z-0 insights-print-allow-break" title="Geographic demand" metricId="barangay_map" footer="Click a barangay to filter. Unknown names are not on the map." onExport={() => onExportXlsx('barangays')} exportDisabled={exporting}>
                     <BarangayChoropleth
                       barangays={demand.barangays}
                       selected={barangay}
                       isLight={isLight}
                       onSelect={(name) => patchParams({ barangay: name })}
                     />
+                    <PrintTable
+                      columns={[
+                        { title: 'Barangay', dataIndex: 'key' },
+                        { title: 'Count', dataIndex: 'count' },
+                        { title: 'Percent', dataIndex: 'pct' },
+                        { title: 'Critical', dataIndex: 'critical_count' },
+                      ]}
+                      rows={demand.barangays}
+                    />
                   </ChartCard>
                 </Col>
                 <Col xs={24} xl={12}>
-                  <ChartCard className="min-w-0" title="Top barangays" metricId="barangay_map">
+                  <ChartCard className="min-w-0 insights-print-allow-break" title="Top barangays" metricId="barangay_map" onExport={() => onExportXlsx('barangays')} exportDisabled={exporting}>
                     <BarangayDemandTable rows={demand.barangays} patchParams={patchParams} />
                   </ChartCard>
                 </Col>
               </Row>
               <Row gutter={[16, 16]} className="insights-row-equal">
                 <Col xs={24} xl={14}>
-                  <ChartCard title="Type × barangay" metricId="demand_types">
+                  <ChartCard className="insights-print-allow-break" title="Type × barangay" metricId="demand_types" onExport={() => onExportXlsx('type_barangay')} exportDisabled={exporting}>
                     <div className="insights-scroll-panel">
                       {typeMatrixRows.length ? (
                         <Table
@@ -966,12 +1042,16 @@ export function InsightsPage() {
                   </ChartCard>
                 </Col>
                 <Col xs={24} xl={10}>
-                  <ChartCard title="Reporting channels" metricId="demand_types">
+                  <ChartCard className="insights-print-allow-break" title="Reporting channels" metricId="demand_types" onExport={() => onExportXlsx('channels')} exportDisabled={exporting}>
                     <DonutChart
                       isLight={isLight}
                       animKey={`ch-${chartAnimKey}`}
                       data={(demand.channels || []).map((row) => ({ ...row, label: titleCase(row.key) }))}
                       getSliceFill={(entry) => channelColor(entry.key || entry.name)}
+                    />
+                    <PrintTable
+                      columns={[{ title: 'Channel', dataIndex: 'label' }, { title: 'Count', dataIndex: 'count' }, { title: 'Percent', dataIndex: 'pct' }]}
+                      rows={(demand.channels || []).map((row) => ({ key: row.key, label: titleCase(row.key), count: row.count, pct: row.pct }))}
                     />
                   </ChartCard>
                 </Col>
@@ -979,19 +1059,29 @@ export function InsightsPage() {
             </section>
 
             <section id="insights-ops" className="scroll-mt-24 space-y-4">
-              <h2 className="text-lg font-semibold">Operations</h2>
+              <h2 className="text-lg font-semibold insights-section-title">Operations</h2>
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 insights-ops-uniform">
                 <ChartCard
+                  className="insights-print-allow-break"
                   title="Dispatch exceptions"
                   metricId="exceptions"
                   footer="Counts are incidents with at least one recorded exception type."
+                  onExport={() => onExportXlsx('exceptions')}
+                  exportDisabled={exporting}
                 >
                   <ExceptionBreakdownCard anyPct={overview.exceptions?.any_pct} slices={exceptionSlices} />
+                  <PrintTable
+                    columns={[{ title: 'Type', dataIndex: 'label' }, { title: 'Count', dataIndex: 'count' }]}
+                    rows={exceptionSlices.filter((row) => Number(row.count) > 0)}
+                  />
                 </ChartCard>
                 <ChartCard
+                  className="insights-print-allow-break"
                   title="Escalation funnel"
                   metricId="escalation_funnel"
                   footer={`Processing p50 ${formatClock(funnel.processing_p50_seconds)} (accepted/declined). Rates are % of escalated.`}
+                  onExport={() => onExportXlsx('funnel')}
+                  exportDisabled={exporting}
                 >
                   {funnel.escalated ? (
                     <div>
@@ -999,9 +1089,13 @@ export function InsightsPage() {
                       <EscalationFunnelSteps rows={funnelRows} animKey={`fun-${chartAnimKey}`} />
                     </div>
                   ) : <p className="text-sm text-muted">No escalations in this range.</p>}
+                  <PrintTable
+                    columns={[{ title: 'Step', dataIndex: 'label' }, { title: 'Count', dataIndex: 'count' }, { title: 'Percent', dataIndex: 'pct' }]}
+                    rows={funnel.escalated ? funnelRows : []}
+                  />
                 </ChartCard>
-                <ChartCard title="Resource utilization" metricId="utilization" footer="Deployment duration is not stored (no release time on unit usage).">
-                  <dl className="grid grid-cols-2 gap-3 text-sm mb-4">
+                <ChartCard className="insights-print-allow-break" title="Resource utilization" metricId="utilization" footer="Deployment duration is not stored (no release time on unit usage)." onExport={() => onExportXlsx('utilization')} exportDisabled={exporting}>
+                  <dl className="grid grid-cols-2 gap-3 text-sm mb-4 print:hidden">
                     <div>Units used<br /><strong>{overview.utilization?.units_used ?? 0}</strong></div>
                     <div>Dispatches<br /><strong>{overview.utilization?.dispatch_count ?? 0}</strong></div>
                   </dl>
@@ -1016,13 +1110,28 @@ export function InsightsPage() {
                   ) : (
                     <p className="text-xs text-muted">Pick a department for current available/total units.</p>
                   )}
+                  <PrintTable
+                    columns={[{ title: 'Metric', dataIndex: 'metric' }, { title: 'Count', dataIndex: 'count' }]}
+                    rows={[
+                      { key: 'units', metric: 'Units used', count: overview.utilization?.units_used ?? 0 },
+                      { key: 'disp', metric: 'Dispatches', count: overview.utilization?.dispatch_count ?? 0 },
+                      ...(overview.units ? [
+                        { key: 'avail', metric: 'Available units', count: overview.units.available_units },
+                        { key: 'total', metric: 'Total units', count: overview.units.total_units },
+                      ] : []),
+                    ]}
+                  />
                 </ChartCard>
-                <ChartCard title="Resolution outcomes" metricId="outcomes">
+                <ChartCard className="insights-print-allow-break" title="Resolution outcomes" metricId="outcomes" onExport={() => onExportXlsx('outcomes')} exportDisabled={exporting}>
                   <DonutChart
                     isLight={isLight}
                     animKey={`out-${chartAnimKey}`}
                     data={outcomeRows.map((row) => ({ ...row, label: row.key }))}
                     getSliceFill={(entry) => outcomeColor(entry.key || entry.name)}
+                  />
+                  <PrintTable
+                    columns={[{ title: 'Outcome', dataIndex: 'key' }, { title: 'Count', dataIndex: 'count' }, { title: 'Percent', dataIndex: 'pct' }]}
+                    rows={outcomeRows}
                   />
                 </ChartCard>
               </div>
@@ -1030,17 +1139,24 @@ export function InsightsPage() {
 
             {cityWide && (
               <section id="insights-departments" className="scroll-mt-24 space-y-3">
-                <h2 className="text-lg font-semibold">Department comparison</h2>
+                <h2 className="text-lg font-semibold insights-section-title">Department comparison</h2>
                 <ChartCard
+                  className="insights-print-allow-break"
                   title="By department"
                   metricId="department_clocks"
                   footer="Chart may double-count multi-department incidents. Unique headline KPIs do not. Primary = first dispatch department; supporting = later dispatch or escalation-only."
+                  onExport={() => onExportXlsx('department')}
+                  exportDisabled={exporting}
                 >
                   <RankedBarChart
                     isLight={isLight}
                     animKey={`dept-${chartAnimKey}`}
                     data={(overview.breakdowns?.department || []).map((row) => ({ ...row, label: row.key }))}
                     getBarFill={(row) => departmentColor(row.key || row.label)}
+                  />
+                  <PrintTable
+                    columns={[{ title: 'Department', dataIndex: 'key' }, { title: 'Count', dataIndex: 'count' }]}
+                    rows={overview.breakdowns?.department || []}
                   />
                   {(overview.breakdowns?.department_clocks || []).length ? (
                     <Table
@@ -1070,12 +1186,23 @@ export function InsightsPage() {
         <Card
           id="insights-table"
           size="small"
-          className="scroll-mt-24"
+          className="scroll-mt-24 insights-print-allow-break"
           title={(
             <span className="inline-flex items-center gap-0.5">
               Incidents ({total})
               <MetricHelp metricId="incidents_table" />
             </span>
+          )}
+          extra={(
+            <button
+              type="button"
+              className="print:hidden inline-flex items-center justify-center min-h-11 min-w-11 rounded-md text-muted hover:text-foreground"
+              aria-label="Export incidents"
+              onClick={() => onExportXlsx('incidents')}
+              disabled={exporting}
+            >
+              <Download className="w-4 h-4" aria-hidden />
+            </button>
           )}
         >
           <div style={{ marginBottom: 12, width: '100%', maxWidth: 480 }}>
@@ -1123,7 +1250,7 @@ export function InsightsPage() {
               style: { cursor: 'pointer' },
             })}
           />
-          <p className="text-xs text-muted mt-2 print:hidden">Print/PDF includes this page of the table. Use CSV for the full filtered set.</p>
+          <p className="text-xs text-muted mt-2 print:hidden">Print/PDF includes this page of the table. Use Excel for the full filtered set.</p>
         </Card>
       </div>
     </Layout>

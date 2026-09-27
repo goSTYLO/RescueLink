@@ -58,26 +58,7 @@ export async function getAnalyticsIncidents(params = {}) {
   });
 }
 
-export function analyticsExportUrl(params = {}) {
-  const query = buildQuery(params);
-  return `${API_URL}/api/analytics/export.csv${query ? `?${query}` : ''}`;
-}
-
-export async function downloadAnalyticsCsv(params = {}) {
-  const requestId = createRequestId('web-analytics-export');
-  const url = analyticsExportUrl(params);
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: getAuthHeaders({ requestId, includeContentType: false }),
-  });
-  if (!response.ok) {
-    const data = await parseJsonOrEmpty(response);
-    throw new Error(parseErrorMessage(data, 'Failed to export CSV'));
-  }
-  const blob = await response.blob();
-  const disposition = response.headers.get('content-disposition') || '';
-  const match = disposition.match(/filename="([^"]+)"/);
-  const filename = match?.[1] || 'insights-export.csv';
+function saveBlob(blob, filename) {
   const href = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = href;
@@ -86,6 +67,40 @@ export async function downloadAnalyticsCsv(params = {}) {
   link.click();
   document.body.removeChild(link);
   URL.revokeObjectURL(href);
+}
+
+export function analyticsExportUrl(params = {}) {
+  const query = buildQuery(params);
+  return `${API_URL}/api/analytics/export.csv${query ? `?${query}` : ''}`;
+}
+
+export function analyticsXlsxUrl(params = {}) {
+  const query = buildQuery(params);
+  return `${API_URL}/api/analytics/export.xlsx${query ? `?${query}` : ''}`;
+}
+
+async function downloadAnalyticsFile(url, fallbackName, failLabel) {
+  const requestId = createRequestId('web-analytics-export');
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: getAuthHeaders({ requestId, includeContentType: false }),
+  });
+  if (!response.ok) {
+    const data = await parseJsonOrEmpty(response);
+    throw new Error(parseErrorMessage(data, failLabel));
+  }
+  const blob = await response.blob();
+  const disposition = response.headers.get('content-disposition') || '';
+  const match = disposition.match(/filename="([^"]+)"/);
+  saveBlob(blob, match?.[1] || fallbackName);
+}
+
+export async function downloadAnalyticsCsv(params = {}) {
+  await downloadAnalyticsFile(analyticsExportUrl(params), 'insights-export.csv', 'Failed to export CSV');
+}
+
+export async function downloadAnalyticsXlsx(params = {}) {
+  await downloadAnalyticsFile(analyticsXlsxUrl(params), 'insights-export.xlsx', 'Failed to export Excel');
 }
 
 export async function getBarangaysGeojson() {

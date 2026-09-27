@@ -974,16 +974,8 @@ async function listIncidents(filters, { limit = 20, offset = 0, search = '', sor
   return { items: listRes.rows, total: num(countRes.rows[0]?.total) };
 }
 
-async function exportCsv(filters) {
+async function listExportIncidents(filters) {
   const { where, params } = buildWhere(filters);
-  const count = await countFiltered(filters);
-  if (count > EXPORT_ROW_CAP) {
-    const err = new Error(`Export exceeds ${EXPORT_ROW_CAP} rows (${count}). Narrow the date range or filters.`);
-    err.code = 'EXPORT_TOO_LARGE';
-    err.total = count;
-    throw err;
-  }
-  const overview = await getOverview(filters);
   const listRes = await pool.query(
     `SELECT ir.report_id, ir.incident_type, ir.severity_level, ir.status, ir.barangay,
             ir.created_at, ir.resolved_at, ir.closed_at, ir.is_duplicate, ir.is_archived,
@@ -994,6 +986,23 @@ async function exportCsv(filters) {
       LIMIT ${EXPORT_ROW_CAP}`,
     params
   );
+  return listRes.rows;
+}
+
+async function assertExportCap(filters) {
+  const count = await countFiltered(filters);
+  if (count > EXPORT_ROW_CAP) {
+    const err = new Error(`Export exceeds ${EXPORT_ROW_CAP} rows (${count}). Narrow the date range or filters.`);
+    err.code = 'EXPORT_TOO_LARGE';
+    err.total = count;
+    throw err;
+  }
+}
+
+async function exportCsv(filters) {
+  await assertExportCap(filters);
+  const overview = await getOverview(filters);
+  const incidentRows = await listExportIncidents(filters);
 
   const lines = [];
   lines.push('# RescueLink Insights export');
@@ -1039,10 +1048,26 @@ async function exportCsv(filters) {
   lines.push('# incidents');
   const header = ['report_id', 'incident_type', 'severity_level', 'status', 'barangay', 'department_codes', 'created_at', 'resolved_at', 'closed_at', 'is_duplicate', 'is_archived'];
   lines.push(header.join(','));
-  for (const row of listRes.rows) {
+  for (const row of incidentRows) {
     lines.push(header.map((key) => csvCell(row[key])).join(','));
   }
   return lines.join('\n');
+}
+
+async function exportXlsx(filters, { generatedBy = 'unknown', sheet = null, units = null } = {}) {
+  const needIncidents = !sheet || sheet === 'incidents';
+  if (needIncidents) await assertExportCap(filters);
+  const overview = await getOverview(filters);
+  if (units) overview.units = units;
+  const incidents = needIncidents ? await listExportIncidents(filters) : [];
+  const { buildInsightsWorkbook } = require('./analyticsWorkbook');
+  return buildInsightsWorkbook({
+    overview,
+    incidents,
+    filters,
+    generatedBy,
+    sheet,
+  });
 }
 
 module.exports = {
@@ -1057,5 +1082,7 @@ module.exports = {
   countFiltered,
   getOverview,
   listIncidents,
+  listExportIncidents,
   exportCsv,
+  exportXlsx,
 };

@@ -378,7 +378,7 @@ List calls use short-lived client cache + in-flight dedupe.
 
 **`location.api.js`:** `POST /api/location/closest-units`; `GET /api/location/search`; `GET /api/location/reverse`; `POST /api/location/geofence-alerts`; `GET /api/location/heatmap`.
 
-**`analytics.api.js` (Insights):** `GET /api/analytics/overview`; `GET /api/analytics/incidents`; `GET /api/analytics/export.csv`; `GET /api/analytics/barangays.geojson`. Params include date range and `department_id` (incl. `volunteers` virtual scope for Super Admin).
+**`analytics.api.js` (Insights):** `GET /api/analytics/overview`; `GET /api/analytics/incidents`; `GET /api/analytics/export.csv`; `GET /api/analytics/export.xlsx` (optional `sheet`); `GET /api/analytics/barangays.geojson`. Params include date range and `department_id` (incl. `volunteers` virtual scope for Super Admin).
 
 **`notifications.api.js`:** `GET /api/notifications`; `POST /api/notifications/:id/read`; `POST /api/notifications/mark-all-read`; `GET /api/notifications/unread-count`.
 

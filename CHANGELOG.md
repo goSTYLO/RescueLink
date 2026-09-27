@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-09-27
+
+- Insights: **Excel** export (one sheet per chart, data bars on counts) plus per-chart downloads; PDF print groups each chart with its table. `GET /api/analytics/export.xlsx` (`sheet=` optional). CSV endpoint remains.
+
 ## 2026-09-25
 
 - Cloud Run STT: **local Faster-Whisper `medium` first**, HF API fallback (`STT_ENABLE_API_FALLBACK`); Dockerfile prefetches medium; deploy script and [`GCP_AI.md`](Documentation/backend/GCP_AI.md) aligned.

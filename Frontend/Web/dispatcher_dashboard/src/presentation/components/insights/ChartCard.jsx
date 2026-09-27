@@ -1,4 +1,5 @@
 import { Card } from 'antd';
+import { Download } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, LineChart, Line, Legend, PieChart, Pie, Cell } from 'recharts';
 import { MetricHelp } from '@/presentation/components/insights/MetricHelp';
 import {
@@ -18,7 +19,7 @@ import {
 const AXIS = { stroke: 'currentColor', fontSize: 12 };
 const RECHART_ANIM = { isAnimationActive: 'auto', animationDuration: 600, animationBegin: 0 };
 
-export function ChartCard({ title, metricId, children, className = '', onClick, footer, uniform = true }) {
+export function ChartCard({ title, metricId, children, className = '', onClick, footer, uniform = true, onExport, exportDisabled = false }) {
   const cardTitle = title ? (
     <span className="inline-flex items-center gap-0.5 text-sm font-semibold">
       {title}
@@ -27,7 +28,25 @@ export function ChartCard({ title, metricId, children, className = '', onClick, 
   ) : null;
 
   return (
-    <Card size="small" className={`h-full ${className}`} title={cardTitle}>
+    <Card
+      size="small"
+      className={`h-full ${className}`}
+      title={cardTitle}
+      extra={onExport ? (
+        <button
+          type="button"
+          className="print:hidden inline-flex items-center justify-center min-h-11 min-w-11 rounded-md text-muted hover:text-foreground disabled:opacity-50"
+          aria-label={`Export ${title}`}
+          disabled={exportDisabled}
+          onClick={(event) => {
+            event.stopPropagation();
+            if (!exportDisabled) onExport();
+          }}
+        >
+          <Download className="w-4 h-4" aria-hidden />
+        </button>
+      ) : null}
+    >
       <div
         className={uniform ? 'insights-card-body flex flex-col flex-1 min-h-0' : 'flex-1 min-h-0'}
         onClick={onClick}

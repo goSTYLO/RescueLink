@@ -2170,6 +2170,10 @@ Same filters. Attachment. Formula-sanitized (`=`, `+`, `-`, `@` prefixed). Cap 1
 
 CSV columns (no PII blobs): `report_id`, `incident_type`, `severity_level`, `status`, `barangay`, `department_codes`, `created_at`, `resolved_at`, `closed_at`, `is_duplicate`, `is_archived`. Description, transcription, and reporter phone are never exported. Summary block above the rows includes headline KPIs, types, barangays, and type×barangay.
 
+**GET** `/api/analytics/export.xlsx`
+
+Same filters plus optional `sheet` (`headline`, `response_matrix`, `volume`, `peak`, `types`, `barangays`, `type_barangay`, `channels`, `exceptions`, `funnel`, `utilization`, `outcomes`, `department`, `incidents`). Attachment workbook: navy title row, department/range/timezone/generated-by chrome, one worksheet per chart. Count columns use Excel data bars (0 to the column max). Incident sheet uses the same PII-safe columns as CSV. Cap 10,000 incident rows (`400` if over) when the Incidents sheet is included.
+
 **GET** `/api/analytics/barangays.geojson`
 
 Same auth as Insights. Read-only Dagupan barangay polygons (`properties.NAME_3`) from `Backend/src/goelogical_polygon/dagupan_barangays.geojson`. Cached 24h. Used by the Insights choropleth.

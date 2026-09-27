@@ -122,6 +122,7 @@ const endpoints = [
   { method: 'get', path: '/api/analytics/overview' },
   { method: 'get', path: '/api/analytics/incidents' },
   { method: 'get', path: '/api/analytics/export.csv' },
+  { method: 'get', path: '/api/analytics/export.xlsx' },
   { method: 'get', path: '/api/analytics/barangays.geojson' },
 
   // Departments

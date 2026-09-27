@@ -6,6 +6,7 @@ const Department = require('../models/department');
 const { ROLES } = require('../config/roles');
 const { validateInteger, validateOptionalString, validatePagination, validateAllowedValue } = require('../utils/validation');
 const { logAnalyticsAction } = require('../utils/auditLog');
+const { SHEET_IDS } = require('../models/analyticsWorkbook');
 
 const BARANGAY_GEOJSON_PATH = path.join(__dirname, '../goelogical_polygon/dagupan_barangays.geojson');
 let barangayGeojsonCache = null;
@@ -93,6 +94,29 @@ async function resolveScope(req) {
   return filters;
 }
 
+async function loadUnits(filters) {
+  if (!filters.department_id || filters.volunteer_scope) return null;
+  try {
+    const metrics = await Department.getMetrics(filters.department_id);
+    if (!metrics) return null;
+    return {
+      total_units: metrics.total_units,
+      available_units: metrics.available_units,
+      personnel_count: metrics.personnel_count,
+    };
+  } catch (_) {
+    return null;
+  }
+}
+
+function exportFilename(filters, ext, sheet) {
+  const dept = filters.department_code || (filters.volunteer_scope ? 'volunteers' : 'all');
+  const fromDay = String(filters.from).slice(0, 10);
+  const toDay = String(filters.to).slice(0, 10);
+  const suffix = sheet ? `-${sheet}` : '';
+  return `insights-${dept}-${fromDay}-to-${toDay}${suffix}.${ext}`;
+}
+
 function handleError(res, error, fallback) {
   if (error.status) return res.status(error.status).json({ error: error.message });
   if (error.code === 'EXPORT_TOO_LARGE') {
@@ -110,19 +134,7 @@ const analyticsController = {
     try {
       const filters = await resolveScope(req);
       const overview = await Analytics.getOverview(filters);
-      let units = null;
-      if (filters.department_id && !filters.volunteer_scope) {
-        try {
-          const metrics = await Department.getMetrics(filters.department_id);
-          if (metrics) {
-            units = {
-              total_units: metrics.total_units,
-              available_units: metrics.available_units,
-              personnel_count: metrics.personnel_count,
-            };
-          }
-        } catch (_) { /* snapshot is optional */ }
-      }
+      const units = await loadUnits(filters);
       await logAnalyticsAction(req, 'analytics_view', {
         from: filters.from,
         to: filters.to,
@@ -168,17 +180,36 @@ const analyticsController = {
       await logAnalyticsAction(req, 'analytics_export', {
         from: filters.from,
         to: filters.to,
-        department_id: filters.department_id,
+        department_id: filters.volunteer_scope ? 'volunteers' : filters.department_id,
         format: 'csv',
       });
-      const dept = filters.department_code || 'all';
-      const fromDay = String(filters.from).slice(0, 10);
-      const toDay = String(filters.to).slice(0, 10);
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-      res.setHeader('Content-Disposition', `attachment; filename="insights-${dept}-${fromDay}-to-${toDay}.csv"`);
+      res.setHeader('Content-Disposition', `attachment; filename="${exportFilename(filters, 'csv')}"`);
       res.send(csv);
     } catch (error) {
       handleError(res, error, 'Error exporting analytics CSV:');
+    }
+  },
+
+  async exportXlsx(req, res) {
+    try {
+      const filters = await resolveScope(req);
+      const sheet = validateAllowedValue(req.query.sheet, SHEET_IDS, 'sheet');
+      const units = await loadUnits(filters);
+      const generatedBy = req.user?.name || req.user?.username || req.user?.email || 'unknown';
+      const buffer = await Analytics.exportXlsx(filters, { generatedBy, sheet, units });
+      await logAnalyticsAction(req, 'analytics_export', {
+        from: filters.from,
+        to: filters.to,
+        department_id: filters.volunteer_scope ? 'volunteers' : filters.department_id,
+        format: 'xlsx',
+        sheet: sheet || 'all',
+      });
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="${exportFilename(filters, 'xlsx', sheet)}"`);
+      res.send(Buffer.from(buffer));
+    } catch (error) {
+      handleError(res, error, 'Error exporting analytics Excel:');
     }
   },
 
