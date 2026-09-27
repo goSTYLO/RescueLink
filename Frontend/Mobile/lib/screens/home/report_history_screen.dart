@@ -7,6 +7,7 @@ import 'package:latlong2/latlong.dart';
 import '../../services/auth_service.dart';
 import '../../services/incident_service.dart';
 import '../../services/websocket_service.dart';
+import '../../theme/app_theme.dart';
 import '../../utils/incident_navigation.dart';
 import '../../utils/report_ui.dart';
 import '../../widgets/bottom_sheet_wrapper.dart';
@@ -34,12 +35,20 @@ class ReportHistoryScreen extends StatefulWidget {
 
 class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
   static const int _pageSize = 20;
-  static const Color _screenBg = Color(0xFF0B0E14);
-  static const Color _cardBg = Color(0xFF151922);
-  static const Color _inputBg = Color(0xFF151922);
-  static const Color _cardBorder = Color(0xFF252D40);
-  static const Color _mutedText = Color(0xFF94A3B8);
-  static const Color _primaryText = Color(0xFFF9FAFB);
+
+  /// Theme chrome for body (header stays dark branded).
+  _ReportsChrome get _chrome {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    return _ReportsChrome(
+      screenBg: theme.scaffoldBackgroundColor,
+      cardBg: isDark ? AppTheme.darkCard : AppTheme.lightCard,
+      inputBg: isDark ? AppTheme.darkSurface : AppTheme.lightSurface,
+      cardBorder: isDark ? AppTheme.darkBorder : AppTheme.lightBorder,
+      mutedText: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary,
+      primaryText: theme.colorScheme.onSurface,
+    );
+  }
 
   List<dynamic> _incidents = [];
   bool _loading = true;
@@ -381,34 +390,36 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
   }
 
   InputDecoration _fieldDecoration({String? hint}) {
+    final c = _chrome;
     return InputDecoration(
       hintText: hint,
-      hintStyle: const TextStyle(color: _mutedText, fontSize: 12),
+      hintStyle: TextStyle(color: c.mutedText, fontSize: 12),
       filled: true,
-      fillColor: _inputBg,
+      fillColor: c.inputBg,
       prefixIcon: hint == 'Search reports...'
-          ? const Icon(Icons.search, color: _mutedText, size: 18)
+          ? Icon(Icons.search, color: c.mutedText, size: 18)
           : null,
       isDense: true,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
-        borderSide: const BorderSide(color: _cardBorder),
+        borderSide: BorderSide(color: c.cardBorder),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
-        borderSide: const BorderSide(color: _cardBorder),
+        borderSide: BorderSide(color: c.cardBorder),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
-        borderSide: const BorderSide(color: Color(0xFFEF4444), width: 1.5),
+        borderSide: const BorderSide(color: AppTheme.primaryRed, width: 1.5),
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
     );
   }
 
   Widget _locationCard() {
+    final c = _chrome;
     return Material(
-      color: _cardBg,
+      color: c.cardBg,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: _incidents.isEmpty ? null : _openLatestLocationMap,
@@ -418,7 +429,7 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: _cardBorder),
+            border: Border.all(color: c.cardBorder),
           ),
           child: Row(
             children: [
@@ -442,19 +453,19 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                   children: [
                     Text(
                       _locationTitle(),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 10,
-                        color: _mutedText,
+                        color: c.mutedText,
                         fontWeight: FontWeight.w400,
                       ),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       _locationSubtitle(),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
-                        color: _primaryText,
+                        color: c.primaryText,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -462,7 +473,7 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right, color: _mutedText, size: 18),
+              Icon(Icons.chevron_right, color: c.mutedText, size: 18),
             ],
           ),
         ),
@@ -471,15 +482,16 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
   }
 
   Widget _reportsTitleRow() {
+    final c = _chrome;
     return Row(
       children: [
-        const Expanded(
+        Expanded(
           child: Text(
             'Reports',
             style: TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.bold,
-              color: _primaryText,
+              color: c.primaryText,
               height: 1.1,
             ),
           ),
@@ -488,7 +500,7 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
           width: 34,
           height: 34,
           child: Material(
-            color: const Color(0xFFEF4444).withValues(alpha: 0.12),
+            color: AppTheme.primaryRed.withValues(alpha: 0.12),
             shape: const CircleBorder(),
             child: IconButton(
               padding: EdgeInsets.zero,
@@ -499,12 +511,12 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                       height: 16,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: Color(0xFFEF4444),
+                        color: AppTheme.primaryRed,
                       ),
                     )
                   : const Icon(
                       Icons.refresh,
-                      color: Color(0xFFEF4444),
+                      color: AppTheme.primaryRed,
                       size: 18,
                     ),
             ),
@@ -558,7 +570,7 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                 style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, height: 1.1),
                 children: [
                   TextSpan(text: 'Rescue', style: TextStyle(color: Colors.white)),
-                  TextSpan(text: 'Link', style: TextStyle(color: Color(0xFFFF6B6B))),
+                  TextSpan(text: 'Link', style: TextStyle(color: AppTheme.primaryRed)),
                 ],
               ),
             ),
@@ -567,7 +579,7 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
               "Dagupan's Emergency App",
               style: TextStyle(
                 fontSize: 12,
-                color: Color(0xFF94A3B8),
+                color: AppTheme.darkTextSecondary,
                 fontWeight: FontWeight.w400,
               ),
             ),
@@ -591,30 +603,30 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
   }
 
   Color _iconColorForType(String? type) {
-    if (type == null) return const Color(0xFFEF4444);
+    if (type == null) return AppTheme.primaryRed;
     final t = type.toLowerCase();
-    if (t == 'sos') return const Color(0xFFEF4444);
+    if (t == 'sos') return AppTheme.primaryRed;
     if (t.contains('fire')) return const Color(0xFFEA580C);
     if (t.contains('medical') || t.contains('health') || t.contains('accident')) {
       return const Color(0xFFEC4899);
     }
-    if (t.contains('police')) return const Color(0xFF2563EB);
+    if (t.contains('police')) return AppTheme.primaryBlue;
     if (t.contains('disaster') || t.contains('flood')) return const Color(0xFF0EA5E9);
-    return const Color(0xFFEF4444);
+    return AppTheme.primaryRed;
   }
 
   Color _statusSolidColor(String? status) {
     switch (ReportStatusUi.normalize(status)) {
       case 'closed':
       case 'resolved':
-        return const Color(0xFF22C55E);
+        return AppTheme.successGreen;
       case 'verified':
         return const Color(0xFF9333EA);
       case 'in_progress':
-        return const Color(0xFF2563EB);
+        return AppTheme.primaryBlue;
       case 'pending':
       default:
-        return const Color(0xFFF59E0B);
+        return AppTheme.warningAmber;
     }
   }
 
@@ -639,12 +651,13 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
   @override
   Widget build(BuildContext context) {
     final filtered = _filteredIncidents;
+    final c = _chrome;
 
     return RefreshIndicator(
       onRefresh: _loadIncidents,
-      color: const Color(0xFFEF4444),
+      color: AppTheme.primaryRed,
       child: ColoredBox(
-        color: _screenBg,
+        color: c.screenBg,
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           child: Column(
@@ -693,7 +706,7 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                                     padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                                     constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
                                     decoration: const BoxDecoration(
-                                      color: Color(0xFFEF4444),
+                                      color: AppTheme.primaryRed,
                                       shape: BoxShape.circle,
                                     ),
                                     child: Center(
@@ -763,11 +776,11 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                     TextField(
                       controller: _searchController,
                       focusNode: _searchFocusNode,
-                      style: const TextStyle(color: _primaryText, fontSize: 13),
+                      style: TextStyle(color: c.primaryText, fontSize: 13),
                       decoration: _fieldDecoration(hint: 'Search reports...').copyWith(
                         suffixIcon: _searchQuery.isNotEmpty
                             ? IconButton(
-                                icon: const Icon(Icons.clear, size: 18, color: _mutedText),
+                                icon: Icon(Icons.clear, size: 18, color: c.mutedText),
                                 onPressed: _searchController.clear,
                               )
                             : null,
@@ -783,15 +796,15 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                         Expanded(
                           child: Theme(
                             data: Theme.of(context).copyWith(
-                              canvasColor: _inputBg,
+                              canvasColor: c.inputBg,
                             ),
                             child: DropdownButtonFormField<String?>(
                               initialValue: _filterStatus,
-                              dropdownColor: _inputBg,
-                              style: const TextStyle(color: _primaryText, fontSize: 12),
-                              icon: const Icon(Icons.keyboard_arrow_down, color: _mutedText, size: 18),
+                              dropdownColor: c.inputBg,
+                              style: TextStyle(color: c.primaryText, fontSize: 12),
+                              icon: Icon(Icons.keyboard_arrow_down, color: c.mutedText, size: 18),
                               decoration: _fieldDecoration(),
-                              hint: const Text('All Status', style: TextStyle(color: _mutedText)),
+                              hint: Text('All Status', style: TextStyle(color: c.mutedText)),
                               items: const [
                                 DropdownMenuItem<String?>(value: null, child: Text('All Status')),
                                 DropdownMenuItem<String?>(value: 'pending', child: Text('Pending')),
@@ -813,15 +826,15 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                         Expanded(
                           child: Theme(
                             data: Theme.of(context).copyWith(
-                              canvasColor: _inputBg,
+                              canvasColor: c.inputBg,
                             ),
                             child: DropdownButtonFormField<String?>(
                               initialValue: _filterType,
-                              dropdownColor: _inputBg,
-                              style: const TextStyle(color: _primaryText, fontSize: 12),
-                              icon: const Icon(Icons.keyboard_arrow_down, color: _mutedText, size: 18),
+                              dropdownColor: c.inputBg,
+                              style: TextStyle(color: c.primaryText, fontSize: 12),
+                              icon: Icon(Icons.keyboard_arrow_down, color: c.mutedText, size: 18),
                               decoration: _fieldDecoration(),
-                              hint: const Text('All Types', style: TextStyle(color: _mutedText)),
+                              hint: Text('All Types', style: TextStyle(color: c.mutedText)),
                               items: const [
                                 DropdownMenuItem<String?>(value: null, child: Text('All Types')),
                                 DropdownMenuItem<String?>(value: 'fire', child: Text('Fire')),
@@ -846,13 +859,13 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                           width: 40,
                           height: 40,
                           child: Material(
-                            color: _inputBg,
+                            color: c.inputBg,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(10),
-                              side: const BorderSide(color: _cardBorder),
+                              side: BorderSide(color: c.cardBorder),
                             ),
                             child: IconButton(
-                              icon: const Icon(Icons.tune, color: _mutedText, size: 18),
+                              icon: Icon(Icons.tune, color: c.mutedText, size: 18),
                               onPressed: _openFilterSheet,
                             ),
                           ),
@@ -879,12 +892,12 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                             : null,
                       )
                     else ...[
-                      const Text(
+                      Text(
                         'Recent Reports',
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w500,
-                          color: _mutedText,
+                          color: c.mutedText,
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -961,7 +974,7 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
         Expanded(
           child: _statItem(
             icon: Icons.local_fire_department,
-            iconColor: const Color(0xFFEF4444),
+            iconColor: AppTheme.primaryRed,
             value: '${filtered.length}',
             label: totalLabel,
           ),
@@ -969,7 +982,7 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
         Expanded(
           child: _statItem(
             icon: Icons.circle,
-            iconColor: const Color(0xFF2563EB),
+            iconColor: AppTheme.primaryBlue,
             iconSize: 10,
             value: '${_countActive(filtered)}',
             label: 'Active',
@@ -978,7 +991,7 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
         Expanded(
           child: _statItem(
             icon: Icons.circle,
-            iconColor: const Color(0xFF22C55E),
+            iconColor: AppTheme.successGreen,
             iconSize: 10,
             value: '${_countClosed(filtered)}',
             label: 'Closed',
@@ -995,6 +1008,7 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
     required String label,
     double iconSize = 18,
   }) {
+    final c = _chrome;
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       mainAxisSize: MainAxisSize.min,
@@ -1003,18 +1017,18 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
         const SizedBox(width: 6),
         Text(
           value,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.bold,
-            color: _primaryText,
+            color: c.primaryText,
           ),
         ),
         const SizedBox(width: 3),
         Text(
           label,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 11,
-            color: _mutedText,
+            color: c.mutedText,
           ),
         ),
       ],
@@ -1038,6 +1052,7 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
     final options = _isPersonnel
         ? [('reported', 'Reported'), ('assigned', 'Assigned')]
         : [('reported', 'Reported'), ('accepted', 'Accepted')];
+    final c = _chrome;
 
     return Row(
       children: options.map((option) {
@@ -1053,15 +1068,15 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
               showCheckmark: true,
               labelStyle: TextStyle(
                 fontSize: 12,
-                color: selected ? Colors.white : _mutedText,
+                color: selected ? Colors.white : c.mutedText,
                 fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
               ),
               padding: const EdgeInsets.symmetric(horizontal: 4),
               labelPadding: const EdgeInsets.symmetric(horizontal: 4),
-              selectedColor: const Color(0xFF2563EB),
-              backgroundColor: _inputBg,
+              selectedColor: AppTheme.primaryBlue,
+              backgroundColor: c.inputBg,
               side: BorderSide(
-                color: selected ? const Color(0xFF2563EB) : _cardBorder,
+                color: selected ? AppTheme.primaryBlue : c.cardBorder,
               ),
               materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
               visualDensity: VisualDensity.compact,
@@ -1090,7 +1105,7 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
       widgets.add(_involvementBadge(
         label: 'Reported',
         icon: Icons.record_voice_over_outlined,
-        color: const Color(0xFF2563EB),
+        color: AppTheme.primaryBlue,
       ));
     }
     if (isAssigned) {
@@ -1174,9 +1189,10 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
     String? involvement,
     VoidCallback? onTap,
   }) {
-    const metaStyle = TextStyle(
+    final muted = _chrome.mutedText;
+    final metaStyle = TextStyle(
       fontSize: 10,
-      color: _mutedText,
+      color: muted,
     );
 
     return PremiumCard(
@@ -1217,7 +1233,7 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                   const SizedBox(height: 4),
                   Row(
                     children: [
-                      const Icon(Icons.calendar_today_outlined, size: 11, color: _mutedText),
+                      Icon(Icons.calendar_today_outlined, size: 11, color: muted),
                       const SizedBox(width: 4),
                       Expanded(
                         child: Text(
@@ -1233,7 +1249,7 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                 const SizedBox(height: 3),
                 Row(
                   children: [
-                    const Icon(Icons.location_on_outlined, size: 11, color: _mutedText),
+                    Icon(Icons.location_on_outlined, size: 11, color: muted),
                     const SizedBox(width: 4),
                     Expanded(
                       child: Text(
@@ -1269,13 +1285,31 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                 ),
               ),
               const SizedBox(height: 6),
-              const Icon(Icons.chevron_right, size: 16, color: _mutedText),
+              Icon(Icons.chevron_right, size: 16, color: muted),
             ],
           ),
         ],
       ),
     );
   }
+}
+
+class _ReportsChrome {
+  final Color screenBg;
+  final Color cardBg;
+  final Color inputBg;
+  final Color cardBorder;
+  final Color mutedText;
+  final Color primaryText;
+
+  const _ReportsChrome({
+    required this.screenBg,
+    required this.cardBg,
+    required this.inputBg,
+    required this.cardBorder,
+    required this.mutedText,
+    required this.primaryText,
+  });
 }
 
 class _ReportLocationMapScreen extends StatelessWidget {
@@ -1323,7 +1357,7 @@ class _ReportLocationMapScreen extends StatelessWidget {
                 height: 40,
                 child: const Icon(
                   Icons.location_on,
-                  color: Color(0xFFEF4444),
+                  color: AppTheme.primaryRed,
                   size: 40,
                 ),
               ),

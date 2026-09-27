@@ -1,5 +1,13 @@
 # RescueLink Memory
 
+## Citizen Reports tab theme (2026-09-27)
+
+- `ReportHistoryScreen` no longer pins body chrome to dark-only (`0xFF0B0E14` / slate cards). Surfaces and text follow `Theme` / `AppTheme` light|dark tokens; brand accents use `AppTheme.primaryRed` / `primaryBlue` / `successGreen` / `warningAmber`.
+- Dark branded header (logo + notifications) stays dark in both modes. Status/type semantic colors unchanged in meaning.
+- Regression: `Frontend/Mobile/test/integration/phase5_history_notifications_test.dart` (asserts dark palette consts removed; body uses `scaffoldBackgroundColor` / AppTheme cards).
+
+Added: 2026-09-27 — Reports tab light/dark theme.
+
 ## Technical manual feature cards (2026-09-25)
 
 - `Documentation/academic/TECHNICAL_MANUAL.md` is now 14 technical-audience feature cards (name, technical description, inputs, outputs, business rules, edge case), aligned to the user-manual modules. Service-by-service API tables were removed; HTTP contracts stay in the API docs. End-user steps stay in `USER_MANUAL.md`.
