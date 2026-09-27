@@ -36,13 +36,13 @@ flowchart LR
   API -.->|USE_BLOCKCHAIN| BC
 ```
 
-| Layer | Path | Stack |
-|-------|------|--------|
-| Mobile | `Frontend/Mobile` | Flutter + BLoC; services under `lib/services/` |
-| Dashboard | `Frontend/Web/dispatcher_dashboard` | React + Vite; API modules under `src/data/api/` |
-| Backend | `Backend` | Node.js + Express + PostgreSQL |
-| AI | `RescueLink AI` | FastAPI; Whisper + classifier |
-| Blockchain | `Blockchain` | Optional; feature-flagged |
+| Layer      | Path                                | Stack                                           |
+| ---------- | ----------------------------------- | ----------------------------------------------- |
+| Mobile     | `Frontend/Mobile`                   | Flutter + BLoC; services under `lib/services/`  |
+| Dashboard  | `Frontend/Web/dispatcher_dashboard` | React + Vite; API modules under `src/data/api/` |
+| Backend    | `Backend`                           | Node.js + Express + PostgreSQL                  |
+| AI         | `RescueLink AI`                     | FastAPI; Whisper + classifier                   |
+| Blockchain | `Blockchain`                        | Optional; feature-flagged                       |
 
 Mobile HTTP goes through `ApiService` (`apiTimeout` 30s) to `API_BASE_URL`. Web HTTP uses `http.js` with a Bearer JWT stored in both `localStorage` and `sessionStorage` so a OneSignal `web_url` tab can authenticate. Realtime on both clients is `ws(s)://{apiHost}/ws?token=JWT`.
 
@@ -467,115 +467,91 @@ Web roles in `src/App.jsx`: `super-admin`, `dispatcher`, `department-admin`, `de
 - Revoke removes responder access and notifies the applicant with the reason.
 - Documents open only through the authenticated URL, not a public object path.
 
-**Business Rules / Logic:**
+**`analytics.api.js` (Insights):** `GET /api/analytics/overview`; `GET /api/analytics/incidents`; `GET /api/analytics/export.csv`; `GET /api/analytics/barangays.geojson`. Params include date range and `department_id` (incl. `volunteers` virtual scope for Super Admin).
 
-- Allowed roles: Super Admin and Dispatcher. Other roles have no menu entry.
-- Government ID is the required file. Certificates are supporting evidence.
-- Reject must include reviewer notes the applicant can read.
-- Download stays on the protected viewer. Do not copy the tokenized URL into an unauthenticated channel.
+**`notifications.api.js`:** `GET /api/notifications`; `POST /api/notifications/:id/read`; `POST /api/notifications/mark-all-read`; `GET /api/notifications/unread-count`.
 
-**Edge Case or Risk:**
+### 3.7 `useIncidentWebSocket`
 
-- Blurry ID is a reject-and-reapply case, not an override that skips the file.
-- Pop-up or download blockers in the browser surface as “cannot open certificate” even when the API returned the file.
-- Revoke without a reason leaves the applicant with no actionable notification.
+Transport: `WS(S) {API_URL}/ws?token=…`. Every message also fires DOM `incident:updated` with `{incidentId, event, data}`.
 
----
+| Return field                               | Meaning                                                  |
+| ------------------------------------------ | -------------------------------------------------------- |
+| `status`                                   | `connected` \| `reconnecting` \| `disconnected`          |
+| `notifications`                            | In-memory toast list from WS events                      |
+| `clearNotifications`                       | Clear local list                                         |
+| `lastHighSeverity`                         | Set on `incident:created` when severity high/critical    |
+| `lastDispatched`                           | `incident:dispatched`                                    |
+| `lastBackupRequested` / `lastBackupJoined` | `responder:backup_requested` / `responder:backup_joined` |
+| `lastEscalated`                            | any `incident:escalat*`                                  |
 
-### 3.6 Operations Map and Live Heatmap
+Other titled events include `incident:status_updated`, `incident:verified`, `incident:resolution_confirmed`, `incident:note_added`, `incident:accepted`, escalation accepted/declined/cancelled/resolved, `responder:status_changed`, backup acknowledged/declined/status_changed.
 
-**Feature Name:** Operations Map and Live Heatmap
+### 3.8 OneSignal web (`oneSignalWebService.js`)
 
-**Feature Description (technical):** Renders OSM incident pins for situational awareness, with department and barangay filters, closest-unit lookup, and an optional density heatmap. The heatmap is a live concentration layer, not a historical report.
+| Function                                                            | Behavior                                                        |
+| ------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `getPushNotificationState()`                                        | `granted` \| `denied` \| `default` \| `unsupported`             |
+| `initOneSignal(onNotificationClick?)`                               | Init if `ONESIGNAL_APP_ID`; click → `/incidents/:id`            |
+| `setOneSignalUser(userId, {role?, departmentId?, departmentCode?})` | External ID + tags + opt-in                                     |
+| `logoutOneSignal()`                                                 | SDK logout                                                      |
+| `requestPushPermission()`                                           | Native permission → opt-in/sync; `boolean`                      |
+| `syncOneSignalSubscriptionToBackend(subscriptionId)`                | `POST /api/auth/onesignal-subscription` `{onesignal_player_id}` |
 
-**Inputs:**
+### 3.9 Key page behaviors (implementation anchors)
 
-- Authenticated route `/map` (any staff role).
-- Incident list filters (department, barangay, status) feeding pin data.
-- `POST /api/location/closest-units`.
-- `GET /api/location/search` and `GET /api/location/reverse`.
-- `GET /api/location/heatmap`.
-- `POST /api/location/geofence-alerts`.
-- Pin selection opens the incident popup and can navigate to `/incidents/:id`.
+| Behavior                        | Where                 | Calls                                                          |
+| ------------------------------- | --------------------- | -------------------------------------------------------------- |
+| Queue filter/sort               | `DashboardPage`       | `getIncidents`                                                 |
+| Verify / reclassify / status    | `IncidentDetailsPage` | `verifyIncident`, `reclassifyIncident`, `updateIncidentStatus` |
+| Duplicate link/unlink           | detail + dialogs      | `linkDuplicate`, `unlinkDuplicate`, `clearDuplicateFlag`       |
+| Dispatch / confirm suggestion   | detail / dispatch UI  | `createDispatch`, `confirmSuggestion`, `reassignTeam`          |
+| Applications approve/reject     | application pages     | `updateApplicationStatus`                                      |
+| Insights filters + live refresh | `InsightsPage`        | analytics APIs + `incident:updated` debounce                   |
 
-**Outputs / System Response:**
-
-- Map centered on Dagupan with color-coded incident markers.
-- Closest-unit response for the selected point.
-- Heatmap GeoJSON or density payload from `/api/location/heatmap`.
-- Reverse-geocode address map for a coordinate.
-
-**Business Rules / Logic:**
-
-- Basemap is OpenStreetMap. There is no Google Maps routing or turn-by-turn product path.
-- Heatmap shows concentration of recent points. Period analysis belongs on Insights.
-- Filters compose with the incident query. An empty map is often an active filter, not an empty database.
-- Recenter returns the camera to the Dagupan default in `AppConfig` / map constants.
-
-**Edge Case or Risk:**
-
-- Heatmap on a large viewport is slower than pins alone. Operators can disable the layer.
-- Geofence alerts are not a substitute for the dispatch assignment flow.
-- Wrong region after a pan is a camera state issue; data is still Dagupan-scoped on the server.
+Feature flag: `VITE_USE_BLOCKCHAIN` toggles blockchain vs audit-trail labels in UI (backend `USE_BLOCKCHAIN`).
 
 ---
 
-### 3.7 Period Insights and Operations Analytics
+## 4. Cross-cutting roles and flags
 
-**Feature Name:** Period Insights and Operations Analytics
+### Backend roles (`Backend/src/config/roles.js`)
 
-**Feature Description (technical):** Period KPIs, SLA-style clocks, demand by type and barangay, exceptions, and outcomes for Super Admin and Department Admin. Live incident events debounce a refresh. This page is not the dispatch queue.
+`user`, `volunteer`, `responder`, `dispatcher`, `supervisor`, `admin`, `department-admin`, `department-head`.
 
-**Inputs:**
+Mobile citizens use `user` → may become `volunteer` after application approval; department/responder staff use corresponding roles. Web dashboard maps `admin` → `super-admin` for route gates.
 
-- Route `/insights`.
-- `GET /api/analytics/overview` and `GET /api/analytics/incidents` with date range and `department_id`.
-- Super Admin may pass a department id or the virtual `volunteers` scope. Department Admin is scoped to their own department.
-- `GET /api/analytics/export.csv` for CSV. Print/PDF uses the browser.
-- `GET /api/analytics/barangays.geojson` for the barangay layer.
-- Refresh trigger: DOM `incident:updated` (debounced) plus the on-page live / last-updated indicator.
+### Feature flags affecting clients
 
-**Outputs / System Response:**
-
-- Overview and incident aggregates for the selected range and scope.
-- CSV download of the same filters.
-- Metric help is in the page `?` copy (plain definitions), not a second API.
-
-**Business Rules / Logic:**
-
-- Roles: Super Admin and Department Admin only. Dispatchers do not get this route.
-- Department Admins cannot query another department by changing a client parameter; the server enforces scope.
-- Insights reads historical period data. Creating or verifying an incident still happens on the queue and detail pages.
-- Seed data for demos is `npm run seed-db` (about 300 incidents over about 90 days). That command is an operator tool, not a dashboard control.
-
-**Edge Case or Risk:**
-
-- An empty chart usually means the date range or department scope has no rows, not a broken query.
-- Export blocked by the browser looks like a failed API. Confirm the CSV request status before retrying.
-- Debounced live refresh can lag a few seconds behind `incident:updated`. The queue remains the operational list.
+| Flag                     | Where               | Effect                                  |
+| ------------------------ | ------------------- | --------------------------------------- |
+| `USE_BLOCKCHAIN`         | Backend `.env`      | Verify writes on-chain vs audit UUID    |
+| `VITE_USE_BLOCKCHAIN`    | Web `.env`          | UI labeling                             |
+| `ONESIGNAL_APP_ID`       | Mobile + Web `.env` | Push enablement                         |
+| `DISPATCHER_MFA_ENABLED` | Backend             | Login returns `sessionToken` → OTP step |
 
 ---
 
 ## 4. Pointers
 
-| Topic | Document |
-|-------|----------|
-| Full HTTP API | [API Documentation](../API_DOCUMENTATION.md), `Backend/api-spec/swagger.json` |
-| Features inventory | [Final List of Features](../FINAL_LIST_OF_FEATURES.md) |
-| End-user procedures | [User Manual](USER_MANUAL.md) |
-| Thesis vs system corrections | [THESIS_SYSTEM_INCONSISTENCIES.md](THESIS_SYSTEM_INCONSISTENCIES.md) |
-| Duplicate ops design | [web/duplicate-management.md](../web/duplicate-management.md) |
-| Realtime sync | [web/realtime-sync-design.md](../web/realtime-sync-design.md) |
-| OneSignal amber setup | [guides/ONESIGNAL_AMBER_ALERT_SETUP.md](../guides/ONESIGNAL_AMBER_ALERT_SETUP.md) |
-| Security | [SECURITY_DOCUMENTATION.md](../SECURITY_DOCUMENTATION.md) |
+| Topic                        | Document                                                                          |
+| ---------------------------- | --------------------------------------------------------------------------------- |
+| Full HTTP API                | [API Documentation](../API_DOCUMENTATION.md), `Backend/api-spec/swagger.json`     |
+| Features inventory           | [Final List of Features](../FINAL_LIST_OF_FEATURES.md)                            |
+| End-user procedures          | [User Manual](USER_MANUAL.md)                                                     |
+| Thesis vs system corrections | [THESIS_SYSTEM_INCONSISTENCIES.md](THESIS_SYSTEM_INCONSISTENCIES.md)              |
+| Duplicate ops design         | [web/duplicate-management.md](../web/duplicate-management.md)                     |
+| Realtime sync                | [web/realtime-sync-design.md](../web/realtime-sync-design.md)                     |
+| OneSignal amber setup        | [guides/ONESIGNAL_AMBER_ALERT_SETUP.md](../guides/ONESIGNAL_AMBER_ALERT_SETUP.md) |
+| Security                     | [SECURITY_DOCUMENTATION.md](../SECURITY_DOCUMENTATION.md)                         |
 
 ---
 
 ## 5. Document control
 
-| Item | Value |
-|------|--------|
-| Document | RescueLink Technical Manual (Mobile + Dashboard) |
-| Template | Technical-audience feature card: name, technical description, inputs, outputs, business rules, edge case or risk |
-| Depth | One card per implemented user-facing feature. Endpoint catalogs live in the API docs. |
-| Source | Implemented services under `Frontend/Mobile/lib/services/*`, `Frontend/Web/dispatcher_dashboard/src/data/api/*`, and `App.jsx` |
+| Item     | Value                                                                                                                          |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Document | RescueLink Technical Manual (Mobile + Dashboard)                                                                               |
+| Template | Technical-audience feature card: name, technical description, inputs, outputs, business rules, edge case or risk               |
+| Depth    | One card per implemented user-facing feature. Endpoint catalogs live in the API docs.                                          |
+| Source   | Implemented services under `Frontend/Mobile/lib/services/*`, `Frontend/Web/dispatcher_dashboard/src/data/api/*`, and `App.jsx` |

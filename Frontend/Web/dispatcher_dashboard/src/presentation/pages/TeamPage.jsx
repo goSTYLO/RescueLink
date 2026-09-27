@@ -312,7 +312,7 @@ export function TeamPage() {
 
   return (
     <Layout>
-      <div className="p-6 space-y-6 max-w-7xl mx-auto">
+      <div className="p-4 md:p-6 space-y-6">
         <Breadcrumb items={[{ label: 'Home', path: '/dashboard' }, { label: 'Team' }]} />
 
         <Card size="small" title={(

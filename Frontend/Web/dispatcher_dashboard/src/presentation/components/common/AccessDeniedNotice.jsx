@@ -12,9 +12,9 @@ export function AccessDeniedNotice({
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-6">
-      <div className="w-full max-w-xl rounded-2xl border border-primary/40 bg-card/70 p-6 shadow-sm">
+      <div className="w-full max-w-xl rounded-md border border-primary/40 bg-card/70 p-6 shadow-sm">
         <div className="flex items-start gap-4">
-          <span className="w-10 h-10 rounded-xl bg-primary/15 text-primary flex items-center justify-center flex-shrink-0">
+          <span className="w-10 h-10 rounded-md bg-primary/15 text-primary flex items-center justify-center flex-shrink-0">
             <AlertOctagon className="w-5 h-5" strokeWidth={2} />
           </span>
           <div className="flex-1">

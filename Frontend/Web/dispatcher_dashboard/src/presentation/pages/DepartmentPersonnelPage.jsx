@@ -498,7 +498,7 @@ export function DepartmentPersonnelPage() {
 
   return (
     <Layout>
-      <div className="p-4 max-w-7xl mx-auto" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div className="p-4 md:p-6 flex flex-col gap-3">
         <Breadcrumb items={[{ label: 'Home', path: '/department/dashboard' }, { label: 'Department Personnel' }]} />
         <Card
           size="small"

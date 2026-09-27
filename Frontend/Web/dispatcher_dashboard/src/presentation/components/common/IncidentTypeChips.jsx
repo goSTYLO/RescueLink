@@ -22,7 +22,7 @@ export function IncidentTypeChips({
         <Badge
           key={`${type}-${index}`}
           variant={index === 0 ? 'default' : 'outline'}
-          className={`rounded-lg ${getTypeBadgeClass(type)} ${index === 0 ? 'font-semibold' : ''}`}
+          className={`rounded-sm ${getTypeBadgeClass(type)} ${index === 0 ? 'font-semibold' : ''}`}
         >
           {formatIncidentTypeLabel(type)}
         </Badge>
@@ -30,7 +30,7 @@ export function IncidentTypeChips({
       {overflow > 0 && (
         <Badge
           variant="outline"
-          className="rounded-lg bg-slate-500/10 text-slate-600 border-slate-500/30 dark:text-slate-400"
+          className="rounded-sm bg-slate-500/10 text-slate-600 border-slate-500/30 dark:text-slate-400"
         >
           +{overflow}
         </Badge>

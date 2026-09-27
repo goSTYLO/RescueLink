@@ -334,12 +334,12 @@ export default function Dashboard({ user, onLogout }) {
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-3 py-1 text-xs font-semibold rounded-full border ${getSeverityColor(incident.severity)}`}>
+                        <span className={`px-3 py-1 text-xs font-semibold rounded-sm border ${getSeverityColor(incident.severity)}`}>
                           {incident.severity}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-3 py-1 text-xs font-semibold rounded-full border ${getStatusColor(incident.status)}`}>
+                        <span className={`px-3 py-1 text-xs font-semibold rounded-sm border ${getStatusColor(incident.status)}`}>
                           {incident.status}
                         </span>
                       </td>

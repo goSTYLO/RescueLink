@@ -28,7 +28,7 @@ export function BackupRequestedBadge({ onClick, className = '', status = 'pendin
         e.stopPropagation();
         onClick?.();
       }}
-      className={`inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-[11px] font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${colorClasses} ${className}`}
+      className={`inline-flex items-center gap-1 rounded-sm border px-2 py-0.5 text-[11px] font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${colorClasses} ${className}`}
       title={title}
       aria-label={ariaLabel}
     >
@@ -48,7 +48,7 @@ export function BackupRequestedBadgeStatic({ className = '', status = 'pending' 
 
   return (
     <Badge
-      className={`inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-[11px] font-semibold ${colorClasses} ${className}`}
+      className={`inline-flex items-center gap-1 rounded-sm border px-2 py-0.5 text-[11px] font-semibold ${colorClasses} ${className}`}
     >
       <Icon className="h-3 w-3 shrink-0" aria-hidden="true" />
       {label}

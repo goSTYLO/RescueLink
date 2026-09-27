@@ -42,7 +42,7 @@ function getStoredAssignments() {
 
 export function DepartmentDashboardPage() {
   const navigate = useNavigate();
-  const { isConnected: wsConnected } = useIncidentWebSocketStatus();
+  const { status: wsStatus, isConnected: wsConnected } = useIncidentWebSocketStatus();
   const user = JSON.parse(sessionStorage.getItem('user') || '{}');
   const departmentId = user.departmentId || user.department_id;
 
@@ -713,7 +713,7 @@ export function DepartmentDashboardPage() {
 
   return (
     <Layout>
-      <div className="p-2 sm:p-3 md:p-4 max-w-7xl mx-auto min-h-[calc(100dvh-96px)] flex flex-col gap-2 md:gap-3">
+      <div className="p-4 md:p-6 min-h-[calc(100dvh-96px)] flex flex-col gap-2 md:gap-3">
         <Breadcrumb items={[{ label: 'Home', path: '/department/dashboard' }, { label: 'Department Dashboard' }]} />
 
         <Card
@@ -728,7 +728,15 @@ export function DepartmentDashboardPage() {
             <Space wrap size={[4, 8]}>
               <IncidentOverviewKpiTags counts={overviewKpiCounts} />
               <span style={{ fontSize: 12, opacity: 0.7 }}>{user.department || 'Department'}</span>
-              <span style={{ fontSize: 12, opacity: 0.7 }}>Polling every 30s</span>
+              <span style={{ fontSize: 12, opacity: 0.7 }} aria-live="polite">
+                {wsConnected ? (
+                  `Live — updates on incident activity (backup every ${POLLING_WHEN_WS_CONNECTED_MS / 1000}s)`
+                ) : wsStatus === 'reconnecting' ? (
+                  `Connecting live feed… · backup every ${POLLING_INTERVAL_MS / 1000}s`
+                ) : (
+                  `Polling every ${POLLING_INTERVAL_MS / 1000}s`
+                )}
+              </span>
             </Space>
           )}
         />

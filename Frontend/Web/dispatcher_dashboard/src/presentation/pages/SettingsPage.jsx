@@ -77,7 +77,7 @@ export function SettingsPage() {
 
   return (
     <Layout>
-      <div className="p-4 max-w-4xl mx-auto">
+      <div className="p-4 md:p-6">
         <Breadcrumb items={[{ label: 'Home', path: '/dashboard' }, { label: 'Settings' }]} />
         <Card
           size="small"

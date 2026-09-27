@@ -89,7 +89,7 @@ export function NotificationPromptBanner({ onStatusChange }) {
           : 'bg-blue-950/60 border-blue-800/80 text-blue-100 backdrop-blur-sm'
       }`}
     >
-      <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <span
             className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${

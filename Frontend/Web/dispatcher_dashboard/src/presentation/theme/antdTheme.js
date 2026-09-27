@@ -61,6 +61,13 @@ export function buildAntdTheme(isLight) {
           activeBg: '#111A2C',
           hoverBg: '#111A2C',
         },
+      Card: {
+        borderRadius: 4,
+        borderRadiusLG: 4,
+      },
+      Tag: {
+        borderRadiusSM: 4,
+      },
     },
   };
 }

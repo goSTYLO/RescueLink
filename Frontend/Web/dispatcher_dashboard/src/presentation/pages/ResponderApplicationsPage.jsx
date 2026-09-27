@@ -85,7 +85,7 @@ export function ResponderApplicationsPage() {
 
   return (
     <Layout>
-      <div className="p-4">
+      <div className="p-4 md:p-6">
         <Breadcrumb items={[{ label: 'Home', path: '/dashboard' }, { label: 'Responder Applications' }]} />
         <Card
           size="small"
