@@ -29,6 +29,15 @@ void main() {
       await tester.pump();
       expect(find.byType(ReportHistoryScreen), findsOneWidget);
     });
+
+    test('ReportHistoryScreen no longer hardcodes dark-only body palette', () {
+      final src = File('lib/screens/home/report_history_screen.dart').readAsStringSync();
+      expect(src.contains('Color(0xFF0B0E14)'), isFalse);
+      expect(src.contains('static const Color _screenBg'), isFalse);
+      expect(src.contains('scaffoldBackgroundColor'), isTrue);
+      expect(src.contains('AppTheme.lightCard'), isTrue);
+      expect(src.contains('AppTheme.darkCard'), isTrue);
+    });
   });
 
   group('Phase 5: Notifications screen', () {
