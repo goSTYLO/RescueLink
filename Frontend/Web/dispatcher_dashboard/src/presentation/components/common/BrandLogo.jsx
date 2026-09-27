@@ -30,7 +30,7 @@ export function BrandLogo({ iconOnly = false, size = 'md', className = '', squir
     <div className={`flex items-center gap-3 select-none ${className}`}>
       {squircleMark && isLight ? (
         <span
-          className={`inline-flex items-center justify-center flex-shrink-0 ${s.icon} bg-gray-400 rounded-[22%] p-1`}
+          className={`inline-flex items-center justify-center flex-shrink-0 ${s.icon} bg-gray-900 rounded-[22%] p-1`}
         >
           {logoMark}
         </span>

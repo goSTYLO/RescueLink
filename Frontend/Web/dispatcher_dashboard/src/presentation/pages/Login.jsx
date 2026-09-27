@@ -116,7 +116,7 @@ export default function Login({ onSuccess, onForgotPasswordClick }) {
   return (
     <AuthCardLayout illustration={illustration}>
       <div className="mb-6">
-        <BrandLogo size="lg" />
+        <BrandLogo size="lg" squircleMark />
       </div>
       <div className="mb-8">
         <h2 className="text-3xl font-bold text-foreground mb-2 transition-all duration-300">Welcome back!</h2>
