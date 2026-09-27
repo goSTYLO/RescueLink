@@ -1,5 +1,11 @@
 # RescueLink Memory
 
+## Technical manual feature cards (2026-09-25)
+
+- `Documentation/academic/TECHNICAL_MANUAL.md` is now 14 technical-audience feature cards (name, technical description, inputs, outputs, business rules, edge case), aligned to the user-manual modules. Service-by-service API tables were removed; HTTP contracts stay in the API docs. End-user steps stay in `USER_MANUAL.md`.
+
+Added: 2026-09-25 — technical manual rewritten as feature cards.
+
 ## ClamAV scan-before-store (2026-09-25)
 
 - All durable multipart uploads (`POST /api/incidents/with-audio`, `/api/auth/me/avatar`, `/api/responder-applications`) share `runUploadSecurityChecks` in `fileScanService.js`.

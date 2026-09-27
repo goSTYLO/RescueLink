@@ -1,10 +1,16 @@
 # RescueLink Technical Manual
 
-**Audience:** Developers and technical reviewers who can read the codebase.  
-**Scope:** Mobile (Flutter) and Web Dispatcher Dashboard (React) public surfaces — inputs, behavior, and outputs.  
-**Not in scope:** Full Backend / AI / Blockchain rewrite — see [API Documentation](../API_DOCUMENTATION.md), [How To Run](../HOW_TO_RUN.md), and service READMEs.
+**Audience:** Technical reviewers who need feature behavior: inputs, system response, rules, and risks.  
+**Platforms:** Mobile app (Flutter) and Web Dispatcher Dashboard (React).  
+**Service area:** Dagupan City, Philippines.
 
-Aligned with the **implemented** system (native Flutter client, OSM maps, email OTP for staff MFA, OneSignal push, optional blockchain). Do not assume SMS chat, Google Maps routing, Twilio, or a national 911 API.
+> **Important:** RescueLink is a digital reporting and dispatch aid. It does **not** replace national emergency hotlines. For an immediate life-threatening emergency, call **911** in addition to using the app when it is safe to do so.
+
+Aligned with the **implemented** system (native Flutter client, OSM maps, IPROG SMS OTP for citizen password reset, email OTP for staff MFA, OneSignal push, optional blockchain). Do not assume SMS chat, Google Maps routing, Twilio, Firebase Phone Auth, or a national 911 API.
+
+**Incident status enum (primary):** `pending` → `verified` → `in_progress` → `resolved` → `closed` (archive is separate).
+
+End-user steps are in [User Manual](USER_MANUAL.md). Full HTTP contracts stay in [API Documentation](../API_DOCUMENTATION.md).
 
 ---
 
@@ -38,412 +44,519 @@ flowchart LR
 | AI | `RescueLink AI` | FastAPI; Whisper + classifier |
 | Blockchain | `Blockchain` | Optional; feature-flagged |
 
-**Incident status enum (primary):** `pending` → `verified` → `in_progress` → `resolved` → `closed` (archive is separate).
+Mobile HTTP goes through `ApiService` (`apiTimeout` 30s) to `API_BASE_URL`. Web HTTP uses `http.js` with a Bearer JWT stored in both `localStorage` and `sessionStorage` so a OneSignal `web_url` tab can authenticate. Realtime on both clients is `ws(s)://{apiHost}/ws?token=JWT`.
 
 ---
 
-## 2. Mobile
+## 2. Mobile App Features
 
-### 2.1 Screen map
+### 2.1 Citizen Account Registration and Residency Verification
 
-| Area | Directory | Purpose |
-|------|-----------|---------|
-| Auth | `lib/screens/auth/`, `otp_*`, `verification/` | Login, signup, OTP, residency, password reset |
-| Citizen | `lib/screens/home/` | SOS/home shell, emergency report, history, details, notifications, settings, volunteer apply |
-| Responder | `lib/screens/responder/` | Online toggle, alerts, assignments, status stepper, history |
-| Department ops | `lib/screens/department/` | Role-gated dept incident list / assign / resolve |
-| Shared alerts | `lib/screens/common/emergency_dispatch_alert_modal.dart` | Critical dispatch amber UI |
+**Feature Name:** Citizen Account Registration and Residency Verification
 
-Navigation shell: `home_placeholder_screen.dart` (tabs). Auth gate: `main.dart` / `AuthNavigator` + `AuthBloc`.
+**Feature Description (technical):** Creates a citizen account only after phone OTP verification and a Dagupan geofence check. `AuthService.register` posts registration fields plus an optional reCAPTCHA token. The account is not persisted as a usable session until OTP succeeds. Location is checked with device GPS and the Dagupan polygon (`GeolocationService`) plus `POST /api/location/check`.
 
-### 2.2 Config (env key names only)
+**Inputs:**
 
-From `lib/utils/app_config.dart` and OneSignal init:
+- Registration payload: name and profile fields, phone, password, optional `captchaToken` (`RECAPTCHA_SITE_KEY` when the verification UI requires it).
+- OTP: phone + code via `POST /api/auth/verify-otp`. Resend uses `POST /api/auth/resend-otp` with a fresh CAPTCHA.
+- Location: device GPS (`getCurrentLocation` / `getCurrentPosition`). Barangay lookup is `GET /api/location/barangay`.
 
-| Key | Used for |
-|-----|----------|
-| `API_BASE_URL` | Backend base URL (default emulator `http://10.0.2.2:3000`) |
-| `RECAPTCHA_SITE_KEY` | Optional reCAPTCHA on verification UI |
-| `ONESIGNAL_APP_ID` | Mobile push; skipped if unset |
+**Outputs / System Response:**
 
-Constants: `apiTimeout` 30s; Dagupan default lat/lng in `AppConfig`.
+- `register` returns a map with `verificationRequired`. No login token until OTP completes.
+- `checkLocationInDagupan` returns `{success, isInDagupan, …}`.
+- On success the client stores the JWT and reaches Home. Outside the polygon the residency screen blocks operations.
 
-### 2.3 `ApiService` (`api_service.dart`)
+**Business Rules / Logic:**
 
-Generic authenticated HTTP client to `AppConfig.apiBaseUrl`.
+- Service area is Dagupan only. `isPointInDagupan` supports an optional meter buffer around the polygon.
+- Pending `password_reset` OTP purpose cannot create an account through registration `verify-otp` / `resend-otp` (those require `passwordHash`).
+- Default map center coordinates live in `AppConfig` (Dagupan lat/lng).
 
-| Method | Inputs | Output / effect |
-|--------|--------|-----------------|
-| `get(path, {headers})` | Relative path, optional headers | Decoded JSON `Map` or throws `ApiException` |
-| `post(path, {body, headers})` | Path + JSON body | Same |
-| `patch` / `put` / `delete` | Path + optional body | Same |
+**Edge Case or Risk:**
 
-### 2.4 `AuthService` (`auth_service.dart`)
-
-Session, Firebase phone verification, profile, location helpers used during onboarding.
-
-| Method | Inputs | Calls / effect | Output |
-|--------|--------|----------------|--------|
-| `init()` | — | Load stored JWT / profile cache | `void` |
-| `logout()` | — | `POST /api/auth/logout`; clear token; OneSignal logout | `void` |
-| `setToken` / `clearToken` / `getToken` | token string | Local secure/prefs storage | — |
-| Biometric helpers | `enabled`, phone/password/token | Local secure storage | bool / credentials / void |
-| `getProfile()` | — | `GET /api/auth/me` | `Map` user |
-| `updateProfile({...})` | name/address fields | `PATCH /api/auth/me` | `Map` user |
-| `fetchAvatarBytes` / `uploadAvatar` / `deleteAvatar` | `File` for upload | `/api/auth/me/avatar` | bytes / `Map` |
-| `changePassword({currentPassword, newPassword})` | passwords | `POST /api/auth/change-password` | `Map` |
-| `register({..., captchaToken})` | registration + reCAPTCHA token | `POST /api/auth/register` | `Map` (`verificationRequired`; no account until OTP) |
-| `login({phone, password})` | credentials | `POST /api/auth/login` | `Map` (token/user) |
-| `verifyOtp({phone, otp})` | phone + OTP | `POST /api/auth/verify-otp` (backend/IPROG) | `Map` |
-| `requestPasswordResetOtp({phone, captchaToken})` | phone + CAPTCHA | `POST /api/auth/forgot-password/sms` | `Map` (generic success) |
-| `resendPasswordResetOtp({phone, captchaToken})` | phone + fresh CAPTCHA | `POST /api/auth/forgot-password/sms/resend` | `Map` |
-| `verifyPasswordResetOtp({phone, otp})` | phone + OTP | `POST /api/auth/forgot-password/sms/verify` | `Map` with `resetToken` |
-| `resetPassword(resetToken, newPassword)` | short-lived JWT, password | `POST /api/auth/reset-password` | `Map` |
-| `resendOtp({phone, captchaToken})` | phone + fresh CAPTCHA | `POST /api/auth/resend-otp` | `Map` |
-| `getCurrentLocation({...})` | optional accuracy | Device GPS | `{success, latitude, longitude, error?}` |
-| `getBarangayFromCoordinates(lat, lng)` | coords | `GET /api/location/barangay` | `String?` |
-| `reverseGeocode(lat, lng)` | coords | `GET /api/location/reverse` | address `Map` |
-| `searchLocations(query, {limit})` | query | `GET /api/location/search` | results `Map` |
-| `checkLocationInDagupan({lat, lng})` | coords | `POST /api/location/check` | `{success, isInDagupan, …}` |
-| Role helpers | — | prefs/JWT | `isVolunteer`, `isPersonnelResponder`, `isDepartmentOps`, `hasResponderTab`, `hasOpsTab`, `getDepartmentCode` / `Name` |
-
-### 2.5 `GeolocationService` (`geolocation_service.dart`)
-
-| Method | Inputs | Output |
-|--------|--------|--------|
-| `loadDagupanPolygon()` | — | `List<List<double>>` polygon rings (cached) |
-| `requestLocationPermission()` / `checkLocationPermission()` | — | `LocationPermission` |
-| `getCurrentPosition()` | — | `Position` |
-| `pointInPolygon` / `pointInPolygonWithBuffer` / `calculateDistance` | coords + polygon | `bool` / meters |
-| `isPointInDagupan(lat, lng, {bufferMeters})` | doubles | `Future<bool>` |
-
-### 2.6 `IncidentService` (`incident_service.dart`)
-
-| Method | Inputs | Endpoint | Output |
-|--------|--------|----------|--------|
-| `reportEmergency()` | Uses current GPS via AuthService | `POST /api/incidents/emergency` `{latitude, longitude}` | `Map` (created incident) |
-| `reportWithAudio({latitude, longitude, description?, audioBytes, audioFilename, mediaFiles?})` | Multipart audio required; media optional | `POST /api/incidents/with-audio` | `Map` JSON body |
-| `getMyIncidents({limit, offset, status, incidentType, involvement})` | filters | `GET /api/incidents/user/my?...` | `List` |
-| `getIncidentById(reportId, {withAi})` | id | `GET /api/incidents/:id` or `.../with-ai` | `Map` |
-| `getIncidentWithAiFallback(reportId)` | id | tries with-ai → plain | `{incident, ai_classification}` |
-| `downloadIncidentAudio(reportId)` | id | `GET /api/incidents/:id/audio` | `IncidentFileDownload` |
-| `downloadIncidentMedia(reportId, mediaIndex)` | id, index | `GET /api/incidents/:id/media/:index` | `IncidentFileDownload` |
-| `confirmIncidentResolution(reportId)` | id | `POST /api/incidents/:id/confirm-resolution` | `Map` |
-| `close()` | — | Close HTTP client | `void` |
-
-Throws `IncidentServiceException` on location/network/HTTP failure.
-
-### 2.7 `NotificationService` (`notification_service.dart`)
-
-| Method | Inputs | Endpoint | Output |
-|--------|--------|----------|--------|
-| `getNotifications({limit, offset})` | pagination | `GET /api/notifications` | `List<Map>` |
-| `markAllAsRead()` | — | `POST /api/notifications/mark-all-read` | `int` (affected) |
-| `getUnreadCount()` | — | `GET /api/notifications/unread-count` | `int` (0 on error) |
-
-### 2.8 `OneSignalService` (`onesignal_service.dart`)
-
-| Method | Inputs | Effect / output |
-|--------|--------|-----------------|
-| `init({onNotificationOpened})` | optional open callback | Init SDK if `ONESIGNAL_APP_ID` set |
-| `setOnNotificationOpened(cb)` | `void Function(String reportId)` | Deep-link handler |
-| `setOnCriticalPush(cb)` | `(reportId, alertKind?)` | Foreground critical push → amber coordinator |
-| `requestPermission` / `isPushEnabled` / `setPushEnabled` | bool | Permission + opt-in state |
-| `loginUser(userId)` / `logoutUser()` | external user id | Bind/unbind OneSignal External ID |
-| `ensureOptedInIfAllowed()` | — | Re-opt-in when OS allows |
-
-### 2.9 `WebSocketService` (`websocket_service.dart`)
-
-Singleton. URL: `ws(s)://{apiHost}/ws?token=JWT`.
-
-| API | Inputs | Output / effect |
-|-----|--------|-----------------|
-| `connect()` / `disconnect()` / `dispose()` | — | Open/close channel; exponential reconnect |
-| `eventStream` | — | `Stream<IncidentEvent>` (`event` + `data` map) |
-| `statusStream` | — | connecting / connected / disconnected / reconnecting |
-
-`IncidentEvent` helpers: `reportId`, `status`, `incidentType(s)`, `severityLevel`, `barangay`, etc.
-
-Typical events consumed on mobile: `incident:created`, `incident:updated`, `incident:status_updated`, `responder:incident_alert`, backup-related events (coordinators).
-
-### 2.10 `ResponderService` (`responder_service.dart`)
-
-| Method | Inputs | Endpoint | Output |
-|--------|--------|----------|--------|
-| `toggleOnlineStatus(online, {latitude, longitude})` | bool + optional coords | `PATCH /api/responders/me/online-status` | `void` |
-| `getSelfProfile()` | — | `GET /api/responders/me/profile` | `Map` |
-| `getActiveIncidents()` | — | `GET /api/incidents/responder/active` | `List<Map>` |
-| `getAssignedIncidents()` | — | `GET /api/responders/me/assigned-incidents` | `List` from `incidents` |
-| `getMyTeam()` | — | `GET /api/responders/me/team` | `Map` |
-| `updateMyDispatchStatus(reportId, status)` | id, `response_status` | `PATCH /api/dispatches/me/status` | `void` |
-| `getIncidentHistory({page})` | page | `GET /api/incidents/responder/history` | `List` |
-| `getIncidentPreview(reportId)` | id | `GET /api/incidents/:id/responder-preview` | `Map` |
-| `acceptIncident(reportId)` | id | `POST /api/incidents/:id/accept` | `Map` |
-| `declineIncident(reportId)` | id | `POST /api/incidents/:id/decline` | `void` |
-| `updateResponderStatus(reportId, status)` | id, status | `PATCH /api/incidents/:id/responder-status` | `void` |
-| `requestBackup(reportId, target, {notes})` | target e.g. CDRRMO/nearby | `POST /api/incidents/:id/backup` | `Map` |
-| `joinBackup(reportId, backupId)` | ids | `POST /api/incidents/:id/backup/:backupId/join` | `Map` |
-| `declineBackup` / `withdrawBackup` | ids | `.../decline` / `.../withdraw` | `void` |
-| `updateBackupResponderStatus` | ids + status | `PATCH .../backup/:backupId/responder-status` | `void` |
-| `getBackupRequests(reportId)` | id | `GET /api/incidents/:id/backup` | `List` |
-
-### 2.11 `ResponderApplicationService`
-
-| Method | Inputs | Endpoint | Output |
-|--------|--------|----------|--------|
-| `getMyApplication()` | JWT | `GET /api/responder-applications/me` | `Map` status |
-| `submitApplication({personalDetails, govIdFile, specializationFields, fieldProofFiles, certificateFiles, otherDocFiles})` | multipart | `POST /api/responder-applications` | `Map` |
-
-Fields: `personal_details` + `specialization_fields` JSON; files `gov_id`, `proof_<field>`, `certificates`, `other_docs`.
-
-### 2.12 `DepartmentOpsService`
-
-| Method | Inputs | Endpoint | Output |
-|--------|--------|----------|--------|
-| `listDepartmentIncidents({limit, offset})` | pagination | `GET /api/incidents?exclude_duplicates=true` (server scopes dept) | `List<Map>` |
-| `listTeams({departmentCode})` | optional code | `GET /api/responders/teams` | `List` |
-| `assignTeam({reportId, departmentCode, departmentName?, teamName})` | assignment | `POST /api/dispatches` | `Map` |
-| `reassignTeam({reportId, departmentCode, teamName, reason})` | reason ≥ 10 chars | `POST /api/dispatches/reassign-team` | `Map` |
-| `resolveIncident(reportId)` | id | `PATCH /api/incidents/:id/status` `{status: resolved}` | `Map` |
-
-### 2.13 Alert coordinators and helpers
-
-| Service | Public API | Role |
-|---------|------------|------|
-| `ResponderAlertCoordinator` | `start` / `stop` / `setOnline` / `handleEvent` / `consumeReport` / `refreshOnlineStatus` | WS volunteer alerts → `IncidentAlertModal`; online gate; dedupe |
-| `EmergencyDispatchAlertCoordinator` | `start` / `stop` / `handleEvent` / `handleCriticalPush` / `consumeReport` / `dismissActiveAlert` | `incident:dispatched` + critical push → amber modal for ops/personnel |
-| `AmberAlertSound` | `start` / `stop` | Plays `sounds/emergency_alert.wav` (≤1 min); `stop` also hits native `rescuelink/amber` |
-| `ThemeService` | `getThemeMode` / `setThemeMode` | Persist light/dark/system |
-
-### 2.14 Key mobile flows
-
-```mermaid
-sequenceDiagram
-  participant UI as MobileUI
-  participant Inc as IncidentService
-  participant API as Backend
-  participant AI as AI_Service
-
-  UI->>Inc: reportEmergency()
-  Inc->>API: POST /api/incidents/emergency
-  API-->>Inc: incident Map
-  Inc-->>UI: success
-
-  UI->>Inc: reportWithAudio(lat,lng,audio,media)
-  Inc->>API: multipart /with-audio
-  API->>AI: classify/transcribe
-  API-->>Inc: incident Map with AI fields
-```
-
-```mermaid
-sequenceDiagram
-  participant UI as ResponderUI
-  participant RS as ResponderService
-  participant WS as WebSocketService
-  participant API as Backend
-
-  UI->>RS: toggleOnlineStatus(true)
-  RS->>API: PATCH /responders/me/online-status
-  WS-->>UI: responder:incident_alert
-  UI->>RS: acceptIncident(id)
-  RS->>API: POST /incidents/:id/accept
-  UI->>RS: updateResponderStatus or updateMyDispatchStatus
-```
+- OTP never arrives or the code expires: resend requires a new CAPTCHA; leaving the screen too long invalidates the attempt.
+- GPS indoors or with permission denied reports outside the service area even when the user is in Dagupan. Retry after a precise fix.
+- Unknown or mistyped phone numbers must not be treated as proof that an account exists.
 
 ---
 
-## 3. Web Dispatcher Dashboard
+### 2.2 Mobile App Sign In and Biometric Unlock
 
-### 3.1 Route / RBAC table
+**Feature Name:** Mobile App Sign In and Biometric Unlock
 
-Defined in `src/App.jsx` with `ProtectedRoute` + `ROLES` from `src/core/constants/index.js`.
+**Feature Description (technical):** Authenticates a citizen, volunteer, or field account with phone and password, then optionally unlocks later sessions from credentials stored only on the device. Password recovery is IPROG SMS, not Firebase Phone Auth and not the dispatcher email flow.
 
-Web role strings: `super-admin`, `dispatcher`, `department-admin`, `department-head`, `personnel` (backend `admin` normalizes to super-admin).
+**Inputs:**
 
-| Path | Allowed roles |
-|------|----------------|
-| `/login`, `/forgot-password`, `/enter-code`, `/create-password`, `/reset-password` | Public |
-| `/dashboard` | Super Admin, Dispatcher |
-| `/responder-applications`, `/responder-applications/:id` | Super Admin, Dispatcher |
-| `/insights` | Super Admin, Department Admin |
-| `/department/dashboard`, `/department/personnel` | Super Admin, Department Admin |
-| `/department/assigned-incidents` | Department Head only |
-| `/department/tasks` | Redirect → `/department/dashboard` |
-| `/departments`, `/departments/:id` | Super Admin |
-| `/audit`, `/adminactions` → `/adminactions`, `/team`, `/settings` | Super Admin |
-| `/map`, `/profile`, `/help`, `/incidents/:id` | Any authenticated staff role |
-| `/` | Redirect by `getDefaultRouteByRole` |
+- Login: `{phone, password}` → `POST /api/auth/login`.
+- Biometric toggle: local secure storage of enabled flag plus phone/password/token. Re-enable may require the password.
+- Forgot password: `{phone, captchaToken}` → `POST /api/auth/forgot-password/sms`; resend → `POST /api/auth/forgot-password/sms/resend` with a fresh CAPTCHA; `{phone, otp}` → `POST /api/auth/forgot-password/sms/verify`; then `{resetToken, newPassword}` → `POST /api/auth/reset-password`.
+- Logout: `POST /api/auth/logout`, clear token, `OneSignalService.logoutUser`.
 
-**Default routes:** Dispatcher → `/dashboard`; Dept Admin → `/department/dashboard`; Dept Head → `/department/assigned-incidents`; Personnel → `/department/tasks` (then redirected).
+**Outputs / System Response:**
 
-Unwired page files (not in router): e.g. `DepartmentVehiclesPage.jsx` — do not document as live UI.
+- Login returns `{token, user}` (or equivalent map). `AuthService.init` reloads the stored JWT and profile cache.
+- Verify-reset returns a short-lived `resetToken`. Reset returns a success map; the user signs in with the new password.
+- Unknown phones on forgot-password get a generic success response (no SMS), so the API does not reveal whether the number is registered.
+- Biometric helpers return a bool, stored credentials, or void. They do not call the login API until the stored password is submitted.
 
-### 3.2 Session + HTTP helpers
+**Business Rules / Logic:**
 
-**`core/auth/session.js`**
+- Mobile login identifier is the phone number, not email.
+- Role helpers on the stored session decide tabs: `isVolunteer`, `isPersonnelResponder`, `isDepartmentOps`, `hasResponderTab`, `hasOpsTab`, `getDepartmentCode` / `getDepartmentName`.
+- `ONESIGNAL_APP_ID` binds the external user id after login (`loginUser`). Push is skipped when the id is unset.
+- Sessions can expire server-side; the client must log in again. Logout can end other device sessions when that control is offered.
 
-| Export | Behavior |
-|--------|----------|
-| `hydrateAuthStores` | Sync `token` / `user` between localStorage ↔ sessionStorage |
-| `getAuthToken` / `persistAuthToken` | Read/write JWT in both stores |
-| `getStoredUser` / `persistAuthUser` / `getStoredRole` | User JSON + `normalizeRole` |
-| `hasRoleAccess(currentRole, allowedRoles)` | Empty allowlist → true; else membership check |
-| `clearAuthSession` | Clear MFA session token + auth keys; `sessionStorage.clear()` |
+**Edge Case or Risk:**
 
-**`http.js`**
-
-| Export | Inputs | Output |
-|--------|--------|--------|
-| `createRequestId(prefix)` | string | correlation id |
-| `getAuthHeaders({requestId, includeContentType})` | options | `Authorization: Bearer` + headers |
-| `parseJsonOrEmpty(response)` | Response | object or `{}` |
-| `parseErrorMessage(data, fallback)` | body | string |
-| Latency snapshot helpers | — | debug metrics |
-
-JWT is dual-stored so OneSignal `web_url` new tabs can authenticate.
-
-### 3.3 `auth.api.js`
-
-| Function | Args | Method / path | Returns |
-|----------|------|---------------|---------|
-| `loginDispatcher(email, password)` | strings | `POST /api/auth/dispatcher/login` | `{user, token}` or `{sessionToken, message}` if MFA |
-| `verifyDispatcherOtp(sessionToken, otp)` | strings | `POST /api/auth/dispatcher/verify-otp` | `{user, token}` |
-| `getMe()` | — | `GET /api/auth/me` | `user` object |
-| `updateMe(fields)` | `{firstName?, lastName?, address?}` | `PATCH /api/auth/me` | `user` |
-| `fetchAvatarBlob()` | — | `GET /api/auth/me/avatar` | `Blob` or `null` |
-| `uploadAvatar(file)` | `File` | `POST` multipart avatar | `user` |
-| `deleteAvatar()` | — | `DELETE` avatar | `user` |
-| `changePassword(current, new)` | strings | `POST /api/auth/change-password` | `{message}` |
-| `logout()` | — | `POST /api/auth/logout` | swallows errors; clear client session separately |
-| `invalidateAvatarCache()` | — | local | void |
-
-### 3.4 `incidents.api.js`
-
-| Function | Args | Method / path | Returns |
-|----------|------|---------------|---------|
-| `normalizeIncidentStatus(value)` | string | — | canonical status |
-| `getIncidents({limit, offset, severity_level, status, incident_type, barangay, exclude_duplicates, search, exclude_report_id, volunteer_accepted, archived, withMeta})` | filters | `GET /api/incidents?...` | array or `{items, totalCount, limit, offset}` |
-| `getIncidentById(id)` | id | `GET /api/incidents/:id` | incident object |
-| `getIncidentWithAi(id)` | id | `GET /api/incidents/:id/with-ai` | `{incident, ai_classification}` |
-| `verifyIncident(id)` | id | `POST /api/incidents/:id/verify` | verify / blockchain save result |
-| `updateIncidentStatus(id, status, metadata)` | id, status, meta | `PATCH /api/incidents/:id/status` | `{success, incident}` |
-| `reclassifyIncident(id, payload)` | type/severity/reason | `POST /api/incidents/:id/reclassify` | updated + override |
-| `getIncidentAudioUrl(id)` | id | `GET /api/incidents/:id/audio` | blob URL string |
-| `getCoordinationNotes(id)` | id | `GET /api/incidents/:id/coordination-notes` | notes array |
-| `addCoordinationNote(id, {note})` | id, note | `POST .../coordination-notes` | created note |
-| `getIncidentDuplicates(id)` | id | `GET /api/incidents/:id/duplicates` | duplicate info |
-| `getPotentialDuplicates(id)` | id | `GET /api/incidents/:id/potential-duplicates` | `{potential_duplicates}` |
-| `linkDuplicate(id, parentReportId, reason?)` | ids, reason | `POST /api/incidents/:id/link-duplicate` | result |
-| `unlinkDuplicate(id, reason?)` | id, reason | `POST /api/incidents/:id/unlink-duplicate` | result |
-| `clearDuplicateFlag(id)` | id | `POST /api/incidents/:id/clear-duplicate-flag` | result |
-| `getIncidentMediaUrl(id, index)` | id, index | `GET /api/incidents/:id/media/:index` | `{url, filename, contentType}` |
-| `getBackupRequests(id)` | id | `GET /api/incidents/:id/backup` | array |
-| `acknowledgeBackupRequest(incidentId, backupId)` | ids | `PATCH .../backup/:backupId/acknowledge` | ack |
-| `archiveIncident(id, {archive_notes}?)` | id, notes | `POST /api/incidents/:id/archive` | result |
-| `unarchiveIncident(id)` | id | `POST /api/incidents/:id/unarchive` | result |
-| `getIncidentEscalations(reportId)` | id | `GET /api/incidents/:id/escalations` | array |
-| `createIncidentEscalation(reportId, payload)` | id, payload | `POST .../escalations` | object |
-| `updateIncidentEscalationStatus(reportId, escalationId, payload)` | ids, payload | `PATCH .../escalations/:eid/status` | updated |
-
-List calls use short-lived client cache + in-flight dedupe.
-
-### 3.5 `dispatches.api.js`
-
-| Function | Args | Path | Returns |
-|----------|------|------|---------|
-| `createDispatch(payload)` | report_id, team/responder fields | `POST /api/dispatches` | dispatch result |
-| `undoDepartmentNotification(payload)` | report/dept identifiers | `POST /api/dispatches/undo-department` | result |
-| `confirmSuggestion(payload)` | suggested team payload | `POST /api/dispatches/confirm-suggestion` | result |
-| `reassignTeam(payload)` | report, team, reason | `POST /api/dispatches/reassign-team` | result |
-
-### 3.6 Departments, responders, applications, admin, audit, location, analytics, notifications
-
-**`departments.api.js`** — `GET/POST /api/departments`; `GET/PUT/DELETE /api/departments/:id`; units `GET/POST /api/departments/:id/units`; `POST .../units/:unitId/assign`.
-
-**`responders.api.js`** — `GET/POST /api/responders`; `PUT /api/responders/:id`; `PATCH /api/responders/:id/status`; teams under `/api/responders/teams` (+ members add/remove).
-
-**`responderApplications.api.js`**
-
-| Function | Path |
-|----------|------|
-| `listApplications` | `GET /api/responder-applications` → `{applications, total}` |
-| `getApplicationById` | `GET /api/responder-applications/:id` |
-| `updateApplicationStatus` | `PATCH /api/responder-applications/:id/status` |
-| `revokeResponderRole` | `POST /api/responder-applications/:id/revoke` |
-| `getDocumentUrl` | builds `GET .../documents/:filename?token=` |
-
-**`adminUsers.api.js`:** `GET/POST /api/admin/users`; `PUT .../:id/role`; `PUT .../:id/deactivate`.
-
-**`auditLog.api.js`:** `GET /api/audit-logs`; `GET /api/audit-logs/admin`.
-
-**`location.api.js`:** `POST /api/location/closest-units`; `GET /api/location/search`; `GET /api/location/reverse`; `POST /api/location/geofence-alerts`; `GET /api/location/heatmap`.
-
-**`analytics.api.js` (Insights):** `GET /api/analytics/overview`; `GET /api/analytics/incidents`; `GET /api/analytics/export.csv`; `GET /api/analytics/barangays.geojson`. Params include date range and `department_id` (incl. `volunteers` virtual scope for Super Admin).
-
-**`notifications.api.js`:** `GET /api/notifications`; `POST /api/notifications/:id/read`; `POST /api/notifications/mark-all-read`; `GET /api/notifications/unread-count`.
-
-### 3.7 `useIncidentWebSocket`
-
-Transport: `WS(S) {API_URL}/ws?token=…`. Every message also fires DOM `incident:updated` with `{incidentId, event, data}`.
-
-| Return field | Meaning |
-|--------------|---------|
-| `status` | `connected` \| `reconnecting` \| `disconnected` |
-| `notifications` | In-memory toast list from WS events |
-| `clearNotifications` | Clear local list |
-| `lastHighSeverity` | Set on `incident:created` when severity high/critical |
-| `lastDispatched` | `incident:dispatched` |
-| `lastBackupRequested` / `lastBackupJoined` | `responder:backup_requested` / `responder:backup_joined` |
-| `lastEscalated` | any `incident:escalat*` |
-
-Other titled events include `incident:status_updated`, `incident:verified`, `incident:resolution_confirmed`, `incident:note_added`, `incident:accepted`, escalation accepted/declined/cancelled/resolved, `responder:status_changed`, backup acknowledged/declined/status_changed.
-
-### 3.8 OneSignal web (`oneSignalWebService.js`)
-
-| Function | Behavior |
-|----------|----------|
-| `getPushNotificationState()` | `granted` \| `denied` \| `default` \| `unsupported` |
-| `initOneSignal(onNotificationClick?)` | Init if `ONESIGNAL_APP_ID`; click → `/incidents/:id` |
-| `setOneSignalUser(userId, {role?, departmentId?, departmentCode?})` | External ID + tags + opt-in |
-| `logoutOneSignal()` | SDK logout |
-| `requestPushPermission()` | Native permission → opt-in/sync; `boolean` |
-| `syncOneSignalSubscriptionToBackend(subscriptionId)` | `POST /api/auth/onesignal-subscription` `{onesignal_player_id}` |
-
-### 3.9 Key page behaviors (implementation anchors)
-
-| Behavior | Where | Calls |
-|----------|-------|-------|
-| Queue filter/sort | `DashboardPage` | `getIncidents` |
-| Verify / reclassify / status | `IncidentDetailsPage` | `verifyIncident`, `reclassifyIncident`, `updateIncidentStatus` |
-| Duplicate link/unlink | detail + dialogs | `linkDuplicate`, `unlinkDuplicate`, `clearDuplicateFlag` |
-| Dispatch / confirm suggestion | detail / dispatch UI | `createDispatch`, `confirmSuggestion`, `reassignTeam` |
-| Applications approve/reject | application pages | `updateApplicationStatus` |
-| Insights filters + live refresh | `InsightsPage` | analytics APIs + `incident:updated` debounce |
-
-Feature flag: `VITE_USE_BLOCKCHAIN` toggles blockchain vs audit-trail labels in UI (backend `USE_BLOCKCHAIN`).
+- Biometric failure falls back to password, then Privacy & security can toggle the local flag off and on. Device biometric enrollment is outside the app.
+- A pending password-reset OTP must not be accepted as registration OTP.
+- Generic forgot-password success means a wrong number looks the same as a real send. Users retry with the registered phone.
 
 ---
 
-## 4. Cross-cutting roles and flags
+### 2.3 Quick SOS Emergency Alert
 
-### Backend roles (`Backend/src/config/roles.js`)
+**Feature Name:** Quick SOS Emergency Alert (One-Touch / Shake-to-Report)
 
-`user`, `volunteer`, `responder`, `dispatcher`, `supervisor`, `admin`, `department-admin`, `department-head`.
+**Feature Description (technical):** Sends a GPS-only incident with no audio. The Home SOS control or a foreground shake starts a client cancel window; if it expires, `IncidentService.reportEmergency` reads the current position through `AuthService` and posts coordinates.
 
-Mobile citizens use `user` → may become `volunteer` after application approval; department/responder staff use corresponding roles. Web dashboard maps `admin` → `super-admin` for route gates.
+**Inputs:**
 
-### Feature flags affecting clients
+- Trigger: SOS control, or shake while the app is in the foreground on any Home tab.
+- Body: `{latitude, longitude}` → `POST /api/incidents/emergency`.
+- Location permission must already be granted.
 
-| Flag | Where | Effect |
-|------|-------|--------|
-| `USE_BLOCKCHAIN` | Backend `.env` | Verify writes on-chain vs audit UUID |
-| `VITE_USE_BLOCKCHAIN` | Web `.env` | UI labeling |
-| `ONESIGNAL_APP_ID` | Mobile + Web `.env` | Push enablement |
-| `DISPATCHER_MFA_ENABLED` | Backend | Login returns `sessionToken` → OTP step |
+**Outputs / System Response:**
+
+- Created incident map (status begins at `pending`).
+- The report appears in the citizen history and on the dashboard queue / map.
+- Throws `IncidentServiceException` on location, network, or HTTP failure. No incident is created if the user cancels inside the window.
+
+**Business Rules / Logic:**
+
+- Cancel window is about 5 seconds and is enforced in the client before the POST.
+- This path does not call the AI transcription pipeline. A later full report is a separate `with-audio` incident.
+- Push and websocket `incident:created` notify staff. OneSignal critical alerts are a separate channel from this POST.
+
+**Edge Case or Risk:**
+
+- Accidental shake: cancel before the POST. After the POST, staff must treat it as a real `pending` incident.
+- Missing GPS or denied permission fails the call; the client must not submit `0,0` as a stand-in.
+- Repeated taps while a request is in flight can create duplicate incidents. The client should allow one in-flight SOS.
 
 ---
 
-## 5. Pointers (do not duplicate)
+### 2.4 Full Emergency Report
+
+**Feature Name:** Full Emergency Report (Voice and Media)
+
+**Feature Description (technical):** Submits a multipart incident that requires an audio description. The backend forwards audio to the AI service for transcription and classification. Optional photo or video rides in the same request. After staff resolve the incident, the reporter can confirm resolution.
+
+**Inputs:**
+
+- `reportWithAudio({latitude, longitude, description?, audioBytes, audioFilename, mediaFiles?})` → `POST /api/incidents/with-audio`.
+- Audio bytes are required. Media files are optional.
+- Microphone, and camera or gallery if media is attached.
+- Later: `POST /api/incidents/:id/confirm-resolution`.
+
+**Outputs / System Response:**
+
+- Incident map including AI fields when classification finishes.
+- Uploads pass `runUploadSecurityChecks` before storage. With ClamAV enabled (`FILE_DEEP_SCAN_ENGINE=clamav`, `FILE_SCANNER_AVAILABLE=true`), an infected buffer returns 400 and is not stored.
+- Confirm-resolution returns an updated incident map. The reporter sees the status timeline move through the primary enum.
+
+**Business Rules / Logic:**
+
+- No audio means this endpoint is not the SOS path. The submit action stays unavailable until a recording exists.
+- GPS is captured when permitted; barangay and reverse geocode use `GET /api/location/barangay` and `GET /api/location/reverse`.
+- Initial scan status is `clean` when middleware already set `deep.scanned`. A retry cron covers legacy `pending` / `unscanned` rows only.
+- `FILE_SCAN_FAIL_OPEN=false` is the production preference: scanner failure does not store the file.
+
+**Edge Case or Risk:**
+
+- Large video on a weak link fails the multipart upload; the incident may not exist until the request succeeds. Retry once rather than stacking submits.
+- Quarantine or scan hold blocks playback later (`downloadIncidentAudio` / `downloadIncidentMedia`).
+- AI classification can be absent or wrong. Staff reclassify on the dashboard; the mobile client must not treat the model label as final.
+
+---
+
+### 2.5 Incident Tracking and Report History
+
+**Feature Name:** Incident Tracking and Report History
+
+**Feature Description (technical):** Lists the signed-in user’s incidents and opens one record with optional AI classification, evidence download, and in-app notifications. Live changes arrive on the websocket, not by polling alone.
+
+**Inputs:**
+
+- `getMyIncidents({limit, offset, status, incidentType, involvement})` → `GET /api/incidents/user/my`.
+- `getIncidentById(reportId, {withAi})` → `GET /api/incidents/:id` or `.../with-ai`. `getIncidentWithAiFallback` tries with-ai, then plain.
+- Downloads: `GET /api/incidents/:id/audio` and `GET /api/incidents/:id/media/:index`.
+- Notifications: `GET /api/notifications`, `POST /api/notifications/mark-all-read`, `GET /api/notifications/unread-count` (returns 0 on error).
+- OneSignal open callback supplies a `reportId` for deep link when the user is signed in.
+
+**Outputs / System Response:**
+
+- Incident list and a detail map `{incident, ai_classification}` when AI data exists.
+- `IncidentFileDownload` for audio and media.
+- Unread count integer. Mark-all-read returns the affected count.
+- Websocket `IncidentEvent` exposes `reportId`, `status`, incident type(s), `severityLevel`, and `barangay`. Relevant events include `incident:created`, `incident:updated`, `incident:status_updated`.
+
+**Business Rules / Logic:**
+
+- Timeline wording follows `pending` → `verified` → `in_progress` → `resolved` → `closed`.
+- A nearby-report note is informational. Citizens do not link or merge duplicates.
+- Pull-to-refresh re-fetches the list; the websocket updates an open detail when the channel is connected.
+- Status reconnect uses exponential backoff (`connecting` / `connected` / `disconnected` / `reconnecting`).
+
+**Edge Case or Risk:**
+
+- `getUnreadCount` swallowing errors as 0 hides a dead notifications API behind an empty badge.
+- Media still in scan quarantine will not play; refresh does not override a hold.
+- Deep link from a push fails when the JWT is missing. The user must sign in, then open the incident again.
+
+---
+
+### 2.6 Applying as a Volunteer First Responder
+
+**Feature Name:** Applying as a Volunteer First Responder
+
+**Feature Description (technical):** Lets a citizen role submit one multipart responder application. Staff approval changes the account toward `volunteer` so the Responder tab can appear. Revoke removes that access and notifies the user.
+
+**Inputs:**
+
+- `GET /api/responder-applications/me` for current status.
+- `POST /api/responder-applications` multipart: `personal_details` and `specialization_fields` JSON; files `gov_id` (required), `proof_<field>`, `certificates`, `other_docs`.
+- Specialization examples used by the product: Fire, Medical, Police, Disaster.
+
+**Outputs / System Response:**
+
+- Submit returns the application map.
+- Status values the client must handle: pending review, approved, not approved (reviewer notes).
+- Approval updates role helpers so `hasResponderTab` becomes true on a later session read.
+- Revoke sends a notification that includes the administrative reason.
+
+**Business Rules / Logic:**
+
+- Government ID is required. Certificates and extra documents are optional.
+- The same upload security gate as incident media applies (`runUploadSecurityChecks`, ClamAV before store).
+- Only an approved volunteer (or a personnel responder) gets live alert intake. A pending application does not.
+- Re-apply after rejection or revoke follows local policy; the API exposes the latest application on `/me`.
+
+**Edge Case or Risk:**
+
+- Unreadable ID should be rejected server-side by staff, not silently approved. The client surfaces reviewer notes.
+- A failed upload must not leave a half-submitted application that looks pending.
+- Role cache can lag the approval. The user may need a fresh `GET /api/auth/me` before the Responder tab appears.
+
+---
+
+### 2.7 Responder Mode
+
+**Feature Name:** Responder Mode (Online Status and Alert Response)
+
+**Feature Description (technical):** Approved volunteers and personnel responders receive incidents only while online, accept or decline them, and advance a response status. Formal team assignments skip the separate accept step. Department-ops accounts on mobile use a scoped incident list and team assign/resolve instead of the volunteer alert modal.
+
+**Inputs:**
+
+- `PATCH /api/responders/me/online-status` with `online` plus optional latitude/longitude.
+- Alerts: websocket `responder:incident_alert` and OneSignal critical push → `ResponderAlertCoordinator` / `EmergencyDispatchAlertCoordinator`.
+- `POST /api/incidents/:id/accept` or `.../decline`. Preview: `GET /api/incidents/:id/responder-preview`.
+- Status: `PATCH /api/incidents/:id/responder-status` or `PATCH /api/dispatches/me/status` with `response_status` (`assigned` → `en_route` → `on_scene` → `resolved`, as shown on screen).
+- Backup: `POST /api/incidents/:id/backup` (target such as CDRRMO or nearby, optional notes), join / decline / withdraw, and backup status patch.
+- Lists: `GET /api/incidents/responder/active`, `GET /api/responders/me/assigned-incidents`, `GET /api/incidents/responder/history`, `GET /api/responders/me/team`.
+- Department ops: `GET /api/incidents?exclude_duplicates=true` (server scopes the department), `POST /api/dispatches`, `POST /api/dispatches/reassign-team` (reason at least 10 characters), `PATCH /api/incidents/:id/status` with `{status: resolved}`.
+
+**Outputs / System Response:**
+
+- Online toggle returns void on success. Alerts open `IncidentAlertModal` or the amber dispatch modal (`sounds/emergency_alert.wav`, max about 1 minute; stop also hits native `rescuelink/amber`).
+- Accept returns the incident map. Decline returns void.
+- Team assignment shows “Assigned to my team” and a roster when the API includes one.
+- History returns resolved incidents the responder participated in.
+
+**Business Rules / Logic:**
+
+- `ResponderAlertCoordinator` dedupes events and drops alerts when the user is offline.
+- Specialization filters which incidents are offered.
+- Backup request is disabled once a formal team is already assigned.
+- Amber / critical push is for ops and personnel (`incident:dispatched`), separate from the volunteer accept modal.
+- Reassign releases the previous team according to server rules.
+
+**Edge Case or Risk:**
+
+- Offline, specialization mismatch, or a disconnected websocket produces no alert even when incidents exist. Push still requires notification permission and `ONESIGNAL_APP_ID`.
+- Accept then a failed detail fetch: refresh or re-enter via the notification `reportId`.
+- Department-ops mobile cannot replace city-wide verify, duplicate linking, or admin tools; those stay on the web dashboard.
+
+---
+
+## 3. Web Dispatcher Dashboard Features
+
+Web roles in `src/App.jsx`: `super-admin`, `dispatcher`, `department-admin`, `department-head`, `personnel`. Backend `admin` normalizes to `super-admin`. Backend role strings also include `user`, `volunteer`, `responder`, `supervisor`.
+
+### 3.1 Web Dashboard Sign In and Role-Based Navigation
+
+**Feature Name:** Web Dashboard Sign In and Role-Based Navigation
+
+**Feature Description (technical):** Staff authenticate with email and password. When dispatcher MFA is on, login returns a `sessionToken` and the client must complete email OTP before a JWT is stored. `ProtectedRoute` plus `hasRoleAccess` hides routes the role cannot open.
+
+**Inputs:**
+
+- `POST /api/auth/dispatcher/login` with email and password.
+- If `DISPATCHER_MFA_ENABLED`: `POST /api/auth/dispatcher/verify-otp` with `sessionToken` and OTP.
+- Forgot password: staff email code flow (`/forgot-password`, `/enter-code`, `/create-password`, `/reset-password`). This is not the mobile IPROG SMS flow.
+- Session helpers: `hydrateAuthStores`, `persistAuthToken`, `persistAuthUser`, `clearAuthSession`.
+- Optional push: `initOneSignal`, `setOneSignalUser(userId, {role, departmentId, departmentCode})`, `POST /api/auth/onesignal-subscription` with `{onesignal_player_id}`.
+
+**Outputs / System Response:**
+
+- `{user, token}` or `{sessionToken, message}` when MFA is required, then `{user, token}` after OTP.
+- Default route from `getDefaultRouteByRole`: Dispatcher → `/dashboard`; Department Admin → `/department/dashboard`; Department Head → `/department/assigned-incidents`; Personnel → `/department/tasks` (redirects to `/department/dashboard`).
+- A disallowed URL renders an access notice. `hasRoleAccess` treats an empty allowlist as open.
+
+**Business Rules / Logic:**
+
+- Public paths: `/login`, `/forgot-password`, `/enter-code`, `/create-password`, `/reset-password`.
+- `/dashboard` and responder applications: Super Admin, Dispatcher.
+- `/insights` and department dashboard/personnel: Super Admin, Department Admin.
+- `/department/assigned-incidents`: Department Head only.
+- `/departments`, `/audit`, `/adminactions`, `/team`, `/settings`: Super Admin.
+- `/map`, `/profile`, `/help`, `/incidents/:id`: any authenticated staff role.
+- Unwired page files (for example `DepartmentVehiclesPage.jsx`) are not live routes.
+
+**Edge Case or Risk:**
+
+- Dual storage of the JWT is required for OneSignal new tabs. Clearing only one store leaves a half-session.
+- Missing OTP email (spam, wrong staff address) leaves the user on the MFA step with no JWT.
+- A deactivated account fails login; the client cannot elevate its own role. Super Admin changes roles via `PUT /api/admin/users/:id/role` and deactivates via `PUT /api/admin/users/:id/deactivate`.
+
+---
+
+### 3.2 Incident Queue, Verification, and Reclassification
+
+**Feature Name:** Incident Queue, Verification, and Reclassification
+
+**Feature Description (technical):** The dispatcher queue lists incidents with filters and opens a detail record for verify, reclassify, status changes, coordination notes, and archive. Verify writes either an on-chain record or an audit UUID depending on flags. The audit log screen is the Super Admin view of those writes.
+
+**Inputs:**
+
+- `getIncidents({limit, offset, severity_level, status, incident_type, barangay, exclude_duplicates, search, exclude_report_id, volunteer_accepted, archived, withMeta})` → `GET /api/incidents`.
+- Detail: `GET /api/incidents/:id` and `GET /api/incidents/:id/with-ai`.
+- `POST /api/incidents/:id/verify`.
+- `POST /api/incidents/:id/reclassify` with type, severity, and reason when required.
+- `PATCH /api/incidents/:id/status` with status and metadata. Force close is limited to admin/dispatcher roles.
+- Notes: `GET/POST /api/incidents/:id/coordination-notes`.
+- Archive: `POST /api/incidents/:id/archive` and `.../unarchive`.
+- Audit: `GET /api/audit-logs` and `GET /api/audit-logs/admin` (Super Admin route `/audit`).
+- Live: `useIncidentWebSocket` status plus DOM `incident:updated`. High severity sets `lastHighSeverity` on `incident:created`.
+
+**Outputs / System Response:**
+
+- List is an array, or `{items, totalCount, limit, offset}` when `withMeta` is set. List calls use a short-lived client cache and in-flight dedupe.
+- Verify returns the save result (blockchain or audit).
+- Status update returns `{success, incident}`. Reclassify returns the updated incident plus the override.
+- Notes return the created note. Websocket also emits `incident:verified`, `incident:status_updated`, `incident:note_added`.
+
+**Business Rules / Logic:**
+
+- Primary status order is `pending` → `verified` → `in_progress` → `resolved` → `closed`. Archive is not a step in that enum.
+- `USE_BLOCKCHAIN` selects on-chain verify vs audit UUID. `VITE_USE_BLOCKCHAIN` only changes UI labels.
+- Coordination notes are staff-only.
+- Failed verify or reclassify should roll the detail UI back; the server remains the source of truth after refresh.
+- Escalation endpoints exist (`GET/POST /api/incidents/:id/escalations` and status patch) and surface as `lastEscalated` / `incident:escalat*` on the socket.
+
+**Edge Case or Risk:**
+
+- Stale queue filters hide new incidents. Clear filters and honor `incident:updated`.
+- Treating AI classification as authoritative overwrites a correct citizen report. Reclassify requires a reason.
+- Blockchain outage: with `USE_BLOCKCHAIN` on, verify can fail even when the incident row is valid. Retry or check the flag; do not invent a second status.
+
+---
+
+### 3.3 Duplicate Incident Detection and Linking
+
+**Feature Name:** Duplicate Incident Detection and Linking
+
+**Feature Description (technical):** Surfaces possible duplicate reports and lets staff link, unlink, or clear the flag. Linking points a secondary report at a parent. The server does not auto-merge bodies or delete citizen evidence.
+
+**Inputs:**
+
+- `GET /api/incidents/:id/duplicates` and `GET /api/incidents/:id/potential-duplicates`.
+- `POST /api/incidents/:id/link-duplicate` with parent report id and optional reason.
+- `POST /api/incidents/:id/unlink-duplicate` with optional reason.
+- `POST /api/incidents/:id/clear-duplicate-flag`.
+- Queue filter `exclude_duplicates` and `exclude_report_id` when picking a parent.
+
+**Outputs / System Response:**
+
+- `{potential_duplicates}` for suggestions.
+- Link result stores the parent reference. The secondary incident stays addressable.
+- Unlink restores a standalone incident. Clear flag removes a false positive without requiring a parent.
+
+**Business Rules / Logic:**
+
+- Staff judgment only. No automatic merge.
+- Department incident lists on mobile already pass `exclude_duplicates=true`.
+- Related-report search uses the same incident query (barangay, text search, exclude the current id).
+
+**Edge Case or Risk:**
+
+- Linking the wrong parent hides the secondary from duplicate-excluded queues. Unlink is the recovery.
+- Clearing a flag does not delete the report. Operators can miss a real duplicate if they clear too early.
+- Citizen clients may show an informational nearby-report note. They have no link API.
+
+---
+
+### 3.4 Emergency Unit and Team Dispatching
+
+**Feature Name:** Emergency Unit and Team Dispatching
+
+**Feature Description (technical):** Assigns one responder or a department team to an incident, confirms a suggested team, reassigns, or undoes a department notification before a team exists. Mobile department-ops uses the same dispatch endpoints.
+
+**Inputs:**
+
+- `POST /api/dispatches` with report id and team or responder fields (`createDispatch` / `assignTeam`).
+- `POST /api/dispatches/confirm-suggestion` for an on-screen suggested team.
+- `POST /api/dispatches/reassign-team` with report, team, and reason (mobile ops requires reason length ≥ 10).
+- `POST /api/dispatches/undo-department` while no team has been created.
+- Supporting reads: `GET /api/responders/teams`, `GET /api/departments/:id/units`.
+- Responder progress events: `incident:dispatched`, `incident:accepted`, `responder:status_changed`.
+
+**Outputs / System Response:**
+
+- Dispatch result with the assigned team or responder.
+- OneSignal / websocket alert to the assigned clients (`lastDispatched` on the dashboard hook).
+- Reassign releases the previous team and notifies them.
+- Undo returns the incident to the pre-team department-notification state when the server still allows it.
+
+**Business Rules / Logic:**
+
+- Confirm a suggestion before treating the badge as an assignment. Suggestion is not a dispatch until `confirm-suggestion` or `createDispatch` succeeds.
+- Availability and specialization determine who appears. Volunteers must be online on the mobile app.
+- Backup requests (`responder:backup_requested` / `responder:backup_joined`) are a parallel path; acknowledging a backup is `PATCH /api/incidents/:id/backup/:backupId/acknowledge`.
+- City-wide dispatch UI is the web incident detail. Mobile department ops can assign and resolve for the caller’s department only.
+
+**Edge Case or Risk:**
+
+- Undo after a team exists is rejected. Use reassign instead.
+- A suggested team that is never confirmed leaves the incident undispatched.
+- Responders with push denied or Do Not Disturb on will not hear the alert even though the dispatch row exists.
+
+---
+
+### 3.5 Volunteer Responder Application Review
+
+**Feature Name:** Volunteer Responder Application Review
+
+**Feature Description (technical):** Super Admin and Dispatcher review pending volunteer applications, open protected documents, and approve, reject, or later revoke the responder role.
+
+**Inputs:**
+
+- `GET /api/responder-applications` → `{applications, total}`.
+- `GET /api/responder-applications/:id`.
+- `PATCH /api/responder-applications/:id/status` with the decision and reviewer notes.
+- `POST /api/responder-applications/:id/revoke` with an administrative reason.
+- Document fetch: `GET .../documents/:filename?token=` via `getDocumentUrl`. Routes: `/responder-applications` and `/responder-applications/:id`.
+
+**Outputs / System Response:**
+
+- Status badge moves to approved or rejected.
+- Approval updates the user toward the volunteer/responder role. The mobile client sees the result on `GET /api/responder-applications/me` and a notification.
+- Revoke removes responder access and notifies the applicant with the reason.
+- Documents open only through the authenticated URL, not a public object path.
+
+**Business Rules / Logic:**
+
+- Allowed roles: Super Admin and Dispatcher. Other roles have no menu entry.
+- Government ID is the required file. Certificates are supporting evidence.
+- Reject must include reviewer notes the applicant can read.
+- Download stays on the protected viewer. Do not copy the tokenized URL into an unauthenticated channel.
+
+**Edge Case or Risk:**
+
+- Blurry ID is a reject-and-reapply case, not an override that skips the file.
+- Pop-up or download blockers in the browser surface as “cannot open certificate” even when the API returned the file.
+- Revoke without a reason leaves the applicant with no actionable notification.
+
+---
+
+### 3.6 Operations Map and Live Heatmap
+
+**Feature Name:** Operations Map and Live Heatmap
+
+**Feature Description (technical):** Renders OSM incident pins for situational awareness, with department and barangay filters, closest-unit lookup, and an optional density heatmap. The heatmap is a live concentration layer, not a historical report.
+
+**Inputs:**
+
+- Authenticated route `/map` (any staff role).
+- Incident list filters (department, barangay, status) feeding pin data.
+- `POST /api/location/closest-units`.
+- `GET /api/location/search` and `GET /api/location/reverse`.
+- `GET /api/location/heatmap`.
+- `POST /api/location/geofence-alerts`.
+- Pin selection opens the incident popup and can navigate to `/incidents/:id`.
+
+**Outputs / System Response:**
+
+- Map centered on Dagupan with color-coded incident markers.
+- Closest-unit response for the selected point.
+- Heatmap GeoJSON or density payload from `/api/location/heatmap`.
+- Reverse-geocode address map for a coordinate.
+
+**Business Rules / Logic:**
+
+- Basemap is OpenStreetMap. There is no Google Maps routing or turn-by-turn product path.
+- Heatmap shows concentration of recent points. Period analysis belongs on Insights.
+- Filters compose with the incident query. An empty map is often an active filter, not an empty database.
+- Recenter returns the camera to the Dagupan default in `AppConfig` / map constants.
+
+**Edge Case or Risk:**
+
+- Heatmap on a large viewport is slower than pins alone. Operators can disable the layer.
+- Geofence alerts are not a substitute for the dispatch assignment flow.
+- Wrong region after a pan is a camera state issue; data is still Dagupan-scoped on the server.
+
+---
+
+### 3.7 Period Insights and Operations Analytics
+
+**Feature Name:** Period Insights and Operations Analytics
+
+**Feature Description (technical):** Period KPIs, SLA-style clocks, demand by type and barangay, exceptions, and outcomes for Super Admin and Department Admin. Live incident events debounce a refresh. This page is not the dispatch queue.
+
+**Inputs:**
+
+- Route `/insights`.
+- `GET /api/analytics/overview` and `GET /api/analytics/incidents` with date range and `department_id`.
+- Super Admin may pass a department id or the virtual `volunteers` scope. Department Admin is scoped to their own department.
+- `GET /api/analytics/export.csv` for CSV. Print/PDF uses the browser.
+- `GET /api/analytics/barangays.geojson` for the barangay layer.
+- Refresh trigger: DOM `incident:updated` (debounced) plus the on-page live / last-updated indicator.
+
+**Outputs / System Response:**
+
+- Overview and incident aggregates for the selected range and scope.
+- CSV download of the same filters.
+- Metric help is in the page `?` copy (plain definitions), not a second API.
+
+**Business Rules / Logic:**
+
+- Roles: Super Admin and Department Admin only. Dispatchers do not get this route.
+- Department Admins cannot query another department by changing a client parameter; the server enforces scope.
+- Insights reads historical period data. Creating or verifying an incident still happens on the queue and detail pages.
+- Seed data for demos is `npm run seed-db` (about 300 incidents over about 90 days). That command is an operator tool, not a dashboard control.
+
+**Edge Case or Risk:**
+
+- An empty chart usually means the date range or department scope has no rows, not a broken query.
+- Export blocked by the browser looks like a failed API. Confirm the CSV request status before retrying.
+- Debounced live refresh can lag a few seconds behind `incident:updated`. The queue remains the operational list.
+
+---
+
+## 4. Pointers
 
 | Topic | Document |
 |-------|----------|
@@ -458,10 +571,11 @@ Mobile citizens use `user` → may become `volunteer` after application approval
 
 ---
 
-## 6. Document control
+## 5. Document control
 
 | Item | Value |
 |------|--------|
 | Document | RescueLink Technical Manual (Mobile + Dashboard) |
-| Depth | Public services / API modules and major flows — not every private widget method |
-| Source paths | `Frontend/Mobile/lib/services/*`, `Frontend/Web/dispatcher_dashboard/src/data/api/*`, `App.jsx` |
+| Template | Technical-audience feature card: name, technical description, inputs, outputs, business rules, edge case or risk |
+| Depth | One card per implemented user-facing feature. Endpoint catalogs live in the API docs. |
+| Source | Implemented services under `Frontend/Mobile/lib/services/*`, `Frontend/Web/dispatcher_dashboard/src/data/api/*`, and `App.jsx` |
