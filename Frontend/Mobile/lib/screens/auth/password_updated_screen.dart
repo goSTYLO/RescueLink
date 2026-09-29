@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../utils/responsive.dart';
+import '../../widgets/glass_card.dart';
 
 class PasswordUpdatedScreen extends StatelessWidget {
   final VoidCallback? onBackToLogin;
@@ -8,6 +9,7 @@ class PasswordUpdatedScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
@@ -15,7 +17,6 @@ class PasswordUpdatedScreen extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Column(
             children: [
-              // Top row: spacer, logo, Skip
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 crossAxisAlignment: CrossAxisAlignment.center,
@@ -24,7 +25,13 @@ class PasswordUpdatedScreen extends StatelessWidget {
                   _buildLogo(context),
                   TextButton(
                     onPressed: onBackToLogin,
-                    child: const Text('Skip', style: TextStyle(color: Color(0xFF6B7280), fontSize: 14)),
+                    child: Text(
+                      'Skip',
+                      style: TextStyle(
+                        color: colorScheme.onSurfaceVariant,
+                        fontSize: 14,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -34,13 +41,8 @@ class PasswordUpdatedScreen extends StatelessWidget {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Container(
+                      GlassCard(
                         padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 20, offset: const Offset(0, 4))],
-                        ),
                         child: Column(
                           children: [
                             SizedBox(
@@ -79,7 +81,13 @@ class PasswordUpdatedScreen extends StatelessWidget {
                                     padding: const EdgeInsets.symmetric(vertical: 16),
                                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                   ),
-                                  child: const Text('Back to Login', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                                  child: const Text(
+                                    'Back to Login',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
@@ -87,9 +95,12 @@ class PasswordUpdatedScreen extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 24),
-                      const Text(
+                      Text(
                         'Your password has been updated\nsuccessfully. You can now log in with\nyour new password.',
-                        style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
                         textAlign: TextAlign.center,
                       ),
                     ],
@@ -104,6 +115,7 @@ class PasswordUpdatedScreen extends StatelessWidget {
   }
 
   Widget _buildLogo(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Row(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -130,7 +142,13 @@ class PasswordUpdatedScreen extends StatelessWidget {
                 ],
               ),
             ),
-            const Text('Emergency Response and Safety', style: TextStyle(color: Color(0xFF6B7280), fontSize: 13)),
+            Text(
+              'Emergency Response and Safety',
+              style: TextStyle(
+                color: colorScheme.onSurfaceVariant,
+                fontSize: 13,
+              ),
+            ),
           ],
         ),
       ],

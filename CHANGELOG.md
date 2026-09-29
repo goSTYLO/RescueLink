@@ -2,6 +2,7 @@
 
 ## 2026-09-29
 
+- Mobile forgot-password flow: screens follow light/dark theme (system/app); text fields no longer force white fills so typed text stays readable; OTP/success/error cards use `GlassCard`.
 - Mobile home: **Current Location** uses live GPS + reverse geocode (no longer hardcoded Dagupan). Outside Dagupan (or GPS unavailable) locks SOS, Report, shake, and Reports FAB; status card reflects Ready / Outside / unavailable. Dev bypass via `BYPASS_LOCATION_CHECK`.
 - Audit log Excel export: only read the response as JSON on error — success path uses `blob()` once (fixes "body stream already read").
 - Audit log Excel columns auto-size to content (min 10 / max 60 chars).

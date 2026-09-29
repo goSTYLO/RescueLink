@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../utils/responsive.dart';
 import 'package:flutter/services.dart';
+import '../../widgets/glass_card.dart';
 import '../../widgets/gradient_header.dart';
 
 class VerifyNumberScreen extends StatefulWidget {
@@ -120,6 +121,8 @@ class _VerifyNumberScreenState extends State<VerifyNumberScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final outline = colorScheme.outline.withValues(alpha: 0.5);
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Column(
@@ -138,103 +141,138 @@ class _VerifyNumberScreenState extends State<VerifyNumberScreen> {
                   children: [
                     _buildLogo(),
                     const SizedBox(height: 20),
-              SizedBox(
-                height: 180,
-                child: Image.asset(
-                  'assets/images/verifynumber_illustration.png',
-                  fit: BoxFit.contain,
-                ),
-              ),
-              const SizedBox(height: 24),
-              const SizedBox(height: 20),
-              const Icon(Icons.shield_outlined, color: Color(0xFF2563EB), size: 32),
-              const SizedBox(height: 8),
-              Text(
-                widget.phoneNumber,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF111827)),
-              ),
-              const SizedBox(height: 24),
-              Container(
-                padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFE5E7EB)),
-                  boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 2))],
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: List.generate(6, (i) {
-                    return SizedBox(
-                      width: 44,
-                      child: TextField(
-                        controller: _controllers[i],
-                        focusNode: _focusNodes[i],
-                        keyboardType: TextInputType.number,
-                        textAlign: TextAlign.center,
-                        maxLength: 1,
-                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                        decoration: InputDecoration(
-                          counterText: '',
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                          contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
-                        onChanged: (v) {
-                          if (v.isNotEmpty && i < 5) FocusScope.of(context).requestFocus(_focusNodes[i + 1]);
-                          if (v.isEmpty && i > 0) FocusScope.of(context).requestFocus(_focusNodes[i - 1]);
-                          _onCodeComplete();
-                        },
+                    SizedBox(
+                      height: 180,
+                      child: Image.asset(
+                        'assets/images/verifynumber_illustration.png',
+                        fit: BoxFit.contain,
                       ),
-                    );
-                  }),
-                ),
-              ),
-              const SizedBox(height: 16),
-              const Text('Waiting for code', style: TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
-              const SizedBox(height: 4),
-              if (_resendSeconds > 0)
-                Text(
-                  'Resend code in 00:${_resendSeconds.toString().padLeft(2, '0')}',
-                  style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
-                )
-              else
-                TextButton(
-                  onPressed: (_resendInFlight || widget.onResendCode == null)
-                      ? null
-                      : _resendCode,
-                  style: TextButton.styleFrom(
-                    padding: EdgeInsets.zero,
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                  child: Text(
-                    _resendInFlight ? 'Sending…' : 'Resend code',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Color(0xFFEF4444),
                     ),
-                  ),
-                ),
-              const SizedBox(height: 32),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _isLoading || _code.length != 6 ? null : _verifyCode,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFEF4444),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: _isLoading
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(Colors.white)),
-                        )
-                      : const Text('Verify Code', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-                ),
-              ),
-              const SizedBox(height: 40),
+                    const SizedBox(height: 24),
+                    const SizedBox(height: 20),
+                    const Icon(Icons.shield_outlined, color: Color(0xFF2563EB), size: 32),
+                    const SizedBox(height: 8),
+                    Text(
+                      widget.phoneNumber,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    GlassCard(
+                      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: List.generate(6, (i) {
+                          return SizedBox(
+                            width: 44,
+                            child: TextField(
+                              controller: _controllers[i],
+                              focusNode: _focusNodes[i],
+                              keyboardType: TextInputType.number,
+                              textAlign: TextAlign.center,
+                              maxLength: 1,
+                              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                              decoration: InputDecoration(
+                                counterText: '',
+                                filled: true,
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: BorderSide(color: outline),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: BorderSide(color: outline),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: const BorderSide(
+                                    color: Color(0xFFEF4444),
+                                    width: 2,
+                                  ),
+                                ),
+                                contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                              ),
+                              onChanged: (v) {
+                                if (v.isNotEmpty && i < 5) {
+                                  FocusScope.of(context).requestFocus(_focusNodes[i + 1]);
+                                }
+                                if (v.isEmpty && i > 0) {
+                                  FocusScope.of(context).requestFocus(_focusNodes[i - 1]);
+                                }
+                                _onCodeComplete();
+                              },
+                            ),
+                          );
+                        }),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Waiting for code',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    if (_resendSeconds > 0)
+                      Text(
+                        'Resend code in 00:${_resendSeconds.toString().padLeft(2, '0')}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      )
+                    else
+                      TextButton(
+                        onPressed: (_resendInFlight || widget.onResendCode == null)
+                            ? null
+                            : _resendCode,
+                        style: TextButton.styleFrom(
+                          padding: EdgeInsets.zero,
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        child: Text(
+                          _resendInFlight ? 'Sending…' : 'Resend code',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFFEF4444),
+                          ),
+                        ),
+                      ),
+                    const SizedBox(height: 32),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _isLoading || _code.length != 6 ? null : _verifyCode,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFEF4444),
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        child: _isLoading
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                ),
+                              )
+                            : const Text(
+                                'Verify Code',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                      ),
+                    ),
+                    const SizedBox(height: 40),
                   ],
                 ),
               ),

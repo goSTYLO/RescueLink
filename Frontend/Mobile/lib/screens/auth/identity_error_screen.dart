@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../widgets/glass_card.dart';
 
 class IdentityErrorScreen extends StatelessWidget {
   final VoidCallback? onTryAgain;
@@ -15,13 +16,8 @@ class IdentityErrorScreen extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Container(
+              GlassCard(
                 padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 20, offset: const Offset(0, 4))],
-                ),
                 child: Column(
                   children: [
                     const SizedBox(

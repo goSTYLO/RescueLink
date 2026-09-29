@@ -95,18 +95,21 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                   child: Row(
                     children: [
-                      const Text(
+                      Text(
                         "Verify you're human",
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFF111827),
+                          color: Theme.of(ctx).colorScheme.onSurface,
                         ),
                       ),
                       const Spacer(),
                       IconButton(
                         onPressed: () => Navigator.of(ctx).pop(),
-                        icon: const Icon(Icons.close, color: Color(0xFF6B7280)),
+                        icon: Icon(
+                          Icons.close,
+                          color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+                        ),
                       ),
                     ],
                   ),
@@ -168,6 +171,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final outline = colorScheme.outline.withValues(alpha: 0.5);
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Column(
@@ -187,108 +192,148 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     const SizedBox(height: 28),
                     Center(child: _buildLogo()),
                     const SizedBox(height: 20),
-              SizedBox(
-                height: 180,
-                child: Image.asset(
-                  'assets/images/forgotpassword_illustration.png',
-                  fit: BoxFit.contain,
-                ),
-              ),
-              const SizedBox(height: 24),
-              GlassCard(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-              TextField(
-                controller: _phoneController,
-                keyboardType: TextInputType.phone,
-                inputFormatters: Validators.phoneInputFormatters,
-                maxLength: 11,
-                decoration: InputDecoration(
-                  hintText: '09171234567',
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                ),
-              ),
-              const SizedBox(height: 24),
-              InkWell(
-                onTap: _recaptchaChecked ? null : () => _showRecaptchaDialog(context),
-                borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFE5E7EB)),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        _recaptchaChecked ? Icons.check_box : Icons.check_box_outline_blank,
-                        size: 24,
-                        color: _recaptchaChecked ? const Color(0xFFEF4444) : const Color(0xFF374151),
+                    SizedBox(
+                      height: 180,
+                      child: Image.asset(
+                        'assets/images/forgotpassword_illustration.png',
+                        fit: BoxFit.contain,
                       ),
-                      const SizedBox(width: 12),
-                      const Text(
-                        "I'm not a robot",
-                        style: TextStyle(color: Color(0xFF374151), fontSize: 14),
-                      ),
-                      const Spacer(),
-                      const Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        mainAxisSize: MainAxisSize.min,
+                    ),
+                    const SizedBox(height: 24),
+                    GlassCard(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Text(
-                            'reCAPTCHA',
-                            style: TextStyle(color: Color(0xFF6B7280), fontSize: 12),
+                          TextField(
+                            controller: _phoneController,
+                            keyboardType: TextInputType.phone,
+                            inputFormatters: Validators.phoneInputFormatters,
+                            maxLength: 11,
+                            decoration: InputDecoration(
+                              prefixIcon: Icon(
+                                Icons.phone,
+                                size: 20,
+                                color: colorScheme.onSurface.withValues(alpha: 0.6),
+                              ),
+                              hintText: '09171234567',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(color: outline),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(color: outline),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(
+                                  color: Color(0xFFEF4444),
+                                  width: 2,
+                                ),
+                              ),
+                              filled: true,
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 14,
+                              ),
+                            ),
                           ),
-                          Text(
-                            'Privacy - Terms',
-                            style: TextStyle(color: Color(0xFF9CA3AF), fontSize: 11),
+                          const SizedBox(height: 24),
+                          InkWell(
+                            onTap: _recaptchaChecked
+                                ? null
+                                : () => _showRecaptchaDialog(context),
+                            borderRadius: BorderRadius.circular(12),
+                            child: Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: colorScheme.surface,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: outline),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    _recaptchaChecked
+                                        ? Icons.check_box
+                                        : Icons.check_box_outline_blank,
+                                    size: 24,
+                                    color: _recaptchaChecked
+                                        ? const Color(0xFFEF4444)
+                                        : colorScheme.onSurface,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Text(
+                                    "I'm not a robot",
+                                    style: TextStyle(
+                                      color: colorScheme.onSurface,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                  const Spacer(),
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        'reCAPTCHA',
+                                        style: TextStyle(
+                                          color: colorScheme.onSurfaceVariant,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                      Text(
+                                        'Privacy - Terms',
+                                        style: TextStyle(
+                                          color: colorScheme.onSurfaceVariant
+                                              .withValues(alpha: 0.7),
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
+                          const SizedBox(height: 24),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: (_recaptchaChecked && !_isLoading)
+                                  ? _handleRequestCode
+                                  : null,
+                              icon: const Icon(Icons.phone,
+                                  color: Colors.white, size: 20),
+                              label: const Text(
+                                'Request Verification Code',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFFEF4444),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 40),
                         ],
                       ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: (_recaptchaChecked && !_isLoading) ? _handleRequestCode : null,
-                  icon: const Icon(Icons.phone, color: Colors.white, size: 20),
-                  label: const Text(
-                    'Request Verification Code',
-                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFEF4444),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 40),
+                    ),
                   ],
                 ),
               ),
-            ],
+            ),
           ),
-        ),
-      ),
-    ),
-  ],
+        ],
       ),
     );
   }
