@@ -133,8 +133,8 @@ export async function downloadAuditLogXlsx({ action, resource_type, from, to } =
     method: 'GET',
     headers: getAuthHeaders({ requestId, includeContentType: false }),
   });
-  const data = await parseJsonOrEmpty(response);
   if (!response.ok) {
+    const data = await parseJsonOrEmpty(response);
     throw new Error(parseErrorMessage(data, 'Failed to export audit log'));
   }
   const blob = await response.blob();

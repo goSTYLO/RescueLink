@@ -163,6 +163,7 @@ function buildAuditLogWorkbook(logs, meta) {
   chrome(ws, 'Dispatcher Audit Log', meta, headers.length);
   writeHeaderRow(ws, 5, headers);
   const startRow = 6;
+  const maxLens = headers.map((h) => String(h).length);
   (logs || []).forEach((log, index) => {
     const rowNum = startRow + index;
     const { block, tx, text } = detailFields(log.details);
@@ -179,20 +180,31 @@ function buildAuditLogWorkbook(logs, meta) {
       text,
     ];
     values.forEach((value, col) => {
-      ws.getCell(rowNum, col + 1).value = cellValue(value);
+      const cell = cellValue(value);
+      ws.getCell(rowNum, col + 1).value = cell;
+      const len = String(cell ?? '').length;
+      if (len > maxLens[col]) maxLens[col] = len;
     });
   });
-  headers.forEach((header, i) => {
-    ws.getColumn(i + 1).width = Math.max(14, String(header).length + 2);
+  // Excel width ≈ character count; pad and clamp so short headers stay readable and long details don't explode.
+  const MIN_W = 10;
+  const MAX_W = 60;
+  maxLens.forEach((len, i) => {
+    ws.getColumn(i + 1).width = Math.min(MAX_W, Math.max(MIN_W, len + 2));
   });
-  ws.getColumn(10).width = 48;
   return wb.xlsx.writeBuffer();
+}
+
+/** Exported for regression: same clamp used when sizing columns from content. */
+function columnWidthForContent(charLen, { min = 10, max = 60, pad = 2 } = {}) {
+  return Math.min(max, Math.max(min, Number(charLen) + pad));
 }
 
 module.exports = {
   buildAuditLogWorkbook,
   actionLabel,
   resourceLabel,
+  columnWidthForContent,
   ACTION_LABELS,
   RESOURCE_LABELS,
 };

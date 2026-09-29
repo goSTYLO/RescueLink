@@ -1,5 +1,5 @@
 import { Layout } from '@/presentation/components/layout/Layout';
-import { Alert, Card, Input, Pagination, Select, Space, Table, Tabs, Tag, Typography } from 'antd';
+import { Alert, Card, Input, Pagination, Select, Space, Table, Tabs, Tag } from 'antd';
 import {
   ScrollText,
   Hash,
@@ -188,46 +188,6 @@ function whoLabel(log) {
   );
 }
 
-function TechnicalExpand({ log }) {
-  const details = parseDetails(log.details);
-  const json = details
-    ? JSON.stringify(details, null, 2)
-    : (log.details != null ? String(log.details) : '—');
-  return (
-    <div className="text-xs space-y-2 py-1">
-      <div className="font-semibold text-foreground">Technical details for IT</div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 font-mono">
-        <div>
-          <span className="text-muted">Action code:</span>
-          {' '}
-          {log.action || '—'}
-        </div>
-        <div>
-          <span className="text-muted">Resource type:</span>
-          {' '}
-          {log.resource_type || '—'}
-        </div>
-        <div>
-          <span className="text-muted">Resource ID:</span>
-          {' '}
-          {log.resource_id != null ? log.resource_id : '—'}
-        </div>
-        <div>
-          <span className="text-muted">User ID:</span>
-          {' '}
-          {log.user_id != null ? log.user_id : '—'}
-        </div>
-      </div>
-      <Typography.Paragraph
-        copyable={json !== '—'}
-        style={{ marginBottom: 0, fontFamily: 'ui-monospace, monospace', whiteSpace: 'pre-wrap' }}
-      >
-        {json}
-      </Typography.Paragraph>
-    </div>
-  );
-}
-
 export function AuditLogPage() {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -373,7 +333,7 @@ export function AuditLogPage() {
               Audit Log
             </h1>
             <p className="text-sm text-muted mt-1">
-              Important department, dispatch, and citizen account actions. Expand a row for technical IDs (IT), or export Excel for full codes.
+              Important department, dispatch, and citizen account actions. Export Excel for action codes and resource IDs.
             </p>
           </div>
           <Button variant="outline" size="sm" onClick={() => onExportExcel()} disabled={exporting || loading} className="gap-2">
@@ -531,10 +491,6 @@ export function AuditLogPage() {
             columns={columns}
             dataSource={paginatedLogs}
             pagination={false}
-            expandable={{
-              expandedRowRender: (log) => <TechnicalExpand log={log} />,
-              rowExpandable: () => true,
-            }}
             locale={{
               emptyText: showBlockchainCols
                 ? 'No blockchain save logs found.'

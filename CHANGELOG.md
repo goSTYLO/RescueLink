@@ -2,7 +2,9 @@
 
 ## 2026-09-29
 
-- Audit log revamp: department CRUD/units/personnel mutations are logged; `logDispatcherAction` also records **department-admin** and **department-head**. Citizen auth (register, login/logout, password, profile/avatar) and volunteer application submit are logged via `logUserAction` / `logUserActionByUser`. Audit Log UI shows plain-language actions with expandable IT fields; Excel export adds **Action code** + friendly **Area** columns.
+- Audit log Excel export: only read the response as JSON on error — success path uses `blob()` once (fixes "body stream already read").
+- Audit log Excel columns auto-size to content (min 10 / max 60 chars).
+- Audit log revamp: department CRUD/units/personnel mutations are logged; `logDispatcherAction` also records **department-admin** and **department-head**. Citizen auth (register, login/logout, password, profile/avatar) and volunteer application submit are logged via `logUserAction` / `logUserActionByUser`. Audit Log UI shows plain-language actions; Excel export adds **Action code** + friendly **Area** columns for IT tracing.
 
 ## 2026-09-28
 

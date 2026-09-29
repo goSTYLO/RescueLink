@@ -5,7 +5,7 @@
 - `logDispatcherAction` allowlist: `dispatcher`, `admin`, `department-admin`, `department-head` (fixes silent gap for dept actors on existing responder/team/dispatch/escalation logs).
 - `department.js` mutations write: `department_*`, `department_unit_*`, `department_personnel_*`.
 - Citizens: `logUserActionByUser` for register/login/password_reset; `logUserAction` for logout, password_change, profile/avatar, `responder_application_submit`. Dual-call on shared auth handlers so each role helper no-ops for the other.
-- Audit Log page: friendly What happened / Area / Summary; expandable technical row (action code, resource type/id, user id, JSON). Excel: Action + Action code + Area + Resource type.
+- Audit Log page: friendly What happened / Area / Summary (no row expand). Excel: Action + Action code + Area + Resource type for IT tracing; columns auto-size to content (10–60). Export success path uses `blob()` only (do not `parseJsonOrEmpty` first — that caused "body stream already read"). Regression: `auditLog.api.test.js`, `auditLogWorkbook.test.js`.
 - Regression: `Backend/tests/auditLog.helpers.test.js`, `department.audit.test.js`, `auditLogWorkbook.test.js`.
 
 Added: 2026-09-29 — department/citizen audit coverage + friendly display.
