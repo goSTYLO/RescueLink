@@ -9,8 +9,11 @@ import '../../services/onesignal_service.dart';
 import 'notifications_screen.dart';
 import 'settings_screen.dart';
 import '../../services/auth_service.dart';
+import '../../services/geolocation_service.dart';
 import '../../services/responder_alert_coordinator.dart';
 import '../../services/emergency_dispatch_alert_coordinator.dart';
+import '../../utils/app_config.dart';
+import '../../utils/can_use_emergency_actions.dart';
 import '../../utils/incident_navigation.dart';
 import '../../utils/responsive.dart';
 import '../../utils/sos_shake_detector.dart';
@@ -63,8 +66,11 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
   int _unreadReportsCount = 0;
   int _apiUnreadCount = 0;
   StreamSubscription<IncidentEvent>? _wsSubscription;
-  String _locationTitle = 'Dagupan City, Pangasinan';
+  String _locationTitle = 'Getting location...';
   String _locationTimestamp = 'Updating...';
+  /// null = not yet resolved / unknown; false = outside or GPS failed (fail closed).
+  bool? _inServiceArea;
+  String? _locationError;
   bool _isResponder = false;
   bool _isDepartmentOps = false;
   bool _responderOnline = false;
@@ -79,6 +85,11 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
       GlobalKey<DepartmentOpsDashboardScreenState>();
 
   bool get _hasOpsTab => _isResponder;
+
+  bool get _emergencyActionsAllowed => canUseEmergencyActions(
+        inServiceArea: _inServiceArea,
+        bypass: AppConfig.bypassLocationCheck,
+      );
 
   StreamSubscription<UserAccelerometerEvent>? _shakeSubscription;
   final SosShakeDetector _shakeDetector = SosShakeDetector();
@@ -283,12 +294,15 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
   }
 
   void _startShakeListening() {
-    if (!mounted || !_isForegroundForShake() || _shakeSubscription != null) {
+    if (!mounted ||
+        !_isForegroundForShake() ||
+        _shakeSubscription != null ||
+        !_emergencyActionsAllowed) {
       return;
     }
     _shakeSubscription = userAccelerometerEventStream().listen(
       (event) {
-        if (!mounted || _sosCountdown > 0) return;
+        if (!mounted || _sosCountdown > 0 || !_emergencyActionsAllowed) return;
         final nowMs = DateTime.now().millisecondsSinceEpoch;
         if (_shakeDetector.feed(event.x, event.y, event.z, nowMs: nowMs)) {
           _triggerSos();
@@ -303,7 +317,7 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
   void _restartShakeListening() {
     if (!mounted) return;
     _stopShakeListening();
-    if (!_isForegroundForShake()) return;
+    if (!_isForegroundForShake() || !_emergencyActionsAllowed) return;
     _shakeDetector.reset();
     _startShakeListening();
   }
@@ -532,6 +546,7 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
     setState(() {
       _loadingLocation = true;
       _locationTimestamp = 'Updating...';
+      _locationError = null;
     });
 
     final result = await AuthService().getProfile();
@@ -572,26 +587,98 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
         } else {
           _emergencyAlertCoordinator.stop();
         }
-        _restartShakeListening();
       }
-      setState(() {
-        _loadingLocation = false;
-        _locationTitle = 'Dagupan City, Pangasinan';
-        _locationTimestamp = timestamp;
-      });
-      return;
     }
+
+    String locationTitle = 'Location unavailable';
+    bool? inServiceArea;
+    String? locationError;
+
+    try {
+      final loc = await AuthService().getCurrentLocation();
+      if (!mounted) return;
+      if (loc['success'] == true) {
+        final lat = (loc['latitude'] as num).toDouble();
+        final lng = (loc['longitude'] as num).toDouble();
+
+        final reverse = await AuthService().reverseGeocode(lat, lng);
+        if (!mounted) return;
+        final label = (reverse['result'] as Map?)?['label'] as String?;
+        locationTitle =
+            label ?? '${lat.toStringAsFixed(4)}, ${lng.toStringAsFixed(4)}';
+
+        if (AppConfig.bypassLocationCheck) {
+          inServiceArea = true;
+        } else {
+          final inside =
+              await GeolocationService.isPointInDagupan(lat, lng);
+          inServiceArea = inside;
+          if (!inside) {
+            locationError = 'Outside Dagupan City service area';
+          }
+        }
+      } else {
+        locationError =
+            loc['error'] as String? ?? 'Could not get location.';
+        inServiceArea = AppConfig.bypassLocationCheck ? true : false;
+      }
+    } catch (e) {
+      locationError = 'Unable to get location.';
+      inServiceArea = AppConfig.bypassLocationCheck ? true : false;
+    }
+
+    if (!mounted) return;
 
     setState(() {
       _loadingLocation = false;
-      _locationTitle = 'Dagupan City, Pangasinan';
+      _locationTitle = locationTitle;
       _locationTimestamp = timestamp;
+      _inServiceArea = inServiceArea;
+      _locationError = locationError;
     });
+
+    final allowed = canUseEmergencyActions(
+      inServiceArea: inServiceArea,
+      bypass: AppConfig.bypassLocationCheck,
+    );
+    if (!allowed && _sosCountdown > 0) {
+      _cancelSosCountdown();
+    } else {
+      _restartShakeListening();
+    }
+  }
+
+  void _showServiceAreaLockedSnack() {
+    if (!mounted) return;
+    final message = _inServiceArea == false &&
+            (_locationError?.toLowerCase().contains('outside') ?? false)
+        ? 'SOS and reporting are only available inside Dagupan City'
+        : 'Turn on location to use SOS and Report.';
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  void _onEmergencyActionTap(VoidCallback? whenAllowed) {
+    if (!_emergencyActionsAllowed) {
+      _showServiceAreaLockedSnack();
+      return;
+    }
+    whenAllowed?.call();
   }
 
   void _triggerSos() {
+    if (!_emergencyActionsAllowed) return;
     if (_sosCountdown > 0) return;
     _startSosCountdown();
+  }
+
+  void _onSosTap() {
+    _onEmergencyActionTap(_triggerSos);
+  }
+
+  void _onReportIncidentTap() {
+    _onEmergencyActionTap(widget.onSosPressed);
   }
 
   void _startSosCountdown() {
@@ -996,6 +1083,11 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
   }
 
   Widget _buildLocationCard(Color card, Color border, Color primary, Color secondary) {
+    final subtitle = _loadingLocation
+        ? _locationTimestamp
+        : (_locationError != null
+            ? _locationError!
+            : _locationTimestamp);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
@@ -1034,13 +1126,18 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
                     fontWeight: FontWeight.bold,
                     color: primary,
                   ),
-                  maxLines: 1,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  _locationTimestamp,
-                  style: TextStyle(fontSize: 12, color: secondary),
+                  subtitle,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: _locationError != null && !_loadingLocation
+                        ? const Color(0xFFF87171)
+                        : secondary,
+                  ),
                 ),
               ],
             ),
@@ -1057,6 +1154,41 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
   }
 
   Widget _buildStatusCard(Color card, Color border) {
+    final loading = _loadingLocation;
+    final allowed = _emergencyActionsAllowed;
+    final Color accent;
+    final Color iconBg;
+    final String title;
+    final String subtitle;
+    final String semanticsLabel;
+
+    if (loading) {
+      accent = const Color(0xFF9CA3AF);
+      iconBg = const Color(0xFF374151);
+      title = 'Checking location...';
+      subtitle = 'GPS · Verifying service area';
+      semanticsLabel = 'Checking location';
+    } else if (allowed) {
+      accent = const Color(0xFF22C55E);
+      iconBg = const Color(0xFF14532D);
+      title = 'Ready';
+      subtitle = 'GPS · Online · Inside Dagupan';
+      semanticsLabel = 'All systems ready';
+    } else if (_inServiceArea == false &&
+        (_locationError?.toLowerCase().contains('outside') ?? false)) {
+      accent = const Color(0xFFEF4444);
+      iconBg = const Color(0xFF7F1D1D);
+      title = 'Outside Dagupan';
+      subtitle = 'SOS and Report are locked';
+      semanticsLabel = 'Outside service area';
+    } else {
+      accent = const Color(0xFFEF4444);
+      iconBg = const Color(0xFF7F1D1D);
+      title = 'Location unavailable';
+      subtitle = 'Enable GPS to unlock SOS and Report';
+      semanticsLabel = 'Location unavailable';
+    }
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
@@ -1068,42 +1200,41 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
         children: [
           Container(
             padding: const EdgeInsets.all(10),
-            decoration: const BoxDecoration(
-              color: Color(0xFF14532D),
+            decoration: BoxDecoration(
+              color: iconBg,
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.shield,
-                color: Color(0xFF22C55E), size: 20),
+            child: Icon(Icons.shield, color: accent, size: 20),
           ),
           const SizedBox(width: 14),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Ready',
+                  title,
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
-                    color: Color(0xFF22C55E),
+                    color: accent,
                   ),
                 ),
-                SizedBox(height: 2),
+                const SizedBox(height: 2),
                 Text(
-                  'GPS · Online · Connected',
-                  style: TextStyle(
+                  subtitle,
+                  style: const TextStyle(
                       fontSize: 12, color: Color(0xFF9CA3AF), height: 1.4),
                 ),
               ],
             ),
           ),
           Semantics(
-            label: 'All systems ready',
+            label: semanticsLabel,
             child: Container(
               width: 12,
               height: 12,
-              decoration: const BoxDecoration(
-                color: Color(0xFF22C55E),
+              decoration: BoxDecoration(
+                color: accent,
                 shape: BoxShape.circle,
               ),
             ),
@@ -1114,71 +1245,82 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
   }
 
   Widget _buildActionTiles() {
+    final locked = !_emergencyActionsAllowed;
     return Row(
       children: [
         // SOS tile
         Expanded(
           child: Semantics(
             button: true,
-            label: 'SOS. Tap or shake to activate',
+            label: locked
+                ? 'SOS locked. Only available inside Dagupan City'
+                : 'SOS. Tap or shake to activate',
             child: GestureDetector(
               onTap: () {
                 if (_sosCountdown > 0) return;
-                _triggerSos();
+                _onSosTap();
               },
-              child: Container(
-                height: 170,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [Color(0xFFDC2626), Color(0xFF991B1B)],
+              child: Opacity(
+                opacity: locked ? 0.45 : 1,
+                child: Container(
+                  height: 170,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: locked
+                          ? const [Color(0xFF6B7280), Color(0xFF4B5563)]
+                          : const [Color(0xFFDC2626), Color(0xFF991B1B)],
+                    ),
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: locked
+                        ? null
+                        : [
+                            BoxShadow(
+                              color: const Color(0xFFEF4444)
+                                  .withValues(alpha: 0.35),
+                              blurRadius: 16,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
                   ),
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFFEF4444).withValues(alpha: 0.35),
-                      blurRadius: 16,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      width: 72,
-                      height: 72,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.white.withValues(alpha: 0.15),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 72,
+                        height: 72,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.white.withValues(alpha: 0.15),
+                        ),
+                        child: Icon(
+                          locked ? Icons.lock : Icons.notifications_active,
+                          color: Colors.white,
+                          size: 36,
+                        ),
                       ),
-                      child: const Icon(
-                        Icons.notifications_active,
-                        color: Colors.white,
-                        size: 36,
+                      const SizedBox(height: 12),
+                      const Text(
+                        'SOS',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 12),
-                    const Text(
-                      'SOS',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
+                      const SizedBox(height: 4),
+                      Text(
+                        locked ? 'Outside service area' : 'Tap or shake',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Color(0xFFFFCDD2),
+                          fontSize: 11,
+                          height: 1.4,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    const Text(
-                      'Tap or shake',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Color(0xFFFFCDD2),
-                        fontSize: 11,
-                        height: 1.4,
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -1189,56 +1331,77 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
         // Report Incident tile
         Expanded(
           child: GestureDetector(
-            onTap: widget.onSosPressed,
-            child: Container(
-              height: 170,
-              decoration: BoxDecoration(
-                color: const Color(0xFF1A2035),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: const Color(0xFF252D40)),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    width: 72,
-                    height: 72,
-                    decoration: const BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Color(0xFF252D40),
-                    ),
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        const Icon(Icons.description_outlined,
-                            color: Colors.white, size: 34),
-                        Positioned(
-                          bottom: 12,
-                          right: 10,
-                          child: Container(
-                            width: 20,
-                            height: 20,
-                            decoration: const BoxDecoration(
-                              color: Color(0xFF3B82F6),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(Icons.photo_camera,
-                                color: Colors.white, size: 12),
+            onTap: _onReportIncidentTap,
+            child: Opacity(
+              opacity: locked ? 0.45 : 1,
+              child: Container(
+                height: 170,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1A2035),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: const Color(0xFF252D40)),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 72,
+                      height: 72,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Color(0xFF252D40),
+                      ),
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          Icon(
+                            locked
+                                ? Icons.lock_outline
+                                : Icons.description_outlined,
+                            color: Colors.white,
+                            size: 34,
                           ),
+                          if (!locked)
+                            Positioned(
+                              bottom: 12,
+                              right: 10,
+                              child: Container(
+                                width: 20,
+                                height: 20,
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFF3B82F6),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.photo_camera,
+                                    color: Colors.white, size: 12),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Report',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    if (locked) ...[
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Outside service area',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Color(0xFF9CA3AF),
+                          fontSize: 11,
+                          height: 1.4,
                         ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'Report',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
+                      ),
+                    ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -1410,7 +1573,7 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
       trigger: _currentIndex == 1 ? _tabSwitchCounter : null,
       child: ReportHistoryScreen(
         onReportTap: widget.onReportTap,
-        onReportIncidentTap: widget.onSosPressed,
+        onReportIncidentTap: _onReportIncidentTap,
         onNotificationsTap: () => _openNotifications(context),
         unreadNotificationCount: _apiUnreadCount + _unreadReportsCount,
       ),

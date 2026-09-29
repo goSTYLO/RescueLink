@@ -67,6 +67,8 @@ If the app says you are **outside the service area**, you cannot use RescueLink 
 
 ### 2.2 Home and SOS (quick emergency)
 
+The Home **Current Location** card shows your live GPS address (refresh to update). SOS and **Report** only work when you are **inside Dagupan City**. Outside the service area (or if location is off / denied), those controls stay locked until you move into Dagupan or fix GPS.
+
 Use SOS when you need help **immediately** and cannot complete a full voice report.
 
 **Ways to start SOS**
@@ -82,7 +84,7 @@ Use SOS when you need help **immediately** and cannot complete a full voice repo
 
 **Tips**
 
-- Keep location permission **On** so responders know where you are.
+- Keep location permission **On** so responders know where you are and so SOS/Report stay unlocked in Dagupan.
 - Do not spam SOS; one clear report is better than many duplicates.
 - If you can safely record details, use a **full emergency report** (next section) instead of or after SOS.
 
@@ -343,6 +345,7 @@ Keep this section handy. Fixes are written for everyday users.
 |---------|-------------|
 | Cannot register / OTP never arrives | Check phone signal and number spelling. Wait a minute and request a new code. Do not leave the verification screen too long. Restart the app and try again. |
 | “Outside service area” / residency blocked | You must be in Dagupan’s supported area. Turn on precise location, step outdoors for a better GPS fix, then use retry. |
+| SOS / Report locked on Home | You are outside Dagupan or location is unavailable. Enable GPS, refresh Current Location, or move into the city. |
 | App asks for location again and again | Open phone Settings → Apps → RescueLink → Permissions → Location → Allow (while using / always, as instructed). Turn on device Location/GPS. |
 | SOS or report stuck on loading | Check internet. Wait for one attempt to finish. Close and reopen the app, then submit **once**. Avoid tapping submit many times. |
 | Cannot record audio | Allow microphone permission. Close other apps using the mic. Try again in a quieter place. |

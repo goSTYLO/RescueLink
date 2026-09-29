@@ -1,5 +1,13 @@
 # RescueLink Memory
 
+## Home GPS + Dagupan SOS/Report lock (2026-09-29)
+
+- `HomePlaceholderScreen._loadHomeLocation` calls `AuthService.getCurrentLocation` + `reverseGeocode` for the Current Location card; `GeolocationService.isPointInDagupan` sets `_inServiceArea` (buffer 0). Fail closed when GPS/permission fails.
+- SOS tile, Report tile, shake listener, and Reports FAB use `canUseEmergencyActions` (`lib/utils/can_use_emergency_actions.dart`); locked taps show a SnackBar. `AppConfig.bypassLocationCheck` keeps actions enabled for local/dev.
+- Status card: Ready / Outside Dagupan / Location unavailable. Regression: `test/utils/can_use_emergency_actions_test.dart`.
+
+Added: 2026-09-29 — home live location + out-of-area emergency lock.
+
 ## Audit log: department + citizen + friendly UI (2026-09-29)
 
 - `logDispatcherAction` allowlist: `dispatcher`, `admin`, `department-admin`, `department-head` (fixes silent gap for dept actors on existing responder/team/dispatch/escalation logs).

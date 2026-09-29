@@ -2,6 +2,7 @@
 
 ## 2026-09-29
 
+- Mobile home: **Current Location** uses live GPS + reverse geocode (no longer hardcoded Dagupan). Outside Dagupan (or GPS unavailable) locks SOS, Report, shake, and Reports FAB; status card reflects Ready / Outside / unavailable. Dev bypass via `BYPASS_LOCATION_CHECK`.
 - Audit log Excel export: only read the response as JSON on error — success path uses `blob()` once (fixes "body stream already read").
 - Audit log Excel columns auto-size to content (min 10 / max 60 chars).
 - Audit log revamp: department CRUD/units/personnel mutations are logged; `logDispatcherAction` also records **department-admin** and **department-head**. Citizen auth (register, login/logout, password, profile/avatar) and volunteer application submit are logged via `logUserAction` / `logUserActionByUser`. Audit Log UI shows plain-language actions; Excel export adds **Action code** + friendly **Area** columns for IT tracing.
