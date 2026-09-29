@@ -58,6 +58,8 @@ void main() {
       await tester.pumpWidget(_wrapDark(const PasswordUpdatedScreen()));
       await tester.pumpAndSettle();
       expect(find.text('Password Updated!'), findsOneWidget);
+      expect(find.text('Skip'), findsNothing);
+      expect(find.text('Back to Login'), findsOneWidget);
     });
 
     testWidgets('IdentityErrorScreen builds under dark theme', (tester) async {
