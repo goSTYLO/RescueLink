@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Layout } from '@/presentation/components/layout/Layout';
 import { AccessDeniedNotice } from '@/presentation/components/common/AccessDeniedNotice';
-import { Button, Card, Input, Modal, Pagination, Select, Space, Table, Tag } from 'antd';
-import { Plus, Edit, Ban, Users, Eye, EyeOff } from 'lucide-react';
+import { Button, Card, Input, Modal, Pagination, Select, Space, Table, Tabs, Tag } from 'antd';
+import { Plus, Edit, Ban, Users, Eye, EyeOff, RotateCcw } from 'lucide-react';
 import { alertUser } from '@/presentation/feedback/alertUser';
-import { listUsers, createUser, updateUserRole, deactivateUser } from '@/data/api/adminUsers.api';
+import { listUsers, createUser, updateUserRole, deactivateUser, reactivateUser } from '@/data/api/adminUsers.api';
 import { getDepartments } from '@/data/api/departments.api';
 import { ROLES, normalizeRole } from '@/core/constants';
 import { Breadcrumb } from '@/presentation/components/common/Breadcrumb';
@@ -13,6 +13,7 @@ import { isValidLocalPhone } from '@/core/utils/inputUtils';
 
 const SWAL_PRIMARY = '#134178';
 const ROWS_PER_PAGE = 10;
+const LIST_FETCH_LIMIT = 300;
 
 // Frontend display value -> backend API value
 const FIELD_RESPONDER = 'field-responder';
@@ -58,6 +59,7 @@ function roleTagColor(backendRole) {
   if (r === 'dispatcher') return 'cyan';
   if (r === 'department-admin') return 'geekblue';
   if (r === 'department-head') return 'gold';
+  if (r === 'responder') return 'purple';
   return 'default';
 }
 
@@ -66,7 +68,10 @@ export function TeamPage() {
   const role = normalizeRole(user.role || '');
 
   const [users, setUsers] = useState([]);
-  const [pagination, setPagination] = useState({ page: 1, limit: ROWS_PER_PAGE, total: 0, pages: 1 });
+  const [page, setPage] = useState(1);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [roleFilter, setRoleFilter] = useState('all');
+  const [listTab, setListTab] = useState('active');
   const [departments, setDepartments] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [loadingDepts, setLoadingDepts] = useState(true);
@@ -82,21 +87,14 @@ export function TeamPage() {
     phone_number: '',
   });
   const [savingUser, setSavingUser] = useState(false);
-  const [deactivatingUserId, setDeactivatingUserId] = useState(null);
+  const [pendingActionUserId, setPendingActionUserId] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
 
-  const fetchUsers = useCallback(async (page = pagination.page) => {
+  const fetchUsers = useCallback(async () => {
     setLoadingUsers(true);
     try {
-      const res = await listUsers({ page, limit: ROWS_PER_PAGE, exclude_role: 'user,responder' });
+      const res = await listUsers({ page: 1, limit: LIST_FETCH_LIMIT, exclude_role: 'user' });
       setUsers(res.users || []);
-      setPagination((prev) => ({
-        ...prev,
-        page: Number(res.pagination?.page) || page,
-        limit: Number(res.pagination?.limit) || ROWS_PER_PAGE,
-        total: Number(res.pagination?.total) || 0,
-        pages: Math.max(1, Number(res.pagination?.pages) || 1),
-      }));
     } catch (err) {
       setUsers([]);
       alertUser({ icon: 'error', title: 'Failed to load users', text: err.message || 'Please try again.', confirmButtonColor: SWAL_PRIMARY });
@@ -118,14 +116,55 @@ export function TeamPage() {
   }, []);
 
   useEffect(() => {
-    fetchUsers(1);
+    fetchUsers();
   }, [fetchUsers]);
   useEffect(() => {
     fetchDepartments();
   }, [fetchDepartments]);
 
-  const userTotalPages = pagination.pages;
-  const currentPage = Math.min(Math.max(1, pagination.page), userTotalPages);
+  const filteredUsers = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return users.filter((u) => {
+      const isActive = u.is_active !== false;
+      if (listTab === 'active' && !isActive) return false;
+      if (listTab === 'deactivated' && isActive) return false;
+      const backendRole = String(u.role || '').toLowerCase();
+      if (roleFilter !== 'all' && backendRole !== roleFilter) return false;
+      if (!q) return true;
+      const haystack = [
+        u.first_name,
+        u.last_name,
+        u.email,
+        u.phone_number,
+        u.department_name,
+        roleToLabel(u.role),
+        backendRole,
+      ].join(' ').toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [users, searchQuery, roleFilter, listTab]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery, roleFilter, listTab]);
+
+  const activeCount = useMemo(() => users.filter((u) => u.is_active !== false).length, [users]);
+  const deactivatedCount = useMemo(() => users.filter((u) => u.is_active === false).length, [users]);
+
+  const userTotalPages = Math.max(1, Math.ceil(filteredUsers.length / ROWS_PER_PAGE));
+  const currentPage = Math.min(Math.max(1, page), userTotalPages);
+  const pageUsers = useMemo(() => {
+    const start = (currentPage - 1) * ROWS_PER_PAGE;
+    return filteredUsers.slice(start, start + ROWS_PER_PAGE);
+  }, [filteredUsers, currentPage]);
+
+  const roleFilterOptions = useMemo(
+    () => [
+      { value: 'all', label: 'All roles' },
+      ...ROLE_OPTIONS.map((opt) => ({ value: opt.backend, label: opt.label })),
+    ],
+    []
+  );
 
   const openAddUser = () => {
     setEditingUser(null);
@@ -220,7 +259,7 @@ export function TeamPage() {
         });
       }
       setUserModalOpen(false);
-      await fetchUsers(currentPage);
+      await fetchUsers();
     } catch (err) {
       alertUser({ icon: 'error', title: editingUser ? 'Update failed' : 'Create failed', text: err.message || 'Please try again.', confirmButtonColor: SWAL_PRIMARY });
     } finally {
@@ -240,17 +279,47 @@ export function TeamPage() {
       cancelButtonText: 'Cancel',
     }).then((result) => {
       if (result.isConfirmed) {
-        setDeactivatingUserId(u.user_id);
+        setPendingActionUserId(u.user_id);
         deactivateUser(u.user_id)
           .then(() => {
             alertUser({ icon: 'success', title: 'User deactivated', timer: 2000, showConfirmButton: false, timerProgressBar: true });
-            return fetchUsers(currentPage);
+            setListTab('deactivated');
+            return fetchUsers();
           })
           .catch((err) => {
             alertUser({ icon: 'error', title: 'Deactivate failed', text: err.message || 'Please try again.', confirmButtonColor: SWAL_PRIMARY });
           })
           .finally(() => {
-            setDeactivatingUserId(null);
+            setPendingActionUserId(null);
+          });
+      }
+    });
+  };
+
+  const requestReactivateUser = (u) => {
+    alertUser({
+      icon: 'question',
+      title: 'Reactivate user?',
+      html: `Reactivating <strong>${[u.first_name, u.last_name].filter(Boolean).join(' ') || u.email || u.phone_number}</strong> will restore their access.`,
+      showCancelButton: true,
+      confirmButtonColor: SWAL_PRIMARY,
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: 'Yes, reactivate',
+      cancelButtonText: 'Cancel',
+    }).then((result) => {
+      if (result.isConfirmed) {
+        setPendingActionUserId(u.user_id);
+        reactivateUser(u.user_id)
+          .then(() => {
+            alertUser({ icon: 'success', title: 'User reactivated', timer: 2000, showConfirmButton: false, timerProgressBar: true });
+            setListTab('active');
+            return fetchUsers();
+          })
+          .catch((err) => {
+            alertUser({ icon: 'error', title: 'Reactivate failed', text: err.message || 'Please try again.', confirmButtonColor: SWAL_PRIMARY });
+          })
+          .finally(() => {
+            setPendingActionUserId(null);
           });
       }
     });
@@ -278,6 +347,11 @@ export function TeamPage() {
     },
     { title: 'Email', dataIndex: 'email', render: (v) => v || '—' },
     {
+      title: 'Phone',
+      dataIndex: 'phone_number',
+      render: (v) => v || '—',
+    },
+    {
       title: 'Role',
       dataIndex: 'role',
       render: (r) => <Tag color={roleTagColor(r)}>{roleToLabel(r)}</Tag>,
@@ -296,13 +370,15 @@ export function TeamPage() {
       title: 'Actions',
       key: 'actions',
       render: (_, u) => (
-        deactivatingUserId === u.user_id ? (
-          <span style={{ fontSize: 13, opacity: 0.7 }}>Deactivating…</span>
+        pendingActionUserId === u.user_id ? (
+          <span style={{ fontSize: 13, opacity: 0.7 }}>{u.is_active === false ? 'Reactivating…' : 'Deactivating…'}</span>
         ) : (
           <Space>
             <Button type="text" icon={<Edit size={16} />} onClick={() => openEditUser(u)} title="Edit" />
-            {u.is_active !== false && (
+            {u.is_active !== false ? (
               <Button type="text" danger icon={<Ban size={16} />} onClick={() => requestDeactivateUser(u)} title="Deactivate" />
+            ) : (
+              <Button type="text" icon={<RotateCcw size={16} />} onClick={() => requestReactivateUser(u)} title="Reactivate" style={{ color: '#16a34a' }} />
             )}
           </Space>
         )
@@ -332,28 +408,53 @@ export function TeamPage() {
               Users & Roles
             </span>
           )}
-          extra={(
+          extra={listTab === 'active' ? (
             <Button type="primary" icon={<Plus size={14} />} onClick={openAddUser}>
               Add User
             </Button>
-          )}
+          ) : null}
         >
+          <Tabs
+            activeKey={listTab}
+            onChange={setListTab}
+            items={[
+              { key: 'active', label: `Active (${activeCount})` },
+              { key: 'deactivated', label: `Deactivated (${deactivatedCount})` },
+            ]}
+            style={{ marginBottom: 8 }}
+          />
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 8, marginBottom: 12 }}>
+            <Input
+              allowClear
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search name, email, phone, department…"
+            />
+            <Select
+              value={roleFilter}
+              onChange={setRoleFilter}
+              options={roleFilterOptions}
+            />
+          </div>
+          <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 8 }}>
+            Showing {filteredUsers.length === 0 ? 0 : (currentPage - 1) * ROWS_PER_PAGE + 1}–{Math.min(currentPage * ROWS_PER_PAGE, filteredUsers.length)} of {filteredUsers.length}
+          </div>
           <Table
             size="small"
             rowKey="user_id"
             loading={loadingUsers}
             columns={columns}
-            dataSource={users}
+            dataSource={pageUsers}
             pagination={false}
-            locale={{ emptyText: 'No users found.' }}
+            locale={{ emptyText: listTab === 'deactivated' ? 'No deactivated users.' : 'No users match the current filters.' }}
           />
           {userTotalPages > 1 && (
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
               <Pagination
                 current={currentPage}
-                total={pagination.total}
+                total={filteredUsers.length}
                 pageSize={ROWS_PER_PAGE}
-                onChange={(page) => fetchUsers(page)}
+                onChange={(nextPage) => setPage(nextPage)}
                 showSizeChanger={false}
                 showTotal={(total) => `${total} users`}
               />

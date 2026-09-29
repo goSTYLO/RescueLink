@@ -340,6 +340,21 @@ const Responder = {
          RETURNING *`,
         [team_id, responder_id]
       );
+      const team = await pool.query(
+        'SELECT team_name FROM responder_teams WHERE team_id = $1',
+        [team_id]
+      );
+      const teamName = team.rows[0]?.team_name || null;
+      if (teamName) {
+        try {
+          await pool.query(
+            'UPDATE responders SET team_name = $1 WHERE responder_id = $2',
+            [teamName, responder_id]
+          );
+        } catch (error) {
+          if (!(error.code === '42703' || /team_name/i.test(error.message))) throw error;
+        }
+      }
       return res.rows[0];
     } catch (error) {
       if (error.code === '42P01' || /responder_team_members/i.test(error.message)) return null;
@@ -356,6 +371,25 @@ const Responder = {
          RETURNING *`,
         [team_id, responder_id]
       );
+      // Keep responders.team_name in sync for Responder Status UI
+      const remaining = await pool.query(
+        `SELECT rt.team_name
+           FROM responder_team_members rtm
+           INNER JOIN responder_teams rt ON rt.team_id = rtm.team_id
+          WHERE rtm.responder_id = $1 AND rtm.is_active = TRUE
+          ORDER BY rtm.team_id ASC
+          LIMIT 1`,
+        [responder_id]
+      );
+      const nextTeamName = remaining.rows[0]?.team_name || null;
+      try {
+        await pool.query(
+          'UPDATE responders SET team_name = $1 WHERE responder_id = $2',
+          [nextTeamName, responder_id]
+        );
+      } catch (error) {
+        if (!(error.code === '42703' || /team_name/i.test(error.message))) throw error;
+      }
       return res.rows[0];
     } catch (error) {
       if (error.code === '42P01' || /responder_team_members/i.test(error.message)) return null;
@@ -369,7 +403,7 @@ const Responder = {
         `SELECT r.*, rtm.team_id, rtm.is_active AS member_active
          FROM responder_team_members rtm
          INNER JOIN responders r ON r.responder_id = rtm.responder_id
-         WHERE rtm.team_id = $1
+         WHERE rtm.team_id = $1 AND rtm.is_active = TRUE
          ORDER BY r.responder_id ASC`,
         [team_id]
       );

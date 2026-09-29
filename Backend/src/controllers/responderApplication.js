@@ -5,7 +5,7 @@ const User = require('../models/user');
 const Responder = require('../models/responder');
 const Notification = require('../models/notification');
 const pool = require('../config/db');
-const { logDispatcherAction, logAdminAction } = require('../utils/auditLog');
+const { logDispatcherAction, logAdminAction, logUserAction } = require('../utils/auditLog');
 const { comparePassword } = require('../utils/hash');
 const {
   REVOKE_REASONS,
@@ -152,6 +152,10 @@ const responderApplicationController = {
         id: application.id,
         user_id: userId,
         submitted_at: application.submitted_at,
+      });
+
+      await logUserAction(req, 'responder_application_submit', 'responder_application', application.id, {
+        specialization_fields: specializationFields,
       });
 
       res.status(201).json({

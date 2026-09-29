@@ -54,15 +54,15 @@ const responderController = {
       const normalizedTaskTypes = normalizeTaskTypes(supported_incident_types);
 
       let userId = null;
-      const wantsLogin = Boolean(email || password || phone_number);
+      const wantsLogin = Boolean(password || phone_number || email);
       if (wantsLogin) {
-        if (!email || !password || !phone_number) {
-          return res.status(400).json({ error: 'email, password, and phone_number are required together to create a mobile login' });
+        if (!password || !phone_number) {
+          return res.status(400).json({ error: 'password and phone_number are required together to create a mobile login' });
         }
-        const validatedEmail = validateEmail(email);
         const validatedPassword = validatePassword(password);
         const validatedPhone = validatePhone(String(phone_number));
-        if (await User.findByEmail(validatedEmail)) {
+        const validatedEmail = email ? validateEmail(email) : null;
+        if (validatedEmail && await User.findByEmail(validatedEmail)) {
           return res.status(409).json({ error: 'Email already exists' });
         }
         if (await User.findByPhone(validatedPhone)) {

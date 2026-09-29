@@ -1,6 +1,6 @@
 import { Layout } from '@/presentation/components/layout/Layout';
 import { Alert, Button, Card, Form, Input, Modal, Select, Tabs, Tag } from 'antd';
-import { isValidLocalPhone } from '@/core/utils/inputUtils';
+import { isValidLocalPhone, sanitizePhoneInput, getPasswordValidationError } from '@/core/utils/inputUtils';
 import { getDepartments, createDepartment, updateDepartment, deleteDepartment } from '@/data/api/departments.api';
 import { searchDagupanLocations, reverseDagupanLocation } from '@/data/api/location.api';
 import {
@@ -147,7 +147,11 @@ export function DepartmentsPage() {
   const [responders, setResponders] = useState([]);
   const [teams, setTeams] = useState([]);
   const [teamForm, setTeamForm] = useState({ department_code: 'drrmo', team_name: '', team_status: 'available', supported_incident_types: [] });
-  const [responderForm, setResponderForm] = useState({ name: '', organization: '', contact_number: '', availability_status: 'available', team_name: '', supported_incident_types: [] });
+  const [responderForm, setResponderForm] = useState({ name: '', organization: '', contact_number: '', availability_status: 'available', team_name: '', supported_incident_types: [], password: '', department_id: '' });
+  const [responderFormErrors, setResponderFormErrors] = useState({});
+  const clearResponderFieldError = (field) => {
+    setResponderFormErrors((prev) => (prev[field] ? { ...prev, [field]: undefined } : prev));
+  };
   const [memberForm, setMemberForm] = useState({ responder_id: '' });
   const [teamMembersByTeamId, setTeamMembersByTeamId] = useState({});
   const [manageMembersDialogOpen, setManageMembersDialogOpen] = useState(false);
@@ -480,23 +484,50 @@ export function DepartmentsPage() {
   };
 
   const handleCreateResponder = async () => {
-    if (!responderForm.name.trim()) return;
+    const name = responderForm.name.trim();
     const contact = responderForm.contact_number.trim();
-    if (contact && !isValidLocalPhone(contact)) {
-      alertUser({ icon: 'warning', title: 'Invalid contact number', text: 'Use local format 09XXXXXXXXX (11 digits).', confirmButtonColor: '#134178' });
+    const password = responderForm.password || '';
+    const departmentId = responderForm.department_id;
+    const passwordError = getPasswordValidationError(password);
+    const errors = {
+      name: name ? undefined : 'Name is required',
+      contact_number: !contact
+        ? 'Contact number is required'
+        : (!isValidLocalPhone(contact) ? 'Use local format 09XXXXXXXXX (11 digits)' : undefined),
+      password: passwordError || undefined,
+      department_id: departmentId ? undefined : 'Department is required',
+    };
+    setResponderFormErrors(errors);
+    if (Object.values(errors).some(Boolean)) {
+      const firstError = Object.values(errors).find(Boolean);
+      alertUser({ icon: 'warning', title: 'Check the form', text: firstError, confirmButtonColor: '#134178' });
       return;
     }
     try {
+      const { password: _pw, department_id: _dept, ...rest } = responderForm;
+      const selectedDept = departments.find(
+        (dept) => Number(dept.departmentId) === Number(departmentId)
+      );
       await createResponder({
-        ...responderForm,
-        name: responderForm.name.trim(),
-        organization: responderForm.organization.trim() || null,
-        contact_number: contact || null,
+        ...rest,
+        name,
+        organization: selectedDept?.name || responderForm.organization.trim() || null,
+        contact_number: contact,
         team_name: responderForm.team_name || null,
+        password,
+        phone_number: contact,
+        department_id: Number(departmentId),
       });
-      setResponderForm((prev) => ({ ...prev, name: '', contact_number: '' }));
+      setResponderForm((prev) => ({ ...prev, name: '', contact_number: '', password: '', department_id: '', team_name: '' }));
+      setResponderFormErrors({});
       await loadResponderResources();
-      alertUser({ icon: 'success', title: 'Responder added', timer: 1500, showConfirmButton: false });
+      alertUser({
+        icon: 'success',
+        title: 'Responder account created',
+        text: 'They can sign in on mobile with that phone number and password.',
+        timer: 2500,
+        showConfirmButton: false,
+      });
     } catch (error) {
       alertUser({ icon: 'error', title: 'Responder create failed', text: error.message || 'Please try again.' });
     }
@@ -808,9 +839,51 @@ export function DepartmentsPage() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <Card size="small" title={(<span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><PlusCircle size={16} />Create Responder</span>)}>
                     <Form layout="vertical" size="small">
-                      <Form.Item label="Name"><Input maxLength={100} value={responderForm.name} onChange={(e) => setResponderForm((prev) => ({ ...prev, name: e.target.value }))} /></Form.Item>
-                      <Form.Item label="Contact Number"><Input value={responderForm.contact_number} onChange={(e) => setResponderForm((prev) => ({ ...prev, contact_number: e.target.value }))} placeholder="09XXXXXXXXX" /></Form.Item>
-                      <Form.Item label="Team">
+                      <Form.Item label="Name" required validateStatus={responderFormErrors.name ? 'error' : undefined} help={responderFormErrors.name}>
+                        <Input
+                          maxLength={100}
+                          value={responderForm.name}
+                          onChange={(e) => {
+                            clearResponderFieldError('name');
+                            setResponderForm((prev) => ({ ...prev, name: e.target.value }));
+                          }}
+                          placeholder="Full name"
+                        />
+                      </Form.Item>
+                      <Form.Item label="Contact Number" required validateStatus={responderFormErrors.contact_number ? 'error' : undefined} help={responderFormErrors.contact_number}>
+                        <Input
+                          value={responderForm.contact_number}
+                          onChange={(e) => {
+                            clearResponderFieldError('contact_number');
+                            setResponderForm((prev) => ({ ...prev, contact_number: sanitizePhoneInput(e.target.value) }));
+                          }}
+                          placeholder="09XXXXXXXXX"
+                          maxLength={11}
+                          inputMode="numeric"
+                        />
+                      </Form.Item>
+                      <Form.Item label="Password" required validateStatus={responderFormErrors.password ? 'error' : undefined} help={responderFormErrors.password}>
+                        <Input.Password
+                          value={responderForm.password}
+                          onChange={(e) => {
+                            clearResponderFieldError('password');
+                            setResponderForm((prev) => ({ ...prev, password: e.target.value }));
+                          }}
+                          placeholder="8+ chars, capital, number, special"
+                        />
+                      </Form.Item>
+                      <Form.Item label="Department" required validateStatus={responderFormErrors.department_id ? 'error' : undefined} help={responderFormErrors.department_id}>
+                        <Select
+                          placeholder="Select department"
+                          value={responderForm.department_id || undefined}
+                          onChange={(v) => {
+                            clearResponderFieldError('department_id');
+                            setResponderForm((prev) => ({ ...prev, department_id: v || '' }));
+                          }}
+                          options={departments.map((dept) => ({ value: dept.departmentId, label: dept.name }))}
+                        />
+                      </Form.Item>
+                      <Form.Item label="Team (optional)">
                         <Select allowClear placeholder="Unassigned" value={responderForm.team_name || undefined} onChange={(v) => setResponderForm((prev) => ({ ...prev, team_name: v || '' }))} options={teams.map((team) => ({ value: team.team_name, label: `${team.department_code}:${team.team_name}` }))} />
                       </Form.Item>
                       <Form.Item label="Supported Task Types">

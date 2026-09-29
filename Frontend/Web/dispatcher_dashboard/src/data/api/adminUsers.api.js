@@ -108,3 +108,23 @@ export async function deactivateUser(userId) {
   userListCache.clear();
   return data;
 }
+
+/**
+ * Reactivate a deactivated user (admin)
+ * @param {number} userId
+ */
+export async function reactivateUser(userId) {
+  const requestId = createRequestId('web-admin-users-reactivate');
+  const response = await fetch(`${API_URL}/api/admin/users/${userId}/reactivate`, {
+    method: 'PUT',
+    headers: getAuthHeaders({ requestId }),
+    body: JSON.stringify({}),
+  });
+
+  const data = await parseJsonOrEmpty(response);
+  if (!response.ok) {
+    throw new Error(parseErrorMessage(data, 'Failed to reactivate user'));
+  }
+  userListCache.clear();
+  return data;
+}

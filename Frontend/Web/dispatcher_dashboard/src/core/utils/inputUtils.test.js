@@ -1,4 +1,4 @@
-import { sanitizePhoneInput, isValidLocalPhone, PHONE_MAX_LENGTH } from '@/core/utils/inputUtils';
+import { sanitizePhoneInput, isValidLocalPhone, PHONE_MAX_LENGTH, getPasswordValidationError } from '@/core/utils/inputUtils';
 
 describe('inputUtils', () => {
   test('PHONE_MAX_LENGTH is 11', () => {
@@ -14,5 +14,14 @@ describe('inputUtils', () => {
     expect(isValidLocalPhone('09171234567')).toBe(true);
     expect(isValidLocalPhone('9171234567')).toBe(false);
     expect(isValidLocalPhone('')).toBe(false);
+  });
+
+  test('getPasswordValidationError matches backend complexity rules', () => {
+    expect(getPasswordValidationError('')).toMatch(/required/i);
+    expect(getPasswordValidationError('short')).toMatch(/8 characters/i);
+    expect(getPasswordValidationError('password1!')).toMatch(/capital/i);
+    expect(getPasswordValidationError('Password!')).toMatch(/number/i);
+    expect(getPasswordValidationError('Password1')).toMatch(/special/i);
+    expect(getPasswordValidationError('Password1!')).toBe('');
   });
 });

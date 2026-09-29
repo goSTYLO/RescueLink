@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-09-29
+
+- Audit log revamp: department CRUD/units/personnel mutations are logged; `logDispatcherAction` also records **department-admin** and **department-head**. Citizen auth (register, login/logout, password, profile/avatar) and volunteer application submit are logged via `logUserAction` / `logUserActionByUser`. Audit Log UI shows plain-language actions with expandable IT fields; Excel export adds **Action code** + friendly **Area** columns.
+
+## 2026-09-28
+
+- Super-admin Departments → Responders create form: required **password** + **department** for mobile account (phone = contact number; no email). Inline validation for name/phone/password/department (password matches backend complexity). Backend `POST /api/responders` creates a login with password + phone only (`email` optional/null).
+- Dept-admin Personnel → Responders create form aligned the same way; department is fixed to the signed-in admin’s department (read-only display, sent as `department_id`).
+- Dept-admin Personnel: unassigned / new account responders stay in the assignable pool (scoped by `organization` = department name), so they can be assigned or re-added after team removal.
+- Assign/remove team member now syncs `responders.team_name` so Responder Status stops showing “Unassigned” after assignment.
+- Team member list API only returns `is_active = TRUE` rows so Remove in Assign Members actually disappears from the modal.
+- Super-admin Team page lists Field Responders (`exclude_role` no longer drops `responder`) so accounts can be deactivated.
+- Super-admin Team page: search (name/email/phone/department) plus role filter; **Active** / **Deactivated** tabs segregate inactive accounts; Reactivate restores access.
+
 ## 2026-09-27
 
 - Insights: **Excel** and **PDF** download as files (`insights-{chart}-YYYYMMDD-HHmmss`, Asia/Manila). PDF uses html2canvas + jsPDF (one page per chart, on-screen colors); Excel remains data tables with data bars. Sticky filter bar; per-chart export icons. `GET /api/analytics/export.xlsx` (`sheet=` optional). CSV endpoint remains.

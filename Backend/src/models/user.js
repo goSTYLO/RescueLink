@@ -96,7 +96,7 @@ const User = {
 
   async findById(user_id) {
     const res = await pool.query(
-      'SELECT user_id, email, phone_number, address, password, phone_verified, first_name, last_name, role, department_id, profile_image, created_at FROM users WHERE user_id = $1',
+      'SELECT user_id, email, phone_number, address, password, phone_verified, first_name, last_name, role, department_id, profile_image, is_active, created_at FROM users WHERE user_id = $1',
       [user_id]
     );
     return decodeUserFields(res.rows[0]);
@@ -270,6 +270,19 @@ const User = {
   async deactivate(user_id) {
     const res = await pool.query(
       'UPDATE users SET is_active = false WHERE user_id = $1 RETURNING user_id, email, phone_number, address, phone_verified, first_name, last_name, role, is_active, created_at',
+      [user_id]
+    );
+    return decodeUserFields(res.rows[0]);
+  },
+
+  /**
+   * Reactivate a soft-deactivated user account
+   * @param {number} user_id - User ID to reactivate
+   * @returns {object} Reactivated user
+   */
+  async reactivate(user_id) {
+    const res = await pool.query(
+      'UPDATE users SET is_active = true WHERE user_id = $1 RETURNING user_id, email, phone_number, address, phone_verified, first_name, last_name, role, department_id, is_active, created_at',
       [user_id]
     );
     return decodeUserFields(res.rows[0]);

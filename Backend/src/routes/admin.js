@@ -43,6 +43,10 @@ router.put('/users/:id/role', adminController.updateUserRole);
 // Body: { reason?: string }
 router.put('/users/:id/deactivate', adminController.deactivateUser);
 
+// Reactivate user account
+// PUT /api/admin/users/:id/reactivate
+router.put('/users/:id/reactivate', adminController.reactivateUser);
+
 // Delete user permanently (hard delete)
 // DELETE /api/admin/users/:id
 router.delete('/users/:id', adminController.deleteUser);

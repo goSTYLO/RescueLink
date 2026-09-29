@@ -4,7 +4,7 @@ import { Layout } from '@/presentation/components/layout/Layout';
 import { Alert, Button, Card, Form, Input, Modal, Select, Table, Tabs, Tag } from 'antd';
 import { IncidentTypeChips } from '@/presentation/components/common/IncidentTypeChips';
 import { ResponderStatusTag, statusSelectProps, embeddedStatusSelectProps } from '@/presentation/components/common/ResponderStatusTag';
-import { isValidLocalPhone } from '@/core/utils/inputUtils';
+import { isValidLocalPhone, sanitizePhoneInput, getPasswordValidationError } from '@/core/utils/inputUtils';
 import {
   Users,
   Shield,
@@ -92,7 +92,11 @@ export function DepartmentPersonnelPage() {
   const [responderStatusFilter, setResponderStatusFilter] = useState('all');
   const [responderTeamFilter, setResponderTeamFilter] = useState('all');
   const [responderPage, setResponderPage] = useState(1);
-  const [responderForm, setResponderForm] = useState({ name: '', organization: '', contact_number: '', availability_status: 'available', team_name: '', supported_incident_types: [], email: '', password: '' });
+  const [responderForm, setResponderForm] = useState({ name: '', organization: '', contact_number: '', availability_status: 'available', team_name: '', supported_incident_types: [], password: '' });
+  const [responderFormErrors, setResponderFormErrors] = useState({});
+  const clearResponderFieldError = (field) => {
+    setResponderFormErrors((prev) => (prev[field] ? { ...prev, [field]: undefined } : prev));
+  };
   const [teamMemberSearch, setTeamMemberSearch] = useState('');
   const [teamMemberStatusFilter, setTeamMemberStatusFilter] = useState('all');
   const [teamMemberPage, setTeamMemberPage] = useState(1);
@@ -182,9 +186,18 @@ export function DepartmentPersonnelPage() {
 
   const deptTeamNames = useMemo(() => new Set(deptTeams.map((t) => String(t.team_name || '').trim()).filter(Boolean)), [deptTeams]);
 
+  const deptName = department?.name || user.department || 'Department';
+  const deptNameNormalized = String(deptName || '').trim().toLowerCase();
+
   const deptResponders = useMemo(() => {
-    return responders.filter((r) => deptTeamNames.has(String(r.team_name || '').trim()));
-  }, [responders, deptTeamNames]);
+    return responders.filter((r) => {
+      const teamName = String(r.team_name || '').trim();
+      const organization = String(r.organization || '').trim().toLowerCase();
+      if (teamName && deptTeamNames.has(teamName)) return true;
+      if (deptNameNormalized && organization === deptNameNormalized) return true;
+      return false;
+    });
+  }, [responders, deptTeamNames, deptNameNormalized]);
 
   useEffect(() => {
     const teamIds = deptTeams.map((t) => t.team_id).filter(Boolean);
@@ -295,40 +308,44 @@ export function DepartmentPersonnelPage() {
   };
 
   const handleCreateResponder = async () => {
-    if (!responderForm.name.trim()) return;
+    const name = responderForm.name.trim();
     const contact = responderForm.contact_number?.trim() || '';
-    if (contact && !isValidLocalPhone(contact)) {
-      alertUser({ icon: 'warning', title: 'Invalid contact number', text: 'Use local format 09XXXXXXXXX (11 digits).', confirmButtonColor: '#134178' });
+    const password = responderForm.password || '';
+    const passwordError = getPasswordValidationError(password);
+    const errors = {
+      name: name ? undefined : 'Name is required',
+      contact_number: !contact
+        ? 'Contact number is required'
+        : (!isValidLocalPhone(contact) ? 'Use local format 09XXXXXXXXX (11 digits)' : undefined),
+      password: passwordError || undefined,
+      department_id: departmentId ? undefined : 'Your account has no department assigned',
+    };
+    setResponderFormErrors(errors);
+    if (Object.values(errors).some(Boolean)) {
+      const firstError = Object.values(errors).find(Boolean);
+      alertUser({ icon: 'warning', title: 'Check the form', text: firstError, confirmButtonColor: '#134178' });
       return;
     }
-    const email = responderForm.email?.trim() || '';
-    const password = responderForm.password || '';
-    if (email || password) {
-      if (!email || !password || !contact) {
-        alertUser({ icon: 'warning', title: 'Mobile login incomplete', text: 'Email, password, and contact number are required together to create a mobile login.', confirmButtonColor: '#134178' });
-        return;
-      }
-      if (password.length < 8) {
-        alertUser({ icon: 'warning', title: 'Invalid password', text: 'Password must be at least 8 characters.', confirmButtonColor: '#134178' });
-        return;
-      }
-    }
     try {
+      const { password: _pw, ...rest } = responderForm;
       await createResponder({
-        ...responderForm,
-        name: responderForm.name.trim(),
-        organization: responderForm.organization?.trim() || null,
-        contact_number: contact || null,
+        ...rest,
+        name,
+        organization: deptName,
+        contact_number: contact,
         team_name: responderForm.team_name || null,
-        ...(email ? { email, password, phone_number: contact } : {}),
+        password,
+        phone_number: contact,
+        department_id: Number(departmentId),
       });
-      setResponderForm((prev) => ({ ...prev, name: '', contact_number: '', email: '', password: '' }));
+      setResponderForm((prev) => ({ ...prev, name: '', contact_number: '', password: '', team_name: '' }));
+      setResponderFormErrors({});
       await loadResponderResources();
       alertUser({
         icon: 'success',
-        title: 'Responder added',
-        text: email ? 'They can sign in on mobile with that phone number and password.' : undefined,
-        timer: email ? 2500 : 1500,
+        title: 'Responder account created',
+        text: 'They can sign in on mobile with that phone number and password.',
+        timer: 2500,
         showConfirmButton: false,
       });
     } catch (error) {
@@ -437,10 +454,16 @@ export function DepartmentPersonnelPage() {
     const assignedIds = new Set(selectedTeamMembers.map((m) => Number(m.responder_id)));
     return deptResponders
       .filter((r) => !assignedIds.has(Number(r.responder_id)))
-      .map((r) => ({ value: String(r.responder_id), label: `${r.name} • ${String(r.availability_status || 'unknown').toLowerCase()}` }));
+      .map((r) => {
+        const teamName = String(r.team_name || '').trim();
+        const status = String(r.availability_status || 'unknown').toLowerCase();
+        const teamLabel = teamName || 'unassigned';
+        return {
+          value: String(r.responder_id),
+          label: `${r.name} • ${status} • ${teamLabel}`,
+        };
+      });
   }, [deptResponders, selectedTeamForMembers, selectedTeamMembers]);
-
-  const deptName = department?.name || user.department || 'Department';
 
   const pager = (page, total, onPrev, onNext) => (
     <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, marginTop: 8 }}>
@@ -628,11 +651,43 @@ export function DepartmentPersonnelPage() {
                         )}
                       >
                         <Form layout="vertical" size="small">
-                          <Form.Item label="Name"><Input maxLength={100} value={responderForm.name} onChange={(e) => setResponderForm((p) => ({ ...p, name: e.target.value }))} /></Form.Item>
-                          <Form.Item label="Contact Number"><Input value={responderForm.contact_number} onChange={(e) => setResponderForm((p) => ({ ...p, contact_number: e.target.value }))} placeholder="09XXXXXXXXX" /></Form.Item>
-                          <Form.Item label="Email (optional mobile login)"><Input type="email" value={responderForm.email} onChange={(e) => setResponderForm((p) => ({ ...p, email: e.target.value }))} /></Form.Item>
-                          <Form.Item label="Password (optional mobile login)"><Input.Password value={responderForm.password} onChange={(e) => setResponderForm((p) => ({ ...p, password: e.target.value }))} placeholder="Min 8 characters" /></Form.Item>
-                          <Form.Item label="Team">
+                          <Form.Item label="Name" required validateStatus={responderFormErrors.name ? 'error' : undefined} help={responderFormErrors.name}>
+                            <Input
+                              maxLength={100}
+                              value={responderForm.name}
+                              onChange={(e) => {
+                                clearResponderFieldError('name');
+                                setResponderForm((p) => ({ ...p, name: e.target.value }));
+                              }}
+                              placeholder="Full name"
+                            />
+                          </Form.Item>
+                          <Form.Item label="Contact Number" required validateStatus={responderFormErrors.contact_number ? 'error' : undefined} help={responderFormErrors.contact_number}>
+                            <Input
+                              value={responderForm.contact_number}
+                              onChange={(e) => {
+                                clearResponderFieldError('contact_number');
+                                setResponderForm((p) => ({ ...p, contact_number: sanitizePhoneInput(e.target.value) }));
+                              }}
+                              placeholder="09XXXXXXXXX"
+                              maxLength={11}
+                              inputMode="numeric"
+                            />
+                          </Form.Item>
+                          <Form.Item label="Password" required validateStatus={responderFormErrors.password ? 'error' : undefined} help={responderFormErrors.password}>
+                            <Input.Password
+                              value={responderForm.password}
+                              onChange={(e) => {
+                                clearResponderFieldError('password');
+                                setResponderForm((p) => ({ ...p, password: e.target.value }));
+                              }}
+                              placeholder="8+ chars, capital, number, special"
+                            />
+                          </Form.Item>
+                          <Form.Item label="Department">
+                            <Input value={deptName} disabled />
+                          </Form.Item>
+                          <Form.Item label="Team (optional)">
                             <Select
                               value={responderForm.team_name || undefined}
                               onChange={(v) => setResponderForm((p) => ({ ...p, team_name: v || '' }))}

@@ -10,6 +10,7 @@ const {
 } = require('../utils/validation');
 const { isPointInDagupan } = require('../utils/geolocation');
 const { ROLES } = require('../config/roles');
+const { logDispatcherAction } = require('../utils/auditLog');
 
 function toDepartmentCode(name) {
   return String(name)
@@ -158,6 +159,11 @@ const departmentController = {
         });
       }
 
+      await logDispatcherAction(req, 'department_create', 'department', created.department_id, {
+        name: created.name,
+        code: created.code,
+        type: created.type,
+      });
       res.status(201).json(created);
     } catch (error) {
       console.error('Error creating department:', error);
@@ -187,6 +193,11 @@ const departmentController = {
         });
       }
 
+      await logDispatcherAction(req, 'department_update', 'department', departmentId, {
+        name: updated.name,
+        code: updated.code,
+        status: updated.status,
+      });
       res.json(updated);
     } catch (error) {
       console.error('Error updating department:', error);
@@ -204,6 +215,10 @@ const departmentController = {
       if (!removed) {
         return res.status(404).json({ error: 'Department not found' });
       }
+      await logDispatcherAction(req, 'department_delete', 'department', departmentId, {
+        name: removed.name,
+        code: removed.code,
+      });
       res.json({ message: 'Department deleted successfully', department: removed });
     } catch (error) {
       console.error('Error deleting department:', error);
@@ -263,6 +278,11 @@ const departmentController = {
       }
       const payload = normalizeUnitPayload(req.body);
       const created = await Department.createUnit(departmentId, payload);
+      await logDispatcherAction(req, 'department_unit_create', 'department_unit', created.unit_id, {
+        department_id: departmentId,
+        name: created.name,
+        type: created.type,
+      });
       res.status(201).json(created);
     } catch (error) {
       console.error('Error creating unit:', error);
@@ -282,6 +302,11 @@ const departmentController = {
       if (!updated) {
         return res.status(404).json({ error: 'Unit not found' });
       }
+      await logDispatcherAction(req, 'department_unit_update', 'department_unit', unitId, {
+        department_id: departmentId,
+        name: updated.name,
+        status: updated.status,
+      });
       res.json(updated);
     } catch (error) {
       console.error('Error updating unit:', error);
@@ -307,6 +332,10 @@ const departmentController = {
       if (!usage) {
         return res.status(404).json({ error: 'Unit not found' });
       }
+      await logDispatcherAction(req, 'department_unit_assign', 'department_unit', unitId, {
+        department_id: departmentId,
+        report_id: reportId,
+      });
       res.status(201).json(usage);
     } catch (error) {
       console.error('Error assigning unit:', error);
@@ -325,6 +354,10 @@ const departmentController = {
       if (!deleted) {
         return res.status(404).json({ error: 'Unit not found' });
       }
+      await logDispatcherAction(req, 'department_unit_delete', 'department_unit', unitId, {
+        department_id: departmentId,
+        name: deleted.name,
+      });
       res.json({ message: 'Unit deleted successfully', unit: deleted });
     } catch (error) {
       console.error('Error deleting unit:', error);
@@ -354,6 +387,11 @@ const departmentController = {
       const departmentId = validateInteger(req.params.id, 'department_id');
       const payload = normalizePersonnelPayload(req.body);
       const created = await Department.createPersonnel(departmentId, payload);
+      await logDispatcherAction(req, 'department_personnel_create', 'department_personnel', created.personnel_id, {
+        department_id: departmentId,
+        name: created.name,
+        role: created.role,
+      });
       res.status(201).json(created);
     } catch (error) {
       console.error('Error creating personnel:', error);
@@ -373,6 +411,11 @@ const departmentController = {
       if (!updated) {
         return res.status(404).json({ error: 'Personnel not found' });
       }
+      await logDispatcherAction(req, 'department_personnel_update', 'department_personnel', personnelId, {
+        department_id: departmentId,
+        name: updated.name,
+        status: updated.status,
+      });
       res.json(updated);
     } catch (error) {
       console.error('Error updating personnel:', error);
@@ -391,6 +434,10 @@ const departmentController = {
       if (!deleted) {
         return res.status(404).json({ error: 'Personnel not found' });
       }
+      await logDispatcherAction(req, 'department_personnel_delete', 'department_personnel', personnelId, {
+        department_id: departmentId,
+        name: deleted.name,
+      });
       res.json({ message: 'Personnel deleted successfully', personnel: deleted });
     } catch (error) {
       console.error('Error deleting personnel:', error);

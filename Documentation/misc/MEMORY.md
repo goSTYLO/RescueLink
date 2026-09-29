@@ -1,5 +1,29 @@
 # RescueLink Memory
 
+## Audit log: department + citizen + friendly UI (2026-09-29)
+
+- `logDispatcherAction` allowlist: `dispatcher`, `admin`, `department-admin`, `department-head` (fixes silent gap for dept actors on existing responder/team/dispatch/escalation logs).
+- `department.js` mutations write: `department_*`, `department_unit_*`, `department_personnel_*`.
+- Citizens: `logUserActionByUser` for register/login/password_reset; `logUserAction` for logout, password_change, profile/avatar, `responder_application_submit`. Dual-call on shared auth handlers so each role helper no-ops for the other.
+- Audit Log page: friendly What happened / Area / Summary; expandable technical row (action code, resource type/id, user id, JSON). Excel: Action + Action code + Area + Resource type.
+- Regression: `Backend/tests/auditLog.helpers.test.js`, `department.audit.test.js`, `auditLogWorkbook.test.js`.
+
+Added: 2026-09-29 — department/citizen audit coverage + friendly display.
+
+## Super-admin responder create: mobile login fields (2026-09-28)
+
+- `DepartmentsPage` Create Responder form requires password + department (account create). Contact number is the mobile login phone (no email field).
+- Inline field errors on name, contact, password, department; phone digits sanitized; password rules via `getPasswordValidationError` (aligned with backend).
+- Payload always sends `{ password, phone_number, department_id }` with name/contact. Team assignment stays optional (Unassigned).
+- `DepartmentPersonnelPage` mirrors the same account-create flow; department is fixed to the dept admin’s `departmentId` (disabled display, always sent).
+- Create sets `organization` to the department name; `deptResponders` includes team matches **or** organization match so Unassigned accounts appear in Responders + Assign Members (re-add after removal).
+- `Responder.addTeamMember` / `removeTeamMember` sync `responders.team_name` (set on add; clear or re-point on remove) so Responder Status reflects assignment. `listTeamMembers` filters `is_active = TRUE` so Remove updates the Assign Members UI. Regression: `Backend/tests/responder.teamMemberSync.test.js`.
+- Super-admin `TeamPage` lists Field Responders (only excludes citizen `user` role) so admins can deactivate mobile responder accounts; search + role filter; Active / Deactivated tabs; `PUT /api/admin/users/:id/reactivate` restores access.
+- `responderController.create` no longer requires email for mobile login — password + phone_number create the user with `email: null`. Email still accepted if provided.
+- Regression: `inputUtils.test.js` (password helper), `Backend/tests/responder.createLogin.test.js`.
+
+Added: 2026-09-28 — super-admin / dept-admin responder password + department.
+
 ## Citizen Reports tab theme (2026-09-27)
 
 - `ReportHistoryScreen` no longer pins body chrome to dark-only (`0xFF0B0E14` / slate cards). Surfaces and text follow `Theme` / `AppTheme` light|dark tokens; brand accents use `AppTheme.primaryRed` / `primaryBlue` / `successGreen` / `warningAmber`.

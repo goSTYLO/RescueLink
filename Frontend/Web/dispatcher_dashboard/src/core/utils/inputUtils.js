@@ -5,6 +5,20 @@ export const sanitizePhoneInput = (value) =>
 
 export const isValidLocalPhone = (value) => /^09\d{9}$/.test(String(value ?? '').trim());
 
+/** Aligns with Backend validatePassword — returns error message or ''. */
+export function getPasswordValidationError(password) {
+  const trimmed = String(password ?? '').trim();
+  if (!trimmed) return 'Password is required';
+  if (trimmed.length < 8) return 'Password must be at least 8 characters';
+  if (trimmed.length > 128) return 'Password must not exceed 128 characters';
+  if (!/[A-Z]/.test(trimmed)) return 'Password must contain at least one capital letter';
+  if (!/[0-9]/.test(trimmed)) return 'Password must contain at least one number';
+  if (!/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?`~]/.test(trimmed)) {
+    return 'Password must contain at least one special character';
+  }
+  return '';
+}
+
 const EYE_SVG =
   '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>';
 

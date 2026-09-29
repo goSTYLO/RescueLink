@@ -385,6 +385,42 @@ const adminController = {
   },
 
   /**
+   * Reactivate a deactivated user account
+   * PUT /api/admin/users/:id/reactivate
+   */
+  async reactivateUser(req, res) {
+    try {
+      const { id } = req.params;
+      if (!id || isNaN(parseInt(id, 10))) {
+        return res.status(400).json({ error: 'Invalid user ID format' });
+      }
+
+      const user = await User.findById(parseInt(id, 10));
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+      if (user.is_active !== false) {
+        return res.status(400).json({ error: 'User is already active' });
+      }
+
+      const reactivatedUser = await User.reactivate(parseInt(id, 10));
+      reactivatedUser.password = undefined;
+
+      await logAdminAction(req, 'user_reactivate', 'user', user.user_id, {
+        user_id: parseInt(id, 10),
+      });
+
+      res.json({
+        message: 'User reactivated successfully',
+        user: reactivatedUser,
+      });
+    } catch (error) {
+      console.error('Error reactivating user:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+
+  /**
    * Delete a user (permanent deletion)
    * DELETE /api/admin/users/:id
    */

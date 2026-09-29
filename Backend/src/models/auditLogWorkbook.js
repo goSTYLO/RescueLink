@@ -5,16 +5,76 @@ const WHITE = 'FFFFFFFF';
 const HEADER_FILL = 'FFE5E7EB';
 
 const ACTION_LABELS = {
-  dispatcher_login: 'Login',
-  dispatcher_signup: 'Signup',
+  dispatcher_login: 'Dispatcher login',
+  dispatcher_signup: 'Dispatcher signup',
   dispatcher_logout: 'Logout',
-  password_change: 'Password change',
+  password_change: 'Password changed',
   password_reset: 'Password reset',
+  user_register: 'Account registered',
+  user_login: 'Citizen login',
+  user_logout: 'Citizen logout',
+  user_profile_update: 'Profile updated',
+  user_avatar_update: 'Profile photo updated',
+  user_avatar_delete: 'Profile photo removed',
   dispatch_create: 'Dispatch created',
+  dispatch_create_v2: 'Dispatch created',
+  dispatch_create_department_only: 'Department notified',
+  dispatch_create_auto_team: 'Auto team dispatch',
   dispatch_update: 'Dispatch updated',
   dispatch_delete: 'Dispatch deleted',
+  dispatch_undo_department_notification: 'Department notification undone',
+  dispatch_confirm_suggestion: 'Team suggestion confirmed',
+  dispatch_reassign_team: 'Team reassigned',
+  incident_create: 'Incident reported',
   incident_blockchain_finalize: 'Incident finalized',
   incident_verify: 'Incident verified (legacy)',
+  incident_reporter_confirm_resolution: 'Resolution confirmed',
+  incident_status_update: 'Incident status updated',
+  add_coordination_note: 'Coordination note added',
+  department_create: 'Created department',
+  department_update: 'Updated department',
+  department_delete: 'Deleted department',
+  department_unit_create: 'Added unit',
+  department_unit_update: 'Updated unit',
+  department_unit_delete: 'Removed unit',
+  department_unit_assign: 'Assigned unit to incident',
+  department_personnel_create: 'Added roster person',
+  department_personnel_update: 'Updated roster person',
+  department_personnel_delete: 'Removed roster person',
+  responder_create: 'Created responder',
+  responder_update: 'Updated responder',
+  responder_status_update: 'Responder status updated',
+  responder_delete: 'Deleted responder',
+  responder_team_create: 'Created team',
+  responder_team_update: 'Updated team',
+  responder_team_status_update: 'Team status updated',
+  responder_team_delete: 'Deleted team',
+  responder_team_member_add: 'Added team member',
+  responder_team_member_remove: 'Removed team member',
+  responder_application_submit: 'Volunteer application submitted',
+  responder_application_approved: 'Application approved',
+  responder_application_rejected: 'Application rejected',
+  responder_application_revoked: 'Responder role revoked',
+  escalation_request: 'Assistance requested',
+  escalation_accepted: 'Assistance accepted',
+  escalation_declined: 'Assistance declined',
+  escalation_resolved: 'Assistance resolved',
+  escalation_cancelled: 'Assistance cancelled',
+};
+
+const RESOURCE_LABELS = {
+  auth: 'Auth',
+  dispatch: 'Dispatch',
+  incident: 'Incident',
+  department: 'Department',
+  department_unit: 'Unit',
+  department_personnel: 'Roster',
+  responder: 'Responder',
+  team: 'Team',
+  escalation: 'Escalation',
+  responder_application: 'Application',
+  analytics: 'Analytics',
+  user: 'User',
 };
 
 function cellValue(value) {
@@ -55,6 +115,11 @@ function actionLabel(action) {
   return ACTION_LABELS[action] || String(action).replace(/_/g, ' ');
 }
 
+function resourceLabel(resourceType) {
+  if (!resourceType) return '';
+  return RESOURCE_LABELS[resourceType] || String(resourceType).replace(/_/g, ' ');
+}
+
 function userLabel(log) {
   if (log.user_email) return log.user_email;
   const name = [log.user_first_name, log.user_last_name].filter(Boolean).join(' ');
@@ -82,7 +147,18 @@ function detailFields(details) {
 
 function buildAuditLogWorkbook(logs, meta) {
   const wb = new ExcelJS.Workbook();
-  const headers = ['Timestamp', 'User', 'Action', 'Resource', 'Resource ID', 'Block', 'Tx Hash', 'Details'];
+  const headers = [
+    'Timestamp',
+    'User',
+    'Action',
+    'Action code',
+    'Area',
+    'Resource type',
+    'Resource ID',
+    'Block',
+    'Tx Hash',
+    'Details',
+  ];
   const ws = wb.addWorksheet('Audit log');
   chrome(ws, 'Dispatcher Audit Log', meta, headers.length);
   writeHeaderRow(ws, 5, headers);
@@ -94,6 +170,8 @@ function buildAuditLogWorkbook(logs, meta) {
       log.created_at ? new Date(log.created_at).toISOString() : '',
       userLabel(log),
       actionLabel(log.action),
+      log.action || '',
+      resourceLabel(log.resource_type),
       log.resource_type || '',
       log.resource_id != null ? log.resource_id : '',
       block,
@@ -107,11 +185,14 @@ function buildAuditLogWorkbook(logs, meta) {
   headers.forEach((header, i) => {
     ws.getColumn(i + 1).width = Math.max(14, String(header).length + 2);
   });
-  ws.getColumn(8).width = 48;
+  ws.getColumn(10).width = 48;
   return wb.xlsx.writeBuffer();
 }
 
 module.exports = {
   buildAuditLogWorkbook,
   actionLabel,
+  resourceLabel,
+  ACTION_LABELS,
+  RESOURCE_LABELS,
 };

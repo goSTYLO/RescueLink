@@ -5,7 +5,7 @@ const firebaseAdmin = require('../config/firebase');
 const { validatePhone, validateString, validateEmail, validatePassword, validateAddress, validateLatitude, validateLongitude, validateSessionToken } = require('../utils/validation');
 const { isPointInDagupan } = require('../utils/geolocation');
 const { sendPasswordResetEmail } = require('../services/email');
-const { logDispatcherAction, logDispatcherActionByUser } = require('../utils/auditLog');
+const { logDispatcherAction, logDispatcherActionByUser, logUserAction, logUserActionByUser } = require('../utils/auditLog');
 const { JWT_SECRET } = require('../config/jwt');
 const TokenBlacklist = require('../models/tokenBlacklist');
 const DispatcherOtp = require('../models/dispatcherOtp');
@@ -198,6 +198,7 @@ exports.verifyRegistrationOtp = async (req, res) => {
       { expiresIn: '7d' }
     );
 
+    await logUserActionByUser(user, req, 'user_register', 'auth', user.user_id, { via: 'otp' });
     console.log('✅ Registration OTP verified, user created:', { user_id: user.user_id });
     return res.status(201).json({
       success: true,
@@ -302,6 +303,7 @@ exports.login = async (req, res) => {
     }
 
     const token = jwt.sign({ user_id: user.user_id, phone: user.phone_number, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
+    await logUserActionByUser(user, req, 'user_login', 'auth', null, { method: 'phone' });
     console.log('✅ Login successful:', { user_id: user.user_id });
     res.json({ user: await buildUserPayload(user), token });
   } catch (err) {
@@ -541,6 +543,7 @@ exports.resetPassword = async (req, res) => {
 
     const passwordHash = await hashPassword(validatedPassword);
     await User.updatePassword(user.user_id, passwordHash);
+    await logUserActionByUser(user, req, 'password_reset', 'auth', null, { via: 'sms' });
     console.log('✅ Password updated for user:', user.user_id);
     res.json({ message: 'Password updated successfully' });
   } catch (err) {
@@ -611,6 +614,7 @@ exports.resetPasswordWithToken = async (req, res) => {
     const passwordHash = await hashPassword(validatedPassword);
     await User.updatePassword(user.user_id, passwordHash);
     await logDispatcherActionByUser(user, req, 'password_reset', 'auth', null, { via: 'email_link' });
+    await logUserActionByUser(user, req, 'password_reset', 'auth', null, { via: 'email_link' });
     console.log('✅ Password reset with token for user:', user.user_id);
     return res.json({ message: 'Password updated successfully' });
   } catch (err) {
@@ -824,6 +828,12 @@ exports.updateMe = async (req, res) => {
       await User.updateNames(userId, firstName, lastName);
     }
 
+    const changed = {};
+    if (hasAddress) changed.address = true;
+    if (hasFirstName) changed.firstName = true;
+    if (hasLastName) changed.lastName = true;
+    await logUserAction(req, 'user_profile_update', 'auth', userId, changed);
+
     const user = await User.findById(userId);
     res.json({ user: await buildUserPayload(user) });
   } catch (err) {
@@ -873,6 +883,7 @@ exports.uploadAvatar = async (req, res) => {
     }
     await writeObject(objectKey, compressed.buffer);
     await User.updateProfileImage(userId, objectKey);
+    await logUserAction(req, 'user_avatar_update', 'auth', userId, null);
     const updated = await User.findById(userId);
     res.json({ user: await buildUserPayload(updated) });
   } catch (err) {
@@ -920,6 +931,7 @@ exports.deleteAvatar = async (req, res) => {
       await deleteAvatarFile(user.profile_image);
     }
     await User.updateProfileImage(userId, null);
+    await logUserAction(req, 'user_avatar_delete', 'auth', userId, null);
     const updated = await User.findById(userId);
     res.json({ user: await buildUserPayload(updated) });
   } catch (err) {
@@ -955,6 +967,7 @@ exports.changePassword = async (req, res) => {
     const passwordHash = await hashPassword(validatedPassword);
     await User.updatePassword(userId, passwordHash);
     await logDispatcherAction(req, 'password_change', 'auth', null, { note: 'Password updated' });
+    await logUserAction(req, 'password_change', 'auth', null, { note: 'Password updated' });
     console.log('✅ Password changed for user:', userId);
     res.json({ message: 'Password updated successfully' });
   } catch (err) {
@@ -982,9 +995,8 @@ exports.logout = async (req, res) => {
         console.error('❌ Logout blacklist error:', blacklistErr.message);
       }
     }
-    if (req.user?.role === ROLES.DISPATCHER) {
-      await logDispatcherAction(req, 'dispatcher_logout', 'auth', null, { note: 'Session ended' });
-    }
+    await logDispatcherAction(req, 'dispatcher_logout', 'auth', null, { note: 'Session ended' });
+    await logUserAction(req, 'user_logout', 'auth', null, { note: 'Session ended' });
     res.json({ message: 'Logged out' });
   } catch (err) {
     console.error('❌ Logout error:', err.message);
