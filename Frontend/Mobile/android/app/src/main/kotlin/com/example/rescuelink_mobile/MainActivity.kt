@@ -6,6 +6,10 @@ import android.app.NotificationManager
 import android.media.AudioAttributes
 import android.os.Build
 import android.os.Bundle
+import android.os.VibrationAttributes
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -46,6 +50,65 @@ class MainActivity : FlutterFragmentActivity() {
                     result.notImplemented()
                 }
             }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "rescuelink/sos")
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "vibrate" -> {
+                        val raw = call.argument<List<*>>("timings")
+                        val timings = raw?.map { (it as Number).toLong() }?.toLongArray()
+                        if (timings == null || timings.size < 2) {
+                            result.error("bad_args", "timings required", null)
+                        } else {
+                            startSosVibration(timings)
+                            result.success(null)
+                        }
+                    }
+                    "stop" -> {
+                        stopSosVibration()
+                        result.success(null)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+    }
+
+    private fun deviceVibrator(): Vibrator? {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            getSystemService(VibratorManager::class.java)?.defaultVibrator
+        } else {
+            @Suppress("DEPRECATION")
+            getSystemService(Vibrator::class.java)
+        }
+    }
+
+    /** Motor buzz for the SOS countdown. UI haptics stay silent when touch vibration is off. */
+    private fun startSosVibration(timings: LongArray) {
+        val vibrator = deviceVibrator() ?: return
+        vibrator.cancel()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val amplitudes = IntArray(timings.size) { i -> if (i % 2 == 1) 255 else 0 }
+            val effect = VibrationEffect.createWaveform(timings, amplitudes, -1)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                vibrator.vibrate(
+                    effect,
+                    VibrationAttributes.createForUsage(VibrationAttributes.USAGE_ALARM),
+                )
+            } else {
+                val attrs = AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_ALARM)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build()
+                @Suppress("DEPRECATION")
+                vibrator.vibrate(effect, attrs)
+            }
+        } else {
+            @Suppress("DEPRECATION")
+            vibrator.vibrate(timings, -1)
+        }
+    }
+
+    private fun stopSosVibration() {
+        deviceVibrator()?.cancel()
     }
 
     /** Stop FGS player and dismiss emergency-channel trays (that is the 60s WAV). */

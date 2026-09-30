@@ -253,7 +253,10 @@ export function DepartmentPersonnelPage() {
 
   const list = (mockPersonnel && departmentId && mockPersonnel[departmentId]) ? mockPersonnel[departmentId] : [];
   const departmentIncidents = (mockIncidents || []).filter((inc) => inc.assignedDepartmentId === departmentId);
-  const activeDepartmentIncidents = departmentIncidents.filter((i) => i.status !== 'Resolved' && i.status !== 'resolved');
+  const activeDepartmentIncidents = departmentIncidents.filter((i) => {
+    const status = String(i.status || '').toLowerCase();
+    return status !== 'resolved' && status !== 'closed' && status !== 'cancelled';
+  });
   const getAssignment = useCallback((incidentId) => assignments[incidentId] || null, [assignments]);
   const getVehicleAssignment = useCallback((incidentId) => vehicleAssignments[incidentId] || null, [vehicleAssignments]);
   const assignVehicleToIncident = useCallback(async (incidentId, unitId, unitName) => {

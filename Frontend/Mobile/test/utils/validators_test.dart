@@ -45,4 +45,54 @@ void main() {
       expect(Validators.phoneInputFormatters.length, 2);
     });
   });
+
+  group('validatePassword', () {
+    test('accepts a password that meets the backend rule', () {
+      expect(Validators.validatePassword('Password1!'), isNull);
+      expect(Validators.validatePassword('  Password1!  '), isNull);
+    });
+
+    test('rejects missing capital or special character', () {
+      expect(Validators.validatePassword('password1!'), isNotNull);
+      expect(Validators.validatePassword('Password1'), isNotNull);
+    });
+
+    test('rejects short and overlong passwords', () {
+      expect(Validators.validatePassword('Aa1!'), isNotNull);
+      expect(Validators.validatePassword(''), isNotNull);
+      expect(Validators.validatePassword(null), isNotNull);
+      expect(
+        Validators.validatePassword('${'A' * 127}1!'),
+        isNotNull,
+      );
+    });
+  });
+
+  group('validatePasswordConfirmation', () {
+    test('trims before compare', () {
+      expect(
+        Validators.validatePasswordConfirmation('Password1! ', 'Password1!'),
+        isNull,
+      );
+      expect(
+        Validators.validatePasswordConfirmation('Password1!', ' Password1!'),
+        isNull,
+      );
+    });
+
+    test('rejects a real mismatch', () {
+      expect(
+        Validators.validatePasswordConfirmation('Password1!', 'Password2!'),
+        isNotNull,
+      );
+    });
+  });
+
+  group('passwordStrength', () {
+    test('is strong only when the password is accepted', () {
+      expect(Validators.passwordStrength('Password1!'), 'strong');
+      expect(Validators.passwordStrength('pass'), 'weak');
+      expect(Validators.passwordStrength('Password1'), 'medium');
+    });
+  });
 }

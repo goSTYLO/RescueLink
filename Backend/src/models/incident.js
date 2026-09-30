@@ -94,6 +94,7 @@ const INCIDENT_STATUS_FLOW = {
   in_progress: new Set(['resolved']),
   resolved: new Set(['closed']),
   closed: new Set([]),
+  cancelled: new Set([]),
 };
 
 function normalizeIncidentStatus(value) {
@@ -119,6 +120,90 @@ function normalizeActorRole(role) {
 
 function isVolunteerResponderResolved(responderStatus) {
   return String(responderStatus || '').trim().toLowerCase() === 'resolved';
+}
+
+const REPORTER_REVISABLE_STATUSES = new Set(['pending', 'verified', 'in_progress']);
+
+function isArrivedOrDoneStatus(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized === 'on scene' || normalized === 'resolved';
+}
+
+async function loadReporterReviseTarget(reportId, reporterUserId) {
+  const currentResult = await pool.query(
+    `SELECT report_id, user_id, status, responder_status, description, latitude, longitude, barangay
+     FROM incident_reports
+     WHERE report_id = $1`,
+    [reportId]
+  );
+  const incident = currentResult.rows[0];
+  if (!incident) return null;
+
+  if (Number(incident.user_id) !== Number(reporterUserId)) {
+    throw createIncidentStateError(
+      'INCIDENT_REVISE_OWNERSHIP',
+      'Only the reporting user can change this report.',
+      403
+    );
+  }
+
+  const currentStatus = normalizeIncidentStatus(incident.status);
+  if (!REPORTER_REVISABLE_STATUSES.has(currentStatus)) {
+    throw createIncidentStateError(
+      'INCIDENT_REVISE_INVALID_STATUS',
+      'This report can no longer be changed.',
+      409
+    );
+  }
+
+  if (isArrivedOrDoneStatus(incident.responder_status)) {
+    throw createIncidentStateError(
+      'INCIDENT_REVISE_ON_SCENE',
+      'This report can no longer be changed because a responder is already on scene.',
+      409
+    );
+  }
+
+  const dispatchHit = await pool.query(
+    `SELECT 1
+       FROM dispatches
+      WHERE report_id = $1
+        AND LOWER(TRIM(COALESCE(response_status, ''))) IN ('on scene', 'resolved')
+      LIMIT 1`,
+    [reportId]
+  );
+  if (dispatchHit.rows[0]) {
+    throw createIncidentStateError(
+      'INCIDENT_REVISE_ON_SCENE',
+      'This report can no longer be changed because a responder is already on scene.',
+      409
+    );
+  }
+
+  try {
+    const backupHit = await pool.query(
+      `SELECT 1
+         FROM backup_responses
+        WHERE report_id = $1
+          AND status = 'joined'
+          AND LOWER(TRIM(COALESCE(responder_status, ''))) IN ('on scene', 'resolved')
+        LIMIT 1`,
+      [reportId]
+    );
+    if (backupHit.rows[0]) {
+      throw createIncidentStateError(
+        'INCIDENT_REVISE_ON_SCENE',
+        'This report can no longer be changed because a responder is already on scene.',
+        409
+      );
+    }
+  } catch (error) {
+    if (error.httpStatus) throw error;
+    if (error.code !== '42P01') throw error;
+  }
+
+  incident.description = tryDecryptValue(incident.description);
+  return incident;
 }
 
 const Incident = {
@@ -1340,6 +1425,65 @@ const Incident = {
       [report_id]
     );
     return res.rows[0];
+  },
+
+  async cancelByReporter(report_id, reporter_user_id) {
+    const incident = await loadReporterReviseTarget(report_id, reporter_user_id);
+    if (!incident) return null;
+
+    try {
+      const updated = await pool.query(
+        `UPDATE incident_reports
+         SET status = 'cancelled',
+             closure_method = 'reporter_cancelled'
+         WHERE report_id = $1
+         RETURNING *`,
+        [report_id]
+      );
+      return updated.rows[0] || null;
+    } catch (error) {
+      if (error.code === '42703' || /closure_method/i.test(error.message)) {
+        const fallback = await pool.query(
+          `UPDATE incident_reports
+           SET status = 'cancelled'
+           WHERE report_id = $1
+           RETURNING *`,
+          [report_id]
+        );
+        return fallback.rows[0] || null;
+      }
+      throw error;
+    }
+  },
+
+  async updateDetailsByReporter(report_id, reporter_user_id, {
+    description = null,
+    latitude,
+    longitude,
+    barangay = null,
+  } = {}) {
+    const incident = await loadReporterReviseTarget(report_id, reporter_user_id);
+    if (!incident) return null;
+
+    const storedDescription = description == null || String(description).trim() === ''
+      ? null
+      : tryEncryptValue(String(description).trim());
+
+    const updated = await pool.query(
+      `UPDATE incident_reports
+       SET description = $2,
+           latitude = $3,
+           longitude = $4,
+           barangay = $5
+       WHERE report_id = $1
+       RETURNING *`,
+      [report_id, storedDescription, latitude, longitude, barangay]
+    );
+    const row = updated.rows[0] || null;
+    if (!row) return null;
+    row.description = tryDecryptValue(row.description);
+    row.barangay = tryDecryptValue(row.barangay);
+    return row;
   },
 
   async updateAutoAssignment(report_id, {

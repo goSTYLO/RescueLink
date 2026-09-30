@@ -4,6 +4,8 @@ jest.mock('../src/models/incident', () => ({
   createClassification: jest.fn(),
   markAiPending: jest.fn(),
   updateScanStatus: jest.fn(),
+  findById: jest.fn(async (id) => ({ report_id: id, status: 'pending' })),
+  updateAutoAssignment: jest.fn(async () => ({})),
 }));
 
 jest.mock('../src/config/db', () => ({
@@ -21,6 +23,8 @@ jest.mock('../src/utils/validation', () => ({
 
 jest.mock('../src/utils/geolocation', () => ({
   getBarangayFromCoordinates: jest.fn(() => 'Sample Barangay'),
+  calculateDistance: jest.fn(),
+  isPointInDagupan: jest.fn(() => true),
 }));
 
 jest.mock('../src/services/aiService', () => ({

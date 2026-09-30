@@ -60,6 +60,10 @@ router.patch('/:id/status', authMiddleware, authorize([ROLES.DISPATCHER, ROLES.A
 // Reporter confirms resolution (owner-only is enforced in controller)
 router.post('/:id/confirm-resolution', authMiddleware, authorize([ROLES.USER, ROLES.RESPONDER, ROLES.VOLUNTEER]), incidentController.confirmResolution);
 
+// Reporter cancels or corrects their own report (owner-only is enforced in controller)
+router.post('/:id/cancel', authMiddleware, authorize([ROLES.USER, ROLES.RESPONDER, ROLES.VOLUNTEER]), incidentController.cancelByReporter);
+router.patch('/:id/details', authMiddleware, authorize([ROLES.USER, ROLES.RESPONDER, ROLES.VOLUNTEER]), incidentController.updateDetailsByReporter);
+
 // Manual reclassification with AI override audit trail
 // Dispatcher/admin/supervisor including admin role aliases
 router.post('/:id/reclassify', authMiddleware, authorize([

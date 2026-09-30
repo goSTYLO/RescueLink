@@ -48,11 +48,21 @@ class SignUpScreen extends StatefulWidget {
   final VoidCallback? onLoginTap;
   final void Function(String firstName, String lastName, String phone,
       String address, String password)? onRequestLocationVerification;
+  final String? initialFirstName;
+  final String? initialLastName;
+  final String? initialPhone;
+  final String? initialAddress;
+  final String? initialPassword;
 
   const SignUpScreen({
     super.key,
     this.onLoginTap,
     this.onRequestLocationVerification,
+    this.initialFirstName,
+    this.initialLastName,
+    this.initialPhone,
+    this.initialAddress,
+    this.initialPassword,
   });
 
   @override
@@ -61,16 +71,35 @@ class SignUpScreen extends StatefulWidget {
 
 class _SignUpScreenState extends State<SignUpScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _firstNameController = TextEditingController();
-  final _lastNameController = TextEditingController();
-  final _phoneController = TextEditingController();
-  final _passwordController = TextEditingController();
-  final _confirmPasswordController = TextEditingController();
+  late final TextEditingController _firstNameController;
+  late final TextEditingController _lastNameController;
+  late final TextEditingController _phoneController;
+  late final TextEditingController _passwordController;
+  late final TextEditingController _confirmPasswordController;
+  late final ValueNotifier<String> _passwordStrength;
   String _selectedBarangay = 'Select your barangay';
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   final bool _isLoading = false;
-  String _passwordStrength = 'weak'; // weak, medium, strong
+
+  @override
+  void initState() {
+    super.initState();
+    final initialPassword = widget.initialPassword ?? '';
+    _firstNameController =
+        TextEditingController(text: widget.initialFirstName ?? '');
+    _lastNameController =
+        TextEditingController(text: widget.initialLastName ?? '');
+    _phoneController = TextEditingController(text: widget.initialPhone ?? '');
+    _passwordController = TextEditingController(text: initialPassword);
+    _confirmPasswordController = TextEditingController(text: initialPassword);
+    _passwordStrength =
+        ValueNotifier(Validators.passwordStrength(initialPassword));
+    final address = widget.initialAddress;
+    if (address != null && dagupanBarangays.contains(address)) {
+      _selectedBarangay = address;
+    }
+  }
 
   @override
   void dispose() {
@@ -79,39 +108,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
     _phoneController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _passwordStrength.dispose();
     super.dispose();
-  }
-
-  // Calculate password strength
-  void _updatePasswordStrength(String password) {
-    setState(() {
-      if (password.isEmpty) {
-        _passwordStrength = 'weak';
-      } else if (password.length < 8 || !RegExp(r'[0-9]').hasMatch(password)) {
-        _passwordStrength = 'weak';
-      } else if (password.length >= 8 &&
-          RegExp(r'[0-9]').hasMatch(password) &&
-          RegExp(r'[a-z]').hasMatch(password) &&
-          RegExp(r'[A-Z]').hasMatch(password)) {
-        _passwordStrength = 'strong';
-      } else {
-        _passwordStrength = 'medium';
-      }
-    });
-  }
-
-  // Validate password requirements
-  String? _validatePassword(String? value) {
-    if (value == null || value.isEmpty) {
-      return 'Password is required';
-    }
-    if (value.length < 8) {
-      return 'Password must be at least 8 characters';
-    }
-    if (!RegExp(r'[0-9]').hasMatch(value)) {
-      return 'Password must contain at least one number';
-    }
-    return null;
   }
 
   // Validate name
@@ -141,7 +139,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       _lastNameController.text.trim(),
       _phoneController.text.trim(),
       _selectedBarangay,
-      _passwordController.text,
+      _passwordController.text.trim(),
     );
   }
 
@@ -464,15 +462,19 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             TextFormField(
                               controller: _passwordController,
                               obscureText: _obscurePassword,
+                              autocorrect: false,
+                              enableSuggestions: false,
+                              keyboardType: TextInputType.visiblePassword,
                               onChanged: (value) {
-                                _updatePasswordStrength(value);
+                                _passwordStrength.value =
+                                    Validators.passwordStrength(value);
                               },
                               decoration: InputDecoration(
                                 prefixIcon: Icon(Icons.lock,
                                     size: 20,
                                     color: colorScheme.onSurface
                                         .withValues(alpha: 0.6)),
-                                hintText: 'Minimum 8 characters',
+                                hintText: '8+ characters, capital, number, symbol',
                                 suffixIcon: IconButton(
                                   icon: Icon(
                                     _obscurePassword
@@ -513,52 +515,55 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                   vertical: 14,
                                 ),
                               ),
-                              validator: _validatePassword,
+                              validator: Validators.validatePassword,
                             ),
                             const SizedBox(height: 12),
                             // Password Strength Indicator
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(4),
-                                    child: LinearProgressIndicator(
-                                      value: _passwordStrength == 'weak'
-                                          ? 0.33
-                                          : _passwordStrength == 'medium'
-                                              ? 0.66
-                                              : 1.0,
-                                      minHeight: 6,
-                                      backgroundColor: colorScheme.outline
-                                          .withValues(alpha: 0.35),
-                                      valueColor: AlwaysStoppedAnimation<Color>(
-                                        _passwordStrength == 'weak'
-                                            ? AppTheme.primaryRed
-                                            : _passwordStrength == 'medium'
-                                                ? AppTheme.warningAmber
-                                                : AppTheme.successGreen,
+                            ValueListenableBuilder<String>(
+                              valueListenable: _passwordStrength,
+                              builder: (context, strength, _) {
+                                final strengthColor = strength == 'weak'
+                                    ? AppTheme.primaryRed
+                                    : strength == 'medium'
+                                        ? AppTheme.warningAmber
+                                        : AppTheme.successGreen;
+                                return Row(
+                                  children: [
+                                    Expanded(
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(4),
+                                        child: LinearProgressIndicator(
+                                          value: strength == 'weak'
+                                              ? 0.33
+                                              : strength == 'medium'
+                                                  ? 0.66
+                                                  : 1.0,
+                                          minHeight: 6,
+                                          backgroundColor: colorScheme.outline
+                                              .withValues(alpha: 0.35),
+                                          valueColor:
+                                              AlwaysStoppedAnimation<Color>(
+                                            strengthColor,
+                                          ),
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Text(
-                                  _passwordStrength == 'weak'
-                                      ? 'Weak'
-                                      : _passwordStrength == 'medium'
-                                          ? 'Medium'
-                                          : 'Strong',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: _passwordStrength == 'weak'
-                                        ? AppTheme.primaryRed
-                                        : _passwordStrength == 'medium'
-                                            ? AppTheme.warningAmber
-                                            : AppTheme.successGreen,
-                                  ),
-                                ),
-                              ],
+                                    const SizedBox(width: 12),
+                                    Text(
+                                      strength == 'weak'
+                                          ? 'Weak'
+                                          : strength == 'medium'
+                                              ? 'Medium'
+                                              : 'Strong',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: strengthColor,
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              },
                             ),
                             const SizedBox(height: 20),
 
@@ -566,6 +571,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             TextFormField(
                               controller: _confirmPasswordController,
                               obscureText: _obscureConfirmPassword,
+                              autocorrect: false,
+                              enableSuggestions: false,
+                              keyboardType: TextInputType.visiblePassword,
                               decoration: InputDecoration(
                                 prefixIcon: Icon(Icons.lock_outline,
                                     size: 20,
@@ -613,15 +621,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                   vertical: 14,
                                 ),
                               ),
-                              validator: (value) {
-                                if (value == null || value.isEmpty) {
-                                  return 'Please confirm your password';
-                                }
-                                if (value != _passwordController.text) {
-                                  return 'Passwords do not match';
-                                }
-                                return null;
-                              },
+                              validator: (value) =>
+                                  Validators.validatePasswordConfirmation(
+                                value,
+                                _passwordController.text,
+                              ),
                             ),
                             const SizedBox(height: 32),
 

@@ -14,6 +14,36 @@ void main() {
       expect(ReportStatusUi.label('resolved'), 'Resolved');
       expect(ReportStatusUi.isResolved('resolved'), isTrue);
     });
+
+    test('labels a cancelled report instead of falling through to pending', () {
+      expect(ReportStatusUi.label('cancelled'), 'Cancelled');
+      expect(ReportStatusUi.badgeIcon('cancelled'), isNot(ReportStatusUi.badgeIcon('pending')));
+    });
+  });
+
+  group('canReporterRevise', () {
+    test('allows pending and en route reports', () {
+      expect(canReporterRevise({
+        'status': 'pending',
+        'dispatches': [
+          {'response_status': 'En Route'},
+        ],
+      }), isTrue);
+    });
+
+    test('blocks on scene, resolved, and a joined volunteer already there', () {
+      expect(canReporterRevise({'status': 'resolved'}), isFalse);
+      expect(canReporterRevise({
+        'status': 'in_progress',
+        'responder_status': 'On Scene',
+      }), isFalse);
+      expect(canReporterRevise({
+        'status': 'verified',
+        'backup_volunteers': [
+          {'status': 'joined', 'responder_status': 'On Scene'},
+        ],
+      }), isFalse);
+    });
   });
 
   group('assignedDepartmentTeamEntries', () {

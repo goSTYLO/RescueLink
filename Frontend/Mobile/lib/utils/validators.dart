@@ -60,31 +60,52 @@ class Validators {
     return null;
   }
 
-  /// Validates password strength
+  /// Same character class as Backend `validatePassword`.
+  static final RegExp passwordSpecialChar = RegExp(
+    r'''[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?`~]''',
+  );
+
+  /// Validates password strength. Trims first, matching the backend.
   static String? validatePassword(String? value) {
     if (value == null || value.isEmpty) {
       return 'Password is required';
     }
 
-    if (value.length < 8) {
-      return 'Password must be at least 8 characters';
+    final trimmed = value.trim();
+    if (trimmed.isEmpty || trimmed.length < 8) {
+      return 'Password must be at least 8 characters long';
     }
 
-    if (value.length > 128) {
+    if (trimmed.length > 128) {
       return 'Password must not exceed 128 characters';
     }
 
-    // Check for at least one letter
-    if (!RegExp(r'[a-zA-Z]').hasMatch(value)) {
-      return 'Password must contain at least one letter';
+    if (!RegExp(r'[A-Z]').hasMatch(trimmed)) {
+      return 'Password must contain at least one capital letter';
     }
 
-    // Check for at least one number
-    if (!RegExp(r'[0-9]').hasMatch(value)) {
+    if (!RegExp(r'[0-9]').hasMatch(trimmed)) {
       return 'Password must contain at least one number';
     }
 
+    if (!passwordSpecialChar.hasMatch(trimmed)) {
+      return 'Password must contain at least one special character';
+    }
+
     return null;
+  }
+
+  /// `weak`, `medium`, or `strong`. Strong only when [validatePassword] accepts it.
+  static String passwordStrength(String password) {
+    if (validatePassword(password) == null) return 'strong';
+    final trimmed = password.trim();
+    var score = 0;
+    if (trimmed.length >= 8 && trimmed.length <= 128) score++;
+    if (RegExp(r'[A-Z]').hasMatch(trimmed)) score++;
+    if (RegExp(r'[0-9]').hasMatch(trimmed)) score++;
+    if (passwordSpecialChar.hasMatch(trimmed)) score++;
+    if (score >= 2) return 'medium';
+    return 'weak';
   }
 
   /// Validates name fields (first name, last name)
@@ -109,13 +130,15 @@ class Validators {
     return null;
   }
 
-  /// Validates password confirmation
+  /// Validates password confirmation. Compares trimmed values so a trailing
+  /// space from the keyboard does not fail two identical passwords.
   static String? validatePasswordConfirmation(String? value, String password) {
-    if (value == null || value.isEmpty) {
+    final confirm = value?.trim() ?? '';
+    if (confirm.isEmpty) {
       return 'Please confirm your password';
     }
 
-    if (value != password) {
+    if (confirm != password.trim()) {
       return 'Passwords do not match';
     }
 

@@ -112,6 +112,7 @@ After dispatchers mark an incident resolved, you may be asked to **confirm** tha
 2. Pull down to refresh the list.
 3. Tap a report to open **Incident details**: status, timeline, type/severity information when available, and evidence (voice playback, images, downloads when allowed).
 4. Use this screen to follow progress from submitted → verified → in progress → resolved / closed (wording on screen may vary slightly).
+5. Until a responder is on scene, **Edit details** lets you correct the written description and map pin, and **Cancel report** asks you to confirm before withdrawing the report. A cancelled report stays in history with status Cancelled.
 
 If the system thinks your report may be related to another nearby report, you may see an informational note. You do not need to merge anything yourself — staff handle that on the dashboard.
 

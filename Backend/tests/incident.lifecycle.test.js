@@ -197,4 +197,110 @@ describe('incident lifecycle model transitions', () => {
     expect(updated.closure_method).toBe('Successful Response');
     expect(pool.query.mock.calls[1][0]).toMatch(/COALESCE\(closure_method, 'auto_from_reporter_confirmation'\)/);
   });
+
+  function mockOpenReport(reportId, status, responderStatus = 'En Route') {
+    pool.query
+      .mockResolvedValueOnce({
+        rows: [{
+          report_id: reportId,
+          user_id: 19,
+          status,
+          responder_status: responderStatus,
+          description: 'smoke',
+          latitude: 16.04,
+          longitude: 120.33,
+        }],
+      })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] });
+  }
+
+  it('cancels a pending report that is only en route', async () => {
+    mockOpenReport(201, 'pending', 'En Route');
+    pool.query.mockResolvedValueOnce({
+      rows: [{ report_id: 201, status: 'cancelled', closure_method: 'reporter_cancelled' }],
+    });
+
+    const updated = await Incident.cancelByReporter(201, 19);
+
+    expect(updated.status).toBe('cancelled');
+    expect(pool.query.mock.calls[3][0]).toMatch(/reporter_cancelled/);
+  });
+
+  it('rejects cancel when the caller is not the owner', async () => {
+    pool.query.mockResolvedValueOnce({
+      rows: [{ report_id: 202, user_id: 19, status: 'pending', responder_status: null }],
+    });
+
+    await expect(Incident.cancelByReporter(202, 8)).rejects.toMatchObject({
+      code: 'INCIDENT_REVISE_OWNERSHIP',
+      httpStatus: 403,
+    });
+  });
+
+  it('rejects cancel once the report is resolved', async () => {
+    pool.query.mockResolvedValueOnce({
+      rows: [{ report_id: 203, user_id: 19, status: 'resolved', responder_status: null }],
+    });
+
+    await expect(Incident.cancelByReporter(203, 19)).rejects.toMatchObject({
+      code: 'INCIDENT_REVISE_INVALID_STATUS',
+      httpStatus: 409,
+    });
+  });
+
+  it('rejects cancel when a responder is on scene', async () => {
+    pool.query.mockResolvedValueOnce({
+      rows: [{ report_id: 204, user_id: 19, status: 'in_progress', responder_status: 'On Scene' }],
+    });
+
+    await expect(Incident.cancelByReporter(204, 19)).rejects.toMatchObject({
+      code: 'INCIDENT_REVISE_ON_SCENE',
+      httpStatus: 409,
+    });
+  });
+
+  it('updates description and pin while the team is still en route', async () => {
+    mockOpenReport(205, 'in_progress', 'En Route');
+    pool.query.mockResolvedValueOnce({
+      rows: [{
+        report_id: 205,
+        status: 'in_progress',
+        description: 'updated',
+        latitude: 16.05,
+        longitude: 120.34,
+        barangay: 'Pogo Chico',
+      }],
+    });
+
+    const updated = await Incident.updateDetailsByReporter(205, 19, {
+      description: 'updated',
+      latitude: 16.05,
+      longitude: 120.34,
+      barangay: 'Pogo Chico',
+    });
+
+    expect(updated.barangay).toBe('Pogo Chico');
+    expect(updated.latitude).toBe(16.05);
+    expect(pool.query.mock.calls[3][1][2]).toBe(16.05);
+    expect(pool.query.mock.calls[3][1][3]).toBe(120.34);
+  });
+
+  it('rejects a detail edit when a dispatch is already on scene', async () => {
+    pool.query
+      .mockResolvedValueOnce({
+        rows: [{ report_id: 206, user_id: 19, status: 'in_progress', responder_status: 'En Route' }],
+      })
+      .mockResolvedValueOnce({ rows: [{ '?column?': 1 }] });
+
+    await expect(Incident.updateDetailsByReporter(206, 19, {
+      description: 'too late',
+      latitude: 16.05,
+      longitude: 120.34,
+      barangay: 'Pogo Chico',
+    })).rejects.toMatchObject({
+      code: 'INCIDENT_REVISE_ON_SCENE',
+      httpStatus: 409,
+    });
+  });
 });

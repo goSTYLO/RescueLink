@@ -61,6 +61,7 @@ const STATUS_MAP = {
   pending: 'Pending',
   resolved: 'Resolved',
   closed: 'Closed',
+  cancelled: 'Cancelled',
   verified: 'Verified',
   in_progress: 'In Progress',
 };
@@ -165,7 +166,7 @@ export function getBackupDialogCapabilities(incident, role) {
 
 export function isIncidentActiveForDashboard(incident) {
   const status = String(incident?.status || '').toLowerCase();
-  if (status === 'resolved' || status === 'closed') return false;
+  if (status === 'resolved' || status === 'closed' || status === 'cancelled') return false;
   if (isVolunteerResolved(incident?.responderStatus)) return false;
   return true;
 }

@@ -7,7 +7,7 @@ const IncidentCoordinationNote = require('../models/incidentCoordinationNote');
 const IncidentEscalation = require('../models/incidentEscalation');
 const pool = require('../config/db');
 const { validateLatitude, validateLongitude, validateInteger, validatePagination, validateOptionalString, validateAllowedValue } = require('../utils/validation');
-const { getBarangayFromCoordinates, calculateDistance } = require('../utils/geolocation');
+const { getBarangayFromCoordinates, calculateDistance, isPointInDagupan } = require('../utils/geolocation');
 const { processIncidentWithAudio } = require('../services/aiService');
 const { maybeAutoDispatch, refreshSuggestionAfterReclassify, cancelSuggestion } = require('../services/autoDispatchService');
 const { queueDeepScanJob, computeInitialScanStatus } = require('../services/fileScanService');
@@ -16,6 +16,7 @@ const { findPotentialDuplicates, linkAsDuplicate, getDuplicateInfo } = require('
 const duplicateConfig = require('../config/duplicateDetection');
 const { saveAudioFile, saveMediaFiles, deleteIncidentFiles } = require('../utils/fileValidation');
 const { logDispatcherAction, logUserAction } = require('../utils/auditLog');
+const AuditLog = require('../models/auditLog');
 const { ROLES } = require('../config/roles');
 const { isResourceOwner, getOwnershipFilter } = require('../utils/ownership');
 const { buildIncidentEventPayload, emitIncidentEvent } = require('../utils/incidentEvents');
@@ -120,6 +121,16 @@ async function logIncidentAction(req, action, resourceId, details) {
       await logDispatcherAction(req, action, 'incident', resourceId, details);
     } else if (req.user.role === ROLES.USER) {
       await logUserAction(req, action, 'incident', resourceId, details);
+    } else if (req.user.role === ROLES.RESPONDER || req.user.role === ROLES.VOLUNTEER) {
+      await AuditLog.create({
+        user_id: req.user.user_id,
+        action,
+        resource_type: 'incident',
+        resource_id: resourceId,
+        details,
+        ip_address: req.ip || req.get?.('X-Forwarded-For') || null,
+        user_agent: req.get?.('User-Agent') || null,
+      });
     }
   } catch (err) {
     console.error('Audit logging error:', err.message);
@@ -673,7 +684,7 @@ const incidentController = {
       const isArchived = archived === 'true' || archived === '1';
       const { limit: validatedLimit, offset: validatedOffset } = validatePagination(limit, offset);
       const validatedSeverityLevel = validateAllowedValue(severity_level, ['low', 'medium', 'high'], 'severity_level');
-      const validatedStatus = validateAllowedValue(status, ['pending', 'verified', 'in_progress', 'resolved', 'closed'], 'status');
+      const validatedStatus = validateAllowedValue(status, ['pending', 'verified', 'in_progress', 'resolved', 'closed', 'cancelled'], 'status');
       const validatedIncidentType = validateAllowedValue(incident_type, ['fire', 'medical', 'police', 'disaster', 'sos', 'other', 'accident'], 'incident_type');
       const validatedBarangay = validateOptionalString(barangay, 'barangay', 150);
       const validatedSearch = validateOptionalString(search, 'search', 200);
@@ -777,7 +788,7 @@ const incidentController = {
 
       const { limit, offset, status, incident_type, involvement } = req.query;
       const { limit: validatedLimit, offset: validatedOffset } = validatePagination(limit, offset);
-      const validatedStatus = validateAllowedValue(status, ['pending', 'verified', 'in_progress', 'resolved', 'closed'], 'status');
+      const validatedStatus = validateAllowedValue(status, ['pending', 'verified', 'in_progress', 'resolved', 'closed', 'cancelled'], 'status');
       const validatedIncidentType = validateAllowedValue(incident_type, ['fire', 'medical', 'police', 'disaster', 'sos', 'other', 'accident'], 'incident_type');
       const validatedInvolvement = validateAllowedValue(involvement, ['reported', 'accepted', 'assigned', 'all'], 'involvement') || 'reported';
 
@@ -1419,6 +1430,118 @@ const incidentController = {
         return res.status(400).json({ error: error.message });
       }
       res.status(500).json({ error: 'Failed to confirm incident resolution' });
+    }
+  },
+
+  async cancelByReporter(req, res) {
+    try {
+      const validatedId = validateInteger(req.params.id, 'report_id');
+      const userId = req.user?.user_id;
+      if (!userId) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+
+      const before = await Incident.findById(validatedId);
+      if (!before) {
+        return res.status(404).json({ error: 'Incident not found' });
+      }
+
+      const updatedIncident = await Incident.cancelByReporter(validatedId, userId);
+      if (!updatedIncident) {
+        return res.status(404).json({ error: 'Incident not found' });
+      }
+
+      await releaseIncidentResources(validatedId);
+      await cancelSuggestion(validatedId, 'reporter_cancelled');
+      await logIncidentAction(req, 'incident_reporter_cancel', validatedId, {
+        previous_status: before.status || null,
+      });
+      emitIncidentEvent(req, 'incident:status_updated', updatedIncident);
+
+      res.json({
+        success: true,
+        incident: updatedIncident,
+      });
+    } catch (error) {
+      console.error('Error cancelling incident:', error);
+      if (error.httpStatus) {
+        return res.status(error.httpStatus).json({ error: error.message, code: error.code });
+      }
+      if (error.message.includes('must be') || error.message.includes('must not')) {
+        return res.status(400).json({ error: error.message });
+      }
+      res.status(500).json({ error: 'Failed to cancel incident' });
+    }
+  },
+
+  async updateDetailsByReporter(req, res) {
+    try {
+      const validatedId = validateInteger(req.params.id, 'report_id');
+      const userId = req.user?.user_id;
+      if (!userId) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+
+      const latitude = validateLatitude(req.body?.latitude);
+      const longitude = validateLongitude(req.body?.longitude);
+      if (!isPointInDagupan(latitude, longitude)) {
+        return res.status(400).json({ error: 'Location must be inside Dagupan City.' });
+      }
+
+      const rawDescription = req.body?.description;
+      const description = rawDescription == null || String(rawDescription).trim() === ''
+        ? null
+        : validateOptionalString(String(rawDescription).trim(), 'description', 2000);
+      const barangay = getBarangayFromCoordinates(latitude, longitude);
+
+      const before = await Incident.findById(validatedId);
+      if (!before) {
+        return res.status(404).json({ error: 'Incident not found' });
+      }
+
+      const updatedIncident = await Incident.updateDetailsByReporter(validatedId, userId, {
+        description,
+        latitude,
+        longitude,
+        barangay,
+      });
+      if (!updatedIncident) {
+        return res.status(404).json({ error: 'Incident not found' });
+      }
+
+      const dispatches = await Dispatch.findAll({ report_id: validatedId, limit: 1 });
+      const suggestionOpen = String(before.auto_assignment_status || '').toLowerCase() === 'suggested';
+      if ((!dispatches || dispatches.length === 0) && suggestionOpen) {
+        try {
+          await maybeAutoDispatch(updatedIncident, { req, source: 'reclassify' });
+        } catch (err) {
+          console.error('Failed to refresh suggestion after location edit:', err.message);
+        }
+      }
+
+      await logIncidentAction(req, 'incident_reporter_update_details', validatedId, {
+        description_changed: String(before.description || '') !== String(description || ''),
+        previous_latitude: before.latitude ?? null,
+        previous_longitude: before.longitude ?? null,
+        latitude,
+        longitude,
+        barangay,
+      });
+      emitIncidentEvent(req, 'incident:updated', updatedIncident);
+
+      res.json({
+        success: true,
+        incident: updatedIncident,
+      });
+    } catch (error) {
+      console.error('Error updating incident details:', error);
+      if (error.httpStatus) {
+        return res.status(error.httpStatus).json({ error: error.message, code: error.code });
+      }
+      if (error.message.includes('must be') || error.message.includes('must not')) {
+        return res.status(400).json({ error: error.message });
+      }
+      res.status(500).json({ error: 'Failed to update incident details' });
     }
   },
 

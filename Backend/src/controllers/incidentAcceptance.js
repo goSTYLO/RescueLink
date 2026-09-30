@@ -1247,6 +1247,7 @@ function buildActiveAssignedSql(includeUserLocation) {
         WHERE (
           ir.accepted_by_user_id = $1
           AND (ir.responder_status IS NULL OR ir.responder_status != 'Resolved')
+          AND LOWER(COALESCE(ir.status, '')) <> 'cancelled'
         )
            OR (
           ir.accepted_by_user_id IS NULL

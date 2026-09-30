@@ -30,6 +30,8 @@ class ReportStatusUi {
     switch (normalize(status)) {
       case 'closed':
         return 'Closed';
+      case 'cancelled':
+        return 'Cancelled';
       case 'resolved':
         return 'Resolved';
       case 'verified':
@@ -52,6 +54,7 @@ class ReportStatusUi {
     bool isTeamAssignment = false,
   }) {
     if (incident == null) return false;
+    if (normalize(incident['status'] as String?) == 'cancelled') return true;
     if (isResolvedOrClosed(incident['status'] as String?)) return true;
     if (isTeamAssignment) {
       final mine = incident['my_response_status']?.toString().trim();
@@ -64,6 +67,8 @@ class ReportStatusUi {
     switch (normalize(status)) {
       case 'closed':
         return const Color(0xFFD1FAE5);
+      case 'cancelled':
+        return const Color(0xFFF3F4F6);
       case 'resolved':
         return const Color(0xFFDCFCE7);
       case 'verified':
@@ -80,6 +85,8 @@ class ReportStatusUi {
     switch (normalize(status)) {
       case 'closed':
         return const Color(0xFF34D399);
+      case 'cancelled':
+        return const Color(0xFFD1D5DB);
       case 'resolved':
         return const Color(0xFF86EFAC);
       case 'verified':
@@ -96,6 +103,8 @@ class ReportStatusUi {
     switch (normalize(status)) {
       case 'closed':
         return const Color(0xFF065F46);
+      case 'cancelled':
+        return const Color(0xFF4B5563);
       case 'resolved':
         return const Color(0xFF15803D);
       case 'verified':
@@ -112,6 +121,8 @@ class ReportStatusUi {
     switch (normalize(status)) {
       case 'closed':
         return Icons.task_alt;
+      case 'cancelled':
+        return Icons.cancel_outlined;
       case 'resolved':
         return Icons.check_circle;
       case 'verified':
@@ -137,6 +148,26 @@ class ReportStatusUi {
     String? acceptedByName,
   }) {
     final normalized = normalize(status);
+    if (normalized == 'cancelled') {
+      return [
+        ReportTimelineStep(
+          icon: Icons.check,
+          iconColor: const Color(0xFF22C55E),
+          title: 'Submitted',
+          subtitle: createdAt != null
+              ? 'Submitted at ${formatReportDateTime(createdAt)}'
+              : 'Submitted',
+          isCompleted: true,
+        ),
+        const ReportTimelineStep(
+          icon: Icons.cancel_outlined,
+          iconColor: Color(0xFF4B5563),
+          title: 'Cancelled',
+          subtitle: 'You cancelled this report',
+          isCompleted: true,
+        ),
+      ];
+    }
     final isVerified = normalized == 'verified' || normalized == 'in_progress' || normalized == 'resolved' || normalized == 'closed';
     final isInProgress = normalized == 'in_progress' || normalized == 'resolved' || normalized == 'closed';
     final isResolvedStatus = normalized == 'resolved' || normalized == 'closed';
@@ -818,4 +849,47 @@ class BackupStatusUi {
   static bool hasJoinedBackupVolunteers(Map<String, dynamic>? incident) {
     return joinedBackupVolunteers(incident).isNotEmpty;
   }
+}
+
+bool _responderArrivedOrDone(String? status) {
+  final value = (status ?? '').trim().toLowerCase();
+  return value == 'on scene' || value == 'resolved';
+}
+
+/// Reporter may cancel or edit until someone is on scene, or the report is finished.
+bool canReporterRevise(Map<String, dynamic>? incident) {
+  if (incident == null) return false;
+  final status = ReportStatusUi.normalize(incident['status'] as String?);
+  if (status != 'pending' && status != 'verified' && status != 'in_progress') {
+    return false;
+  }
+  if (_responderArrivedOrDone(incident['responder_status']?.toString())) return false;
+
+  final dispatches = incident['dispatches'];
+  if (dispatches is List) {
+    for (final raw in dispatches) {
+      if (raw is Map && _responderArrivedOrDone(raw['response_status']?.toString())) {
+        return false;
+      }
+    }
+  }
+
+  final roster = incident['assigned_team_roster'];
+  if (roster is List) {
+    for (final raw in roster) {
+      if (raw is Map && _responderArrivedOrDone(raw['response_status']?.toString())) {
+        return false;
+      }
+    }
+  }
+
+  final backups = incident['backup_volunteers'];
+  if (backups is List) {
+    for (final raw in backups) {
+      if (raw is! Map) continue;
+      if ((raw['status']?.toString() ?? '').toLowerCase() == 'declined') continue;
+      if (_responderArrivedOrDone(raw['responder_status']?.toString())) return false;
+    }
+  }
+  return true;
 }

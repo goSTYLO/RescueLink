@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-30
+
+- Mobile incident details: the reporter can **Cancel report** or **Edit details** (description and map pin) until a responder is on scene. Cancel releases assigned teams and records status `cancelled`. Edits must stay inside Dagupan and recompute the barangay. Both actions are written to the audit log, including when a responder or volunteer filed the report.
+- Mobile signup: password must match the server rule (8–128 characters, capital, number, special character) before Create Account continues. Retyping ignores trailing spaces, and a password the server rejects returns to the filled signup form instead of trapping the user on location verification.
+- Mobile SOS countdown vibrates the phone motor for the full 5 seconds, one long pulse per second in time with the countdown number. The old haptic tick stayed silent when touch vibration was off.
+- Mobile shake-to-SOS ignores a single bump. Faster phones were counting every accelerometer sample above the line as a new shake, so ordinary movement started the countdown. A trigger now needs two separate jolts, and the force line is 15 m/s².
+
 ## 2026-09-29
 
 - Mobile password-updated screen: removed top-right Skip; simplified layout to match verified success; repaired white streak artifacts in `passwordupdated_illustration.png`.

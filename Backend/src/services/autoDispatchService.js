@@ -48,7 +48,7 @@ function isSosType(incidentType) {
 
 function isTerminalStatus(status) {
   const normalized = String(status || '').toLowerCase();
-  return normalized === 'resolved' || normalized === 'closed';
+  return normalized === 'resolved' || normalized === 'closed' || normalized === 'cancelled';
 }
 
 function teamStatusRank(teamStatus) {

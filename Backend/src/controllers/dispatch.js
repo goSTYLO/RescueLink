@@ -162,8 +162,13 @@ const dispatchController = {
         return res.status(404).json({ error: 'Incident report not found' });
       }
       const incident = await Incident.findById(validatedReportId);
-      if (String(incident?.status || '').toLowerCase() === 'closed') {
-        return res.status(409).json({ error: 'Cannot assign responders to a closed incident' });
+      const incidentStatus = String(incident?.status || '').toLowerCase();
+      if (incidentStatus === 'closed' || incidentStatus === 'cancelled') {
+        return res.status(409).json({
+          error: incidentStatus === 'cancelled'
+            ? 'Cannot assign responders to a cancelled incident'
+            : 'Cannot assign responders to a closed incident',
+        });
       }
       const existingDispatchCount = await Dispatch.countByReportId(validatedReportId);
       const incidentType = await Dispatch.getIncidentType(validatedReportId);
@@ -767,8 +772,13 @@ const dispatchController = {
       }
       const incident = await Incident.findById(validatedReportId);
       if (!incident) return res.status(404).json({ error: 'Incident report not found' });
-      if (String(incident.status || '').toLowerCase() === 'closed') {
-        return res.status(409).json({ error: 'Cannot reassign a closed incident' });
+      const incidentStatus = String(incident.status || '').toLowerCase();
+      if (incidentStatus === 'closed' || incidentStatus === 'cancelled') {
+        return res.status(409).json({
+          error: incidentStatus === 'cancelled'
+            ? 'Cannot reassign a cancelled incident'
+            : 'Cannot reassign a closed incident',
+        });
       }
 
       const releaseDept = departmentCode || await Dispatch.getPrimaryTeamDepartment(validatedReportId);

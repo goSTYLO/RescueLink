@@ -502,6 +502,73 @@ class IncidentService {
     }
   }
 
+  Future<Map<String, dynamic>> cancelIncident(int reportId) async {
+    return _reporterAction(
+      reportId,
+      'cancelIncident',
+      () => _apiService.post(
+        '/api/incidents/$reportId/cancel',
+        headers: {
+          ..._authHeaders(),
+          'Content-Type': 'application/json',
+          'x-request-id': _newRequestId(),
+        },
+        body: const {},
+      ),
+    );
+  }
+
+  Future<Map<String, dynamic>> updateIncidentDetails(
+    int reportId, {
+    required String? description,
+    required double latitude,
+    required double longitude,
+  }) async {
+    return _reporterAction(
+      reportId,
+      'updateIncidentDetails',
+      () => _apiService.patch(
+        '/api/incidents/$reportId/details',
+        headers: {
+          ..._authHeaders(),
+          'Content-Type': 'application/json',
+          'x-request-id': _newRequestId(),
+        },
+        body: {
+          'description': description,
+          'latitude': latitude,
+          'longitude': longitude,
+        },
+      ),
+    );
+  }
+
+  Future<Map<String, dynamic>> _reporterAction(
+    int reportId,
+    String action,
+    Future<Map<String, dynamic>> Function() request,
+  ) async {
+    final stopwatch = Stopwatch()..start();
+    try {
+      final response = await request();
+      stopwatch.stop();
+      _logInfo(
+          '[mobile][incident][$action] report_id=$reportId status=success latency_ms=${stopwatch.elapsedMilliseconds}');
+      return response;
+    } on ApiException catch (error) {
+      stopwatch.stop();
+      _logError(
+          '[mobile][incident][$action] report_id=$reportId status=api_error latency_ms=${stopwatch.elapsedMilliseconds} error=${error.message}');
+      throw IncidentServiceException(error.message, statusCode: error.statusCode);
+    } catch (error) {
+      stopwatch.stop();
+      _logError(
+          '[mobile][incident][$action] report_id=$reportId status=error latency_ms=${stopwatch.elapsedMilliseconds} error=$error');
+      if (error is IncidentServiceException) rethrow;
+      throw IncidentServiceException('Failed to update this report.');
+    }
+  }
+
   void close() {
     _client.close();
   }

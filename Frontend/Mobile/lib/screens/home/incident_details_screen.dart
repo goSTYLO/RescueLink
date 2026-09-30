@@ -8,6 +8,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:path_provider/path_provider.dart';
+import '../../services/geolocation_service.dart';
 import '../../services/incident_service.dart';
 import '../../services/notification_service.dart';
 import '../../services/websocket_service.dart';
@@ -49,6 +50,8 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
       <StreamSubscription<dynamic>>[];
   bool _loading = true;
   bool _confirmingResolution = false;
+  bool _cancellingReport = false;
+  bool _savingDetails = false;
   bool _downloadingAudio = false;
   bool _preparingAudio = false;
   bool _audioLoaded = false;
@@ -110,6 +113,7 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
           'responder:backup_joined',
           'responder:backup_status_changed',
           'incident:status_updated',
+          'incident:updated',
           'incident:dispatched',
         };
         if (refreshEvents.contains(event.event)) {
@@ -628,6 +632,201 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
     }
   }
 
+  Future<void> _cancelReport() async {
+    final reportId = _resolvedReportId;
+    if (reportId == null || _cancellingReport) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Cancel this report?'),
+        content: const Text(
+          'This stands down any assigned team that is not yet on scene. You cannot undo it.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Keep report'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFFDC2626)),
+            child: const Text('Cancel report'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || confirmed != true) return;
+    setState(() => _cancellingReport = true);
+    try {
+      await _incidentService.cancelIncident(reportId);
+      if (!mounted) return;
+      await _loadIncident();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Report cancelled.')),
+      );
+    } on IncidentServiceException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    } finally {
+      if (mounted) setState(() => _cancellingReport = false);
+    }
+  }
+
+  Future<void> _editDetails() async {
+    final reportId = _resolvedReportId;
+    if (reportId == null || _savingDetails) return;
+    final initialLat = parseDouble(_incident?['latitude']);
+    final initialLng = parseDouble(_incident?['longitude']);
+    if (initialLat == null || initialLng == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('This report has no location to edit.')),
+      );
+      return;
+    }
+
+    final descriptionController = TextEditingController(
+      text: (_incident?['description'] as String?) ?? '',
+    );
+    var pin = LatLng(initialLat, initialLng);
+    var locating = false;
+
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        return Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(sheetContext).bottom),
+          child: StatefulBuilder(
+            builder: (context, setSheetState) {
+              return SafeArea(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('Edit details', style: Theme.of(context).textTheme.titleLarge),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: descriptionController,
+                        maxLength: 2000,
+                        maxLines: 4,
+                        decoration: const InputDecoration(
+                          labelText: 'Description',
+                          alignLabelWithHint: true,
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text('Tap the map to move the pin.', style: Theme.of(context).textTheme.bodySmall),
+                      const SizedBox(height: 8),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: SizedBox(
+                          height: 200,
+                          child: FlutterMap(
+                            key: ValueKey('${pin.latitude.toStringAsFixed(5)},${pin.longitude.toStringAsFixed(5)}'),
+                            options: MapOptions(
+                              initialCenter: pin,
+                              initialZoom: 15,
+                              onTap: (_, point) => setSheetState(() => pin = point),
+                            ),
+                            children: [
+                              TileLayer(
+                                urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                                userAgentPackageName: 'com.rescuelink.mobile',
+                                subdomains: const ['a', 'b', 'c'],
+                              ),
+                              MarkerLayer(
+                                markers: [
+                                  Marker(
+                                    point: pin,
+                                    width: 40,
+                                    height: 40,
+                                    child: const Icon(Icons.location_on, color: Color(0xFFEF4444), size: 40),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      OutlinedButton.icon(
+                        onPressed: locating
+                            ? null
+                            : () async {
+                                setSheetState(() => locating = true);
+                                try {
+                                  final pos = await GeolocationService.getCurrentPosition();
+                                  if (!sheetContext.mounted) return;
+                                  setSheetState(() {
+                                    pin = LatLng(pos.latitude, pos.longitude);
+                                    locating = false;
+                                  });
+                                } catch (_) {
+                                  if (!sheetContext.mounted) return;
+                                  setSheetState(() => locating = false);
+                                  ScaffoldMessenger.of(sheetContext).showSnackBar(
+                                    const SnackBar(content: Text('Could not read your current location.')),
+                                  );
+                                }
+                              },
+                        icon: locating
+                            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                            : const Icon(Icons.my_location),
+                        label: Text(locating ? 'Locating...' : 'Use my current location'),
+                      ),
+                      const SizedBox(height: 12),
+                      FilledButton(
+                        onPressed: () => Navigator.of(sheetContext).pop(true),
+                        child: const Text('Save'),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+    final description = descriptionController.text.trim();
+    descriptionController.dispose();
+    if (!mounted || saved != true) return;
+
+    final inside = await GeolocationService.isPointInDagupan(pin.latitude, pin.longitude);
+    if (!mounted) return;
+    if (!inside) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Location must be inside Dagupan City.')),
+      );
+      return;
+    }
+
+    setState(() => _savingDetails = true);
+    try {
+      await _incidentService.updateIncidentDetails(
+        reportId,
+        description: description.isEmpty ? null : description,
+        latitude: pin.latitude,
+        longitude: pin.longitude,
+      );
+      if (!mounted) return;
+      await _loadIncident();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Report details updated.')),
+      );
+    } on IncidentServiceException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    } finally {
+      if (mounted) setState(() => _savingDetails = false);
+    }
+  }
+
   String _reportIdDisplay() {
     return formatIncidentCode(
       ((_incident?['report_id'] as num?)?.toInt()) ?? _resolvedReportId);
@@ -730,6 +929,36 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
                               children: [
                               // Status card
                               _buildStatusCard(),
+                              if (canReporterRevise(_incident)) ...[
+                                const SizedBox(height: 16),
+                                OutlinedButton.icon(
+                                  onPressed: _savingDetails || _cancellingReport ? null : _editDetails,
+                                  icon: _savingDetails
+                                      ? const SizedBox(
+                                          height: 16,
+                                          width: 16,
+                                          child: CircularProgressIndicator(strokeWidth: 2),
+                                        )
+                                      : const Icon(Icons.edit_outlined),
+                                  label: Text(_savingDetails ? 'Saving...' : 'Edit details'),
+                                ),
+                                const SizedBox(height: 8),
+                                OutlinedButton.icon(
+                                  onPressed: _cancellingReport || _savingDetails ? null : _cancelReport,
+                                  icon: _cancellingReport
+                                      ? const SizedBox(
+                                          height: 16,
+                                          width: 16,
+                                          child: CircularProgressIndicator(strokeWidth: 2),
+                                        )
+                                      : const Icon(Icons.cancel_outlined),
+                                  label: Text(_cancellingReport ? 'Cancelling...' : 'Cancel report'),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: const Color(0xFFDC2626),
+                                    side: const BorderSide(color: Color(0xFFDC2626)),
+                                  ),
+                                ),
+                              ],
                               if (ReportStatusUi.isResolved(
                                       _incident?['status'] as String?) &&
                                   !_reporterConfirmed) ...[

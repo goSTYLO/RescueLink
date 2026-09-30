@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 import 'report_history_screen.dart';
 import '../../services/websocket_service.dart';
@@ -17,6 +16,7 @@ import '../../utils/can_use_emergency_actions.dart';
 import '../../utils/incident_navigation.dart';
 import '../../utils/responsive.dart';
 import '../../utils/sos_shake_detector.dart';
+import '../../utils/sos_vibration.dart';
 import '../../widgets/staggered_fade_in.dart';
 import '../department/department_ops_dashboard_screen.dart';
 import '../responder/responder_dashboard_screen.dart';
@@ -60,7 +60,6 @@ class HomePlaceholderScreen extends StatefulWidget {
 class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
     with WidgetsBindingObserver {
   Timer? _sosTimer;
-  Timer? _sosVibrateTimer;
   int _sosCountdown = 0;
   bool _loadingLocation = true;
   int _unreadReportsCount = 0;
@@ -337,7 +336,7 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
     _responderAlertCoordinator.stop();
     _emergencyAlertCoordinator.stop();
     _sosTimer?.cancel();
-    _stopSosCancelVibration();
+    unawaited(SosVibration.stop());
     super.dispose();
   }
 
@@ -683,11 +682,12 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
 
   void _startSosCountdown() {
     _sosTimer?.cancel();
-    _startSosCancelVibration();
-    setState(() => _sosCountdown = 5);
+    unawaited(SosVibration.start());
+    setState(() => _sosCountdown = sosCountdownBeats);
     _sosTimer = Timer.periodic(const Duration(seconds: 1), (t) {
       if (!mounted) {
         t.cancel();
+        unawaited(SosVibration.stop());
         return;
       }
       setState(() {
@@ -695,6 +695,7 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
         if (_sosCountdown <= 0) {
           t.cancel();
           _sosTimer = null;
+          unawaited(SosVibration.stop());
           widget.onEmergencyNoAiPressed?.call();
         }
       });
@@ -704,31 +705,10 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
   void _cancelSosCountdown() {
     _sosTimer?.cancel();
     _sosTimer = null;
-    _stopSosCancelVibration();
+    unawaited(SosVibration.stop());
     _shakeDetector.reset();
     _restartShakeListening();
     setState(() => _sosCountdown = 0);
-  }
-
-  static const Duration _sosVibrateDuration = Duration(seconds: 2);
-  static const Duration _sosVibratePulse = Duration(milliseconds: 200);
-
-  void _startSosCancelVibration() {
-    _stopSosCancelVibration();
-    HapticFeedback.heavyImpact();
-    final endAt = DateTime.now().add(_sosVibrateDuration);
-    _sosVibrateTimer = Timer.periodic(_sosVibratePulse, (_) {
-      if (!mounted || DateTime.now().isAfter(endAt)) {
-        _stopSosCancelVibration();
-        return;
-      }
-      HapticFeedback.heavyImpact();
-    });
-  }
-
-  void _stopSosCancelVibration() {
-    _sosVibrateTimer?.cancel();
-    _sosVibrateTimer = null;
   }
 
   String? _formatNotificationTitle(IncidentEvent event) {

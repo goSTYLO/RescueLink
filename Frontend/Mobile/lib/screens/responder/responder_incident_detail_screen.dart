@@ -112,6 +112,7 @@ class _ResponderIncidentDetailScreenState
         'responder:backup_status_changed',
         'responder:backup_withdrawn',
         'incident:status_updated',
+        'incident:updated',
         'incident:dispatched',
       };
       if (refreshEvents.contains(event.event)) {

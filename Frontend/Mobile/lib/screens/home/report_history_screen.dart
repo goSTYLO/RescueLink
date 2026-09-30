@@ -624,6 +624,8 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
         return const Color(0xFF9333EA);
       case 'in_progress':
         return AppTheme.primaryBlue;
+      case 'cancelled':
+        return const Color(0xFF6B7280);
       case 'pending':
       default:
         return AppTheme.warningAmber;
@@ -812,6 +814,7 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                                 DropdownMenuItem<String?>(value: 'in_progress', child: Text('In progress')),
                                 DropdownMenuItem<String?>(value: 'resolved', child: Text('Resolved')),
                                 DropdownMenuItem<String?>(value: 'closed', child: Text('Closed')),
+                                DropdownMenuItem<String?>(value: 'cancelled', child: Text('Cancelled')),
                               ],
                               onChanged: (String? value) {
                                 setState(() {

@@ -29,6 +29,8 @@ const ACTION_LABELS = {
   incident_blockchain_finalize: 'Incident finalized',
   incident_verify: 'Incident verified (legacy)',
   incident_reporter_confirm_resolution: 'Resolution confirmed',
+  incident_reporter_cancel: 'Report cancelled',
+  incident_reporter_update_details: 'Report details updated',
   incident_status_update: 'Incident status updated',
   add_coordination_note: 'Coordination note added',
   department_create: 'Created department',

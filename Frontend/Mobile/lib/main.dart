@@ -397,12 +397,15 @@ class _AuthNavigatorState extends State<AuthNavigator> with WidgetsBindingObserv
           context.read<AuthBloc>().add(const AuthReset());
         }
         if (state is RegisterError) {
-          // Stay on Dagupan (with pending form data) so user can Continue → CAPTCHA again.
-          // Do NOT dump back to an empty SignUp form.
+          // Password policy errors go back to the filled signup form so the
+          // user can edit it. Other errors stay on Dagupan to retry CAPTCHA.
+          final passwordError =
+              state.message.toLowerCase().contains('password');
           setState(() {
             _signupRegisterInFlight = false;
             _showSignUp = true;
-            _showVerifyDagupanForSignup = _pendingSignUpData != null;
+            _showVerifyDagupanForSignup =
+                !passwordError && _pendingSignUpData != null;
           });
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -759,6 +762,11 @@ class _AuthNavigatorState extends State<AuthNavigator> with WidgetsBindingObserv
     if (_showSignUp) {
       return SignUpScreen(
         onLoginTap: _toggleView,
+        initialFirstName: _pendingSignUpData?['firstName'],
+        initialLastName: _pendingSignUpData?['lastName'],
+        initialPhone: _pendingSignUpData?['phone'],
+        initialAddress: _pendingSignUpData?['address'],
+        initialPassword: _pendingSignUpData?['password'],
         onRequestLocationVerification:
             (firstName, lastName, phone, address, password) {
           setState(() {

@@ -1573,6 +1573,62 @@ Reporter confirms that the incident is resolved on their side.
 - Only allowed when incident is already `resolved`.
 - On successful confirmation, incident auto-transitions to `closed`.
 - Backend re-runs responder/team/unit release reconciliation on close.
+
+### Cancel Incident (Reporter)
+
+**POST** `/api/incidents/:id/cancel`
+
+The reporting user cancels their own incident. Allowed while status is `pending`, `verified`, or `in_progress`, and no responder (dispatch, primary volunteer, or joined backup) is `On Scene` or `Resolved`.
+
+**Required Role:** `user`, `responder`, or `volunteer` (must be the owner)
+
+**Response:** `200 OK`
+
+```json
+{
+  "success": true,
+  "incident": {
+    "report_id": 1,
+    "status": "cancelled",
+    "closure_method": "reporter_cancelled"
+  }
+}
+```
+
+**Notes:**
+
+- Sets status to `cancelled` (terminal). Assigned teams and units are released.
+- Writes audit action `incident_reporter_cancel` with the previous status.
+- `409` when a responder is already on scene, or the incident is resolved, closed, or already cancelled.
+
+### Update Incident Details (Reporter)
+
+**PATCH** `/api/incidents/:id/details`
+
+The reporting user corrects the written description and map pin. Same window as cancel.
+
+**Required Role:** `user`, `responder`, or `volunteer` (must be the owner)
+
+**Request Body:**
+
+```json
+{
+  "description": "Corrected description",
+  "latitude": 16.043,
+  "longitude": 120.333
+}
+```
+
+**Response:** `200 OK` with the updated incident. `barangay` is recomputed from the pin.
+
+**Notes:**
+
+- An empty `description` clears it. Type, severity, audio, and media are unchanged.
+- `400` when the pin is outside Dagupan City.
+- Does not reassign a team that is already dispatched. An open suggestion with no dispatch is refreshed.
+- Writes audit action `incident_reporter_update_details` (whether the description changed, old and new coordinates, new barangay). The description text is not stored in the audit row.
+- Emits `incident:updated` (no push).
+
 ---
 
 ### Get Incident by ID

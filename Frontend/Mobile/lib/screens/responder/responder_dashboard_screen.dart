@@ -131,7 +131,7 @@ class ResponderDashboardScreenState extends State<ResponderDashboardScreen> {
       } catch (_) {}
       assigned = assigned.where((inc) {
         final status = (inc['status'] ?? '').toString().toLowerCase();
-        return status != 'closed' && status != 'archived';
+        return status != 'closed' && status != 'archived' && status != 'cancelled';
       }).toList();
       if (!mounted) return;
       if (nearbyError != null && incidents.isEmpty && assigned.isEmpty) {
