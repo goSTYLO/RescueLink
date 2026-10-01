@@ -265,7 +265,12 @@ build_release.bat
 run_release.bat
 ```
 
-Release APK is named `RescueLink_App_<version>_<build>.apk` via `android/app/build.gradle.kts` (Gradle renames after `assembleRelease`). Output: `build/app/outputs/flutter-apk/` (e.g. `RescueLink_App_1.0.0_1.apk`).
+Release APK uses the branded name `RescueLink_App_<version>_<build>.apk` (from `pubspec.yaml`). Gradle writes it after every `flutter build apk --release` in:
+
+- `build/app/outputs/flutter-apk/`
+- `build/app/outputs/apk/release/` (Gradle’s default APK folder)
+
+Flutter’s success line still says `app-release.apk`; **`app-release.apk` is kept as a hard link/copy for tooling** — ship the `RescueLink_App_…` file from either folder above.
 
 **Manual (same flags):**
 ```bash
