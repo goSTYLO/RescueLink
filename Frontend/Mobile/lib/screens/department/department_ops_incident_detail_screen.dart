@@ -99,7 +99,7 @@ class _DepartmentOpsIncidentDetailScreenState
 
   bool get _isClosed {
     final s = (_incident?['status'] ?? '').toString().toLowerCase();
-    return s == 'closed' || s == 'archived' || s == 'resolved';
+    return s == 'closed' || s == 'archived' || s == 'resolved' || s == 'cancelled';
   }
 
   bool get _canReassign => !_needsTeam && !_isClosed;

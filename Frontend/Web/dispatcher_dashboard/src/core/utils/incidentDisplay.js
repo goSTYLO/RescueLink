@@ -111,6 +111,14 @@ export function isIncidentClosed(incident) {
   return Boolean(incident?.closedAt);
 }
 
+/** No further operational work (resolved, cancelled, or closed). Close Incident may still apply when resolved. */
+export function isIncidentTerminal(incident) {
+  if (!incident) return false;
+  if (isIncidentClosed(incident)) return true;
+  const status = String(incident?.status || '').trim().toLowerCase();
+  return status === 'resolved' || status === 'cancelled' || status === 'canceled';
+}
+
 /** Lifecycle resolved or volunteer marked Resolved (and not yet closed). */
 export function isIncidentEffectivelyResolved(incident) {
   const status = String(incident?.status || '').trim().toLowerCase();
@@ -132,12 +140,12 @@ export function hasOpenBackupRequestActive(incident) {
 
 /** Staff backup badge / Send Backup remain while a backup request is open (not when closed). */
 export function hasOpenBackupUi(incident) {
-  if (isIncidentClosed(incident)) return false;
+  if (isIncidentTerminal(incident)) return false;
   return hasOpenBackupRequestActive(incident);
 }
 
 export function getBackupDialogCapabilities(incident, role) {
-  if (isIncidentClosed(incident)) {
+  if (isIncidentTerminal(incident)) {
     return {
       canAcknowledge: false,
       canNotifyDepartment: false,

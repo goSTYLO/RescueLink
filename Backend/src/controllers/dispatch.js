@@ -162,13 +162,14 @@ const dispatchController = {
         return res.status(404).json({ error: 'Incident report not found' });
       }
       const incident = await Incident.findById(validatedReportId);
-      const incidentStatus = String(incident?.status || '').toLowerCase();
-      if (incidentStatus === 'closed' || incidentStatus === 'cancelled') {
-        return res.status(409).json({
-          error: incidentStatus === 'cancelled'
-            ? 'Cannot assign responders to a cancelled incident'
-            : 'Cannot assign responders to a closed incident',
-        });
+      if (Incident.isOperationalLocked(incident?.status)) {
+        const incidentStatus = String(incident?.status || '').toLowerCase();
+        const error = incidentStatus === 'cancelled'
+          ? 'Cannot assign responders to a cancelled incident'
+          : incidentStatus === 'resolved'
+            ? 'Cannot assign responders to a resolved incident'
+            : 'Cannot assign responders to a closed incident';
+        return res.status(409).json({ error });
       }
       const existingDispatchCount = await Dispatch.countByReportId(validatedReportId);
       const incidentType = await Dispatch.getIncidentType(validatedReportId);
@@ -561,6 +562,10 @@ const dispatchController = {
       if (!reportExists) {
         return res.status(404).json({ error: 'Incident report not found' });
       }
+      const incidentForUpdate = await Incident.findById(validatedReportId);
+      if (Incident.isOperationalLocked(incidentForUpdate?.status)) {
+        return res.status(409).json({ error: 'Cannot update dispatches on a resolved, cancelled, or closed incident.' });
+      }
 
       // Check if responder exists
       const responderExists = await Dispatch.responderExists(validatedResponderId);
@@ -632,6 +637,10 @@ const dispatchController = {
       const reportExists = await Dispatch.reportExists(validatedReportId);
       if (!reportExists) {
         return res.status(404).json({ error: 'Incident report not found' });
+      }
+      const incidentForUndo = await Incident.findById(validatedReportId);
+      if (Incident.isOperationalLocked(incidentForUndo?.status)) {
+        return res.status(409).json({ error: 'Cannot undo department notification on a resolved, cancelled, or closed incident.' });
       }
 
       const relatedDispatches = await Dispatch.findAll({
@@ -708,6 +717,9 @@ const dispatchController = {
       const validatedReportId = validateInteger(req.body?.report_id, 'report_id');
       const incident = await Incident.findById(validatedReportId);
       if (!incident) return res.status(404).json({ error: 'Incident report not found' });
+      if (Incident.isOperationalLocked(incident.status)) {
+        return res.status(409).json({ error: 'Cannot confirm a team suggestion on a resolved, cancelled, or closed incident.' });
+      }
       if (String(incident.auto_assignment_status || '').toLowerCase() !== AUTO_STATUS.SUGGESTED) {
         return res.status(409).json({ error: 'No pending suggestion to confirm', code: 'NO_SUGGESTION' });
       }
@@ -772,13 +784,14 @@ const dispatchController = {
       }
       const incident = await Incident.findById(validatedReportId);
       if (!incident) return res.status(404).json({ error: 'Incident report not found' });
-      const incidentStatus = String(incident.status || '').toLowerCase();
-      if (incidentStatus === 'closed' || incidentStatus === 'cancelled') {
-        return res.status(409).json({
-          error: incidentStatus === 'cancelled'
-            ? 'Cannot reassign a cancelled incident'
-            : 'Cannot reassign a closed incident',
-        });
+      if (Incident.isOperationalLocked(incident.status)) {
+        const incidentStatus = String(incident.status || '').toLowerCase();
+        const error = incidentStatus === 'cancelled'
+          ? 'Cannot reassign a cancelled incident'
+          : incidentStatus === 'resolved'
+            ? 'Cannot reassign a resolved incident'
+            : 'Cannot reassign a closed incident';
+        return res.status(409).json({ error });
       }
 
       const releaseDept = departmentCode || await Dispatch.getPrimaryTeamDepartment(validatedReportId);
@@ -892,8 +905,12 @@ const dispatchController = {
         return res.status(404).json({ error: 'No team assignment found for this incident' });
       }
 
-      const updatedDispatch = await Dispatch.updateResponseStatus(dispatch.dispatch_id, titleCase);
       const incident = await Incident.findById(validatedReportId);
+      if (Incident.isOperationalLocked(incident?.status)) {
+        return res.status(409).json({ error: 'Cannot update team status on a resolved, cancelled, or closed incident.' });
+      }
+
+      const updatedDispatch = await Dispatch.updateResponseStatus(dispatch.dispatch_id, titleCase);
       const isVolunteerAcceptor = Number(incident?.accepted_by_user_id) === Number(userId);
       if (isVolunteerAcceptor) {
         try {

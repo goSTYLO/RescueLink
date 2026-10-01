@@ -805,12 +805,16 @@ Create a new dispatch record. Validates that both the incident report and respon
 - `401 Unauthorized` - Missing or invalid authentication token
 - `403 Forbidden` - User role does not have permission (only dispatcher and admin can create dispatches)
 - `404 Not Found` - Incident report not found or Responder not found
+- `409 Conflict` - Incident is `resolved`, `cancelled`, or `closed` (no new dispatches)
 - `500 Internal Server Error` - Server error
 
 **Validation:**
 
 - `report_id`: Must be a positive integer (required)
 - `responder_id`: Must be a positive integer (required)
+
+**POST** `/api/incidents/:id/escalations` and **PATCH** `/api/incidents/:id/escalations/:escalationId/status` return `409` when the parent incident is `resolved`, `cancelled`, or `closed`.
+
 ---
 
 ### Get All Dispatches
@@ -1002,6 +1006,8 @@ Release the current primary team (sets team/members available) and optionally as
   "reason": "Wrong team for this incident type"
 }
 ```
+
+**Error Responses:** `409` when the incident is `resolved`, `cancelled`, or `closed` (no further team assignment changes).
 
 ---
 

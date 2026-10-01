@@ -8,7 +8,7 @@ import { getDepartmentById, getDepartmentUnits } from '@/data/api/departments.ap
 import { getResponderTeams } from '@/data/api/responders.api';
 import { createDispatch } from '@/data/api/dispatches.api';
 import { inferDepartmentSectorCode, normalizeSectorCode } from '@/core/utils/departmentSector';
-import { mapApiIncidentToDisplay, isIncidentActiveForDashboard, hasOpenBackupUi, getBackupDialogCapabilities, getAutoAssignmentBadge } from '@/core/utils/incidentDisplay';
+import { mapApiIncidentToDisplay, isIncidentActiveForDashboard, hasOpenBackupUi, getBackupDialogCapabilities, getAutoAssignmentBadge, isIncidentTerminal } from '@/core/utils/incidentDisplay';
 import { formatDepartmentToIncidentDistance } from '@/core/utils/geoDistance';
 import { VolunteerStatusBadge } from '@/presentation/components/common/VolunteerStatusBadge';
 import { ResponderStatusTag } from '@/presentation/components/common/ResponderStatusTag';
@@ -506,6 +506,7 @@ export function DepartmentDashboardPage() {
     if (s === 'verified') return 'purple';
     if (s === 'in progress' || s === 'assigned') return 'geekblue';
     if (s === 'resolved' || s === 'closed') return 'green';
+    if (s === 'cancelled') return 'default';
     return 'default';
   };
 
@@ -531,6 +532,7 @@ export function DepartmentDashboardPage() {
     { value: 'In Progress', label: 'In Progress' },
     { value: 'Resolved', label: 'Resolved' },
     { value: 'Closed', label: 'Closed' },
+    { value: 'Cancelled', label: 'Cancelled' },
   ];
 
   const severityOptions = [
@@ -658,7 +660,7 @@ export function DepartmentDashboardPage() {
       width: 220,
       render: (_, incident) => (
         <Space size={4} wrap={false}>
-          {(normalizedRole === ROLES.DEPARTMENT_ADMIN || normalizedRole === ROLES.DEPARTMENT_HEAD) && !isArchivedView && !incident.assignedTeamName && (
+          {(normalizedRole === ROLES.DEPARTMENT_ADMIN || normalizedRole === ROLES.DEPARTMENT_HEAD) && !isArchivedView && !incident.assignedTeamName && !isIncidentTerminal(incident) && (
             <Button
               {...INCIDENT_ACTION_BTN_PROPS}
               color="blue"

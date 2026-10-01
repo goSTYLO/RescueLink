@@ -14,6 +14,7 @@ const { emitIncidentEvent } = require('../utils/incidentEvents');
 const User = require('../models/user');
 const Department = require('../models/department');
 const Dispatch = require('../models/dispatch');
+const Incident = require('../models/incident');
 
 const ALLOWED_REQUESTOR_ROLES = new Set([
   'admin', 'super-admin', 'superadmin', 'super admin',
@@ -70,6 +71,9 @@ async function createEscalation(req, res) {
     );
     if (!incRes.rows[0]) {
       return res.status(404).json({ error: 'Incident not found.' });
+    }
+    if (Incident.isOperationalLocked(incRes.rows[0].status)) {
+      return res.status(409).json({ error: 'Cannot request assistance on a resolved, cancelled, or closed incident.' });
     }
 
     // Target department must exist and be active
@@ -214,6 +218,17 @@ async function updateEscalationStatus(req, res) {
     const responseNotes = req.body?.response_notes
       ? validateString(req.body.response_notes, 'response_notes', 1, 1000)
       : null;
+
+    const incRow = await pool.query(
+      'SELECT status FROM incident_reports WHERE report_id = $1',
+      [reportId]
+    );
+    if (!incRow.rows[0]) {
+      return res.status(404).json({ error: 'Incident not found.' });
+    }
+    if (Incident.isOperationalLocked(incRow.rows[0].status)) {
+      return res.status(409).json({ error: 'Cannot update assistance requests on a resolved, cancelled, or closed incident.' });
+    }
 
     const existing = await IncidentEscalation.findById(escalationId);
     if (!existing || existing.report_id !== reportId) {

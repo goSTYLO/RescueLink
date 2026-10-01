@@ -30,7 +30,7 @@ import { DEV_MODE } from '@/core/config/app.config';
 import { getAuthToken } from '@/core/auth/session';
 import { ROLES, normalizeRole, getRoleDisplayLabel } from '@/core/constants';
 import { normalizeIncidentTaskType, doesTeamSupportIncidentType } from '@/core/utils/incidentClassification';
-import { formatIncidentTypeLabel, incidentTypesFromApi, formatIncidentTypesLabel, isIncidentEffectivelyResolved, isIncidentClosed, hasOpenBackupUi, getBackupDialogCapabilities, getAutoAssignmentBadge, getSuggestedTeamName } from '@/core/utils/incidentDisplay';
+import { formatIncidentTypeLabel, incidentTypesFromApi, formatIncidentTypesLabel, isIncidentEffectivelyResolved, isIncidentClosed, isIncidentTerminal, hasOpenBackupUi, getBackupDialogCapabilities, getAutoAssignmentBadge, getSuggestedTeamName } from '@/core/utils/incidentDisplay';
 import { IncidentTypeChips } from '@/presentation/components/common/IncidentTypeChips';
 import { Loader2 } from 'lucide-react';
 import { useTheme } from '@/presentation/context/ThemeContext.jsx';
@@ -81,7 +81,7 @@ function mapApiToIncidentDetails(api, aiClassification = null) {
   const normalizedSeverity = normalizeSeverityToDbLevel(api.severity_level);
   const severity = mapSeverityToDisplay(api.severity_level);
 
-  const statusMap = { pending: 'Pending', resolved: 'Resolved', closed: 'Closed', verified: 'Verified', in_progress: 'In Progress' };
+  const statusMap = { pending: 'Pending', resolved: 'Resolved', closed: 'Closed', cancelled: 'Cancelled', verified: 'Verified', in_progress: 'In Progress' };
   const status = statusMap[api.status?.toLowerCase()] || (api.status || 'Pending');
 
   let timeReported = '—';
@@ -435,6 +435,7 @@ export function IncidentDetailsPage() {
     || normalizedRole === ROLES.DISPATCHER
   );
   const incidentIsClosed = isIncidentClosed(incident);
+  const incidentIsTerminal = isIncidentTerminal(incident);
   const canUpdateResponderStatuses = (
     normalizedRole === ROLES.DEPARTMENT_ADMIN
     || normalizedRole === ROLES.DEPARTMENT_HEAD
@@ -476,7 +477,7 @@ export function IncidentDetailsPage() {
     || normalizedRole === ROLES.DISPATCHER
     || normalizedRole === ROLES.DEPARTMENT_ADMIN
     || normalizedRole === ROLES.DEPARTMENT_HEAD
-  ) && !incidentIsClosed;
+  ) && !incidentIsTerminal;
   const currentUserDeptId = currentUser?.departmentId ?? currentUser?.department_id ?? null;
 
   // Count active escalation requests for the badge
@@ -647,9 +648,9 @@ export function IncidentDetailsPage() {
   const availableNotifyDepartments = departmentList.filter((dept) => !notifiedDepartmentCodes.has(String(dept.code || '').toLowerCase()));
   const assignedDepartmentCodeForTeamActions = incident?.assignedDepartmentId || notifiedDepartments[0]?.code || incident?.assignedTeamDepartmentCode || incident?.suggestedDepartmentCode || '';
   const hasSuggestedTeam = Boolean(incident?.suggestedTeamName);
-  const showNotifyDepartmentButton = canNotifyDepartment && !incidentIsClosed && notifiedDepartments.length === 0 && availableNotifyDepartments.length > 0 && !isAutoApplied && !isSuggested;
-  const showUndoNotifyButton = canNotifyDepartment && !incidentIsClosed && notifiedDepartments.length > 0 && !isAutoApplied && autoStatus !== 'suggested';
-  const showSelectTeamButton = !incident?.assignedTeamName && !incidentIsClosed && !isAutoApplied && (
+  const showNotifyDepartmentButton = canNotifyDepartment && !incidentIsTerminal && notifiedDepartments.length === 0 && availableNotifyDepartments.length > 0 && !isAutoApplied && !isSuggested;
+  const showUndoNotifyButton = canNotifyDepartment && !incidentIsTerminal && notifiedDepartments.length > 0 && !isAutoApplied && autoStatus !== 'suggested';
+  const showSelectTeamButton = !incident?.assignedTeamName && !incidentIsTerminal && !isAutoApplied && (
     (canSelectTeamForDepartment && !isSuggested)
     || (canConfirmOrReassign && (isSuggested || autoStatus === 'dept_notified'))
   );
@@ -1703,7 +1704,7 @@ export function IncidentDetailsPage() {
           Send Backup
         </Button>
       )}
-      {canConfirmOrReassign && isSuggested && hasSuggestedTeam && !incidentIsClosed && (
+      {canConfirmOrReassign && isSuggested && hasSuggestedTeam && !incidentIsTerminal && (
         <Button type="primary"
           className={`gap-2 bg-[#134178] hover:bg-[#0f3256] ${compact ? 'h-8 px-3 text-xs rounded-lg' : ''}`}
           onClick={handleConfirmSuggestion}
@@ -1714,7 +1715,7 @@ export function IncidentDetailsPage() {
             : 'Confirm suggested team'}
         </Button>
       )}
-      {canConfirmOrReassign && isAutoApplied && !incidentIsClosed && (
+      {canConfirmOrReassign && isAutoApplied && !incidentIsTerminal && (
         <Button
           className={`gap-2 rounded-xl ${compact ? 'h-8 px-3 text-xs rounded-lg' : ''}`}
           onClick={() => {
@@ -1744,7 +1745,7 @@ export function IncidentDetailsPage() {
           Select Team
         </Button>
       )}
-      {canUpdateResponderStatuses && incident?.assignedTeamName && !incidentIsClosed && (
+      {canUpdateResponderStatuses && incident?.assignedTeamName && !incidentIsTerminal && (
         <Button
           className={`gap-2 rounded-xl ${compact ? 'h-8 px-3 text-xs rounded-lg' : ''}`}
           onClick={openStatusDialog}
@@ -1773,7 +1774,7 @@ export function IncidentDetailsPage() {
           Close Incident
         </Button>
       )}
-      {canManageDuplicates && !incidentIsClosed && (
+      {canManageDuplicates && !incidentIsTerminal && (
         <Button
           className={`gap-2 rounded-xl ${isLight ? 'text-amber-600 border-amber-200 hover:bg-amber-50' : 'text-amber-400 border-amber-500/40 hover:bg-amber-500/20'} ${compact ? 'h-8 px-3 text-xs rounded-lg' : ''}`}
           onClick={() => setDuplicateDialogOpen(true)}
@@ -1803,8 +1804,8 @@ export function IncidentDetailsPage() {
           <div className="flex flex-wrap items-center gap-2">
             {renderPrimaryActions({ compact: true })}
           </div>
-          {incidentIsClosed && (
-            <p className="text-xs text-muted italic">Operational actions are disabled for closed incidents.</p>
+          {incidentIsTerminal && (
+            <p className="text-xs text-muted italic">Operational actions are disabled for resolved, cancelled, or closed incidents.</p>
           )}
           <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
             {duplicateCluster.length > 1 && (
@@ -1819,7 +1820,7 @@ export function IncidentDetailsPage() {
                 {incident?.isDuplicate ? 'Duplicate' : 'Possible Duplicate'}
               </span>
             )}
-            {canManualReclassify && !incidentIsClosed && (
+            {canManualReclassify && !incidentIsTerminal && (
               <span className="inline-flex items-center gap-1 text-muted">
                 AI confidence: {getConfidencePercent(incident.aiConfidenceScore) ?? 'N/A'}%
                 <button
@@ -1832,7 +1833,7 @@ export function IncidentDetailsPage() {
               </span>
             )}
           </div>
-          {canManualReclassify && !incidentIsClosed && manualReclassInfoExpanded && (
+          {canManualReclassify && !incidentIsTerminal && manualReclassInfoExpanded && (
             <div className={`mt-2 rounded-lg border px-2.5 py-2 text-xs ${isLight ? 'border-amber-300/70 bg-amber-50/80 text-amber-800' : 'border-amber-500/40 bg-amber-500/10 text-amber-300'}`}>
               {incident.aiLowConfidenceFlag
                 ? 'Low AI confidence detected. Manual review and override are recommended.'
@@ -2049,13 +2050,13 @@ export function IncidentDetailsPage() {
                       </div>
                     ))}
                     <div className="flex flex-wrap gap-2 pt-2">
-                      {!incidentIsClosed && (
+                      {!incidentIsTerminal && (
                         <Button className="gap-2" onClick={() => setDuplicateDialogOpen(true)}>
                           <Merge className="w-3 h-3" />
                           Manage duplicates
                         </Button>
                       )}
-                      {closedRelatedReport && !incidentIsClosed && (
+                      {closedRelatedReport && !incidentIsTerminal && (
                         <Button
                           className="gap-2 text-severity-resolved border-severity-resolved/50"
                           onClick={async () => {
@@ -2347,10 +2348,10 @@ export function IncidentDetailsPage() {
                             </p>
                           </div>
                         )}
-                        {!incident?.assignedTeamName && !getSuggestedTeamName(incident) && assignedDepartmentCodeForTeamActions && !incidentIsClosed && (
+                        {!incident?.assignedTeamName && !getSuggestedTeamName(incident) && assignedDepartmentCodeForTeamActions && !incidentIsTerminal && (
                           <p className="text-xs text-muted">No team assigned yet. Use the top action bar to select a team.</p>
                         )}
-                        {canUpdateResponderStatuses && incident?.assignedTeamName && !incidentIsClosed && (
+                        {canUpdateResponderStatuses && incident?.assignedTeamName && !incidentIsTerminal && (
                           <div>
                             <div className="flex items-center justify-between gap-2 mb-2">
                               <p className="text-xs text-muted">Team Members</p>
@@ -2389,14 +2390,14 @@ export function IncidentDetailsPage() {
                             )}
                           </div>
                         )}
-                        {incidentIsClosed && (
-                          <p className="text-xs text-muted italic">Team assignment and status updates are disabled for closed incidents.</p>
+                        {incidentIsTerminal && (
+                          <p className="text-xs text-muted italic">Team assignment and status updates are disabled for resolved, cancelled, or closed incidents.</p>
                         )}
                       </div>
                     </div>
                   )}
 
-                  {isSupervisor && !incidentIsClosed && incident.status !== 'Resolved' && incident.status !== 'Duplicate' && (
+                  {isSupervisor && !incidentIsTerminal && incident.status !== 'Duplicate' && (
                     <div className="space-y-2">
                       <p className="text-xs uppercase tracking-wide text-muted font-semibold">Escalation Controls</p>
                       <Button type="primary" className="w-full bg-amber-600 hover:bg-amber-700 gap-2" onClick={() => setEscalateDialogOpen(true)}>
@@ -2658,25 +2659,31 @@ export function IncidentDetailsPage() {
                   )}
                 </div>
 
-                <Divider />
-
-                <div>
-                  <label className="text-sm text-muted">Add Coordination Note</label>
-                  <Input.TextArea 
-                    placeholder="Share updates with other departments..."
-                    value={coordinationNote}
-                    onChange={(e) => setCoordinationNote(e.target.value)}
-                    rows={3}
-                    maxLength={500}
-                    className={`mt-2 rounded-xl ${isLight ? 'bg-gray-50 border-gray-200' : 'bg-white/5 border-border'}`}
-                  />
-                  <Button type="primary" 
-                    className="w-full mt-3 rounded-xl bg-primary hover:bg-primary-hover"
-                    onClick={handleAddCoordinationNote}
-                  >
-                    Add Note
-                  </Button>
-                </div>
+                {!incidentIsTerminal && (
+                  <>
+                    <Divider />
+                    <div>
+                      <label className="text-sm text-muted">Add Coordination Note</label>
+                      <Input.TextArea
+                        placeholder="Share updates with other departments..."
+                        value={coordinationNote}
+                        onChange={(e) => setCoordinationNote(e.target.value)}
+                        rows={3}
+                        maxLength={500}
+                        className={`mt-2 rounded-xl ${isLight ? 'bg-gray-50 border-gray-200' : 'bg-white/5 border-border'}`}
+                      />
+                      <Button type="primary"
+                        className="w-full mt-3 rounded-xl bg-primary hover:bg-primary-hover"
+                        onClick={handleAddCoordinationNote}
+                      >
+                        Add Note
+                      </Button>
+                    </div>
+                  </>
+                )}
+                {incidentIsTerminal && (
+                  <p className="text-xs text-muted italic pt-2">Coordination notes cannot be added on resolved, cancelled, or closed incidents.</p>
+                )}
                 </div>
             </Card>
           </Tabs.TabPane>
@@ -2720,6 +2727,7 @@ export function IncidentDetailsPage() {
                   currentUserRole={currentUser.role}
                   currentUserDeptId={currentUserDeptId}
                   onStatusUpdate={handleEscalationStatusUpdate}
+                  incidentOperationalLocked={incidentIsTerminal}
                 />
                 </div>
             </Card>

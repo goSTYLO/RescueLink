@@ -21,6 +21,7 @@ const { tryDecryptValue } = require('../utils/encryption');
 const User = require('../models/user');
 const Department = require('../models/department');
 const Dispatch = require('../models/dispatch');
+const Incident = require('../models/incident');
 const { ROLES } = require('../config/roles');
 
 const RESPONDER_STATUSES = ['Assigned', 'En Route', 'On Scene', 'Resolved'];
@@ -475,7 +476,7 @@ async function loadBackupRequestContext(reportId, backupId) {
 
 function isIncidentActiveForBackup(incidentStatus, responderStatus) {
   const status = String(incidentStatus || '').toLowerCase();
-  if (status === 'closed' || status === 'resolved') return false;
+  if (status === 'closed' || status === 'resolved' || status === 'cancelled') return false;
   if (String(responderStatus || '') === 'Resolved') return false;
   return true;
 }
@@ -567,8 +568,8 @@ async function acceptIncident(req, res) {
     if (incident.accepted_by_user_id) {
       return res.status(409).json({ error: 'This incident has already been accepted by another responder.' });
     }
-    if (['resolved', 'closed'].includes(String(incident.status).toLowerCase())) {
-      return res.status(409).json({ error: 'Cannot accept a resolved or closed incident.' });
+    if (['resolved', 'closed', 'cancelled'].includes(String(incident.status).toLowerCase())) {
+      return res.status(409).json({ error: 'Cannot accept a resolved, cancelled, or closed incident.' });
     }
 
     // Radius check (only when responder has a registered location)
@@ -671,7 +672,7 @@ async function updateResponderStatus(req, res) {
 
     // Load incident and verify ownership
     const incRow = await pool.query(
-      'SELECT accepted_by_user_id, responder_status FROM incident_reports WHERE report_id = $1',
+      'SELECT accepted_by_user_id, responder_status, status FROM incident_reports WHERE report_id = $1',
       [reportId]
     );
     if (!incRow.rows[0]) return res.status(404).json({ error: 'Incident not found.' });
@@ -679,6 +680,9 @@ async function updateResponderStatus(req, res) {
 
     if (incident.accepted_by_user_id !== userId) {
       return res.status(403).json({ error: 'You are not the primary responder for this incident.' });
+    }
+    if (Incident.isOperationalLocked(incident.status)) {
+      return res.status(409).json({ error: 'Cannot update responder status on a resolved, cancelled, or closed incident.' });
     }
 
     const currentStatus = incident.responder_status || 'Assigned';
@@ -784,6 +788,9 @@ async function requestBackup(req, res) {
     );
     if (!incRow.rows[0]) return res.status(404).json({ error: 'Incident not found.' });
     const incident = incRow.rows[0];
+    if (Incident.isOperationalLocked(incident.status)) {
+      return res.status(409).json({ error: 'Cannot request backup on a resolved, cancelled, or closed incident.' });
+    }
     if (incident.accepted_by_user_id !== userId) {
       return res.status(403).json({ error: 'Only the primary responder can request backup.' });
     }
@@ -1083,6 +1090,15 @@ async function updateBackupResponderStatus(req, res) {
       return res.status(404).json({ error: 'Active backup assignment not found.' });
     }
 
+    const incStatusRow = await pool.query(
+      'SELECT status FROM incident_reports WHERE report_id = $1',
+      [reportId]
+    );
+    if (!incStatusRow.rows[0]) return res.status(404).json({ error: 'Incident not found.' });
+    if (Incident.isOperationalLocked(incStatusRow.rows[0].status)) {
+      return res.status(409).json({ error: 'Cannot update backup status on a resolved, cancelled, or closed incident.' });
+    }
+
     const currentStatus = row.rows[0].responder_status || 'Assigned';
     const allowed = STATUS_TRANSITIONS[currentStatus] || [];
     if (!allowed.includes(newStatus)) {
@@ -1131,6 +1147,15 @@ async function acknowledgeBackupRequest(req, res) {
     const allowed = await assertCanManageBackup(req, reportId);
     if (!allowed) {
       return res.status(403).json({ error: 'You are not authorized to acknowledge backup for this incident.' });
+    }
+
+    const incStatusRow = await pool.query(
+      'SELECT status FROM incident_reports WHERE report_id = $1',
+      [reportId]
+    );
+    if (!incStatusRow.rows[0]) return res.status(404).json({ error: 'Incident not found.' });
+    if (Incident.isOperationalLocked(incStatusRow.rows[0].status)) {
+      return res.status(409).json({ error: 'Cannot acknowledge backup on a resolved, cancelled, or closed incident.' });
     }
 
     const existing = await pool.query(
@@ -1423,8 +1448,8 @@ async function getIncidentPreview(req, res) {
     if (incident.accepted_by_user_id) {
       return res.status(409).json({ error: 'This incident has already been accepted by another responder.' });
     }
-    if (['resolved', 'closed'].includes(String(incident.status).toLowerCase())) {
-      return res.status(409).json({ error: 'Cannot preview a resolved or closed incident.' });
+    if (Incident.isOperationalLocked(incident.status)) {
+      return res.status(409).json({ error: 'Cannot preview a resolved, cancelled, or closed incident.' });
     }
 
     await assertResponderRadius(req, userId, incident.latitude, incident.longitude);

@@ -1568,6 +1568,9 @@ const incidentController = {
       if (!incident) {
         return res.status(404).json({ error: 'Incident not found' });
       }
+      if (Incident.isOperationalLocked(incident.status)) {
+        return res.status(409).json({ error: 'Cannot reclassify a resolved, cancelled, or closed incident.' });
+      }
 
       const previousClassification = await Incident.getClassificationByReportId(validatedId);
 
@@ -1689,6 +1692,9 @@ const incidentController = {
       const incident = await Incident.findById(validatedId);
       if (!incident) {
         return res.status(404).json({ error: 'Incident not found' });
+      }
+      if (Incident.isOperationalLocked(incident.status)) {
+        return res.status(409).json({ error: 'Cannot add coordination notes on a resolved, cancelled, or closed incident.' });
       }
 
       // Same access check as getById
@@ -1912,6 +1918,9 @@ const incidentController = {
 
       const incident = await Incident.findById(validatedId);
       if (!incident) return res.status(404).json({ error: 'Incident not found' });
+      if (Incident.isOperationalLocked(incident.status)) {
+        return res.status(409).json({ error: 'Cannot link duplicates on a resolved, cancelled, or closed incident.' });
+      }
 
       const parentIncident = await Incident.findById(validatedParentId);
       if (!parentIncident) return res.status(404).json({ error: 'Parent incident not found' });
@@ -1944,6 +1953,9 @@ const incidentController = {
 
       const incident = await Incident.findById(validatedId);
       if (!incident) return res.status(404).json({ error: 'Incident not found' });
+      if (Incident.isOperationalLocked(incident.status)) {
+        return res.status(409).json({ error: 'Cannot unlink duplicates on a resolved, cancelled, or closed incident.' });
+      }
 
       const { unlinkDuplicate: unlinkDup } = require('../services/duplicateDetectionService');
       await unlinkDup(validatedId);
@@ -1977,6 +1989,9 @@ const incidentController = {
 
       const incident = await Incident.findById(validatedId);
       if (!incident) return res.status(404).json({ error: 'Incident not found' });
+      if (Incident.isOperationalLocked(incident.status)) {
+        return res.status(409).json({ error: 'Cannot clear duplicate flags on a resolved, cancelled, or closed incident.' });
+      }
 
       const { clearDuplicateFlag: clearFlag } = require('../services/duplicateDetectionService');
       await clearFlag(validatedId);

@@ -40,6 +40,7 @@ function formatDate(ts) {
  * @param {string}   [props.currentUserRole]      - Normalized role of current user
  * @param {number}   [props.currentUserDeptId]    - Current user's department_id
  * @param {Function} props.onStatusUpdate         - async (escalationId, status, notes?) => void
+ * @param {boolean}  [props.incidentOperationalLocked] - Hide accept/decline/resolve/cancel when incident is terminal
  */
 export function IncidentEscalationSection({
   escalations = [],
@@ -47,6 +48,7 @@ export function IncidentEscalationSection({
   currentUserRole = '',
   currentUserDeptId,
   onStatusUpdate,
+  incidentOperationalLocked = false,
 }) {
   const [actionState, setActionState] = useState({ escalationId: null, action: null });
   const [responseNotes, setResponseNotes]   = useState('');
@@ -140,7 +142,9 @@ export function IncidentEscalationSection({
             const urgencyCfg = URGENCY_CONFIG[esc.urgency] || URGENCY_CONFIG.medium;
             const statusCfg  = STATUS_CONFIG[esc.status]   || STATUS_CONFIG.pending;
             const StatusIcon = statusCfg.icon;
-            const caps = canActOn(esc);
+            const caps = incidentOperationalLocked
+              ? { accept: false, decline: false, resolve: false, cancel: false }
+              : canActOn(esc);
 
             return (
               <Card key={esc.id} size="small" style={{ marginBottom: 8 }}>

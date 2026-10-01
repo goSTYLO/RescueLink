@@ -104,6 +104,11 @@ function normalizeIncidentStatus(value) {
   return 'pending';
 }
 
+function isIncidentOperationalLocked(status) {
+  const normalized = normalizeIncidentStatus(status);
+  return normalized === 'resolved' || normalized === 'closed' || normalized === 'cancelled';
+}
+
 function createIncidentStateError(code, message, status = 400) {
   const error = new Error(message);
   error.code = code;
@@ -207,6 +212,10 @@ async function loadReporterReviseTarget(reportId, reporterUserId) {
 }
 
 const Incident = {
+  isOperationalLocked(status) {
+    return isIncidentOperationalLocked(status);
+  },
+
   async create({ user_id, incident_type = null, severity_level, description = null, latitude, longitude, barangay = null, media_url = null, status = 'pending' }) {
     const res = await pool.query(
       'INSERT INTO incident_reports(user_id, incident_type, severity_level, description, latitude, longitude, barangay, media_url, status) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *',

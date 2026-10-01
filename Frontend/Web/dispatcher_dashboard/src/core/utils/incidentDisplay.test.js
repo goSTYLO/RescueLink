@@ -2,6 +2,7 @@ import {
   isIncidentEffectivelyResolved,
   isVolunteerResolved,
   isIncidentClosed,
+  isIncidentTerminal,
   hasOpenBackupUi,
   getBackupDialogCapabilities,
   getAutoAssignmentBadge,
@@ -40,6 +41,21 @@ describe('isVolunteerResolved', () => {
   it('is case-insensitive', () => {
     expect(isVolunteerResolved('resolved')).toBe(true);
     expect(isVolunteerResolved('Resolved')).toBe(true);
+  });
+});
+
+describe('isIncidentTerminal', () => {
+  it('returns true for resolved, cancelled, and closed', () => {
+    expect(isIncidentTerminal({ status: 'Resolved' })).toBe(true);
+    expect(isIncidentTerminal({ status: 'Cancelled' })).toBe(true);
+    expect(isIncidentTerminal({ status: 'Closed' })).toBe(true);
+    expect(isIncidentTerminal({ status: 'In Progress', closedAt: '2026-01-20T00:20:00Z' })).toBe(true);
+  });
+
+  it('returns false for active incidents', () => {
+    expect(isIncidentTerminal({ status: 'In Progress' })).toBe(false);
+    expect(isIncidentTerminal({ status: 'Verified' })).toBe(false);
+    expect(isIncidentTerminal(null)).toBe(false);
   });
 });
 
@@ -87,6 +103,14 @@ describe('hasOpenBackupUi', () => {
   it('returns false for closed incidents even with open backup request', () => {
     expect(hasOpenBackupUi({
       status: 'Closed',
+      hasOpenBackupRequest: true,
+      openBackupStatus: 'pending',
+    })).toBe(false);
+  });
+
+  it('returns false for resolved incidents with open backup request', () => {
+    expect(hasOpenBackupUi({
+      status: 'Resolved',
       hasOpenBackupRequest: true,
       openBackupStatus: 'pending',
     })).toBe(false);

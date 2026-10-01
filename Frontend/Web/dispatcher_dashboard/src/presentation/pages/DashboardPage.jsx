@@ -13,7 +13,7 @@ import { getAuthToken, getStoredUser } from '@/core/auth/session';
 // Feature flag — mirrors USE_BLOCKCHAIN in Backend/.env
 const USE_BLOCKCHAIN = import.meta.env.VITE_USE_BLOCKCHAIN === 'true';
 import { mapIncidentTypeFilterToApi } from '@/core/utils/incidentClassification';
-import { mapApiIncidentToDisplay, hasOpenBackupUi, getBackupDialogCapabilities, getAutoAssignmentBadge } from '@/core/utils/incidentDisplay';
+import { mapApiIncidentToDisplay, hasOpenBackupUi, getBackupDialogCapabilities, getAutoAssignmentBadge, isIncidentTerminal } from '@/core/utils/incidentDisplay';
 import { formatDepartmentToIncidentDistance } from '@/core/utils/geoDistance';
 import { SelectParentIncidentDialog } from '@/presentation/components/common/SelectParentIncidentDialog';
 import { VolunteerStatusBadge } from '@/presentation/components/common/VolunteerStatusBadge';
@@ -465,6 +465,7 @@ export function DashboardPage() {
       case 'In Progress': return 'gold';
       case 'Resolved':
       case 'Closed': return 'green';
+      case 'Cancelled': return 'default';
       case 'Duplicate': return 'default';
       default: return 'default';
     }
@@ -658,6 +659,7 @@ export function DashboardPage() {
     { value: 'In Progress', label: 'In Progress' },
     { value: 'Resolved', label: 'Resolved' },
     { value: 'Closed', label: 'Closed' },
+    { value: 'Cancelled', label: 'Cancelled' },
   ];
 
   const barangayOptions = [
@@ -795,7 +797,7 @@ export function DashboardPage() {
               Save
             </Button>
           )}
-          {canManageDuplicates && !incident.isDuplicate && /^\d+$/.test(String(incident.id)) && !isArchivedView && (
+          {canManageDuplicates && !incident.isDuplicate && !isIncidentTerminal(incident) && /^\d+$/.test(String(incident.id)) && !isArchivedView && (
             <Button
               {...INCIDENT_ACTION_BTN_PROPS}
               color="gold"
