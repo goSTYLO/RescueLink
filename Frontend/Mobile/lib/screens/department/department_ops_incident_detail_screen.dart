@@ -9,7 +9,9 @@ import '../../services/department_ops_service.dart';
 import '../../services/incident_service.dart';
 import '../../services/websocket_service.dart';
 import '../../utils/report_ui.dart';
+import '../../constants/dagupan_map.dart';
 import '../../widgets/glass_card.dart';
+import '../../widgets/recenterable_map_frame.dart';
 
 /// Detail + assign / reassign / resolve for department ops (no personnel stepper).
 class DepartmentOpsIncidentDetailScreen extends StatefulWidget {
@@ -462,38 +464,31 @@ class _DepartmentOpsIncidentDetailScreenState
                     ),
                   ),
                   const SizedBox(height: 10),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: SizedBox(
-                      height: 200,
-                      child: FlutterMap(
-                        options: MapOptions(
-                          initialCenter: LatLng(lat, lon),
-                          initialZoom: 15,
-                        ),
-                        children: [
-                          TileLayer(
-                            urlTemplate:
-                                'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                            userAgentPackageName: 'com.rescuelink.mobile',
-                          ),
-                          MarkerLayer(
-                            markers: [
-                              Marker(
-                                point: LatLng(lat, lon),
-                                width: 40,
-                                height: 40,
-                                child: const Icon(
-                                  Icons.location_pin,
-                                  color: Color(0xFFEF4444),
-                                  size: 40,
-                                ),
-                              ),
-                            ],
+                  RecenterableMapFrame(
+                    height: 200,
+                    center: LatLng(lat, lon),
+                    zoom: DagupanMap.departmentZoom,
+                    children: [
+                      TileLayer(
+                        urlTemplate:
+                            'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                        userAgentPackageName: 'com.rescuelink.mobile',
+                      ),
+                      MarkerLayer(
+                        markers: [
+                          Marker(
+                            point: LatLng(lat, lon),
+                            width: 40,
+                            height: 40,
+                            child: const Icon(
+                              Icons.location_pin,
+                              color: Color(0xFFEF4444),
+                              size: 40,
+                            ),
                           ),
                         ],
                       ),
-                    ),
+                    ],
                   ),
                 ],
               ),

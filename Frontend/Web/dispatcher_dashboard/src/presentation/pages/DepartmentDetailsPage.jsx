@@ -4,6 +4,9 @@ import { ArrowLeft, Shield, Users, Link2, MapPin } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { MapContainer, Marker, TileLayer } from 'react-leaflet';
+import { DAGUPAN_MAP_ZOOM } from '@/core/constants/dagupanMap';
+import { leafletMapViewportProps } from '@/core/constants/mapViewport';
+import { MapRecenterControl } from '@/presentation/components/common/MapRecenterControl';
 import L from 'leaflet';
 import { alertUser } from '@/presentation/feedback/alertUser';
 import { Breadcrumb } from '@/presentation/components/common/Breadcrumb';
@@ -593,12 +596,21 @@ export function DepartmentDetailsPage() {
                   {hasDepartmentCoordinates ? (
                     <>
                       <div style={{ height: 360, borderRadius: 8, overflow: 'hidden', border: '1px solid rgba(0,0,0,0.1)', marginBottom: 8 }}>
-                        <MapContainer center={[departmentLatitude, departmentLongitude]} zoom={15} style={{ width: '100%', height: '100%' }}>
+                        <MapContainer
+                          center={[departmentLatitude, departmentLongitude]}
+                          zoom={15}
+                          {...leafletMapViewportProps()}
+                          style={{ width: '100%', height: '100%' }}
+                        >
                           <TileLayer
                             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                           />
                           <Marker position={[departmentLatitude, departmentLongitude]} icon={departmentMarkerIcon} />
+                          <MapRecenterControl
+                            center={[departmentLatitude, departmentLongitude]}
+                            zoom={DAGUPAN_MAP_ZOOM.department}
+                          />
                         </MapContainer>
                       </div>
                       <p style={{ fontSize: 12, opacity: 0.7, margin: 0 }}>Address: {departmentAddress || 'Not provided'}</p>

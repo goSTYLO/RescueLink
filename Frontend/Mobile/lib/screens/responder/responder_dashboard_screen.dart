@@ -7,8 +7,11 @@ import '../../services/responder_service.dart';
 import '../../services/auth_service.dart';
 import '../../services/websocket_service.dart';
 import '../../utils/report_ui.dart';
+import '../../constants/dagupan_map.dart';
 import '../../widgets/app_map_tile_layer.dart';
+import '../../widgets/dagupan_boundary_layer.dart';
 import '../../widgets/glass_card.dart';
+import '../../widgets/map_recenter_fab.dart';
 import 'responder_incident_detail_screen.dart';
 import 'responder_incident_preview_screen.dart';
 import 'widgets/responder_incident_card.dart';
@@ -36,7 +39,6 @@ class ResponderDashboardScreen extends StatefulWidget {
 }
 
 class ResponderDashboardScreenState extends State<ResponderDashboardScreen> {
-  static const _dagupanCenter = LatLng(16.043, 120.333);
   static const _refreshEvents = {
     'incident:created',
     'incident:status_updated',
@@ -306,23 +308,8 @@ class ResponderDashboardScreenState extends State<ResponderDashboardScreen> {
   void _applyMapCamera() {
     if (!mounted || _incidentsView != _ActiveIncidentsView.map) return;
 
-    final points = _visibleIncidents.map(_incidentLatLng).whereType<LatLng>().toList();
     try {
-      if (points.isEmpty) {
-        final center = _userLocation ?? _dagupanCenter;
-        _mapController.move(center, _userLocation != null ? 14 : 13);
-        return;
-      }
-      if (points.length == 1) {
-        _mapController.move(points.first, 14);
-        return;
-      }
-      _mapController.fitCamera(
-        CameraFit.bounds(
-          bounds: LatLngBounds.fromPoints(points),
-          padding: const EdgeInsets.fromLTRB(48, 48, 48, 160),
-        ),
-      );
+      _mapController.move(DagupanMap.center, DagupanMap.overviewZoom);
     } catch (_) {}
   }
 
@@ -714,19 +701,31 @@ class ResponderDashboardScreenState extends State<ResponderDashboardScreen> {
           child: FlutterMap(
             key: const ValueKey('responder-dashboard-map'),
             mapController: _mapController,
-            options: MapOptions(
-              initialCenter: _userLocation ?? _dagupanCenter,
-              initialZoom: 13,
-              interactionOptions: const InteractionOptions(flags: InteractiveFlag.all),
-              onMapReady: () {
-                _mapReady = true;
-                _scheduleMapCameraUpdate();
-              },
+            options: DagupanMap.applyPhilippinesConstraints(
+              MapOptions(
+                initialCenter: DagupanMap.center,
+                initialZoom: DagupanMap.overviewZoom,
+                interactionOptions: const InteractionOptions(flags: InteractiveFlag.all),
+                onMapReady: () {
+                  _mapReady = true;
+                  _scheduleMapCameraUpdate();
+                },
+              ),
             ),
             children: [
               AppMapTileLayer(),
+              const DagupanBoundaryLayer(),
               MarkerLayer(markers: markers),
             ],
+          ),
+        ),
+        Positioned(
+          right: 16,
+          bottom: _selectedMapIncident != null ? 204 : 88,
+          child: MapRecenterFab(
+            mapController: _mapController,
+            center: DagupanMap.center,
+            zoom: DagupanMap.overviewZoom,
           ),
         ),
         if (_loadingIncidents)

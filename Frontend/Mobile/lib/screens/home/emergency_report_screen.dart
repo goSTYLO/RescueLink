@@ -11,8 +11,10 @@ import 'package:path_provider/path_provider.dart';
 import 'package:video_player/video_player.dart';
 import '../../services/auth_service.dart';
 import '../../services/incident_service.dart';
+import '../../constants/dagupan_map.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/animated_collapse.dart';
+import '../../widgets/recenterable_map_frame.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/gradient_header.dart';
 import '../../widgets/skeleton_placeholder.dart';
@@ -815,41 +817,38 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
                                 ),
                                 if (_currentLat != null && _currentLng != null) ...[
                                   const SizedBox(height: 12),
-                                  ClipRRect(
-                                    borderRadius: BorderRadius.circular(12),
-                                    child: SizedBox(
-                                      height: 160,
-                                      child: FlutterMap(
-                                        options: MapOptions(
-                                          initialCenter: LatLng(_currentLat!, _currentLng!),
-                                          initialZoom: 15,
-                                          interactionOptions: const InteractionOptions(
-                                            flags: InteractiveFlag.all,
-                                          ),
-                                        ),
-                                        children: [
-                                          TileLayer(
-                                            urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-                                            userAgentPackageName: 'com.rescuelink.mobile',
-                                            subdomains: const ['a', 'b', 'c'],
-                                          ),
-                                          MarkerLayer(
-                                            markers: [
-                                              Marker(
-                                                point: LatLng(_currentLat!, _currentLng!),
-                                                width: 40,
-                                                height: 40,
-                                                child: Icon(
-                                                  Icons.location_on,
-                                                  color: theme.colorScheme.error,
-                                                  size: 40,
-                                                ),
-                                              ),
-                                            ],
+                                  RecenterableMapFrame(
+                                    height: 160,
+                                    center: LatLng(_currentLat!, _currentLng!),
+                                    zoom: DagupanMap.departmentZoom,
+                                    mapOptions: MapOptions(
+                                      initialCenter: LatLng(_currentLat!, _currentLng!),
+                                      initialZoom: DagupanMap.departmentZoom,
+                                      interactionOptions: const InteractionOptions(
+                                        flags: InteractiveFlag.all,
+                                      ),
+                                    ),
+                                    children: [
+                                      TileLayer(
+                                        urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                                        userAgentPackageName: 'com.rescuelink.mobile',
+                                        subdomains: const ['a', 'b', 'c'],
+                                      ),
+                                      MarkerLayer(
+                                        markers: [
+                                          Marker(
+                                            point: LatLng(_currentLat!, _currentLng!),
+                                            width: 40,
+                                            height: 40,
+                                            child: Icon(
+                                              Icons.location_on,
+                                              color: theme.colorScheme.error,
+                                              size: 40,
+                                            ),
                                           ),
                                         ],
                                       ),
-                                    ),
+                                    ],
                                   ),
                                 ],
                               ],

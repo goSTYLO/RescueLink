@@ -12,11 +12,14 @@ import { getAuthToken } from '@/core/auth/session';
 import { useIncidentWebSocketStatus } from '@/presentation/context/IncidentWebSocketContext';
 import { MapContainer, Marker, Popup, TileLayer, Tooltip } from 'react-leaflet';
 import L from 'leaflet';
+import { DAGUPAN_CENTER, DAGUPAN_MAP_ZOOM } from '@/core/constants/dagupanMap';
+import { leafletMapViewportProps } from '@/core/constants/mapViewport';
+import { DagupanBoundaryLayer } from '@/presentation/components/common/DagupanBoundaryLayer';
+import { MapRecenterControl } from '@/presentation/components/common/MapRecenterControl';
 
 const POLLING_INTERVAL_MS = 60000;
 const POLLING_WHEN_WS_CONNECTED_MS = 120000;
 const ACTIVE_STATUSES = new Set(['pending', 'verified', 'in_progress']);
-const DAGUPAN_CENTER = [16.043, 120.333];
 
 function mapApiIncidentToMap(api) {
   const typeMap = { fire: 'Fire', medical: 'Medical', police: 'Police', disaster: 'Disaster', sos: 'SOS', other: 'Other' };
@@ -238,11 +241,18 @@ export function MapViewPage() {
             )}
 
             <div style={{ height: '58vh', minHeight: 420, borderRadius: 8, overflow: 'hidden', border: '1px solid rgba(0,0,0,0.1)' }}>
-              <MapContainer center={DAGUPAN_CENTER} zoom={13} style={{ width: '100%', height: '100%' }}>
+              <MapContainer
+                center={DAGUPAN_CENTER}
+                zoom={DAGUPAN_MAP_ZOOM.overview}
+                {...leafletMapViewportProps()}
+                style={{ width: '100%', height: '100%' }}
+              >
                 <TileLayer
                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                   attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                 />
+                <DagupanBoundaryLayer />
+                <MapRecenterControl center={DAGUPAN_CENTER} zoom={DAGUPAN_MAP_ZOOM.overview} />
 
                 {filteredIncidents.map((incident) => {
                   const links = buildMapLinks(incident.location.lat, incident.location.lng);

@@ -7,7 +7,9 @@ import 'package:latlong2/latlong.dart';
 import '../../services/auth_service.dart';
 import '../../services/incident_service.dart';
 import '../../services/websocket_service.dart';
+import '../../constants/dagupan_map.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/recenterable_map_frame.dart';
 import '../../utils/incident_navigation.dart';
 import '../../utils/report_ui.dart';
 import '../../widgets/bottom_sheet_wrapper.dart';
@@ -1338,35 +1340,43 @@ class _ReportLocationMapScreen extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
         ),
       ),
-      body: FlutterMap(
-        options: MapOptions(
-          initialCenter: point,
-          initialZoom: 14,
-          interactionOptions: const InteractionOptions(
-            flags: InteractiveFlag.all,
-          ),
-        ),
-        children: [
-          TileLayer(
-            urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-            userAgentPackageName: 'com.rescuelink.mobile',
-            subdomains: const ['a', 'b', 'c'],
-          ),
-          MarkerLayer(
-            markers: [
-              Marker(
-                point: point,
-                width: 40,
-                height: 40,
-                child: const Icon(
-                  Icons.location_on,
-                  color: AppTheme.primaryRed,
-                  size: 40,
-                ),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          return RecenterableMapFrame(
+            height: constraints.maxHeight,
+            center: point,
+            zoom: DagupanMap.detailZoom,
+            borderRadius: BorderRadius.zero,
+            mapOptions: MapOptions(
+              initialCenter: point,
+              initialZoom: DagupanMap.detailZoom,
+              interactionOptions: const InteractionOptions(
+                flags: InteractiveFlag.all,
+              ),
+            ),
+            children: [
+              TileLayer(
+                urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                userAgentPackageName: 'com.rescuelink.mobile',
+                subdomains: const ['a', 'b', 'c'],
+              ),
+              MarkerLayer(
+                markers: [
+                  Marker(
+                    point: point,
+                    width: 40,
+                    height: 40,
+                    child: const Icon(
+                      Icons.location_on,
+                      color: AppTheme.primaryRed,
+                      size: 40,
+                    ),
+                  ),
+                ],
               ),
             ],
-          ),
-        ],
+          );
+        },
       ),
     );
   }

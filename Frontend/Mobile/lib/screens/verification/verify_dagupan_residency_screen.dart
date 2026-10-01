@@ -5,7 +5,9 @@ import '../../theme/app_theme.dart';
 import '../../utils/app_config.dart';
 import '../../utils/responsive.dart';
 import '../../services/auth_service.dart';
+import '../../constants/dagupan_map.dart';
 import '../../widgets/app_map_tile_layer.dart';
+import '../../widgets/map_recenter_fab.dart';
 
 class VerifyDagupanResidencyScreen extends StatefulWidget {
   final Function(double lat, double lng)? onVerificationComplete;
@@ -28,8 +30,6 @@ class VerifyDagupanResidencyScreen extends StatefulWidget {
 
 class _VerifyDagupanResidencyScreenState
     extends State<VerifyDagupanResidencyScreen> {
-  static const _dagupanCenter = LatLng(16.043, 120.334);
-
   final MapController _mapController = MapController();
   bool _isVerifying = false;
   bool _isVerified = false;
@@ -219,7 +219,11 @@ class _VerifyDagupanResidencyScreenState
     final barangay = widget.selectedBarangay ?? 'Barangay Poblacion Oeste';
     final center = (_currentLat != null && _currentLng != null)
         ? LatLng(_currentLat!, _currentLng!)
-        : _dagupanCenter;
+        : DagupanMap.center;
+    final recenterTarget = center;
+    final recenterZoom = (_currentLat != null && _currentLng != null)
+        ? DagupanMap.departmentZoom
+        : DagupanMap.overviewZoom;
     final markers = <Marker>[];
     if (_currentLat != null && _currentLng != null) {
       markers.add(
@@ -245,15 +249,17 @@ class _VerifyDagupanResidencyScreenState
         children: [
           FlutterMap(
             mapController: _mapController,
-            options: MapOptions(
-              initialCenter: center,
-              initialZoom: 14,
-              interactionOptions: const InteractionOptions(
-                flags: InteractiveFlag.pinchZoom |
-                    InteractiveFlag.drag |
-                    InteractiveFlag.doubleTapZoom,
+            options: DagupanMap.applyPhilippinesConstraints(
+              MapOptions(
+                initialCenter: center,
+                initialZoom: 14,
+                interactionOptions: const InteractionOptions(
+                  flags: InteractiveFlag.pinchZoom |
+                      InteractiveFlag.drag |
+                      InteractiveFlag.doubleTapZoom,
+                ),
+                onMapReady: _moveMapToCurrent,
               ),
-              onMapReady: _moveMapToCurrent,
             ),
             children: [
               AppMapTileLayer(),
@@ -267,6 +273,17 @@ class _VerifyDagupanResidencyScreenState
                 child: CircularProgressIndicator(color: AppTheme.primaryRed),
               ),
             ),
+          Positioned(
+            top: 10,
+            right: 10,
+            child: MapRecenterFab(
+              mapController: _mapController,
+              center: recenterTarget,
+              zoom: recenterZoom,
+              backgroundColor: colorScheme.surface,
+              iconColor: colorScheme.onSurface,
+            ),
+          ),
           Positioned(
             left: 10,
             right: 10,

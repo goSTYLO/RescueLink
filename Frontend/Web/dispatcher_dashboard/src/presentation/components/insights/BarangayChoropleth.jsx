@@ -3,8 +3,9 @@ import { GeoJSON, MapContainer, TileLayer } from 'react-leaflet';
 import { getBarangaysGeojson } from '@/data/api/analytics.api';
 import { choroplethFill } from '@/presentation/components/insights/insightsColors';
 import { formatBarangayTypeSummary } from '@/presentation/components/insights/BarangayTypesCell';
-
-const DAGUPAN_CENTER = [16.043, 120.333];
+import { DAGUPAN_CENTER, DAGUPAN_MAP_ZOOM } from '@/core/constants/dagupanMap';
+import { leafletMapViewportProps } from '@/core/constants/mapViewport';
+import { MapRecenterControl } from '@/presentation/components/common/MapRecenterControl';
 
 function norm(value) {
   return String(value || '').trim().toLowerCase();
@@ -85,8 +86,9 @@ export function BarangayChoropleth({ barangays, selected, onSelect, isLight = tr
     <div className="insights-choropleth w-full min-w-0 rounded-lg overflow-hidden border border-[rgba(19,65,120,0.2)] relative z-0 isolate">
       <MapContainer
         center={DAGUPAN_CENTER}
-        zoom={13}
+        zoom={DAGUPAN_MAP_ZOOM.overview}
         scrollWheelZoom={false}
+        {...leafletMapViewportProps()}
         className="h-full w-full z-0"
         style={{ height: '100%', width: '100%' }}
       >
@@ -94,6 +96,7 @@ export function BarangayChoropleth({ barangays, selected, onSelect, isLight = tr
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         />
+        <MapRecenterControl center={DAGUPAN_CENTER} zoom={DAGUPAN_MAP_ZOOM.overview} />
         <GeoJSON
           key={`${selected || 'all'}-${max}-${typesSignature}`}
           data={geo}

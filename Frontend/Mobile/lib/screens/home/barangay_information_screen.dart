@@ -5,8 +5,10 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import '../../services/auth_service.dart';
+import '../../constants/dagupan_map.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/gradient_header.dart';
+import '../../widgets/recenterable_map_frame.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/skeleton_placeholder.dart';
 
@@ -352,35 +354,32 @@ class _BarangayInformationScreenState extends State<BarangayInformationScreen> {
                         ],
                         const SizedBox(height: 20),
                         if (_selectedLat != null && _selectedLng != null) ...[
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(12),
-                            child: SizedBox(
-                              height: 180,
-                              child: FlutterMap(
-                                options: MapOptions(
-                                  initialCenter: LatLng(_selectedLat!, _selectedLng!),
-                                  initialZoom: 15,
-                                  interactionOptions: const InteractionOptions(flags: InteractiveFlag.all),
-                                ),
-                                children: [
-                                  TileLayer(
-                                    urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-                                    userAgentPackageName: 'com.rescuelink.mobile',
-                                    subdomains: const ['a', 'b', 'c'],
-                                  ),
-                                  MarkerLayer(
-                                    markers: [
-                                      Marker(
-                                        point: LatLng(_selectedLat!, _selectedLng!),
-                                        width: 40,
-                                        height: 40,
-                                        child: Icon(Icons.location_on, color: theme.colorScheme.error, size: 40),
-                                      ),
-                                    ],
+                          RecenterableMapFrame(
+                            height: 180,
+                            center: LatLng(_selectedLat!, _selectedLng!),
+                            zoom: DagupanMap.departmentZoom,
+                            mapOptions: MapOptions(
+                              initialCenter: LatLng(_selectedLat!, _selectedLng!),
+                              initialZoom: DagupanMap.departmentZoom,
+                              interactionOptions: const InteractionOptions(flags: InteractiveFlag.all),
+                            ),
+                            children: [
+                              TileLayer(
+                                urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                                userAgentPackageName: 'com.rescuelink.mobile',
+                                subdomains: const ['a', 'b', 'c'],
+                              ),
+                              MarkerLayer(
+                                markers: [
+                                  Marker(
+                                    point: LatLng(_selectedLat!, _selectedLng!),
+                                    width: 40,
+                                    height: 40,
+                                    child: Icon(Icons.location_on, color: theme.colorScheme.error, size: 40),
                                   ),
                                 ],
                               ),
-                            ),
+                            ],
                           ),
                           const SizedBox(height: 16),
                         ],

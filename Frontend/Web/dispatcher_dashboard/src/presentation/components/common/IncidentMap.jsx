@@ -1,7 +1,9 @@
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import { Icon } from 'leaflet';
-import { MapPin } from 'lucide-react';
 import L from 'leaflet';
+import { DAGUPAN_MAP_ZOOM } from '@/core/constants/dagupanMap';
+import { leafletMapViewportProps } from '@/core/constants/mapViewport';
+import { MapRecenterControl } from '@/presentation/components/common/MapRecenterControl';
 
 // Create custom marker icon
 const customIcon = new Icon({
@@ -30,6 +32,7 @@ export function IncidentMap({ latitude, longitude, className = '' }) {
       <MapContainer
         center={[latitude, longitude]}
         zoom={14}
+        {...leafletMapViewportProps()}
         style={{ width: '100%', height: '100%', minHeight: 192 }}
       >
         <TileLayer
@@ -41,6 +44,7 @@ export function IncidentMap({ latitude, longitude, className = '' }) {
             <div className="text-sm font-medium">Incident Location</div>
           </Popup>
         </Marker>
+        <MapRecenterControl center={[latitude, longitude]} zoom={DAGUPAN_MAP_ZOOM.detail} />
       </MapContainer>
     </div>
   );

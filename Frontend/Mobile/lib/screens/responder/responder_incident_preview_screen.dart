@@ -9,8 +9,10 @@ import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../services/incident_service.dart';
 import '../../services/responder_service.dart';
+import '../../constants/dagupan_map.dart';
 import '../../utils/report_ui.dart';
 import '../../widgets/animated_collapse.dart';
+import '../../widgets/recenterable_map_frame.dart';
 import '../../widgets/bottom_sheet_wrapper.dart';
 import 'responder_incident_detail_screen.dart';
 
@@ -566,40 +568,38 @@ class _ResponderIncidentPreviewScreenState
             icon: Icons.map_outlined,
             iconColor: const Color(0xFF22C55E),
             title: 'Map',
-            child: ClipRRect(
+            child: RecenterableMapFrame(
+              height: 160,
+              center: LatLng(lat, lon),
+              zoom: DagupanMap.departmentZoom,
               borderRadius: BorderRadius.circular(10),
-              child: SizedBox(
-                height: 160,
-                child: FlutterMap(
-                  options: MapOptions(
-                    initialCenter: LatLng(lat, lon),
-                    initialZoom: 15,
-                    interactionOptions: const InteractionOptions(
-                      flags: InteractiveFlag.all,
-                    ),
-                  ),
-                  children: [
-                    TileLayer(
-                      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                      userAgentPackageName: 'com.rescuelink.mobile',
-                    ),
-                    MarkerLayer(
-                      markers: [
-                        Marker(
-                          point: LatLng(lat, lon),
-                          width: 36,
-                          height: 36,
-                          child: const Icon(
-                            Icons.location_on,
-                            color: Color(0xFFEF4444),
-                            size: 36,
-                          ),
-                        ),
-                      ],
+              mapOptions: MapOptions(
+                initialCenter: LatLng(lat, lon),
+                initialZoom: DagupanMap.departmentZoom,
+                interactionOptions: const InteractionOptions(
+                  flags: InteractiveFlag.all,
+                ),
+              ),
+              children: [
+                TileLayer(
+                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                  userAgentPackageName: 'com.rescuelink.mobile',
+                ),
+                MarkerLayer(
+                  markers: [
+                    Marker(
+                      point: LatLng(lat, lon),
+                      width: 36,
+                      height: 36,
+                      child: const Icon(
+                        Icons.location_on,
+                        color: Color(0xFFEF4444),
+                        size: 36,
+                      ),
                     ),
                   ],
                 ),
-              ),
+              ],
             ),
           ),
         ],

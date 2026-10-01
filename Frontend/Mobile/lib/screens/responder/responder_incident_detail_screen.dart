@@ -6,9 +6,11 @@ import 'package:latlong2/latlong.dart';
 import '../../services/responder_service.dart';
 import '../../services/incident_service.dart';
 import '../../services/websocket_service.dart';
+import '../../constants/dagupan_map.dart';
 import '../../utils/report_ui.dart';
 import '../../widgets/animated_collapse.dart';
 import '../../widgets/glass_card.dart';
+import '../../widgets/recenterable_map_frame.dart';
 
 /// Full-detail screen opened after a responder accepts an incident.
 /// Shows map, status tracker, and action buttons.
@@ -626,33 +628,27 @@ class _ResponderIncidentDetailScreenState
               iconColor: const Color(0xFF22C55E),
               textPrimary: textPrimary,
               textSec: textSec,
-              child: ClipRRect(
+              child: RecenterableMapFrame(
+                height: 220,
+                center: LatLng(lat, lon),
+                zoom: DagupanMap.departmentZoom,
                 borderRadius: BorderRadius.circular(12),
-                child: SizedBox(
-                  height: 220,
-                  child: FlutterMap(
-                    options: MapOptions(
-                      initialCenter: LatLng(lat, lon),
-                      initialZoom: 15,
-                    ),
-                    children: [
-                      TileLayer(
-                        urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                        userAgentPackageName: 'com.rescuelink.mobile',
-                      ),
-                      MarkerLayer(
-                        markers: [
-                          Marker(
-                            point: LatLng(lat, lon),
-                            width: 40,
-                            height: 40,
-                            child: const Icon(Icons.location_pin, color: Color(0xFFEF4444), size: 40),
-                          ),
-                        ],
+                children: [
+                  TileLayer(
+                    urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    userAgentPackageName: 'com.rescuelink.mobile',
+                  ),
+                  MarkerLayer(
+                    markers: [
+                      Marker(
+                        point: LatLng(lat, lon),
+                        width: 40,
+                        height: 40,
+                        child: const Icon(Icons.location_pin, color: Color(0xFFEF4444), size: 40),
                       ),
                     ],
                   ),
-                ),
+                ],
               ),
             ),
             const SizedBox(height: 16),

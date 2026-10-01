@@ -13,8 +13,10 @@ import '../../services/incident_service.dart';
 import '../../services/notification_service.dart';
 import '../../services/websocket_service.dart';
 import '../../theme/app_theme.dart';
+import '../../constants/dagupan_map.dart';
 import '../../utils/report_ui.dart';
 import '../../widgets/animated_collapse.dart';
+import '../../widgets/recenterable_map_frame.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/gradient_header.dart';
 import '../../widgets/skeleton_placeholder.dart';
@@ -721,36 +723,33 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
                       const SizedBox(height: 8),
                       Text('Tap the map to move the pin.', style: Theme.of(context).textTheme.bodySmall),
                       const SizedBox(height: 8),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: SizedBox(
-                          height: 200,
-                          child: FlutterMap(
-                            key: ValueKey('${pin.latitude.toStringAsFixed(5)},${pin.longitude.toStringAsFixed(5)}'),
-                            options: MapOptions(
-                              initialCenter: pin,
-                              initialZoom: 15,
-                              onTap: (_, point) => setSheetState(() => pin = point),
-                            ),
-                            children: [
-                              TileLayer(
-                                urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-                                userAgentPackageName: 'com.rescuelink.mobile',
-                                subdomains: const ['a', 'b', 'c'],
-                              ),
-                              MarkerLayer(
-                                markers: [
-                                  Marker(
-                                    point: pin,
-                                    width: 40,
-                                    height: 40,
-                                    child: const Icon(Icons.location_on, color: Color(0xFFEF4444), size: 40),
-                                  ),
-                                ],
+                      RecenterableMapFrame(
+                        key: ValueKey('${pin.latitude.toStringAsFixed(5)},${pin.longitude.toStringAsFixed(5)}'),
+                        height: 200,
+                        center: pin,
+                        zoom: DagupanMap.departmentZoom,
+                        mapOptions: MapOptions(
+                          initialCenter: pin,
+                          initialZoom: DagupanMap.departmentZoom,
+                          onTap: (_, point) => setSheetState(() => pin = point),
+                        ),
+                        children: [
+                          TileLayer(
+                            urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                            userAgentPackageName: 'com.rescuelink.mobile',
+                            subdomains: const ['a', 'b', 'c'],
+                          ),
+                          MarkerLayer(
+                            markers: [
+                              Marker(
+                                point: pin,
+                                width: 40,
+                                height: 40,
+                                child: const Icon(Icons.location_on, color: Color(0xFFEF4444), size: 40),
                               ),
                             ],
                           ),
-                        ),
+                        ],
                       ),
                       const SizedBox(height: 8),
                       OutlinedButton.icon(
@@ -1800,42 +1799,45 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
     final lng = parseDouble(_incident?['longitude']);
     final hasCoords = lat != null && lng != null && !lat.isNaN && !lng.isNaN;
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
-      child: SizedBox(
-        height: 192,
-        child: hasCoords
-            ? FlutterMap(
-                options: MapOptions(
-                  initialCenter: LatLng(lat, lng),
-                  initialZoom: 14,
-                  interactionOptions: const InteractionOptions(
-                    flags: InteractiveFlag.all,
-                  ),
-                ),
-                children: [
-                  TileLayer(
-                    urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-                    userAgentPackageName: 'com.rescuelink.mobile',
-                    subdomains: const ['a', 'b', 'c'],
-                  ),
-                  MarkerLayer(
-                    markers: [
-                      Marker(
-                        point: LatLng(lat, lng),
-                        width: 40,
-                        height: 40,
-                        child: const Icon(
-                          Icons.location_on,
-                          color: Color(0xFFEF4444),
-                          size: 40,
-                        ),
-                      ),
-                    ],
+    return hasCoords
+        ? RecenterableMapFrame(
+            height: 192,
+            center: LatLng(lat, lng),
+            zoom: DagupanMap.detailZoom,
+            mapOptions: MapOptions(
+              initialCenter: LatLng(lat, lng),
+              initialZoom: DagupanMap.detailZoom,
+              interactionOptions: const InteractionOptions(
+                flags: InteractiveFlag.all,
+              ),
+            ),
+            children: [
+              TileLayer(
+                urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                userAgentPackageName: 'com.rescuelink.mobile',
+                subdomains: const ['a', 'b', 'c'],
+              ),
+              MarkerLayer(
+                markers: [
+                  Marker(
+                    point: LatLng(lat, lng),
+                    width: 40,
+                    height: 40,
+                    child: const Icon(
+                      Icons.location_on,
+                      color: Color(0xFFEF4444),
+                      size: 40,
+                    ),
                   ),
                 ],
-              )
-            : Container(
+              ),
+            ],
+          )
+        : ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: SizedBox(
+              height: 192,
+              child: Container(
                 color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
                 child: Center(
                   child: Column(
@@ -1858,8 +1860,8 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
                   ),
                 ),
               ),
-      ),
-    );
+            ),
+          );
   }
 
   Widget _buildVoiceRecordingCardContent() {
