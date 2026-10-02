@@ -13,7 +13,7 @@ Deploy the FastAPI microservice from [`RescueLink AI/Dockerfile`](../../RescueLi
 | `STT_COMPUTE_TYPE` | `int8` |
 | `HF_API_TOKEN` | Secret Manager → env (fallback STT only; 401 does not block local-first) |
 | `AI_INTERNAL_TOKEN` | Optional; match Render `AI_SERVICE_TOKEN` |
-| `AI_STARTUP_WARMUP` | **`true`** on Cloud Run (4Gi); **`false`** on Render free tier |
+| `AI_STARTUP_WARMUP` | **`true`** on Cloud Run (8Gi / 2 CPU with local medium); **`false`** on Render free tier |
 | `AI_STARTUP_WARMUP_WHISPER` | **`true`** on Cloud Run with local STT fallback; **`false`** on Render |
 | `MODEL_WEIGHTS_URL` | `https://huggingface.co/goSTYLO/resquelink-weights/resolve/main/emergency_model.pt` (runtime fallback if `.pt` missing in image) |
 
@@ -103,8 +103,8 @@ deploy_cloud_run() {
     --region "$REGION" \
     --platform managed \
     --allow-unauthenticated \
-    --memory 4Gi \
-    --cpu 1 \
+    --memory 8Gi \
+    --cpu 2 \
     --timeout 300 \
     --concurrency 1 \
     --port 8080 \
@@ -175,8 +175,8 @@ deploy_cloud_run() {
     --region "$REGION" \
     --platform managed \
     --allow-unauthenticated \
-    --memory 4Gi \
-    --cpu 1 \
+    --memory 8Gi \
+    --cpu 2 \
     --timeout 300 \
     --concurrency 1 \
     --port 8080 \
@@ -193,8 +193,8 @@ gcloud run deploy resquelink-ai `
   --region $env:REGION `
   --platform managed `
   --allow-unauthenticated `
-  --memory 4Gi `
-  --cpu 1 `
+  --memory 8Gi `
+  --cpu 2 `
   --timeout 300 `
   --concurrency 1 `
   --port 8080 `
@@ -204,7 +204,7 @@ gcloud run deploy resquelink-ai `
 
 Cloud Run sets **`PORT=8080`**; [`docker-entrypoint.sh`](../../RescueLink%20AI/docker-entrypoint.sh) listens on `$PORT`. Re-running `deploy` keeps env and secrets; you only need to pass them again if you changed variables in the doc.
 
-Default deploy above uses **4Gi** RAM and **startup warmup** (classifier + Whisper). If logs still show OOM, try **`--memory 8Gi`** or **`--cpu 2`**.
+Default deploy above uses **8Gi** RAM, **2 CPU**, and **startup warmup** (classifier + Whisper medium). Local medium STT OOM’d at 4Gi; do not lower memory without switching to a smaller Whisper model.
 
 ---
 

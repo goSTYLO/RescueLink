@@ -16,6 +16,7 @@ const metricsRoutes = require('./routes/metrics');
 const analyticsRoutes = require('./routes/analytics');
 const requestTimingMiddleware = require('./middleware/requestTiming');
 const { startRetryService } = require('./services/retryAiClassification');
+const { startAiWarmup } = require('./services/aiService');
 const { startFileScanRetryService } = require('./services/retryFileScan');
 const { startDuplicateAnalyzer } = require('./services/duplicateBackgroundAnalyzer');
 const responderApplicationRoutes = require('./routes/responderApplications');
@@ -166,11 +167,13 @@ app.use((err, req, res, next) => {
 console.log(`\n🔒 API rate limit: ${apiRateLimitMax} requests per 15 min (set API_RATE_LIMIT_MAX to override)`);
 console.log('\n🤖 Initializing AI services...');
 const retryTask = startRetryService();
+const aiWarmupTask = startAiWarmup();
 const scanRetryTask = startFileScanRetryService();
 const duplicateAnalyzerTask = startDuplicateAnalyzer();
 
 // Store retry task for graceful shutdown
 app.locals.retryTask = retryTask;
+app.locals.aiWarmupTask = aiWarmupTask;
 app.locals.scanRetryTask = scanRetryTask;
 app.locals.duplicateAnalyzerTask = duplicateAnalyzerTask;
 

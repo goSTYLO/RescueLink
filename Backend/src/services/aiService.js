@@ -5,6 +5,7 @@
  */
 
 const axios = require('axios');
+const cron = require('node-cron');
 const FormData = require('form-data');
 const { normalizeAiIncidentTypes } = require('../utils/incidentTypeNormalize');
 require('dotenv').config();
@@ -21,6 +22,9 @@ const AI_REQUEST_TIMEOUT = parseInt(process.env.AI_REQUEST_TIMEOUT || process.en
 const AI_CIRCUIT_FAILURE_THRESHOLD = parseInt(process.env.AI_CIRCUIT_FAILURE_THRESHOLD || '3', 10);
 const AI_CIRCUIT_RESET_MS = parseInt(process.env.AI_CIRCUIT_RESET_MS || '30000', 10);
 const AI_HEALTH_PRECHECK_ENABLED = ['1', 'true', 'yes', 'on'].includes(String(process.env.AI_HEALTH_PRECHECK_ENABLED || 'false').toLowerCase());
+const AI_WARMUP_ENABLED = !['0', 'false', 'no', 'off'].includes(String(process.env.AI_WARMUP_ENABLED ?? 'true').toLowerCase());
+const AI_WARMUP_CRON = process.env.AI_WARMUP_CRON || '*/10 * * * *';
+const AI_WARMUP_TIMEOUT_MS = parseInt(process.env.AI_WARMUP_TIMEOUT_MS || '120000', 10);
 
 let consecutiveFailures = 0;
 let circuitOpenUntil = 0;
@@ -302,6 +306,53 @@ const processIncidentWithAudio = async (audioBuffer, filename, description = nul
  * @param {string} audioPath - Path to audio file
  * @returns {Promise<Object>} Classification result
  */
+/**
+ * Ping Cloud Run AI /health to reduce cold-start latency on real reports (no incident created).
+ */
+const runAiWarmupPing = async () => {
+  const startTime = Date.now();
+  const requestId = `warmup-${Date.now()}`;
+  try {
+    const response = await guardedRequest(() => axios.get(`${AI_SERVICE_URL}/health`, {
+      headers: buildAuthHeaders({}, requestId),
+      timeout: AI_WARMUP_TIMEOUT_MS,
+    }));
+    const body = response.data || {};
+    console.log(
+      `[backend][ai][warmup] status=${response.status} ai_status=${body.status || 'unknown'} `
+      + `model_loaded=${body.model_loaded} stt_ready=${body.stt_ready} latency_ms=${Date.now() - startTime}`,
+    );
+  } catch (error) {
+    console.warn(`[backend][ai][warmup] status=error latency_ms=${Date.now() - startTime} error=${error.message}`);
+  }
+};
+
+/**
+ * Schedule AI keep-warm: once on startup, then cron (default every 10 min).
+ * @returns {import('node-cron').ScheduledTask | null}
+ */
+const startAiWarmup = () => {
+  if (!AI_WARMUP_ENABLED) {
+    console.log('AI warmup disabled (AI_WARMUP_ENABLED=false)');
+    return null;
+  }
+  if (!cron.validate(AI_WARMUP_CRON)) {
+    console.error(`Invalid AI_WARMUP_CRON: ${AI_WARMUP_CRON}`);
+    return null;
+  }
+  console.log(`⏰ Starting AI warmup pings (schedule: ${AI_WARMUP_CRON}, timeout_ms: ${AI_WARMUP_TIMEOUT_MS})`);
+  const task = cron.schedule(AI_WARMUP_CRON, () => {
+    void runAiWarmupPing();
+  }, {
+    scheduled: true,
+    timezone: 'Asia/Manila',
+  });
+  setTimeout(() => {
+    void runAiWarmupPing();
+  }, 3000);
+  return task;
+};
+
 const retryClassification = async (audioPath) => {
   const path = require('path');
   const { readObject } = require('./storageService');
@@ -324,6 +375,8 @@ const retryClassification = async (audioPath) => {
 
 module.exports = {
   checkAiHealth,
+  startAiWarmup,
+  runAiWarmupPing,
   transcribeAudio,
   classifyAudio,
   classifyText,

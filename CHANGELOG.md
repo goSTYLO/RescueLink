@@ -37,6 +37,8 @@
 
 ## 2026-09-25
 
+- Cloud Run deploy defaults: **8Gi / 2 CPU** (local medium STT + warmup); script and [`GCP_AI.md`](Documentation/backend/GCP_AI.md) updated.
+- Backend **AI keep-warm**: `GET /health` on startup and every 10 minutes (`AI_WARMUP_*` env); wakes Cloud Run without a dummy report.
 - Cloud Run STT: **local Faster-Whisper `medium` first**, HF API fallback (`STT_ENABLE_API_FALLBACK`); Dockerfile prefetches medium; deploy script and [`GCP_AI.md`](Documentation/backend/GCP_AI.md) aligned.
 - Backend `AI_REQUEST_TIMEOUT` default **150s** (env override; legacy `AI_TRANSCRIPTION_TIMEOUT` still read).
 - Mobile: **180s** timeout for `with-audio` only; cold-start submit copy; **55s** recording cap; snackbar when response is `ai_pending`.

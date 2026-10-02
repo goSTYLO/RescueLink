@@ -61,8 +61,8 @@ if [[ "$DO_DEPLOY" -eq 1 ]]; then
     --region "$REGION" \
     --platform managed \
     --allow-unauthenticated \
-    --memory 4Gi \
-    --cpu 1 \
+    --memory 8Gi \
+    --cpu 2 \
     --timeout 300 \
     --concurrency 1 \
     --port 8080 \
