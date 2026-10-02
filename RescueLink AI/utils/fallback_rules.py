@@ -1,9 +1,52 @@
 import re
 from typing import Optional, Tuple, Dict, List
 
+# Street-fight wording (Filipino-first); used to drop false Fire without stripping assault+fire rows.
+CRIME_FIGHT_KEYWORDS = [
+    "suntok",
+    "sinuntok",
+    "suntukan",
+    "nagsusuntukan",
+    "nagsuntukan",
+    "nag-aaway",
+    "nag-away",
+    "nagaaway",
+    "inaaway",
+    "may away",
+    "rambol",
+    "nagrarambol",
+    "rambulan",
+    "sapak",
+    "sapakan",
+    "nagsasapakan",
+    "gulpi",
+    "ginugulpi",
+    "bakbakan",
+    "bugbog",
+    "binugbog",
+    # English phrases only — bare "fight"/"fighting" false-positive on news/humanitarian text.
+    "people fighting",
+    "group fighting",
+    "group of people fighting",
+    "street fight",
+    "in a fight",
+    "physical fight",
+    "brawl",
+]
+
 FALLBACK_INCIDENT_KEYWORDS = {
     "Fire": ["sunog", "fire", "usok", "smoke", "apoy", "nasusunog"],
-    "Crime": ["nakaw", "theft", "holdap", "robbery", "baril", "shooting", "crime", "assault"],
+    "Crime": [
+        "nakaw",
+        "theft",
+        "holdap",
+        "robbery",
+        "baril",
+        "shooting",
+        "crime",
+        "assault",
+        *CRIME_FIGHT_KEYWORDS,
+    ],
     "Accident": [
         "aksidente", "accident", "bangga", "nagbanggaan", "banggaan", "nakabangga", "bumangga",
         "collision", "nahulog", "crash",
@@ -74,6 +117,10 @@ def decide_fallback_reason(
 def _type_has_keyword_evidence(incident_type: str, normalized_text: str) -> bool:
     keywords = FALLBACK_INCIDENT_KEYWORDS.get(incident_type, [])
     return any(_keyword_in_text(keyword, normalized_text) for keyword in keywords)
+
+
+def _has_street_fight_crime_evidence(normalized_text: str) -> bool:
+    return any(_keyword_in_text(keyword, normalized_text) for keyword in CRIME_FIGHT_KEYWORDS)
 
 
 def detect_keyword_matched_types(
@@ -147,9 +194,13 @@ def rank_and_promote_incident_types(
             keyword_promoted = True
 
     # Suppress model false-positive Fire when text supports other types but not fire
-    # (e.g. car crash + injury, or lost child at a house — no sunog/usok/apoy).
+    # (e.g. car crash + injury, lost child at a house, or street fight at bahay).
     fire_competing_types = {"Accident", "Medical", "Other"}
-    if keyword_matched_set.intersection(fire_competing_types):
+    suppress_false_fire = (
+        keyword_matched_set.intersection(fire_competing_types)
+        or _has_street_fight_crime_evidence(normalized)
+    )
+    if suppress_false_fire:
         if (
             "Fire" in selected
             and "Fire" not in keyword_matched_set

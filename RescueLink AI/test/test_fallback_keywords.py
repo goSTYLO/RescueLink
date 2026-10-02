@@ -114,5 +114,86 @@ class TestIncident824LostChild(unittest.TestCase):
         self.assertEqual(ranked, ["Fire"])
 
 
+class TestFightAtHouseMisclassifiedAsFire(unittest.TestCase):
+    """Model false-positive Fire on bahay/house wording; fight keywords must rank Crime only."""
+
+    FIRE_HEAVY_SCORES = {
+        "Fire": 0.9936,
+        "Crime": 0.01,
+        "Accident": 0.02,
+        "Medical": 0.01,
+        "Natural Disaster": 0.02,
+        "Other": 0.01,
+    }
+
+    def test_filipino_nagsusuntukan_detects_crime_not_fire(self):
+        text = "May grupo ng tao na nagsusuntukan sa harap ng bahay namin."
+        matched = detect_keyword_matched_types(text, incident_labels=LABELS)
+        self.assertIn("Crime", matched)
+        self.assertNotIn("Fire", matched)
+
+    def test_filipino_nag_aaway_detects_crime_not_fire(self):
+        text = "May mga taong nag-aaway sa tapat ng bahay ko."
+        matched = detect_keyword_matched_types(text, incident_labels=LABELS)
+        self.assertIn("Crime", matched)
+        self.assertNotIn("Fire", matched)
+
+    def test_rank_drops_false_fire_for_filipino_fight_at_house(self):
+        text = "May grupo ng tao na nagsusuntukan sa harap ng bahay namin."
+        ranked, promoted, _ = rank_and_promote_incident_types(
+            text,
+            self.FIRE_HEAVY_SCORES,
+            threshold=0.5,
+            incident_labels=LABELS,
+        )
+        self.assertEqual(ranked, ["Crime"])
+        self.assertTrue(promoted)
+
+    def test_rank_drops_false_fire_for_english_fight_at_house(self):
+        text = "There is a group of people fighting in front of my house."
+        ranked, promoted, _ = rank_and_promote_incident_types(
+            text,
+            self.FIRE_HEAVY_SCORES,
+            threshold=0.5,
+            incident_labels=LABELS,
+        )
+        self.assertEqual(ranked, ["Crime"])
+        self.assertTrue(promoted)
+
+    def test_sunog_plus_fight_keeps_fire_and_crime(self):
+        text = "May sunog sa bahay at may nagsusuntukan sa labas"
+        scores = {
+            "Fire": 0.99,
+            "Crime": 0.45,
+            "Accident": 0.01,
+            "Medical": 0.01,
+            "Natural Disaster": 0.01,
+            "Other": 0.01,
+        }
+        ranked, _, _ = rank_and_promote_incident_types(
+            text, scores, threshold=0.5, incident_labels=LABELS
+        )
+        self.assertEqual(set(ranked), {"Fire", "Crime"})
+        self.assertEqual(ranked[0], "Fire")
+
+    def test_may_sunog_sa_bahay_stays_fire_only(self):
+        text = "May sunog sa bahay"
+        scores = dict(self.FIRE_HEAVY_SCORES)
+        ranked, _, _ = rank_and_promote_incident_types(
+            text, scores, threshold=0.5, incident_labels=LABELS
+        )
+        self.assertEqual(ranked, ["Fire"])
+
+    def test_fighting_the_fire_keeps_fire(self):
+        text = "People are fighting the fire near the house"
+        ranked, _, _ = rank_and_promote_incident_types(
+            text,
+            self.FIRE_HEAVY_SCORES,
+            threshold=0.5,
+            incident_labels=LABELS,
+        )
+        self.assertEqual(ranked, ["Fire"])
+
+
 if __name__ == "__main__":
     unittest.main()

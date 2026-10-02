@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-02
+
+- AI classification: Filipino street-fight wording (`nagsusuntukan`, `nag-aaway`, `rambol`, etc.) and English phrases such as “people fighting” now map to **Crime** in the keyword ranker, with false **Fire** dropped when the text has no fire words (same path as crash/lost-child at `bahay`). Model weights unchanged; low-confidence keyword replacement stays gated at 0.7.
+
 ## 2026-09-30
 
 - Mobile incident details: the reporter can **Cancel report** or **Edit details** (description and map pin) until a responder is on scene. Cancel releases assigned teams and records status `cancelled`. Edits must stay inside Dagupan and recompute the barangay. Both actions are written to the audit log, including when a responder or volunteer filed the report.
