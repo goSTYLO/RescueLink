@@ -6,7 +6,8 @@
 
 const cron = require('node-cron');
 const Incident = require('../models/incident');
-const { retryClassification } = require('./aiService');
+const { retryClassification, classifyText } = require('./aiService');
+const { tryDecryptValue } = require('../utils/encryption');
 require('dotenv').config();
 
 // Configuration
@@ -23,8 +24,17 @@ const processPendingIncident = async (incident) => {
   console.log(`🔄 Retry attempt ${retryCount + 1}/${MAX_RETRY_ATTEMPTS} for incident ${reportId}`);
   
   try {
-    // Attempt AI classification
-    const aiResult = await retryClassification(incident.audio_path);
+    let aiResult;
+    if (incident.audio_path) {
+      aiResult = await retryClassification(incident.audio_path);
+    } else {
+      const raw = tryDecryptValue(incident.description) ?? incident.description;
+      const text = raw == null ? '' : String(raw).trim();
+      if (!text) {
+        throw new Error('No audio or description available for AI retry');
+      }
+      aiResult = await classifyText(text);
+    }
     
     // Update incident with AI results
     await Incident.updateWithAiResults(reportId, {

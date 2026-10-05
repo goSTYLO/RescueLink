@@ -19,6 +19,13 @@ jest.mock('../src/utils/validation', () => ({
   validatePagination: jest.fn(() => ({ limit: 20, offset: 0 })),
   validateOptionalString: jest.fn((value) => value),
   validateAllowedValue: jest.fn((value) => value),
+  validateString: jest.fn((value, _field, minLength = 0) => {
+    const trimmed = String(value).trim();
+    if (trimmed.length < minLength) {
+      throw new Error(`${_field} must be at least ${minLength} characters`);
+    }
+    return trimmed;
+  }),
 }));
 
 jest.mock('../src/utils/geolocation', () => ({
@@ -29,6 +36,7 @@ jest.mock('../src/utils/geolocation', () => ({
 
 jest.mock('../src/services/aiService', () => ({
   processIncidentWithAudio: jest.fn(),
+  classifyText: jest.fn(),
 }));
 
 jest.mock('../src/services/fileScanService', () => ({
@@ -64,7 +72,7 @@ jest.mock('../src/utils/ownership', () => ({
 
 const Incident = require('../src/models/incident');
 const pool = require('../src/config/db');
-const { processIncidentWithAudio } = require('../src/services/aiService');
+const { processIncidentWithAudio, classifyText } = require('../src/services/aiService');
 const { queueDeepScanJob, computeInitialScanStatus } = require('../src/services/fileScanService');
 const { saveAudioFile, saveMediaFiles } = require('../src/utils/fileValidation');
 const incidentController = require('../src/controllers/incident');
@@ -153,5 +161,60 @@ describe('incidentController security scan response', () => {
     expect(payload.ai_status).toBe('pending');
     expect(payload.security_scan).toBeDefined();
     expect(payload.security_scan.deep_scan.job_id).toBe('job-101');
+  });
+});
+
+describe('incidentController createWithText', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    Incident.createWithAi.mockResolvedValue({ report_id: 202 });
+    Incident.updateWithAiResults.mockResolvedValue({ report_id: 202, severity_level: 'high' });
+    Incident.createClassification.mockResolvedValue({});
+    Incident.markAiPending.mockResolvedValue({});
+    pool.query.mockResolvedValue({ rows: [] });
+  });
+
+  it('returns 400 when description is missing', async () => {
+    const req = {
+      body: { latitude: 16.04, longitude: 120.33 },
+      user: { user_id: 1, role: 'user' },
+      files: {},
+    };
+    const res = makeRes();
+
+    await incidentController.createWithText(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json.mock.calls[0][0].error).toMatch(/description/i);
+  });
+
+  it('returns 201 when text classification succeeds', async () => {
+    classifyText.mockResolvedValue({
+      primaryType: 'Fire',
+      severity: 'high',
+      transcription: 'Fire near the market',
+      maxConfidence: 0.91,
+      lowConfidenceFlag: false,
+      incidentTypes: ['Fire'],
+      primaryConfidence: 0.91,
+    });
+
+    const req = {
+      body: {
+        latitude: 16.04,
+        longitude: 120.33,
+        description: 'Fire near the public market need help',
+      },
+      user: { user_id: 1, role: 'user' },
+      files: {},
+    };
+    const res = makeRes();
+
+    await incidentController.createWithText(req, res);
+
+    expect(classifyText).toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(201);
+    const payload = res.json.mock.calls[0][0];
+    expect(payload.ai_classification.primary_type).toBe('Fire');
   });
 });

@@ -53,7 +53,9 @@ Mapped to manuscript FR-01–FR-09. Partial items document what is implemented; 
 
 - **SOS quick report:** tap the SOS tile or shake the phone (foreground, any home tab) → 5-second cancel overlay → immediate GPS SOS submit (no AI/audio)
 - Emergency report submission with GPS coordinates and barangay context
-- Audio recording for incident reports (`createWithAudio` API)
+- Voice **or** typed text for AI-classified reports (segmented on Emergency Report screen; voice default)
+- Audio recording for voice reports (`POST /api/incidents/with-audio`); text reports use `POST /api/incidents/with-text`
+- First login: one-time explainer then OS prompts for location, microphone, notifications, and camera
 - Photo and video attachment support with device-side capture
 - Unified **Incident Details** screen (tracking-first: status, timeline, AI fields, evidence)
 - Report history list with pull-to-refresh

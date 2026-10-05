@@ -243,6 +243,103 @@ class IncidentService {
         statusCode: response.statusCode);
   }
 
+  /// Minimum primary description length for text reports (matches backend).
+  static const int textReportMinLength = 10;
+
+  /// Report incident with text description (AI-enhanced). Media files optional.
+  Future<Map<String, dynamic>> reportWithText({
+    required double latitude,
+    required double longitude,
+    required String description,
+    String? additionalDetails,
+    List<({List<int> bytes, String filename})>? mediaFiles,
+  }) async {
+    final requestId = _newRequestId();
+    final stopwatch = Stopwatch()..start();
+    final uri = Uri.parse('${AppConfig.apiBaseUrl}/api/incidents/with-text');
+    final request = http.MultipartRequest('POST', uri);
+
+    request.headers.addAll({
+      ..._authHeaders(),
+      'x-request-id': requestId,
+    });
+    request.fields['latitude'] = latitude.toString();
+    request.fields['longitude'] = longitude.toString();
+    request.fields['description'] = description;
+    if (additionalDetails != null && additionalDetails.isNotEmpty) {
+      request.fields['additional_details'] = additionalDetails;
+    }
+
+    if (mediaFiles != null && mediaFiles.isNotEmpty) {
+      for (final m in mediaFiles) {
+        final contentType = _mediaContentType(m.filename);
+        request.files.add(http.MultipartFile.fromBytes(
+          'media',
+          m.bytes,
+          filename: m.filename,
+          contentType: contentType,
+        ));
+      }
+    }
+
+    _logInfo(
+        '[mobile][incident][reportWithText] request_id=$requestId status=start url=$uri media_count=${mediaFiles?.length ?? 0} timeout_s=${AppConfig.audioUploadTimeout.inSeconds}');
+
+    http.StreamedResponse streamedResponse;
+    http.Response response;
+    try {
+      streamedResponse =
+          await request.send().timeout(AppConfig.audioUploadTimeout);
+      response = await http.Response.fromStream(streamedResponse)
+          .timeout(AppConfig.audioUploadTimeout);
+      stopwatch.stop();
+    } on TimeoutException {
+      stopwatch.stop();
+      _logError(
+          '[mobile][incident][reportWithText] request_id=$requestId status=timeout latency_ms=${stopwatch.elapsedMilliseconds} url=$uri');
+      throw IncidentServiceException(
+        'This is taking longer than usual (servers may be waking up). '
+        'Your report may still have been saved — check Report History in a minute.',
+      );
+    } on SocketException catch (error) {
+      stopwatch.stop();
+      _logError(
+          '[mobile][incident][reportWithText] request_id=$requestId status=socket_error latency_ms=${stopwatch.elapsedMilliseconds} url=$uri error=$error');
+      throw IncidentServiceException(
+        'Unable to connect to server at ${AppConfig.apiBaseUrl}. If using a real device, set API_BASE_URL to your PC LAN IP.',
+      );
+    } on http.ClientException catch (error) {
+      stopwatch.stop();
+      _logError(
+          '[mobile][incident][reportWithText] request_id=$requestId status=client_error latency_ms=${stopwatch.elapsedMilliseconds} url=$uri error=$error');
+      throw IncidentServiceException(
+          'Network request failed: ${error.message}');
+    }
+
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      _logInfo(
+          '[mobile][incident][reportWithText] request_id=$requestId status=${response.statusCode} latency_ms=${stopwatch.elapsedMilliseconds}');
+      if (response.body.isEmpty) return {};
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+
+    String errorMessage = 'Request failed with status ${response.statusCode}';
+    try {
+      final errorBody = jsonDecode(response.body) as Map<String, dynamic>;
+      if (errorBody.containsKey('error')) {
+        errorMessage = errorBody['error'] as String;
+      } else if (errorBody.containsKey('message')) {
+        errorMessage = errorBody['message'] as String;
+      }
+    } catch (_) {
+      if (response.body.isNotEmpty) errorMessage = response.body;
+    }
+    _logError(
+        '[mobile][incident][reportWithText] request_id=$requestId status=${response.statusCode} latency_ms=${stopwatch.elapsedMilliseconds} error=$errorMessage');
+    throw IncidentServiceException(errorMessage,
+        statusCode: response.statusCode);
+  }
+
   /// Get current user's incidents. Optional [limit], [offset] for pagination;
   /// [status] and [incidentType] for filtering. Backend returns a JSON array.
   Future<List<dynamic>> getMyIncidents({

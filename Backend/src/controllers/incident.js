@@ -6,9 +6,9 @@ const Responder = require('../models/responder');
 const IncidentCoordinationNote = require('../models/incidentCoordinationNote');
 const IncidentEscalation = require('../models/incidentEscalation');
 const pool = require('../config/db');
-const { validateLatitude, validateLongitude, validateInteger, validatePagination, validateOptionalString, validateAllowedValue } = require('../utils/validation');
+const { validateLatitude, validateLongitude, validateInteger, validatePagination, validateOptionalString, validateAllowedValue, validateString } = require('../utils/validation');
 const { getBarangayFromCoordinates, calculateDistance, isPointInDagupan } = require('../utils/geolocation');
-const { processIncidentWithAudio } = require('../services/aiService');
+const { processIncidentWithAudio, classifyText } = require('../services/aiService');
 const { maybeAutoDispatch, refreshSuggestionAfterReclassify, cancelSuggestion } = require('../services/autoDispatchService');
 const { queueDeepScanJob, computeInitialScanStatus } = require('../services/fileScanService');
 const { verifyIncidentOnBlockchain } = require('../services/blockchainService');
@@ -1066,6 +1066,253 @@ const incidentController = {
     } catch (error) {
       console.error(`[backend][incident][createWithAudio] request_id=${requestId} status=error latency_ms=${Date.now() - startedAt} error=${error.message}`);
       if (error.message.includes('must be') || error.message.includes('required')) {
+        return res.status(400).json({ error: error.message });
+      }
+      const isDev = (process.env.NODE_ENV || 'development') !== 'production';
+      res.status(500).json({
+        error: 'Failed to create incident',
+        ...(isDev ? { detail: error.message } : {}),
+      });
+    }
+  },
+
+  // Create incident with text description and optional media (AI-enhanced)
+  async createWithText(req, res) {
+    const startedAt = Date.now();
+    const requestId = req.requestId || 'none';
+    const TEXT_DESCRIPTION_MIN = 10;
+    try {
+      const { latitude, longitude, description, additional_details: additionalDetailsRaw } = req.body;
+      const user_id = req.user?.user_id;
+
+      if (!user_id) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+      if (latitude === undefined || latitude === null) {
+        return res.status(400).json({ error: 'Latitude is required' });
+      }
+      if (longitude === undefined || longitude === null) {
+        return res.status(400).json({ error: 'Longitude is required' });
+      }
+
+      const validatedLat = validateLatitude(latitude);
+      const validatedLng = validateLongitude(longitude);
+
+      if (description == null || String(description).trim() === '') {
+        return res.status(400).json({ error: 'Description is required' });
+      }
+      const mainDescription = validateString(
+        String(description).trim(),
+        'description',
+        TEXT_DESCRIPTION_MIN,
+        2000,
+      );
+      const additionalDetails = additionalDetailsRaw != null && String(additionalDetailsRaw).trim() !== ''
+        ? validateOptionalString(String(additionalDetailsRaw).trim(), 'additional_details', 2000)
+        : null;
+      const storedDescription = additionalDetails
+        ? `${mainDescription}\n\n${additionalDetails}`
+        : mainDescription;
+      if (storedDescription.length > 4000) {
+        return res.status(400).json({
+          error: 'Combined description must not exceed 4000 characters',
+        });
+      }
+      const aiText = storedDescription;
+
+      const barangay = getBarangayFromCoordinates(validatedLat, validatedLng);
+
+      const rawMedia = req.files?.media;
+      const mediaFiles = Array.isArray(rawMedia) ? rawMedia : (rawMedia ? [rawMedia] : []);
+
+      console.log(`[backend][incident][createWithText] request_id=${requestId} status=start user_id=${user_id} media_count=${mediaFiles.length}`);
+
+      let incident;
+      try {
+        incident = await Incident.createWithAi({
+          user_id,
+          incident_type: null,
+          severity_level: 'medium',
+          description: storedDescription,
+          latitude: validatedLat,
+          longitude: validatedLng,
+          barangay,
+          transcription: null,
+          audio_path: null,
+          media_paths: [],
+          ai_pending: true,
+          ai_attempted: false,
+          scan_status: 'pending',
+          scan_engine: 'stub',
+          scan_error: null,
+          status: 'pending',
+        });
+      } catch (createError) {
+        console.error(`[backend][incident][createWithText] request_id=${requestId} status=create_failed error=${createError.message}`);
+        throw createError;
+      }
+
+      const reportId = incident.report_id;
+      await logIncidentAction(req, 'incident_create', reportId, { type: 'with_text', severity_level: 'medium' });
+
+      let mediaPaths = [];
+      let deepScanResult = null;
+
+      try {
+        if (mediaFiles.length > 0) {
+          const mediaStart = Date.now();
+          mediaPaths = await saveMediaFiles(mediaFiles, reportId);
+          console.log(`[backend][incident][createWithText] request_id=${requestId} report_id=${reportId} stage=save_media latency_ms=${Date.now() - mediaStart} media_count=${mediaPaths.length}`);
+        }
+
+        if (mediaPaths.length > 0) {
+          const scanStart = Date.now();
+          deepScanResult = await queueDeepScanJob({
+            reportId,
+            filePaths: mediaPaths.filter(Boolean),
+          });
+          console.log(`[backend][incident][createWithText] request_id=${requestId} report_id=${reportId} stage=deep_scan latency_ms=${Date.now() - scanStart} deep_scan_status=${deepScanResult?.status || 'unknown'}`);
+          const initialScanStatus = computeInitialScanStatus({
+            uploadSecurity: req.uploadSecurity,
+            deepScanResult,
+          });
+          await Incident.updateScanStatus(reportId, {
+            scan_status: initialScanStatus.scan_status,
+            scan_engine: initialScanStatus.scan_engine,
+            scan_error: initialScanStatus.scan_error,
+            scanned_at: initialScanStatus.scan_status === 'clean' ? new Date() : null,
+            quarantined: false,
+            quarantine_reason: null,
+          });
+        }
+
+        const aiStart = Date.now();
+        const aiResult = await classifyText(aiText);
+        console.log(`[backend][incident][createWithText] request_id=${requestId} report_id=${reportId} stage=ai_classification latency_ms=${Date.now() - aiStart} primary_type=${aiResult.primaryType || 'unknown'} severity=${aiResult.severity}`);
+
+        const updatedIncident = await Incident.updateWithAiResults(reportId, {
+          incident_type: aiResult.primaryType,
+          severity_level: aiResult.severity,
+          primary_classification: aiResult.primaryType,
+          primary_confidence: aiResult.primaryConfidence,
+          secondary_classification: aiResult.secondaryType,
+          secondary_confidence: aiResult.secondaryConfidence,
+          stt_confidence: aiResult.sttConfidence,
+          incident_types: aiResult.incidentTypes,
+          transcription: aiResult.transcription || aiText,
+          ai_pending: false,
+          ai_attempted: true,
+        });
+
+        await Incident.createClassification({
+          report_id: reportId,
+          predicted_type: aiResult.primaryType,
+          predicted_severity: aiResult.severity,
+          confidence_score: aiResult.primaryConfidence,
+          secondary_predicted_type: aiResult.secondaryType,
+          secondary_confidence_score: aiResult.secondaryConfidence,
+          stt_confidence: aiResult.sttConfidence,
+          max_confidence_score: aiResult.maxConfidence,
+          fallback_used: aiResult.fallbackUsed,
+          keyword_promoted: aiResult.keywordPromoted,
+          low_confidence_flag: aiResult.lowConfidenceFlag,
+          is_duplicate: false,
+          is_override: false,
+          retry_count: 0,
+        });
+
+        if (mediaPaths.length > 0) {
+          await pool.query(
+            `UPDATE incident_reports SET media_paths = $1 WHERE report_id = $2`,
+            [JSON.stringify(mediaPaths), reportId],
+          );
+        }
+
+        const duplicateInfo = await runRealtimeDuplicateCheck(updatedIncident);
+
+        console.log(`[backend][incident][createWithText] request_id=${requestId} report_id=${reportId} status=success latency_ms=${Date.now() - startedAt} ai_pending=false`);
+
+        emitIncidentEvent(req, 'incident:created', updatedIncident);
+        const dispatchedIncident = await runAutoDispatchThenAlert(req, updatedIncident, {
+          req,
+          source: 'text',
+          aiResult,
+          duplicateFlagged: Boolean(duplicateInfo),
+        });
+
+        res.status(201).json({
+          success: true,
+          message: 'Incident reported successfully with AI classification',
+          incident: {
+            ...(dispatchedIncident || updatedIncident),
+            audio_path: null,
+            media_paths: mediaPaths,
+          },
+          ...(duplicateInfo && { duplicate_info: duplicateInfo }),
+          ai_classification: {
+            incident_types: aiResult.incidentTypes,
+            primary_type: aiResult.primaryType,
+            secondary_type: aiResult.secondaryType || null,
+            severity: aiResult.severity,
+            confidence: aiResult.primaryConfidence,
+            max_confidence: aiResult.maxConfidence,
+            stt_confidence: aiResult.sttConfidence,
+            secondary_confidence: aiResult.secondaryConfidence ?? null,
+            low_confidence_flag: aiResult.lowConfidenceFlag,
+            fallback_used: aiResult.fallbackUsed,
+            keyword_promoted: aiResult.keywordPromoted,
+            transcription: aiResult.transcription || aiText,
+          },
+          security_scan: mediaPaths.length > 0 ? {
+            quick_scan: req.uploadSecurity?.quick || null,
+            deep_scan: deepScanResult,
+            fail_open_flagged: Boolean(req.uploadSecurity?.requires_follow_up),
+          } : undefined,
+        });
+      } catch (aiError) {
+        console.error(`[backend][incident][createWithText] request_id=${requestId} report_id=${reportId} status=ai_fallback error=${aiError.message}`);
+
+        await Incident.markAiPending(reportId, true);
+
+        if (mediaPaths.length > 0) {
+          await pool.query(
+            `UPDATE incident_reports SET media_paths = $1 WHERE report_id = $2`,
+            [JSON.stringify(mediaPaths), reportId],
+          );
+        }
+
+        const duplicateInfo = await runRealtimeDuplicateCheck({ ...incident, report_id: reportId });
+
+        console.log(`[backend][incident][createWithText] request_id=${requestId} report_id=${reportId} status=pending_ai_retry latency_ms=${Date.now() - startedAt}`);
+
+        emitIncidentEvent(req, 'incident:created', { ...incident, report_id: reportId });
+        await runAutoDispatchThenAlert(req, { ...incident, report_id: reportId }, {
+          req,
+          source: 'text',
+          duplicateFlagged: Boolean(duplicateInfo),
+        });
+
+        res.status(201).json({
+          success: true,
+          message: 'Incident reported successfully, AI classification pending',
+          incident: {
+            ...incident,
+            audio_path: null,
+            media_paths: mediaPaths,
+          },
+          ...(duplicateInfo && { duplicate_info: duplicateInfo }),
+          ai_status: 'pending',
+          ai_error: 'AI classification will be retried automatically',
+          security_scan: mediaPaths.length > 0 ? {
+            quick_scan: req.uploadSecurity?.quick || null,
+            deep_scan: deepScanResult,
+            fail_open_flagged: Boolean(req.uploadSecurity?.requires_follow_up),
+          } : undefined,
+        });
+      }
+    } catch (error) {
+      console.error(`[backend][incident][createWithText] request_id=${requestId} status=error latency_ms=${Date.now() - startedAt} error=${error.message}`);
+      if (error.message.includes('must be') || error.message.includes('required') || error.message.includes('must not')) {
         return res.status(400).json({ error: error.message });
       }
       const isDev = (process.env.NODE_ENV || 'development') !== 'production';

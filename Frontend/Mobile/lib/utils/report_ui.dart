@@ -381,6 +381,19 @@ Color incidentTypeColor(String? value) {
   return const Color(0xFF64748B);
 }
 
+IconData incidentTypeIcon(String? value) {
+  if (value == null || value.trim().isEmpty) return Icons.emergency;
+  final t = value.trim().toLowerCase();
+  if (t == 'sos') return Icons.emergency;
+  if (t.contains('fire')) return Icons.local_fire_department;
+  if (t.contains('medical') || t.contains('health') || t.contains('accident')) {
+    return Icons.monitor_heart_outlined;
+  }
+  if (t.contains('police') || t.contains('crime')) return Icons.shield_outlined;
+  if (t.contains('disaster') || t.contains('flood')) return Icons.water_drop_outlined;
+  return Icons.emergency;
+}
+
 List<String> aiClassificationTypesFrom(
   Map<String, dynamic>? incident, [
   Map<String, dynamic>? aiClassification,

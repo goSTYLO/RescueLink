@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rescuelink_mobile/utils/report_ui.dart';
 
@@ -18,6 +19,14 @@ void main() {
     test('labels a cancelled report instead of falling through to pending', () {
       expect(ReportStatusUi.label('cancelled'), 'Cancelled');
       expect(ReportStatusUi.badgeIcon('cancelled'), isNot(ReportStatusUi.badgeIcon('pending')));
+    });
+  });
+
+  group('incidentTypeIcon', () {
+    test('maps police and fire to distinct icons', () {
+      expect(incidentTypeIcon('Police'), Icons.shield_outlined);
+      expect(incidentTypeIcon('Fire'), Icons.local_fire_department);
+      expect(incidentTypeIcon('SOS'), Icons.emergency);
     });
   });
 

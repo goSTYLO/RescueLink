@@ -4,7 +4,7 @@ publish_to: 'none'
 
 # version: <name>+<build-number> — Android versionName / versionCode; iOS CFBundleShortVersionString / CFBundleVersion.
 # Override at build time: FLUTTER_BUILD_NAME / FLUTTER_BUILD_NUMBER, or flutter --build-name / --build-number.
-version: 1.0.5+5
+version: 1.0.6+6
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -34,6 +34,7 @@ dependencies:
 
   # Audio recording and media
   record: ^6.0.0
+  permission_handler: ^11.3.1
   audioplayers: ^6.1.0
   image_picker: ^1.0.7
   file_picker: ^8.0.0

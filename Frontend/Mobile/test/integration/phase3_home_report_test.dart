@@ -30,6 +30,42 @@ void main() {
       );
       await tester.pump();
       expect(find.byType(EmergencyReportScreen), findsOneWidget);
+      expect(find.text('Voice'), findsOneWidget);
+      expect(find.text('Text'), findsOneWidget);
+    });
+
+    testWidgets('Text mode shows description field and submit stays disabled until min length',
+        (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.lightTheme,
+          home: EmergencyReportScreen(
+            onBack: () {},
+            onSubmit: (_) {},
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Text'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('What happened, where'), findsOneWidget);
+
+      final submit = find.widgetWithText(ElevatedButton, 'Submit Emergency Report');
+      final button = tester.widget<ElevatedButton>(submit);
+      expect(button.onPressed, isNull);
+
+      await tester.enterText(find.byType(TextField).first, 'short');
+      await tester.pump();
+      expect(tester.widget<ElevatedButton>(submit).onPressed, isNull);
+
+      await tester.enterText(
+        find.byType(TextField).first,
+        'Fire at the market need immediate help',
+      );
+      await tester.pump();
+      expect(tester.widget<ElevatedButton>(submit).onPressed, isNotNull);
     });
   });
 

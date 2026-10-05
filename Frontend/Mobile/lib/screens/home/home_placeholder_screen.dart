@@ -5,6 +5,7 @@ import 'report_history_screen.dart';
 import '../../services/websocket_service.dart';
 import '../../services/notification_service.dart';
 import '../../services/onesignal_service.dart';
+import '../../services/app_permissions_service.dart';
 import 'notifications_screen.dart';
 import 'settings_screen.dart';
 import '../../services/auth_service.dart';
@@ -161,7 +162,7 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _restartShakeListening();
-      _checkAndPromptNotifications();
+      _checkAndPromptCorePermissions();
       OneSignalService().setOnNotificationOpened(_onPushOpened);
       OneSignalService().setOnCriticalPush((reportId, kind) {
         unawaited(_emergencyAlertCoordinator.handleCriticalPush(
@@ -170,6 +171,71 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
         ));
       });
     });
+  }
+
+  Future<void> _checkAndPromptCorePermissions() async {
+    final appPerms = AppPermissionsService();
+    if (!await appPerms.shouldPrompt()) {
+      await _checkAndPromptNotifications();
+      return;
+    }
+    if (!mounted) return;
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1F2937) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text(
+          'Allow access for emergencies?',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        content: const Text(
+          'RescueLink needs location (map your report), microphone (voice emergencies), '
+          'notifications (status and dispatch alerts), and camera (optional photo or video evidence). '
+          'You can change these anytime in device settings.',
+          style: TextStyle(fontSize: 14, height: 1.4),
+        ),
+        actionsPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              await appPerms.markPrompted();
+            },
+            child: Text(
+              'Not Now',
+              style: TextStyle(
+                color: isDark ? Colors.grey[400] : const Color(0xFF6B7280),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          FilledButton(
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              await appPerms.requestCorePermissions();
+              await appPerms.markPrompted();
+            },
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF134178),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            ),
+            child: const Text('Continue', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+    _restartShakeListening();
+    final onesignal = OneSignalService();
+    if (!await onesignal.hasPromptedPermission()) {
+      await _checkAndPromptNotifications();
+    }
   }
 
   Future<void> _checkAndPromptNotifications() async {
@@ -1633,7 +1699,6 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
               _navItem(0, Icons.home_rounded, Icons.home_outlined, 'Home', screenWidth),
               _navItem(1, Icons.assignment_rounded, Icons.assignment_outlined, 'Reports', screenWidth,
@@ -1658,84 +1723,97 @@ class _HomePlaceholderScreenState extends State<HomePlaceholderScreen>
   }) {
     final isSelected = _currentIndex == index;
     final labelSize = Responsive.navLabelSize(screenWidth);
-    return InkWell(
-      onTap: () {
-        if (_currentIndex == index) return;
-        setState(() {
-          _currentIndex = index;
-          _tabSwitchCounter++;
-          if (index == 1) _unreadReportsCount = 0;
-        });
-        if (_isResponder && index == 2) {
-          unawaited(_syncResponderOnlineFromServer());
-        }
-        if (_isDepartmentOps && index == 1) {
-          unawaited(_deptOpsDashboardKey.currentState?.refreshIncidents() ?? Future.value());
-        }
-      },
-      borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Icon(
-                  isSelected ? activeIcon : inactiveIcon,
-                  size: 24,
+    final hPad = Responsive.navItemHorizontalPadding(screenWidth);
+    return Expanded(
+      child: InkWell(
+        onTap: () {
+          if (_currentIndex == index) return;
+          setState(() {
+            _currentIndex = index;
+            _tabSwitchCounter++;
+            if (index == 1) _unreadReportsCount = 0;
+          });
+          if (_isResponder && index == 2) {
+            unawaited(_syncResponderOnlineFromServer());
+          }
+          if (_isDepartmentOps && index == 1) {
+            unawaited(_deptOpsDashboardKey.currentState?.refreshIncidents() ?? Future.value());
+          }
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: hPad, vertical: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              SizedBox(
+                width: 32,
+                height: 24,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  alignment: Alignment.center,
+                  children: [
+                    Icon(
+                      isSelected ? activeIcon : inactiveIcon,
+                      size: 24,
+                      color: isSelected
+                          ? const Color(0xFFEF4444)
+                          : const Color(0xFF6B7280),
+                    ),
+                    if (badgeCount > 0)
+                      Positioned(
+                        top: -4,
+                        right: 0,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          constraints: const BoxConstraints(
+                              minWidth: 16, minHeight: 16),
+                          decoration: const BoxDecoration(
+                            color: Color(0xFFEF4444),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Text(
+                            badgeCount > 99 ? '99+' : '$badgeCount',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: 10,
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: labelSize,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
                   color: isSelected
                       ? const Color(0xFFEF4444)
                       : const Color(0xFF6B7280),
                 ),
-                if (badgeCount > 0)
-                  Positioned(
-                    top: -4,
-                    right: -8,
-                    child: Container(
-                      padding: const EdgeInsets.all(4),
-                      constraints:
-                          const BoxConstraints(minWidth: 16, minHeight: 16),
-                      decoration: const BoxDecoration(
-                        color: Color(0xFFEF4444),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Text(
-                        badgeCount > 99 ? '99+' : '$badgeCount',
-                        style: const TextStyle(
-                          fontSize: 10,
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
+              ),
+              if (isSelected) ...[
+                const SizedBox(height: 3),
+                Container(
+                  height: 2,
+                  width: 20,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEF4444),
+                    borderRadius: BorderRadius.circular(1),
                   ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: labelSize,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                color: isSelected
-                    ? const Color(0xFFEF4444)
-                    : const Color(0xFF6B7280),
-              ),
-            ),
-            if (isSelected) ...[
-              const SizedBox(height: 3),
-              Container(
-                height: 2,
-                width: 20,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFEF4444),
-                  borderRadius: BorderRadius.circular(1),
                 ),
-              ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );

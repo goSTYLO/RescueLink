@@ -38,6 +38,9 @@ router.post('/emergency', authMiddleware, incidentReportLimiter, authorize([ROLE
 // Allows citizens (user), volunteer responders, dispatchers, and admins to create incidents
 router.post('/with-audio', authMiddleware, incidentReportLimiter, authorize([ROLES.USER, ROLES.RESPONDER, ROLES.VOLUNTEER, ROLES.DISPATCHER, ROLES.ADMIN]), uploadMiddleware, incidentController.createWithAudio);
 
+// Create incident with text description and optional media (AI-enhanced)
+router.post('/with-text', authMiddleware, incidentReportLimiter, authorize([ROLES.USER, ROLES.RESPONDER, ROLES.VOLUNTEER, ROLES.DISPATCHER, ROLES.ADMIN]), uploadMiddleware, incidentController.createWithText);
+
 // Download audio file from incident
 // Users can only download their own; dispatchers/admins can download any
 router.get('/:id/audio', authMiddleware, checkOwnership('user_id'), incidentController.downloadAudio);

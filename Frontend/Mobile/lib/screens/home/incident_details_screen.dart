@@ -1022,8 +1022,10 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
                                     : 'Assigned Department',
                                 icon: _hasVolunteerResponder
                                     ? Icons.volunteer_activism
-                                    : Icons.local_fire_department,
-                                iconColor: const Color(0xFFEA580C),
+                                    : Icons.business_outlined,
+                                iconColor: _hasVolunteerResponder
+                                    ? const Color(0xFFEA580C)
+                                    : Theme.of(context).colorScheme.onSurfaceVariant,
                                 child: _buildResponderAvailabilityCardContent(),
                               ),
                               const SizedBox(height: 16),
@@ -1035,8 +1037,6 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
                                 child: _buildResponderLocationCardContent(),
                               ),
                               const SizedBox(height: 16),
-                              _buildResponderActions(),
-                              const SizedBox(height: 16),
                               _collapsibleCard(
                                 key: 'summary',
                                 title: 'Incident Summary',
@@ -1045,14 +1045,32 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    _detailRow(
-                                      icon: Icons.whatshot_outlined,
-                                      iconBg: const Color(0xFFFFEDD5),
-                                      label: 'Emergency Type',
-                                      valueWidget: incidentTypeChips(
-                                        incident: _incident,
-                                        aiClassification: _aiClassification,
-                                      ),
+                                    Builder(
+                                      builder: (context) {
+                                        final summaryTypes =
+                                            aiClassificationTypesFrom(
+                                          _incident,
+                                          _aiClassification,
+                                        );
+                                        final summaryType =
+                                            summaryTypes.isNotEmpty
+                                                ? summaryTypes.first
+                                                : primaryIncidentType(
+                                                    _incident);
+                                        final typeColor =
+                                            incidentTypeColor(summaryType);
+                                        return _detailRow(
+                                          icon: incidentTypeIcon(summaryType),
+                                          iconBg: typeColor.withValues(
+                                              alpha: 0.12),
+                                          iconColor: typeColor,
+                                          label: 'Emergency Type',
+                                          valueWidget: incidentTypeChips(
+                                            incident: _incident,
+                                            aiClassification: _aiClassification,
+                                          ),
+                                        );
+                                      },
                                     ),
                                     const SizedBox(height: 12),
                                     _detailRow(
@@ -1470,37 +1488,6 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
             ),
           ],
         ],
-      ),
-    );
-  }
-
-  Widget _buildResponderActions() {
-    return Row(
-      children: [
-        Expanded(
-          child: OutlinedButton.icon(
-            onPressed: _showResponderUnavailableMessage,
-            icon: const Icon(Icons.phone, size: 22),
-            label: const Text('Call Responder'),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: OutlinedButton.icon(
-            onPressed: _showResponderUnavailableMessage,
-            icon: const Icon(Icons.message_outlined, size: 22),
-            label: const Text('Send Info'),
-          ),
-        ),
-      ],
-    );
-  }
-
-  void _showResponderUnavailableMessage() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-            'Responder contact details are not available for this incident yet.'),
       ),
     );
   }
@@ -1971,10 +1958,15 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
     required IconData icon,
     required Color iconBg,
     required String label,
+    Color? iconColor,
     String? value,
     Widget? valueWidget,
     String? subtitle,
   }) {
+    final resolvedIconColor = iconColor ??
+        (iconBg == const Color(0xFFFFEDD5)
+            ? const Color(0xFFEA580C)
+            : const Color(0xFF2563EB));
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1984,11 +1976,7 @@ class _IncidentDetailsScreenState extends State<IncidentDetailsScreen> {
             color: iconBg,
             borderRadius: BorderRadius.circular(8),
           ),
-          child: Icon(icon,
-              color: iconBg == const Color(0xFFFFEDD5)
-                  ? const Color(0xFFEA580C)
-                  : const Color(0xFF2563EB),
-              size: 20),
+          child: Icon(icon, color: resolvedIconColor, size: 20),
         ),
         const SizedBox(width: 12),
         Expanded(

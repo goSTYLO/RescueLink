@@ -1050,7 +1050,10 @@ const Incident = {
        FROM incident_reports ir
        LEFT JOIN ai_classifications ac ON ir.report_id = ac.report_id
        WHERE ir.ai_pending = TRUE 
-         AND ir.audio_path IS NOT NULL
+         AND (
+           ir.audio_path IS NOT NULL
+           OR ir.description IS NOT NULL
+         )
          AND (ac.retry_count IS NULL OR ac.retry_count < 3)
        ORDER BY ir.created_at ASC
        LIMIT $1`,
