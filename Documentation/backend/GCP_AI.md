@@ -45,11 +45,14 @@ Run from [`RescueLink AI/`](../../RescueLink%20AI/) (directory name has a space)
 | **Deploy only** | `./scripts/cloud-run-build-deploy.sh --deploy-only` | No | Yes | Rotated `hf-api-token` (new secret version); re-apply env/secrets without rebuilding |
 | **Build only** | `./scripts/cloud-run-build-deploy.sh --build-only` | Yes | No | Push `:latest` to GCR; deploy later with `--deploy-only` |
 
+If `./scripts/...` prints **Permission denied**, run `chmod +x` once per clone (below) or use `bash scripts/cloud-run-build-deploy.sh` — see [Troubleshooting build tag](#troubleshooting-build-tag).
+
 Optional env overrides (same shell session): `PROJECT_ID`, `REGION`, `IMAGE`, `SERVICE_NAME` (defaults: `rescuelink-ai-509607`, `asia-southeast1`, `gcr.io/${PROJECT_ID}/rescuelink-ai:latest`, `resquelink-ai`).
 
 ```bash
 cd ~/RescueLink/"RescueLink AI"
-chmod +x scripts/cloud-run-build-deploy.sh   # once per clone
+chmod +x scripts/cloud-run-build-deploy.sh   # once per clone (Git stores 100644; fresh clones need this)
+# Or skip chmod: bash scripts/cloud-run-build-deploy.sh
 
 # Full rebuild + deploy (most code changes)
 ./scripts/cloud-run-build-deploy.sh
@@ -257,6 +260,7 @@ Pass: `"model_loaded":true`, `"status":"healthy"`. If stuck: check `"load_error"
 
 | Symptom | Fix |
 |---------|-----|
+| `./scripts/cloud-run-build-deploy.sh: Permission denied` | The script is not executable after clone. From `RescueLink AI/`: `chmod +x scripts/cloud-run-build-deploy.sh`, then retry `./scripts/...`. Or run `bash scripts/cloud-run-build-deploy.sh` (same flags: `--deploy-only`, `--build-only`). |
 | `deploy_cloud_run: command not found` | The function is not installed by default. Run [`RescueLink AI/scripts/cloud-run-build-deploy.sh`](../../RescueLink%20AI/scripts/cloud-run-build-deploy.sh) or paste `deploy_cloud_run() { ... }` from [Shared deploy flags](#shared-deploy-flags), then call it again. |
 | `invalid reference format` / `gcr.io/-ai-509607/...` | `PROJECT_ID` was empty when you set `IMAGE`. Run `export PROJECT_ID=rescuelink-ai-509607` and `export IMAGE="gcr.io/${PROJECT_ID}/rescuelink-ai:latest"`, then `echo "$IMAGE"` before build. |
 | `Tag value must be in the gcr.io or pkg.dev namespace` | Run `echo "$IMAGE"`. Set `IMAGE` to a full `gcr.io/PROJECT/NAME:tag` or `REGION-docker.pkg.dev/...` path (see above). Do not run `gcloud builds submit --tag "$IMAGE"` until `echo` looks correct. |
