@@ -21,6 +21,7 @@ SAMPLE_TEXTS = [
     "Yung maliit na apoy sa labas kanina, na-control na namin. Walang nasaktan.",
     "Ma'am may matanda dito na biglang bumagsak, hindi na gumagalaw. Parang atake sa puso.",
     "Tulong! May natabunan ng lupa sa tabi ng bundok, may tao pa raw sa loob. Bilisan po!",
+    "meron po nag aamok sa dito po sa kalsada namin. may dalang itak.",
 ]
 
 LOW_CONFIDENCE_THRESHOLD = 0.7

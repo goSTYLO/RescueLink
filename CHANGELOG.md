@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-05
+
+- AI keyword ranker: expanded Filipino-first vocabulary for all incident types (Fire, Crime, Accident, Medical, Natural Disaster, Other) and severity hints; **Crime** now includes weapons/public-safety wording (`amok`, `itak`, `may dalang itak`, holdap/snatch, etc.) with false **Fire** suppression on that evidence. Single source of truth in `utils/fallback_rules.py` (removed stale duplicate dict in `api/main.py`). Rebuild the AI Docker image to deploy. Model weights unchanged.
+
 ## 2026-10-02
 
 - AI classification: Filipino street-fight wording (`nagsusuntukan`, `nag-aaway`, `rambol`, etc.) and English phrases such as “people fighting” now map to **Crime** in the keyword ranker, with false **Fire** dropped when the text has no fire words (same path as crash/lost-child at `bahay`). Model weights unchanged; low-confidence keyword replacement stays gated at 0.7.

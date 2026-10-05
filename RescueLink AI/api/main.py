@@ -248,26 +248,6 @@ class UsageStatsResponse(BaseModel):
     avg_latency_seconds: float
 
 
-FALLBACK_INCIDENT_KEYWORDS = {
-    "Fire": ["sunog", "fire", "usok", "smoke", "apoy", "nasusunog"],
-    "Crime": ["nakaw", "theft", "holdap", "robbery", "baril", "shooting", "crime", "assault"],
-    "Accident": ["aksidente", "accident", "bangga", "collision", "nahulog", "crash"],
-    "Medical": ["dugo", "bleeding", "hika", "asthma", "atake", "heart attack", "medical", "hinimatay"],
-    "Natural Disaster": ["baha", "flood", "bagyo", "storm", "landslide", "lindol", "earthquake", "disaster"],
-}
-
-FALLBACK_SEVERITY_KEYWORDS = {
-    "Red": ["hindi humihinga", "not breathing", "critical", "critical condition", "malubha", "severe bleeding", "unconscious"],
-    "Yellow": ["nasugatan", "injured", "urgent", "kailangan agad", "delayed"],
-    "Green": ["minor", "gasgas", "stable", "kalmado", "non urgent"],
-    "Black": ["deceased", "patay", "no pulse"],
-}
-
-
-def _normalize_text(text: str) -> str:
-    return (text or "").strip().lower()
-
-
 def _validate_internal_token(request: Request):
     if not AI_INTERNAL_TOKEN:
         return

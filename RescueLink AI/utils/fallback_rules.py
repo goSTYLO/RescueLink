@@ -1,7 +1,8 @@
 import re
 from typing import Optional, Tuple, Dict, List
 
-# Street-fight wording (Filipino-first); used to drop false Fire without stripping assault+fire rows.
+# --- Crime (grouped; public-safety subset drops false Fire) ---
+
 CRIME_FIGHT_KEYWORDS = [
     "suntok",
     "sinuntok",
@@ -22,9 +23,6 @@ CRIME_FIGHT_KEYWORDS = [
     "gulpi",
     "ginugulpi",
     "bakbakan",
-    "bugbog",
-    "binugbog",
-    # English phrases only — bare "fight"/"fighting" false-positive on news/humanitarian text.
     "people fighting",
     "group fighting",
     "group of people fighting",
@@ -34,40 +32,220 @@ CRIME_FIGHT_KEYWORDS = [
     "brawl",
 ]
 
+CRIME_WEAPON_KEYWORDS = [
+    "amok",
+    "nag-aamok",
+    "nag aamok",
+    "nagaamok",
+    "itak",
+    "patalim",
+    "kutsilyo",
+    "saksak",
+    "nagsaksak",
+    "nasaksak",
+    "na-stab",
+    "stabbing",
+    "binaril",
+    "baril",
+    "shooting",
+    "gunshot",
+    "hostage",
+    "may dalang itak",
+    "may dalang baril",
+    "armed robbery",
+]
+
+CRIME_THEFT_KEYWORDS = [
+    "nakaw",
+    "nagnakaw",
+    "nakawan",
+    "theft",
+    "holdap",
+    "robbery",
+    "snatcher",
+    "snatch",
+]
+
+CRIME_ASSAULT_KEYWORDS = [
+    "assault",
+    "crime",
+]
+
+CRIME_PUBLIC_SAFETY_KEYWORDS = [
+    *CRIME_FIGHT_KEYWORDS,
+    *CRIME_WEAPON_KEYWORDS,
+]
+
+FIRE_KEYWORDS = [
+    "sunog",
+    "fire",
+    "usok",
+    "smoke",
+    "apoy",
+    "nasusunog",
+    "nasunog",
+    "nagliyab",
+    "may apoy",
+    "lumalabas ang apoy",
+    "nasunog na kotse",
+    "usok sa kusina",
+    "may usok",
+]
+
+ACCIDENT_KEYWORDS = [
+    "aksidente",
+    "accident",
+    "naaksidente",
+    "bangga",
+    "nagbanggaan",
+    "banggaan",
+    "nakabangga",
+    "bumangga",
+    "malubhang banggaan",
+    "collision",
+    "crash",
+    "jeep",
+    "kotse",
+    "trak",
+    "nasagasaan",
+    "hit and run",
+    "nadulas",
+    "rollover",
+    "tumama sa poste",
+    "nahulog",
+    "nahulog sa trabaho",
+    "gumuho ang pader",
+    "minor collision",
+    "gasgas",
+]
+
+MEDICAL_KEYWORDS = [
+    "dugo",
+    "bleeding",
+    "hika",
+    "asthma",
+    "atake",
+    "atake sa puso",
+    "heart attack",
+    "medical",
+    "hinimatay",
+    "nahimatay",
+    "sugat",
+    "nasugatan",
+    "nasaktan",
+    "may sugat",
+    "may sugat ang",
+    "hindi humihinga",
+    "walang pulso",
+    "wala nang pulso",
+    "cpr",
+    "cardiac arrest",
+    "stroke",
+    "kombulsyon",
+    "seizure",
+    "nanganak",
+    "nahihirapang huminga",
+]
+
+NATURAL_DISASTER_KEYWORDS = [
+    "baha",
+    "flood",
+    "flash flood",
+    "bagyo",
+    "storm surge",
+    "landslide",
+    "gumuho",
+    "natabunan ng lupa",
+    "lindol",
+    "earthquake",
+    "tsunami",
+    "volcanic ash",
+    "tumataas ang tubig",
+    "tumataas na yung tubig",
+    "natumbang puno",
+    "puno bumagsak",
+    "storm damage",
+    "disaster",
+]
+
+OTHER_KEYWORDS = [
+    "nawawala",
+    "nawawalang",
+    "lost child",
+    "missing person",
+    "missing child",
+    "magulang",
+    "hinahanap",
+    "hahanapin",
+    "pumahanap",
+    "walang kasama",
+    "nawawalang bata",
+    "nawawalang tao",
+    "lost person",
+    "child missing",
+    "gas leak",
+    "amoy gas",
+    "brownout",
+    "power outage",
+    "walang kuryente",
+    "animal rescue",
+    "dog attack",
+    "aso nanakit",
+]
+
 FALLBACK_INCIDENT_KEYWORDS = {
-    "Fire": ["sunog", "fire", "usok", "smoke", "apoy", "nasusunog"],
+    "Fire": FIRE_KEYWORDS,
     "Crime": [
-        "nakaw",
-        "theft",
-        "holdap",
-        "robbery",
-        "baril",
-        "shooting",
-        "crime",
-        "assault",
-        *CRIME_FIGHT_KEYWORDS,
+        *CRIME_THEFT_KEYWORDS,
+        *CRIME_ASSAULT_KEYWORDS,
+        *CRIME_PUBLIC_SAFETY_KEYWORDS,
     ],
-    "Accident": [
-        "aksidente", "accident", "bangga", "nagbanggaan", "banggaan", "nakabangga", "bumangga",
-        "collision", "nahulog", "crash",
-    ],
-    "Medical": [
-        "dugo", "bleeding", "hika", "asthma", "atake", "heart attack", "medical", "hinimatay",
-        "sugat", "nasugatan", "nasaktan", "may sugat", "may sugat ang",
-    ],
-    "Natural Disaster": ["baha", "flood", "bagyo", "storm", "landslide", "lindol", "earthquake", "disaster"],
-    "Other": [
-        "nawawala", "nawawalang", "lost child", "missing person", "missing child",
-        "magulang", "hinahanap", "hahanapin", "pumahanap", "walang kasama",
-        "nawawalang bata", "nawawalang tao", "lost person",
-    ],
+    "Accident": ACCIDENT_KEYWORDS,
+    "Medical": MEDICAL_KEYWORDS,
+    "Natural Disaster": NATURAL_DISASTER_KEYWORDS,
+    "Other": OTHER_KEYWORDS,
 }
 
 FALLBACK_SEVERITY_KEYWORDS = {
-    "Red": ["hindi humihinga", "not breathing", "critical", "critical condition", "malubha", "severe bleeding", "unconscious"],
-    "Yellow": ["nasugatan", "injured", "urgent", "kailangan agad", "delayed"],
-    "Green": ["minor", "gasgas", "stable", "kalmado", "non urgent"],
-    "Black": ["deceased", "patay", "no pulse"],
+    "Red": [
+        "hindi humihinga",
+        "not breathing",
+        "critical",
+        "critical condition",
+        "malubha",
+        "severe bleeding",
+        "unconscious",
+        "kailangan ng agarang tugon",
+        "agarang tugon",
+    ],
+    "Yellow": [
+        "nasugatan",
+        "injured",
+        "urgent",
+        "kailangan agad",
+        "delayed",
+        "needs treatment",
+    ],
+    "Green": [
+        "minor",
+        "gasgas",
+        "stable",
+        "kalmado",
+        "non urgent",
+        "walang nasaktan",
+        "ok na po",
+    ],
+    "Black": [
+        "deceased",
+        "patay",
+        "no pulse",
+        "wala nang pulso",
+        "walang pulso",
+        "namatay",
+        "no signs of life",
+        "confirmed dead",
+        "pronounced dead",
+    ],
 }
 
 
@@ -119,8 +297,8 @@ def _type_has_keyword_evidence(incident_type: str, normalized_text: str) -> bool
     return any(_keyword_in_text(keyword, normalized_text) for keyword in keywords)
 
 
-def _has_street_fight_crime_evidence(normalized_text: str) -> bool:
-    return any(_keyword_in_text(keyword, normalized_text) for keyword in CRIME_FIGHT_KEYWORDS)
+def _has_crime_public_safety_evidence(normalized_text: str) -> bool:
+    return any(_keyword_in_text(keyword, normalized_text) for keyword in CRIME_PUBLIC_SAFETY_KEYWORDS)
 
 
 def detect_keyword_matched_types(
@@ -193,12 +371,10 @@ def rank_and_promote_incident_types(
             selected.add(matched_type)
             keyword_promoted = True
 
-    # Suppress model false-positive Fire when text supports other types but not fire
-    # (e.g. car crash + injury, lost child at a house, or street fight at bahay).
     fire_competing_types = {"Accident", "Medical", "Other"}
     suppress_false_fire = (
         keyword_matched_set.intersection(fire_competing_types)
-        or _has_street_fight_crime_evidence(normalized)
+        or _has_crime_public_safety_evidence(normalized)
     )
     if suppress_false_fire:
         if (

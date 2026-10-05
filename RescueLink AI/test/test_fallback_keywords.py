@@ -184,6 +184,23 @@ class TestFightAtHouseMisclassifiedAsFire(unittest.TestCase):
         )
         self.assertEqual(ranked, ["Fire"])
 
+    def test_incident_57_amok_itak_detects_crime(self):
+        text = "meron po nag aamok sa dito po sa kalsada namin. may dalang itak."
+        matched = detect_keyword_matched_types(text, incident_labels=LABELS)
+        self.assertIn("Crime", matched)
+        self.assertNotIn("Fire", matched)
+
+    def test_incident_57_rank_crime_only(self):
+        text = "meron po nag aamok sa dito po sa kalsada namin. may dalang itak."
+        ranked, promoted, _ = rank_and_promote_incident_types(
+            text,
+            self.FIRE_HEAVY_SCORES,
+            threshold=0.5,
+            incident_labels=LABELS,
+        )
+        self.assertEqual(ranked, ["Crime"])
+        self.assertTrue(promoted)
+
     def test_fighting_the_fire_keeps_fire(self):
         text = "People are fighting the fire near the house"
         ranked, _, _ = rank_and_promote_incident_types(
