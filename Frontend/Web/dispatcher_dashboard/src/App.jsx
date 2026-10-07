@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from '@/infrastructure/firebase';
 import { DEV_MODE } from '@/core/config/app.config';
 import { getDefaultRouteByRole, normalizeRole, ROLES } from '@/core/constants';
 import Login from '@/presentation/pages/Login';
+import LandingPage from '@/presentation/pages/LandingPage';
 import Dashboard from '@/presentation/pages/Dashboard';
 import { DashboardPage } from '@/presentation/pages/DashboardPage';
 import { IncidentDetailsPage } from '@/presentation/pages/IncidentDetailsPage';
@@ -28,7 +29,7 @@ import EnterCode from '@/presentation/pages/EnterCode';
 import CreateNewPassword from '@/presentation/pages/CreateNewPassword';
 import ResetPasswordPage from '@/presentation/pages/ResetPasswordPage';
 import { AccessDeniedNotice } from '@/presentation/components/common/AccessDeniedNotice';
-import { clearAuthSession, getAuthToken, getStoredUser, hasRoleAccess, persistAuthUser } from '@/core/auth/session';
+import { clearAuthSession, getStoredUser, hasRoleAccess, hasValidAuthSession, persistAuthUser } from '@/core/auth/session';
 import { logout as logoutDispatcher } from '@/data/api/auth.api';
 import { initOneSignal, setOneSignalUser, logoutOneSignal } from '@/core/services/oneSignalWebService';
 import { IncidentWebSocketProvider } from '@/presentation/context/IncidentWebSocketContext';
@@ -64,11 +65,8 @@ function ProtectedRoute({ children, allowedRoles = [] }) {
       return;
     }
 
-    // Production mode - check JWT token in sessionStorage
-    const token = getAuthToken();
-    const storedUser = getStoredUser();
-    if (token && storedUser.role) {
-      setUserRole(normalizeRole(storedUser.role));
+    if (hasValidAuthSession()) {
+      setUserRole(normalizeRole(getStoredUser().role));
       setUser({ authenticated: true });
     } else {
       setUser(null);
@@ -103,6 +101,26 @@ function ProtectedRoute({ children, allowedRoles = [] }) {
   }
 
   return children;
+}
+
+function AppShell({ devBanner, children }) {
+  const location = useLocation();
+  const isLanding = location.pathname === '/';
+  return (
+    <>
+      <OneSignalClickBridge />
+      <div
+        className={
+          isLanding
+            ? 'min-h-screen flex flex-col bg-background'
+            : 'h-screen overflow-hidden flex flex-col bg-background'
+        }
+      >
+        {devBanner}
+        <div className={isLanding ? 'flex-1' : 'flex-1 min-h-0 overflow-auto'}>{children}</div>
+      </div>
+    </>
+  );
 }
 
 function OneSignalClickBridge() {
@@ -195,18 +213,16 @@ export default function App() {
     return <div className="flex items-center justify-center h-screen bg-background text-foreground">Loading...</div>;
   }
 
+  const devBanner = DEV_MODE ? (
+    <div className="bg-amber-500/20 text-amber-400 border-b border-amber-500/40 text-center py-2 text-sm font-semibold shrink-0">
+      🚧 DEVELOPMENT MODE - Authentication Bypassed
+    </div>
+  ) : null;
+
   return (
     <BrowserRouter>
       <IncidentWebSocketProvider>
-      <OneSignalClickBridge />
-      <div className="h-screen overflow-hidden flex flex-col bg-background">
-        {/* Dev Mode Banner */}
-        {DEV_MODE && (
-          <div className="bg-amber-500/20 text-amber-400 border-b border-amber-500/40 text-center py-2 text-sm font-semibold shrink-0">
-            🚧 DEVELOPMENT MODE - Authentication Bypassed
-          </div>
-        )}
-        <div className="flex-1 min-h-0 overflow-auto">
+      <AppShell devBanner={devBanner}>
         <Routes>
           {/* Auth Routes */}
           <Route path="/login" element={
@@ -310,15 +326,7 @@ export default function App() {
               <IncidentDetailsPage />
             </ProtectedRoute>
           } />
-          <Route path="/" element={
-            (() => {
-              if (!DEV_MODE && !getAuthToken()) return <Navigate to="/login" replace />;
-              try {
-                return <Navigate to={getDefaultRouteByRole(getStoredUser().role)} replace />;
-              } catch (_) {}
-              return <Navigate to="/dashboard" replace />;
-            })()
-          } />
+          <Route path="/" element={<LandingPage />} />
 
           {/* Legacy Dashboard Route (for backward compatibility) */}
           {page === 'dashboard' && (
@@ -327,8 +335,7 @@ export default function App() {
             } />
           )}
         </Routes>
-        </div>
-      </div>
+      </AppShell>
       </IncidentWebSocketProvider>
     </BrowserRouter>
   );

@@ -107,8 +107,21 @@
   }
 }
 
+@keyframes auth-map-fade-light {
+  0%, 100% {
+    opacity: 0.16;
+  }
+  50% {
+    opacity: 0.38;
+  }
+}
+
 .animate-auth-map-fade {
   animation: auth-map-fade 6s ease-in-out infinite;
+}
+
+[data-theme="light"] .animate-auth-map-fade {
+  animation-name: auth-map-fade-light;
 }
 
 @keyframes slide-up {

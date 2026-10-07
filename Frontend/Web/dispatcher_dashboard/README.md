@@ -4,14 +4,13 @@ React + Vite web app for dispatcher operations: incident queue management, map o
 
 ## Quick start
 
-1. Install dependencies:
-   ```bash
-   npm install
-   ```
-2. Run in development:
-   ```bash
-   npm run dev
-   ```
+**Local (pnpm):**
+
+1. `pnpm install`
+2. `pnpm dev`
+
+**Deploy / CI (npm):** Vercel and other hosts use `package-lock.json` (`npm ci` → `npm run build`). After you change dependencies in `package.json`, run `npm install` once in this folder so the lockfile stays in sync for deploy.
+
 3. Open the app in browser (Vite prints the local URL).
 
 ## Environment and runtime config
@@ -32,19 +31,19 @@ Config source is centralized in:
 
 - Unit/integration tests:
   ```bash
-  npm test
+  pnpm test
   ```
 - Full local suite:
   ```bash
-  npm run test:all
+  pnpm test:all
   ```
 - CI-style run with coverage:
   ```bash
-  npm run test:ci
+  pnpm test:ci
   ```
 - E2E smoke placeholder:
   ```bash
-  npm run test:e2e:smoke
+  pnpm test:e2e:smoke
   ```
 
 ## Notable implementation updates

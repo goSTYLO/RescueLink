@@ -19,6 +19,7 @@ jest.mock('firebase/auth', () => ({
 }));
 
 jest.mock('@/presentation/pages/Login', () => () => <div>Login page</div>);
+jest.mock('@/presentation/pages/LandingPage', () => () => <div>Landing page</div>);
 jest.mock('@/presentation/pages/Dashboard', () => () => <div>Legacy Dashboard</div>);
 jest.mock('@/presentation/pages/DashboardPage', () => ({ DashboardPage: () => <div>Dashboard page</div> }));
 jest.mock('@/presentation/pages/IncidentDetailsPage', () => ({ IncidentDetailsPage: () => <div>Incident details</div> }));
@@ -52,24 +53,43 @@ describe('App route guards', () => {
     localStorage.clear();
   });
 
-  test('redirects unauthenticated root route to login', async () => {
+  test('shows landing page at root for guests', async () => {
     window.history.pushState({}, '', '/');
     render(<App />);
-    await waitFor(() => expect(screen.getByText('Login page')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('Landing page')).toBeInTheDocument());
   });
 
-  test('department admin lands on department dashboard path from root', async () => {
+  test('shows landing page at root when signed in', async () => {
     sessionStorage.setItem('token', 'jwt');
     sessionStorage.setItem('user', JSON.stringify({ role: 'department-admin' }));
     window.history.pushState({}, '', '/');
     render(<App />);
-    await waitFor(() => expect(screen.getByText('Department dashboard page')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('Landing page')).toBeInTheDocument());
   });
 
-  test('dispatcher lands on dashboard path from root', async () => {
+  test('redirects unauthenticated dashboard access to login', async () => {
+    window.history.pushState({}, '', '/dashboard');
+    render(<App />);
+    await waitFor(() => expect(screen.getByText('Login page')).toBeInTheDocument());
+  });
+
+  test('redirects to login when token exists without stored role', async () => {
+    sessionStorage.setItem('token', 'jwt-only');
+    window.history.pushState({}, '', '/map');
+    render(<App />);
+    await waitFor(() => expect(screen.getByText('Login page')).toBeInTheDocument());
+  });
+
+  test('guest can open login route from landing flow', async () => {
+    window.history.pushState({}, '', '/login');
+    render(<App />);
+    await waitFor(() => expect(screen.getByText('Login page')).toBeInTheDocument());
+  });
+
+  test('dispatcher can open dashboard route directly', async () => {
     sessionStorage.setItem('token', 'jwt');
     sessionStorage.setItem('user', JSON.stringify({ role: 'dispatcher' }));
-    window.history.pushState({}, '', '/');
+    window.history.pushState({}, '', '/dashboard');
     render(<App />);
     await waitFor(() => expect(screen.getByText('Dashboard page')).toBeInTheDocument());
   });

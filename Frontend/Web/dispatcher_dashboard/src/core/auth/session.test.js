@@ -5,6 +5,7 @@ import {
   getStoredRole,
   getStoredUser,
   hasRoleAccess,
+  hasValidAuthSession,
   persistAuthToken,
   persistAuthUser,
 } from '@/core/auth/session';
@@ -34,6 +35,14 @@ describe('auth session utilities', () => {
   test('getStoredRole recognizes dispatcher role', () => {
     persistAuthUser({ role: 'dispatcher' });
     expect(getStoredRole()).toBe(ROLES.DISPATCHER);
+  });
+
+  test('hasValidAuthSession requires token and role', () => {
+    expect(hasValidAuthSession()).toBe(false);
+    persistAuthToken('jwt');
+    expect(hasValidAuthSession()).toBe(false);
+    persistAuthUser({ role: 'dispatcher' });
+    expect(hasValidAuthSession()).toBe(true);
   });
 
   test('hasRoleAccess enforces allowed role list', () => {

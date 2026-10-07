@@ -76,6 +76,11 @@ export function getStoredRole() {
   return normalizeRole(getStoredUser()?.role);
 }
 
+/** Same gate as ProtectedRoute in production: JWT plus stored role. */
+export function hasValidAuthSession() {
+  return Boolean(getAuthToken() && getStoredUser().role);
+}
+
 export function hasRoleAccess(currentRole, allowedRoles = []) {
   if (!Array.isArray(allowedRoles) || allowedRoles.length === 0) {
     return true;

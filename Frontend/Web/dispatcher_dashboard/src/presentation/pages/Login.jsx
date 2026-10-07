@@ -180,6 +180,12 @@ export default function Login({ onSuccess, onForgotPasswordClick }) {
         </Form.Item>
       </Form>
 
+      <div className="mt-4 text-center">
+        <Button type="link" onClick={() => navigate('/')} className="!px-0 text-muted hover:text-foreground">
+          &larr; Back to home
+        </Button>
+      </div>
+
       {DEV_MODE && (
         <div className="mt-8 bg-card/80 border border-border rounded-md p-4">
           <p className="text-sm font-semibold text-amber-500 dark:text-amber-400 mb-3">🚧 Development Mode - Quick Navigation:</p>
