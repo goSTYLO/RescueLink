@@ -102,7 +102,8 @@ describe('POST /api/auth/login phone formats', () => {
           address: null,
           created_at: new Date(),
         }],
-      });
+      })
+      .mockResolvedValue({ rows: [] });
 
     const res = await request(app)
       .post('/api/auth/login')

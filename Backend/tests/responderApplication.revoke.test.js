@@ -68,6 +68,12 @@ beforeEach(() => {
     }
     return Promise.resolve(null);
   });
+  User.getRoleById.mockImplementation((id) => {
+    if (id === 3) return Promise.resolve(ROLES.ADMIN);
+    if (id === 2) return Promise.resolve(ROLES.DISPATCHER);
+    if (id === 100) return Promise.resolve(ROLES.VOLUNTEER);
+    return Promise.resolve(null);
+  });
   pool.query.mockImplementation((sql, params) => {
     if (String(sql).includes('incident_reports')) {
       return Promise.resolve({ rows: [] });

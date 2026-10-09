@@ -464,4 +464,111 @@ ALTER TABLE incident_reports
 ALTER TABLE departments
   ADD COLUMN IF NOT EXISTS supported_incident_types TEXT[] NOT NULL DEFAULT '{}';
 
+-- ─── Physical archive (incident_keys + archived_incident_reports) ───────────
+CREATE TABLE IF NOT EXISTS incident_keys (
+  report_id INTEGER PRIMARY KEY
+);
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_class WHERE relname = 'incident_reports_report_id_seq') THEN
+    ALTER TABLE incident_keys ALTER COLUMN report_id SET DEFAULT nextval('incident_reports_report_id_seq'::regclass);
+  ELSE
+    CREATE SEQUENCE incident_reports_report_id_seq;
+    ALTER TABLE incident_keys ALTER COLUMN report_id SET DEFAULT nextval('incident_reports_report_id_seq'::regclass);
+  END IF;
+END $$;
+
+INSERT INTO incident_keys (report_id)
+SELECT report_id FROM incident_reports
+ON CONFLICT DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS archived_incident_reports (
+  LIKE incident_reports INCLUDING DEFAULTS INCLUDING COMMENTS
+);
+
+ALTER TABLE archived_incident_reports ALTER COLUMN report_id DROP DEFAULT;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'archived_incident_reports_pkey'
+  ) THEN
+    ALTER TABLE archived_incident_reports ADD CONSTRAINT archived_incident_reports_pkey PRIMARY KEY (report_id);
+  END IF;
+END $$;
+
+CREATE OR REPLACE VIEW incident_bodies AS
+  SELECT * FROM incident_reports
+  UNION ALL
+  SELECT * FROM archived_incident_reports;
+
+-- ─── Role ID lookup ──────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS roles (
+  role_id SMALLINT PRIMARY KEY,
+  code VARCHAR(50) NOT NULL UNIQUE,
+  name VARCHAR(100) NOT NULL
+);
+
+INSERT INTO roles (role_id, code, name) VALUES
+  (1, 'admin', 'Admin'),
+  (2, 'dispatcher', 'Dispatcher'),
+  (3, 'supervisor', 'Supervisor'),
+  (4, 'department-admin', 'Department Admin'),
+  (5, 'department-head', 'Department Head'),
+  (6, 'responder', 'Responder'),
+  (7, 'volunteer', 'Volunteer'),
+  (8, 'user', 'User')
+ON CONFLICT (role_id) DO UPDATE SET code = EXCLUDED.code, name = EXCLUDED.name;
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS role_id SMALLINT REFERENCES roles(role_id);
+CREATE INDEX IF NOT EXISTS idx_users_role_id ON users(role_id);
+
+CREATE OR REPLACE FUNCTION sync_user_role()
+RETURNS trigger AS $$
+DECLARE resolved_id SMALLINT;
+  resolved_code VARCHAR(50);
+  incoming TEXT;
+BEGIN
+  IF NEW.role_id IS NOT NULL AND (TG_OP = 'INSERT' OR NEW.role_id IS DISTINCT FROM OLD.role_id) THEN
+    SELECT code INTO resolved_code FROM roles WHERE role_id = NEW.role_id;
+    IF resolved_code IS NULL THEN
+      RETURN NEW;
+    END IF;
+    NEW.role := resolved_code;
+    RETURN NEW;
+  END IF;
+
+  incoming := LOWER(TRIM(COALESCE(NEW.role, '')));
+  IF incoming IN ('super-admin', 'superadmin', 'super admin') THEN
+    incoming := 'admin';
+  ELSIF incoming IN ('department admin', 'dept admin') THEN
+    incoming := 'department-admin';
+  ELSIF incoming IN ('department head') THEN
+    incoming := 'department-head';
+  END IF;
+
+  IF incoming <> '' THEN
+    SELECT role_id, code INTO resolved_id, resolved_code FROM roles WHERE code = incoming;
+    IF resolved_id IS NOT NULL THEN
+      NEW.role_id := resolved_id;
+      NEW.role := resolved_code;
+      RETURN NEW;
+    END IF;
+  END IF;
+
+  IF TG_OP = 'INSERT' AND NEW.role_id IS NULL THEN
+    NEW.role_id := 8;
+    NEW.role := 'user';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_sync_user_role ON users;
+CREATE TRIGGER trg_sync_user_role
+  BEFORE INSERT OR UPDATE OF role, role_id ON users
+  FOR EACH ROW
+  EXECUTE PROCEDURE sync_user_role();
+
 

@@ -4,7 +4,8 @@ require('dotenv').config();
 const { Pool } = require('pg');
 const { getPgPoolConfig, formatDatabaseTarget } = require('../src/config/pgPool');
 const bcryptjs = require('bcryptjs');
-const { ROLES } = require('../src/config/roles');
+const { ROLES, ROLE_IDS } = require('../src/config/roles');
+const { insertKeyedIncident, archiveClosedSeedIncident } = require('./lib/incidentSeed');
 const { encrypt } = require('../src/utils/encryption');
 const { validatePhone } = require('../src/utils/validation');
 const fs = require('fs/promises');
@@ -357,18 +358,19 @@ async function insertUser(client, user, departmentIdByCode, userColumnMeta) {
   const encryptedPhone = maybeEncrypt(normalizedPhone, userColumnMeta.phone_number);
   const encryptedAddress = maybeEncrypt(user.address, userColumnMeta.address);
   const userDepartmentId = user.department_code ? (departmentIdByCode[user.department_code] || null) : null;
+  const roleId = ROLE_IDS[user.role];
   const result = userColumnMeta.department_id
     ? await client.query(
-      `INSERT INTO users (first_name, last_name, email, phone_number, password, role, phone_verified, address, department_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      `INSERT INTO users (first_name, last_name, email, phone_number, password, role, role_id, phone_verified, address, department_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING user_id`,
-      [encryptedFirstName, encryptedLastName, encryptedEmail, encryptedPhone, hashedPassword, user.role, true, encryptedAddress, userDepartmentId]
+      [encryptedFirstName, encryptedLastName, encryptedEmail, encryptedPhone, hashedPassword, user.role, roleId, true, encryptedAddress, userDepartmentId]
     )
     : await client.query(
-      `INSERT INTO users (first_name, last_name, email, phone_number, password, role, phone_verified, address)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `INSERT INTO users (first_name, last_name, email, phone_number, password, role, role_id, phone_verified, address)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING user_id`,
-      [encryptedFirstName, encryptedLastName, encryptedEmail, encryptedPhone, hashedPassword, user.role, true, encryptedAddress]
+      [encryptedFirstName, encryptedLastName, encryptedEmail, encryptedPhone, hashedPassword, user.role, roleId, true, encryptedAddress]
     );
   return result.rows[0].user_id;
 }
@@ -527,14 +529,12 @@ async function seedAnalyticsIncidents(client, ctx) {
     const status = isDuplicateChild ? 'verified' : statusProfile.status;
     const verified = status !== 'pending';
 
-    const inserted = await client.query(
-      `INSERT INTO incident_reports(
-        user_id, incident_type, severity_level, description, latitude, longitude, barangay,
+    const reportId = await insertKeyedIncident(
+      client,
+      `user_id, incident_type, severity_level, description, latitude, longitude, barangay,
         status, transcription, verified, ai_pending, ai_attempted, scan_status, quarantined,
-        created_at, primary_confidence, is_duplicate, parent_report_id, auto_assignment_mismatch
-      )
-      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,FALSE,FALSE,'clean',FALSE,$11,$12,$13,$14,$15)
-      RETURNING report_id`,
+        created_at, primary_confidence, is_duplicate, parent_report_id, auto_assignment_mismatch`,
+      `$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,FALSE,FALSE,'clean',FALSE,$12,$13,$14,$15,$16`,
       [
         reporterId,
         incidentType,
@@ -553,8 +553,6 @@ async function seedAnalyticsIncidents(client, ctx) {
         scenario === 'mismatch',
       ]
     );
-
-    const reportId = inserted.rows[0].report_id;
     if (scenario === 'duplicate' && duplicatePrimaryId == null) {
       duplicatePrimaryId = reportId;
     }
@@ -721,6 +719,7 @@ async function seedAnalyticsIncidents(client, ctx) {
         ]
       );
     }
+    await archiveClosedSeedIncident(client, reportId, status);
   }
 
   await client.query('COMMIT');
@@ -752,7 +751,9 @@ async function seedDatabase() {
     await deleteOptional(client, 'ai_classifications');
     await deleteOptional(client, 'responder_team_members');
     await deleteOptional(client, 'responder_teams');
+    await deleteOptional(client, 'archived_incident_reports');
     await deleteOptional(client, 'incident_reports');
+    await deleteOptional(client, 'incident_keys');
     await deleteOptional(client, 'responders');
     await deleteOptional(client, 'responder_applications');
     await deleteOptional(client, 'notification_preferences');

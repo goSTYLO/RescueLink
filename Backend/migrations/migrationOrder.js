@@ -40,6 +40,9 @@ const MIGRATION_ORDER = [
   'add_volunteer_role.sql',
   'add_user_profile_image.sql',
   'add_analytics_created_at_index.sql',
+  'add_archived_incident_reports.sql',
+  'add_roles_lookup.sql',
+  'fix_sync_user_role.sql',
 ];
 
 module.exports = { MIGRATION_ORDER };

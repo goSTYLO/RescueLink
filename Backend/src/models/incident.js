@@ -6,6 +6,18 @@ const { departmentMembershipSql } = require('../utils/incidentDepartmentScope');
 
 const OPEN_BACKUP_STATUS_SQL = `COALESCE(br.status, 'pending') IN ('pending', 'acknowledged')`;
 
+function incidentListTable(isArchived) {
+  if (isArchived === true) return 'archived_incident_reports';
+  if (isArchived === null) return 'incident_bodies';
+  return 'incident_reports';
+}
+
+async function allocateReportId(client) {
+  const q = client && typeof client.query === 'function' ? client : pool;
+  const res = await q.query('INSERT INTO incident_keys DEFAULT VALUES RETURNING report_id');
+  return res.rows[0].report_id;
+}
+
 function looksEncryptedValue(value) {
   return typeof value === 'string'
     && /^[0-9a-f]+$/i.test(value)
@@ -218,7 +230,10 @@ const Incident = {
 
   async create({ user_id, incident_type = null, severity_level, description = null, latitude, longitude, barangay = null, media_url = null, status = 'pending' }) {
     const res = await pool.query(
-      'INSERT INTO incident_reports(user_id, incident_type, severity_level, description, latitude, longitude, barangay, media_url, status) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *',
+      `WITH k AS (INSERT INTO incident_keys DEFAULT VALUES RETURNING report_id)
+       INSERT INTO incident_reports(report_id, user_id, incident_type, severity_level, description, latitude, longitude, barangay, media_url, status)
+       SELECT k.report_id, $1, $2, $3, $4, $5, $6, $7, $8, $9 FROM k
+       RETURNING *`,
       [user_id, incident_type, severity_level, tryEncryptValue(description), latitude, longitude, barangay, media_url, status]
     );
     return decodeReporterFields(res.rows[0]);
@@ -247,11 +262,14 @@ const Incident = {
   }) {
     try {
       const res = await pool.query(
-        `INSERT INTO incident_reports(
-          user_id, incident_type, severity_level, description, latitude, longitude, barangay,
+        `WITH k AS (INSERT INTO incident_keys DEFAULT VALUES RETURNING report_id)
+         INSERT INTO incident_reports(
+          report_id, user_id, incident_type, severity_level, description, latitude, longitude, barangay,
           transcription, audio_path, media_paths, ai_pending, ai_attempted,
           scan_status, scan_engine, scan_error, status
-        ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *`,
+        )
+         SELECT k.report_id, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16 FROM k
+         RETURNING *`,
         [
           user_id, incident_type, severity_level, tryEncryptValue(description), latitude, longitude, barangay,
           tryEncryptValue(transcription), audio_path, JSON.stringify(media_paths), ai_pending, ai_attempted,
@@ -262,10 +280,13 @@ const Incident = {
     } catch (error) {
       if (error.code === '42703' || /scan_status|scan_engine|scan_error/i.test(error.message)) {
         const fallbackRes = await pool.query(
-          `INSERT INTO incident_reports(
-            user_id, incident_type, severity_level, description, latitude, longitude, barangay,
+          `WITH k AS (INSERT INTO incident_keys DEFAULT VALUES RETURNING report_id)
+           INSERT INTO incident_reports(
+            report_id, user_id, incident_type, severity_level, description, latitude, longitude, barangay,
             transcription, audio_path, media_paths, ai_pending, ai_attempted, status
-          ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`,
+          )
+           SELECT k.report_id, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13 FROM k
+           RETURNING *`,
           [
             user_id, incident_type, severity_level, tryEncryptValue(description), latitude, longitude, barangay,
             tryEncryptValue(transcription), audio_path, JSON.stringify(media_paths), ai_pending, ai_attempted, status
@@ -338,7 +359,7 @@ const Incident = {
                 SELECT COUNT(*)::int FROM backup_responses brsp
                  WHERE brsp.report_id = ir.report_id AND brsp.status = 'joined'
               ) AS backup_volunteer_count
-       FROM incident_reports ir
+       FROM incident_bodies ir
        LEFT JOIN users u ON ir.user_id = u.user_id
        WHERE ir.report_id = $1`,
       [report_id]
@@ -468,7 +489,7 @@ const Incident = {
                            ORDER BY d.dispatched_at ASC
                            LIMIT 1
                         ) AS assigned_team_name
-      FROM incident_reports ir
+      FROM ${incidentListTable(is_archived)} ir
       LEFT JOIN users u ON ir.user_id = u.user_id
       LEFT JOIN users acceptor ON acceptor.user_id = ir.accepted_by_user_id
       WHERE 1=1`;
@@ -539,9 +560,6 @@ const Incident = {
       query += ` AND ir.accepted_by_user_id IS NOT NULL`;
     }
 
-    // Archive filter — default hides archived from active dashboard
-    query += ` AND ir.is_archived = ${is_archived ? 'TRUE' : 'FALSE'}`;
-
     query += ` ORDER BY ir.created_at DESC LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}`;
     params.push(cappedLimit, offset);
 
@@ -554,6 +572,7 @@ const Incident = {
       });
       return {
         ...decoded,
+        is_archived: is_archived === true,
         has_pending_backup: Boolean(row.has_pending_backup),
         pending_backup_request_id: row.pending_backup_request_id != null
           ? Number(row.pending_backup_request_id)
@@ -581,31 +600,76 @@ const Incident = {
    * Can also be called manually by a dispatcher.
    */
   async archive(report_id, { archived_by_user_id, archive_notes = null }) {
+    const already = await pool.query(
+      'SELECT * FROM archived_incident_reports WHERE report_id = $1',
+      [report_id]
+    );
+    if (already.rows[0]) return decodeReporterFields(already.rows[0]);
+
+    let moved;
+    try {
+      moved = await pool.query(
+        `WITH moved AS (
+           DELETE FROM incident_reports
+            WHERE report_id = $1 AND status = 'closed'
+           RETURNING *
+         )
+         INSERT INTO archived_incident_reports
+         SELECT * FROM moved
+         RETURNING *`,
+        [report_id]
+      );
+    } catch (err) {
+      if (err.code === '23505') {
+        const row = await pool.query(
+          'SELECT * FROM archived_incident_reports WHERE report_id = $1',
+          [report_id]
+        );
+        return row.rows[0] ? decodeReporterFields(row.rows[0]) : null;
+      }
+      throw err;
+    }
+    if (!moved.rows[0]) return null;
+
     const res = await pool.query(
-      `UPDATE incident_reports
-         SET is_archived = TRUE,
-             archived_at = NOW(),
-             archived_by_user_id = $2,
-             archive_notes = $3
-       WHERE report_id = $1
-         AND status = 'closed'
-       RETURNING *`,
+      `UPDATE archived_incident_reports
+          SET is_archived = TRUE,
+              archived_at = COALESCE(archived_at, NOW()),
+              archived_by_user_id = COALESCE($2, archived_by_user_id),
+              archive_notes = COALESCE($3, archive_notes)
+        WHERE report_id = $1
+        RETURNING *`,
       [report_id, archived_by_user_id, archive_notes]
     );
-    return res.rows[0] ? decodeReporterFields(res.rows[0]) : null;
+    return decodeReporterFields(res.rows[0] || moved.rows[0]);
   },
 
   /** Restore an archived incident back to the active dashboard. */
   async unarchive(report_id) {
+    const live = await pool.query(
+      'SELECT report_id FROM incident_reports WHERE report_id = $1',
+      [report_id]
+    );
+    if (live.rows[0]) return null;
+
+    const inserted = await pool.query(
+      `WITH moved AS (
+         DELETE FROM archived_incident_reports WHERE report_id = $1 RETURNING *
+       )
+       INSERT INTO incident_reports
+       SELECT * FROM moved
+       RETURNING *`,
+      [report_id]
+    );
+    if (!inserted.rows[0]) return null;
     const res = await pool.query(
       `UPDATE incident_reports
-         SET is_archived = FALSE,
-             archived_at = NULL,
-             archived_by_user_id = NULL,
-             archive_notes = NULL
-       WHERE report_id = $1
-         AND is_archived = TRUE
-       RETURNING *`,
+          SET is_archived = FALSE,
+              archived_at = NULL,
+              archived_by_user_id = NULL,
+              archive_notes = NULL
+        WHERE report_id = $1
+        RETURNING *`,
       [report_id]
     );
     return res.rows[0] ? decodeReporterFields(res.rows[0]) : null;
@@ -639,7 +703,7 @@ const Incident = {
       SELECT 1 FROM dispatches d
       INNER JOIN responders r ON r.responder_id = d.responder_id
       WHERE r.user_id = $1
-        AND d.report_id = incident_reports.report_id
+        AND d.report_id = incident_bodies.report_id
         AND COALESCE(d.team_name, '') <> ''
     )`;
 
@@ -668,7 +732,7 @@ const Incident = {
           WHEN accepted_by_user_id = $1 THEN 'accepted'
           ELSE NULL
         END AS involvement
-      FROM incident_reports
+      FROM incident_bodies
       WHERE ${whereClause}`;
     const params = [user_id];
     let paramCount = 1;
@@ -704,7 +768,7 @@ const Incident = {
   },
 
   async countAll({ user_id = null, severity_level = null, status = null, incident_type = null, barangay = null, department_code = null, exclude_duplicates = false, search = null, exclude_report_id = null, volunteer_accepted = false, is_archived = false } = {}) {
-    let query = 'SELECT COUNT(*)::int AS total FROM incident_reports WHERE 1=1';
+    let query = `SELECT COUNT(*)::int AS total FROM ${incidentListTable(is_archived)} WHERE 1=1`;
     const params = [];
     let paramCount = 0;
 
@@ -772,9 +836,6 @@ const Incident = {
       query += ` AND accepted_by_user_id IS NOT NULL`;
     }
 
-    // Archive filter
-    query += ` AND is_archived = ${is_archived ? 'TRUE' : 'FALSE'}`;
-
     const res = await pool.query(query, params);
     return Number(res.rows?.[0]?.total || 0);
   },
@@ -816,7 +877,7 @@ const Incident = {
 
   async delete(report_id) {
     const res = await pool.query(
-      'DELETE FROM incident_reports WHERE report_id = $1 RETURNING *',
+      'DELETE FROM incident_keys WHERE report_id = $1 RETURNING report_id',
       [report_id]
     );
     return res.rows[0];
@@ -1273,10 +1334,7 @@ const Incident = {
                WHEN $3 = 'resolved' AND $5::varchar IS NOT NULL THEN $5::varchar
                ELSE closure_method
              END,
-             closure_notes = CASE WHEN $3 IN ('resolved', 'closed') AND $6::text IS NOT NULL THEN $6::text ELSE closure_notes END,
-             is_archived = CASE WHEN $3 = 'closed' THEN TRUE ELSE is_archived END,
-             archived_at = CASE WHEN $3 = 'closed' THEN COALESCE(archived_at, CURRENT_TIMESTAMP) ELSE archived_at END,
-             archived_by_user_id = CASE WHEN $3 = 'closed' THEN COALESCE(archived_by_user_id, $7) ELSE archived_by_user_id END
+             closure_notes = CASE WHEN $3 IN ('resolved', 'closed') AND $6::text IS NOT NULL THEN $6::text ELSE closure_notes END
          WHERE report_id = $1
          RETURNING *`,
         [report_id, normalizedNext, normalizedNext, resolvedByUserId, normalizedClosureMethod, normalizedClosureNotes, actorUserIdForClose]
@@ -1375,15 +1433,15 @@ const Incident = {
              verified = TRUE,
              closed_at = COALESCE(closed_at, CURRENT_TIMESTAMP),
              closed_by_user_id = COALESCE(closed_by_user_id, $2),
-             closure_method = COALESCE(closure_method, 'auto_from_reporter_confirmation'),
-             is_archived = TRUE,
-             archived_at = COALESCE(archived_at, CURRENT_TIMESTAMP),
-             archived_by_user_id = COALESCE(archived_by_user_id, $2)
+             closure_method = COALESCE(closure_method, 'auto_from_reporter_confirmation')
          WHERE report_id = $1
          RETURNING *`,
         [report_id, reporter_user_id]
       );
-      return updated.rows[0] || null;
+      const closed = updated.rows[0];
+      if (!closed) return null;
+      const archived = await this.archive(report_id, { archived_by_user_id: reporter_user_id });
+      return archived || closed;
     } catch (error) {
       if (error.code === '42703' || /reporter_confirmed|closed_at|closed_by_user_id|closure_method/i.test(error.message)) {
         try {
@@ -1532,6 +1590,8 @@ const Incident = {
       throw error;
     }
   },
+
+  allocateReportId,
 };
 
 module.exports = Incident;

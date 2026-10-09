@@ -7,6 +7,7 @@ import {
   getBackupDialogCapabilities,
   getAutoAssignmentBadge,
   getSuggestedTeamName,
+  mapApiIncidentToDisplay,
 } from '@/core/utils/incidentDisplay';
 import { ROLES } from '@/core/constants';
 
@@ -148,6 +149,14 @@ describe('getBackupDialogCapabilities', () => {
     expect(caps.canAcknowledge).toBe(false);
     expect(caps.canNotifyDepartment).toBe(false);
     expect(caps.canAssignTeam).toBe(false);
+  });
+});
+
+describe('mapApiIncidentToDisplay archive flag', () => {
+  it('maps is_archived onto isArchived', () => {
+    expect(mapApiIncidentToDisplay({ report_id: 1, is_archived: true }).isArchived).toBe(true);
+    expect(mapApiIncidentToDisplay({ report_id: 2, isArchived: true }).isArchived).toBe(true);
+    expect(mapApiIncidentToDisplay({ report_id: 3, is_archived: false }).isArchived).toBe(false);
   });
 });
 

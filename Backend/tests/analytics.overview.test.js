@@ -17,7 +17,7 @@ describe('analytics overview', () => {
     jest.clearAllMocks();
     pool.query.mockImplementation(async (sql) => {
       const s = String(sql);
-      if (s.includes('COUNT(*)::int AS total FROM incident_reports')) {
+      if (s.includes('COUNT(*)::int AS total FROM incident_bodies')) {
         return { rows: [{ total: 4 }] };
       }
       if (s.includes('AS incidents')) {
@@ -104,6 +104,13 @@ describe('analytics overview', () => {
   it('rejects inverted or oversized date ranges', () => {
     expect(() => Analytics.parseTimeRange('2026-08-10', '2026-08-01')).toThrow(/before/);
     expect(() => Analytics.parseTimeRange('2024-01-01', '2026-08-01')).toThrow(/366/);
+  });
+
+  it('excludes archived rows when include_archived is false', () => {
+    const hidden = Analytics.buildWhere({ ...range, include_archived: false });
+    expect(hidden.where).toContain('ir.is_archived = FALSE');
+    const shown = Analytics.buildWhere({ ...range, include_archived: true });
+    expect(shown.where).not.toContain('is_archived');
   });
 
   it('uses historical department scope (any escalation, not only open)', () => {
@@ -208,7 +215,7 @@ describe('analytics overview', () => {
     await Analytics.getOverview({ ...range, volunteer_scope: true });
     const escSql = pool.query.mock.calls.find(([sql]) => {
       const s = String(sql);
-      return s.includes('FROM incident_escalations ie') && s.includes('JOIN incident_reports ir');
+      return s.includes('FROM incident_escalations ie') && s.includes('JOIN incident_bodies ir');
     })?.[0] || '';
     expect(escSql).toMatch(/accepted_by_user_id IS NOT NULL/);
   });

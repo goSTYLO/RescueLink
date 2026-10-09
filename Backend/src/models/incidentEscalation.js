@@ -14,7 +14,7 @@ const IncidentEscalation = {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS incident_escalations (
         id                     SERIAL PRIMARY KEY,
-        report_id              INTEGER NOT NULL REFERENCES incident_reports(report_id) ON DELETE CASCADE,
+        report_id              INTEGER NOT NULL REFERENCES incident_keys(report_id) ON DELETE CASCADE,
         from_department_id     INTEGER REFERENCES departments(department_id) ON DELETE SET NULL,
         to_department_id       INTEGER NOT NULL REFERENCES departments(department_id) ON DELETE RESTRICT,
         requested_by_user_id   INTEGER NOT NULL REFERENCES users(user_id) ON DELETE RESTRICT,

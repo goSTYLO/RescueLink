@@ -188,7 +188,7 @@ async function getRecipientUserIds(event, data) {
     let actualReporterId = reporterId;
     if (!actualReporterId && reportId) {
       try {
-        const incRes = await pool.query('SELECT user_id FROM incident_reports WHERE report_id = $1', [reportId]);
+        const incRes = await pool.query('SELECT user_id FROM incident_bodies WHERE report_id = $1', [reportId]);
         if (incRes.rows.length > 0) {
           actualReporterId = incRes.rows[0].user_id;
         }

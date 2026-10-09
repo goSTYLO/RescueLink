@@ -89,7 +89,7 @@ async function findPotentialDuplicates(report, radiusMeters = null, timeWindowMi
     `SELECT ir.report_id, ir.user_id, ir.incident_type, ir.primary_classification, ir.status, ir.description,
             ir.latitude, ir.longitude, ir.created_at,
             u.first_name AS reporter_first_name, u.last_name AS reporter_last_name
-     FROM incident_reports ir
+     FROM incident_bodies ir
      LEFT JOIN users u ON ir.user_id = u.user_id
      WHERE ir.report_id != $1
        AND ir.latitude BETWEEN $2 AND $3
@@ -146,7 +146,7 @@ async function getDuplicateCluster(primaryReportId) {
     `SELECT ir.report_id, ir.user_id, ir.incident_type, ir.severity_level, ir.status, ir.description, ir.latitude, ir.longitude,
             ir.created_at, ir.duplicate_confidence_score, ir.duplicate_detection_method, ir.is_duplicate, ir.parent_report_id,
             u.first_name AS reporter_first_name, u.last_name AS reporter_last_name
-     FROM incident_reports ir
+     FROM incident_bodies ir
      LEFT JOIN users u ON ir.user_id = u.user_id
      WHERE ir.report_id = $1 OR ir.parent_report_id = $1
      ORDER BY ir.created_at ASC`,
@@ -160,7 +160,7 @@ async function getDuplicateCluster(primaryReportId) {
  */
 async function getPrimaryReportId(reportId) {
   const res = await pool.query(
-    'SELECT report_id, parent_report_id FROM incident_reports WHERE report_id = $1',
+    'SELECT report_id, parent_report_id FROM incident_bodies WHERE report_id = $1',
     [reportId]
   );
   const row = res.rows[0];
@@ -197,7 +197,7 @@ async function clearDuplicateFlag(reportId) {
  */
 async function getDuplicateInfo(reportId) {
   const res = await pool.query(
-    'SELECT report_id, parent_report_id, is_duplicate, duplicate_confidence_score FROM incident_reports WHERE report_id = $1',
+    'SELECT report_id, parent_report_id, is_duplicate, duplicate_confidence_score FROM incident_bodies WHERE report_id = $1',
     [reportId]
   );
   const row = res.rows[0];

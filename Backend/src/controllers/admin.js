@@ -22,7 +22,7 @@ function normalizeRoleForAdmin(role) {
   if (r === 'department-head' || r === 'department head') return ROLES.DEPARTMENT_HEAD;
   if (r === 'responder' || r === 'field-responder' || r === 'field responder') return ROLES.RESPONDER;
   if (Object.values(ROLES).includes(r)) return r;
-  return ROLES.USER;
+  return null;
 }
 
 function requiresDepartmentId(role) {

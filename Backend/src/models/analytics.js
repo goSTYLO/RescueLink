@@ -143,7 +143,7 @@ function clockSql(filters) {
 async function countFiltered(filters) {
   const { where, params } = buildWhere(filters);
   const res = await pool.query(
-    `SELECT COUNT(*)::int AS total FROM incident_reports ir WHERE ${where}`,
+    `SELECT COUNT(*)::int AS total FROM incident_bodies ir WHERE ${where}`,
     params
   );
   return num(res.rows[0]?.total);
@@ -193,7 +193,7 @@ async function queryVolume(filters) {
           WHERE ir.audio_path IS NOT NULL AND BTRIM(ir.audio_path) <> ''
             AND LOWER(COALESCE(ir.incident_type, '')) <> 'sos'
         )::int AS voice_count
-     FROM incident_reports ir
+     FROM incident_bodies ir
      WHERE ${where}`,
     params
   );
@@ -228,7 +228,7 @@ async function queryClocks(filters) {
          EXTRACT(EPOCH FROM (${firstDispatch} - ir.created_at)) AS dispatch_s,
          EXTRACT(EPOCH FROM (${arrival} - ir.created_at)) AS arrival_s,
          EXTRACT(EPOCH FROM (COALESCE(ir.resolved_at, ir.closed_at) - ir.created_at)) AS resolve_s
-       FROM incident_reports ir
+       FROM incident_bodies ir
        WHERE ${where}
      ) clocks`,
     params
@@ -241,7 +241,7 @@ async function queryGroup(filters, selectExpr, groupExpr, { limit = 50, extraWhe
   const res = await pool.query(
     `SELECT ${selectExpr} AS key, COUNT(*)::int AS count,
             COUNT(*) FILTER (WHERE LOWER(COALESCE(ir.severity_level, '')) IN ('high', 'critical'))::int AS critical_count
-       FROM incident_reports ir
+       FROM incident_bodies ir
       WHERE ${where} ${extraWhere}
       GROUP BY ${groupExpr}
       ORDER BY count DESC
@@ -257,7 +257,7 @@ async function queryTypeBarangay(filters) {
     `SELECT COALESCE(NULLIF(BTRIM(ir.incident_type), ''), 'unknown') AS incident_type,
             COALESCE(NULLIF(BTRIM(ir.barangay), ''), 'Unknown') AS barangay,
             COUNT(*)::int AS count
-       FROM incident_reports ir
+       FROM incident_bodies ir
       WHERE ${where}
       GROUP BY 1, 2
       ORDER BY count DESC
@@ -273,7 +273,7 @@ async function queryBarangayTypeMix(filters) {
     `SELECT COALESCE(NULLIF(BTRIM(ir.barangay), ''), 'Unknown') AS barangay,
             COALESCE(NULLIF(BTRIM(ir.incident_type), ''), 'unknown') AS incident_type,
             COUNT(*)::int AS count
-       FROM incident_reports ir
+       FROM incident_bodies ir
       WHERE ${where}
       GROUP BY 1, 2`,
     params
@@ -302,7 +302,7 @@ async function queryTimeseries(filters, trunc) {
   const res = await pool.query(
     `SELECT (date_trunc('${trunc}', ir.created_at AT TIME ZONE '${TZ}') AT TIME ZONE '${TZ}') AS bucket,
             COUNT(*)::int AS count
-       FROM incident_reports ir
+       FROM incident_bodies ir
       WHERE ${where}
       GROUP BY 1
       ORDER BY 1 ASC`,
@@ -317,7 +317,7 @@ async function queryHeatmap(filters) {
     `SELECT EXTRACT(DOW FROM ir.created_at AT TIME ZONE '${TZ}')::int AS dow,
             EXTRACT(HOUR FROM ir.created_at AT TIME ZONE '${TZ}')::int AS hour,
             COUNT(*)::int AS count
-       FROM incident_reports ir
+       FROM incident_bodies ir
       WHERE ${where}
       GROUP BY 1, 2
       ORDER BY 1, 2`,
@@ -333,18 +333,18 @@ async function queryByDepartment(filters) {
             COUNT(DISTINCT x.report_id)::int AS count
        FROM (
          SELECT ir.report_id, LOWER(BTRIM(d.department_code)) AS key
-           FROM incident_reports ir
+           FROM incident_bodies ir
            JOIN dispatches d ON d.report_id = ir.report_id
           WHERE ${where}
          UNION
          SELECT ir.report_id, LOWER(BTRIM(dept.code)) AS key
-           FROM incident_reports ir
+           FROM incident_bodies ir
            JOIN incident_escalations ie ON ie.report_id = ir.report_id
            JOIN departments dept ON dept.department_id IN (ie.to_department_id, ie.from_department_id)
           WHERE ${where}
          UNION
          SELECT ir.report_id, 'volunteers'::text AS key
-           FROM incident_reports ir
+           FROM incident_bodies ir
           WHERE ${where}
             AND ir.accepted_by_user_id IS NOT NULL
        ) x
@@ -383,7 +383,7 @@ async function querySeverityClocks(filters) {
                 EXTRACT(EPOCH FROM (${firstDispatch} - ir.created_at)) AS dispatch_s,
                 EXTRACT(EPOCH FROM (${arrival} - ir.created_at)) AS arrival_s,
                 EXTRACT(EPOCH FROM (COALESCE(ir.resolved_at, ir.closed_at) - ir.created_at)) AS resolve_s
-           FROM incident_reports ir
+           FROM incident_bodies ir
           WHERE ${where}
        ) x
       GROUP BY 1
@@ -418,7 +418,7 @@ async function queryEscalationsSafe(filters) {
     const res = await pool.query(
       `SELECT COUNT(*)::int AS total, COUNT(*)::int AS inbound, 0::int AS outbound
          FROM incident_escalations ie
-         JOIN incident_reports ir ON ir.report_id = ie.report_id
+         JOIN incident_bodies ir ON ir.report_id = ie.report_id
         WHERE ${where}`,
       params
     );
@@ -472,7 +472,7 @@ async function queryConcurrent(filters) {
       ),
       inc AS (
         SELECT ir.created_at, COALESCE(ir.resolved_at, ir.closed_at) AS ended_at
-          FROM incident_reports ir
+          FROM incident_bodies ir
          WHERE ${where}
       )
       SELECT COALESCE(MAX(c.n), 0)::int AS max_concurrent,
@@ -524,7 +524,7 @@ async function queryExceptions(filters) {
              SELECT 1 FROM incident_escalations ie
               WHERE ie.report_id = ir.report_id AND LOWER(ie.status) = 'declined'
            ) AS declined
-           FROM incident_reports ir
+           FROM incident_bodies ir
           WHERE ${where}
        ) x`,
     params
@@ -574,7 +574,7 @@ async function queryEscalationFunnel(filters) {
             AND ie.responded_at >= ie.created_at
         ) AS processing_p50
        FROM incident_escalations ie
-       JOIN incident_reports ir ON ir.report_id = ie.report_id
+       JOIN incident_bodies ir ON ir.report_id = ie.report_id
       WHERE ${where}`,
     params
   );
@@ -597,11 +597,11 @@ async function queryUtilization(filters) {
     `SELECT
         (SELECT COUNT(*)::int
            FROM incident_unit_usage u
-           JOIN incident_reports ir ON ir.report_id = u.report_id
+           JOIN incident_bodies ir ON ir.report_id = u.report_id
           WHERE ${where}${unitDept}) AS units_used,
         (SELECT COUNT(*)::int
            FROM dispatches d
-           JOIN incident_reports ir ON ir.report_id = d.report_id
+           JOIN incident_bodies ir ON ir.report_id = d.report_id
           WHERE ${where}${dispatchDept}) AS dispatch_count`,
     params
   );
@@ -620,7 +620,7 @@ async function queryOutcomes(filters) {
               ELSE 'Other'
             END AS outcome_key,
             COUNT(*)::int AS count
-       FROM incident_reports ir
+       FROM incident_bodies ir
       WHERE ${where}
       GROUP BY 1
       ORDER BY count DESC`,
@@ -637,7 +637,7 @@ async function queryDepartmentClocks(filters) {
                LOWER(BTRIM(d.department_code)) AS code,
                MIN(d.dispatched_at) AS dispatched_at,
                MIN(d.actual_arrival_at) AS actual_arrival_at
-          FROM incident_reports ir
+          FROM incident_bodies ir
           JOIN dispatches d ON d.report_id = ir.report_id
          WHERE ${where}
            AND d.department_code IS NOT NULL
@@ -652,7 +652,7 @@ async function queryDepartmentClocks(filters) {
       esc_only AS (
         SELECT ir.report_id, ir.created_at, LOWER(BTRIM(dept.code)) AS code,
                NULL::timestamptz AS dispatched_at, NULL::timestamptz AS actual_arrival_at
-          FROM incident_reports ir
+          FROM incident_bodies ir
           JOIN incident_escalations ie ON ie.report_id = ir.report_id
           JOIN departments dept ON dept.department_id IN (ie.to_department_id, ie.from_department_id)
          WHERE ${where}
@@ -667,7 +667,7 @@ async function queryDepartmentClocks(filters) {
                (SELECT MIN(h.updated_at) FROM responder_status_history h
                  WHERE h.report_id = ir.report_id
                    AND LOWER(COALESCE(h.new_status, '')) = 'on scene') AS actual_arrival_at
-          FROM incident_reports ir
+          FROM incident_bodies ir
          WHERE ${where}
            AND ir.accepted_by_user_id IS NOT NULL
       ),
@@ -958,14 +958,14 @@ async function listIncidents(filters, { limit = 20, offset = 0, search = '', sor
   const sortCol = SORT_COLUMNS[sort] || SORT_COLUMNS.created_at;
   const dir = String(direction).toLowerCase() === 'asc' ? 'ASC' : 'DESC';
   const countRes = await pool.query(
-    `SELECT COUNT(*)::int AS total FROM incident_reports ir WHERE ${where}${extra}`,
+    `SELECT COUNT(*)::int AS total FROM incident_bodies ir WHERE ${where}${extra}`,
     params
   );
   const listParams = [...params, limit, offset];
   const listRes = await pool.query(
     `SELECT ir.report_id, ir.incident_type, ir.severity_level, ir.status, ir.barangay,
             ir.created_at, ir.resolved_at, ir.closed_at, ir.is_duplicate, ir.is_archived
-       FROM incident_reports ir
+       FROM incident_bodies ir
       WHERE ${where}${extra}
       ORDER BY ${sortCol} ${dir} NULLS LAST
       LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
@@ -980,7 +980,7 @@ async function listExportIncidents(filters) {
     `SELECT ir.report_id, ir.incident_type, ir.severity_level, ir.status, ir.barangay,
             ir.created_at, ir.resolved_at, ir.closed_at, ir.is_duplicate, ir.is_archived,
             (SELECT STRING_AGG(DISTINCT d.department_code, '|') FROM dispatches d WHERE d.report_id = ir.report_id) AS department_codes
-       FROM incident_reports ir
+       FROM incident_bodies ir
       WHERE ${where}
       ORDER BY ir.created_at DESC
       LIMIT ${EXPORT_ROW_CAP}`,

@@ -7,6 +7,7 @@ const { Pool } = require('pg');
 const { getPgPoolConfig, formatDatabaseTarget } = require('../src/config/pgPool');
 const { encrypt } = require('../src/utils/encryption');
 const { ROLES } = require('../src/config/roles');
+const { insertKeyedIncident, archiveClosedSeedIncident } = require('./lib/incidentSeed');
 const { checkAiHealth, processIncidentWithAudio } = require('../src/services/aiService');
 const { runDuplicateAnalysis } = require('../src/services/duplicateBackgroundAnalyzer');
 
@@ -234,7 +235,9 @@ async function seedIncidents() {
       await client.query('DELETE FROM blockchain_records');
       await client.query('DELETE FROM ai_classifications');
       await client.query('DELETE FROM notifications WHERE report_id IS NOT NULL');
+      await client.query('DELETE FROM archived_incident_reports');
       await client.query('DELETE FROM incident_reports');
+      await client.query('DELETE FROM incident_keys');
     }
 
     const incidentColumnMeta = {
@@ -286,30 +289,12 @@ async function seedIncidents() {
           const status = statusCycle[dupIdx % statusCycle.length];
           const baseDescription = `Audio-reported ${incidentType} incident near ${barangay}. Location: ${DUPLICATE_CLUSTER_BASE.label}. Source file: ${duplicateAudio.originalName} (duplicate #${dupIdx + 1})`;
 
-          const insertRes = await client.query(
-            `INSERT INTO incident_reports(
-               user_id,
-               incident_type,
-               severity_level,
-               primary_classification,
-               primary_confidence,
-               secondary_classification,
-               secondary_confidence,
-               description,
-               latitude,
-               longitude,
-               barangay,
-               status,
-               transcription,
-               verified,
-               ai_pending,
-               ai_attempted,
-               scan_status,
-               quarantined,
-               created_at
-             )
-             VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,FALSE,TRUE,'clean',FALSE,$15)
-             RETURNING report_id`,
+          const reportId = await insertKeyedIncident(
+            client,
+            `user_id, incident_type, severity_level, primary_classification, primary_confidence,
+             secondary_classification, secondary_confidence, description, latitude, longitude, barangay,
+             status, transcription, verified, ai_pending, ai_attempted, scan_status, quarantined, created_at`,
+            `$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,FALSE,TRUE,'clean',FALSE,$16`,
             [
               userId,
               incidentType,
@@ -328,7 +313,6 @@ async function seedIncidents() {
               createdAt,
             ]
           );
-          const reportId = insertRes.rows[0].report_id;
           duplicateReportIds.push(reportId);
 
           const targetFilename = `incident_${reportId}_audio${duplicateAudio.ext}`;
@@ -354,6 +338,8 @@ async function seedIncidents() {
               Boolean(duplicateAiResult?.lowConfidenceFlag),
             ]
           );
+
+          await archiveClosedSeedIncident(client, reportId, status);
 
           createdCount++;
           aiCount++;
@@ -406,30 +392,12 @@ async function seedIncidents() {
       }
       const baseDescription = `Audio-reported ${incidentType} incident near ${barangay}. Location: ${locationFixture?.label || barangay}. Source file: ${audio.originalName}`;
 
-      const insertRes = await client.query(
-        `INSERT INTO incident_reports(
-           user_id,
-           incident_type,
-           severity_level,
-           primary_classification,
-           primary_confidence,
-           secondary_classification,
-           secondary_confidence,
-           description,
-           latitude,
-           longitude,
-           barangay,
-           status,
-           transcription,
-           verified,
-           ai_pending,
-           ai_attempted,
-           scan_status,
-           quarantined,
-           created_at
-         )
-         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,FALSE,TRUE,'clean',FALSE,$15)
-         RETURNING report_id`,
+      const reportId = await insertKeyedIncident(
+        client,
+        `user_id, incident_type, severity_level, primary_classification, primary_confidence,
+         secondary_classification, secondary_confidence, description, latitude, longitude, barangay,
+         status, transcription, verified, ai_pending, ai_attempted, scan_status, quarantined, created_at`,
+        `$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,FALSE,TRUE,'clean',FALSE,$16`,
         [
           userId,
           incidentType,
@@ -448,7 +416,6 @@ async function seedIncidents() {
           createdAt,
         ]
       );
-      const reportId = insertRes.rows[0].report_id;
 
       const targetFilename = `incident_${reportId}_audio${audio.ext}`;
       const targetAbsolutePath = path.join(uploadsDir, targetFilename);
@@ -473,6 +440,8 @@ async function seedIncidents() {
           Boolean(aiResult?.lowConfidenceFlag),
         ]
       );
+
+      await archiveClosedSeedIncident(client, reportId, status);
 
       createdCount++;
       aiCount++;

@@ -1,6 +1,7 @@
 const pool = require('../config/db');
 const { decrypt } = require('../utils/encryption');
 const { normalizePhoneDigits } = require('../utils/validation');
+const { resolveRole, ROLES } = require('../config/roles');
 
 function looksEncryptedValue(value) {
   return typeof value === 'string'
@@ -113,11 +114,12 @@ const User = {
   },
 
   async create({ email = null, phone_number = null, address = null, password = null, phone_verified = false, first_name = null, last_name = null, role = 'user', department_id = null }) {
+    const { code, roleId } = resolveRole(role || ROLES.USER);
     const res = await pool.query(
-      `INSERT INTO users(email, phone_number, address, password, phone_verified, first_name, last_name, role, department_id)
-       VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9)
-       RETURNING user_id, email, phone_number, address, phone_verified, first_name, last_name, role, department_id, created_at`,
-      [email, phone_number, address, password, phone_verified, first_name, last_name, role, department_id]
+      `INSERT INTO users(email, phone_number, address, password, phone_verified, first_name, last_name, role, role_id, department_id)
+       VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       RETURNING user_id, email, phone_number, address, phone_verified, first_name, last_name, role, role_id, department_id, created_at`,
+      [email, phone_number, address, password, phone_verified, first_name, last_name, code, roleId, department_id]
     );
     return decodeUserFields(res.rows[0]);
   },
@@ -223,9 +225,10 @@ const User = {
    * @returns {object} Updated user
    */
   async updateRole(user_id, role) {
+    const { code, roleId } = resolveRole(role);
     const res = await pool.query(
-      'UPDATE users SET role = $1 WHERE user_id = $2 RETURNING user_id, email, phone_number, address, phone_verified, first_name, last_name, role, department_id, is_active, created_at',
-      [role, user_id]
+      'UPDATE users SET role = $1, role_id = $2 WHERE user_id = $3 RETURNING user_id, email, phone_number, address, phone_verified, first_name, last_name, role, role_id, department_id, is_active, created_at',
+      [code, roleId, user_id]
     );
     return decodeUserFields(res.rows[0]);
   },
@@ -238,9 +241,10 @@ const User = {
    * @returns {object} Updated user
    */
   async updateRoleAndDepartment(user_id, role, department_id) {
+    const { code, roleId } = resolveRole(role);
     const res = await pool.query(
-      'UPDATE users SET role = $1, department_id = $2 WHERE user_id = $3 RETURNING user_id, email, phone_number, address, phone_verified, first_name, last_name, role, department_id, is_active, created_at',
-      [role, department_id, user_id]
+      'UPDATE users SET role = $1, role_id = $2, department_id = $3 WHERE user_id = $4 RETURNING user_id, email, phone_number, address, phone_verified, first_name, last_name, role, role_id, department_id, is_active, created_at',
+      [code, roleId, department_id, user_id]
     );
     return decodeUserFields(res.rows[0]);
   },
@@ -255,9 +259,10 @@ const User = {
    * @returns {object} Updated user
    */
   async updateRoleDepartmentAndName(user_id, role, department_id, first_name, last_name) {
+    const { code, roleId } = resolveRole(role);
     const res = await pool.query(
-      'UPDATE users SET role = $1, department_id = $2, first_name = $3, last_name = $4 WHERE user_id = $5 RETURNING user_id, email, phone_number, address, phone_verified, first_name, last_name, role, department_id, is_active, created_at',
-      [role, department_id, first_name, last_name, user_id]
+      'UPDATE users SET role = $1, role_id = $2, department_id = $3, first_name = $4, last_name = $5 WHERE user_id = $6 RETURNING user_id, email, phone_number, address, phone_verified, first_name, last_name, role, role_id, department_id, is_active, created_at',
+      [code, roleId, department_id, first_name, last_name, user_id]
     );
     return decodeUserFields(res.rows[0]);
   },

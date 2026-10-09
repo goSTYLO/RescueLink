@@ -100,26 +100,31 @@ describe('incident lifecycle model transitions', () => {
   });
 
   it('auto-closes on reporter confirmation from resolved', async () => {
+    const closed = {
+      report_id: 103,
+      status: 'closed',
+      reporter_confirmed_at: '2026-03-11T10:30:00.000Z',
+      reporter_confirmed_by_user_id: 19,
+      closed_at: '2026-03-11T10:30:00.000Z',
+      closure_method: 'auto_from_reporter_confirmation',
+      is_archived: true,
+    };
     pool.query
       .mockResolvedValueOnce({
         rows: [{ report_id: 103, user_id: 19, status: 'resolved', reporter_confirmed_at: null }],
       })
-      .mockResolvedValueOnce({
-        rows: [{
-          report_id: 103,
-          status: 'closed',
-          reporter_confirmed_at: '2026-03-11T10:30:00.000Z',
-          reporter_confirmed_by_user_id: 19,
-          closed_at: '2026-03-11T10:30:00.000Z',
-          closure_method: 'auto_from_reporter_confirmation',
-        }],
-      });
+      .mockResolvedValueOnce({ rows: [closed] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [closed] })
+      .mockResolvedValueOnce({ rows: [closed] });
 
     const updated = await Incident.confirmResolution(103, 19);
 
     expect(updated.status).toBe('closed');
     expect(updated.closure_method).toBe('auto_from_reporter_confirmation');
-    expect(pool.query).toHaveBeenCalledTimes(2);
+    expect(updated.is_archived).toBe(true);
+    expect(pool.query.mock.calls.some(([sql]) => String(sql).includes('INSERT INTO archived_incident_reports'))).toBe(true);
+    expect(pool.query.mock.calls.filter(([sql]) => String(sql).includes('INSERT INTO archived_incident_reports'))).toHaveLength(1);
   });
 
   it('returns existing incident when confirmation already happened and status is closed', async () => {
@@ -179,18 +184,21 @@ describe('incident lifecycle model transitions', () => {
   });
 
   it('keeps resolve-time closure_method when reporter confirms', async () => {
+    const closed = {
+      report_id: 110,
+      status: 'closed',
+      reporter_confirmed_at: '2026-03-11T10:30:00.000Z',
+      closure_method: 'Successful Response',
+      is_archived: true,
+    };
     pool.query
       .mockResolvedValueOnce({
         rows: [{ report_id: 110, user_id: 19, status: 'resolved', reporter_confirmed_at: null }],
       })
-      .mockResolvedValueOnce({
-        rows: [{
-          report_id: 110,
-          status: 'closed',
-          reporter_confirmed_at: '2026-03-11T10:30:00.000Z',
-          closure_method: 'Successful Response',
-        }],
-      });
+      .mockResolvedValueOnce({ rows: [closed] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [closed] })
+      .mockResolvedValueOnce({ rows: [closed] });
 
     const updated = await Incident.confirmResolution(110, 19);
 

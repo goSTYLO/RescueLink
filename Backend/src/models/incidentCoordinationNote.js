@@ -5,7 +5,7 @@ const IncidentCoordinationNote = {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS incident_coordination_notes (
         id SERIAL PRIMARY KEY,
-        report_id INTEGER NOT NULL REFERENCES incident_reports(report_id) ON DELETE CASCADE,
+        report_id INTEGER NOT NULL REFERENCES incident_keys(report_id) ON DELETE CASCADE,
         user_id INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
         author_name VARCHAR(150) NOT NULL,
         author_role VARCHAR(80) NOT NULL,

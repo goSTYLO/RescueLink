@@ -115,7 +115,7 @@ const Notification = {
   // Helper to check if report exists
   async reportExists(report_id) {
     const res = await pool.query(
-      'SELECT 1 FROM incident_reports WHERE report_id = $1',
+      'SELECT 1 FROM incident_keys WHERE report_id = $1',
       [report_id]
     );
     return res.rows.length > 0;

@@ -14,6 +14,39 @@ const ROLES = {
   DEPARTMENT_HEAD: 'department-head'  // Department head: sees only assigned incidents for their department
 };
 
+/** Stable integer IDs stored on users.role_id (roles lookup table). */
+const ROLE_IDS = {
+  [ROLES.ADMIN]: 1,
+  [ROLES.DISPATCHER]: 2,
+  [ROLES.SUPERVISOR]: 3,
+  [ROLES.DEPARTMENT_ADMIN]: 4,
+  [ROLES.DEPARTMENT_HEAD]: 5,
+  [ROLES.RESPONDER]: 6,
+  [ROLES.VOLUNTEER]: 7,
+  [ROLES.USER]: 8,
+};
+
+const ROLE_ALIASES = {
+  'super-admin': ROLES.ADMIN,
+  superadmin: ROLES.ADMIN,
+  'super admin': ROLES.ADMIN,
+  'department admin': ROLES.DEPARTMENT_ADMIN,
+  'dept admin': ROLES.DEPARTMENT_ADMIN,
+  'department head': ROLES.DEPARTMENT_HEAD,
+};
+
+function resolveRole(role) {
+  const incoming = String(role || '').trim().toLowerCase();
+  const code = ROLE_ALIASES[incoming] || incoming || ROLES.USER;
+  const roleId = ROLE_IDS[code];
+  if (!roleId) {
+    const err = new Error(`Unknown role: ${role}`);
+    err.code = 'UNKNOWN_ROLE';
+    throw err;
+  }
+  return { code, roleId };
+}
+
 /**
  * Permissions matrix: Maps roles to allowed actions per resource
  * Structure: PERMISSIONS[role][resource] = [actions]
@@ -151,8 +184,11 @@ function requiresOwnership(role, resource, action) {
 
 module.exports = {
   ROLES,
+  ROLE_IDS,
+  ROLE_ALIASES,
   PERMISSIONS,
   RESOURCES,
   hasPermission,
-  requiresOwnership
+  requiresOwnership,
+  resolveRole
 };

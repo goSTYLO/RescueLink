@@ -95,7 +95,7 @@ describe('getRecipientUserIds reporter fallback', () => {
 
     expect(ids).toContain(71);
     const reporterSql = pool.query.mock.calls[1][0];
-    expect(reporterSql).toMatch(/FROM incident_reports/);
+    expect(reporterSql).toMatch(/FROM incident_bodies/);
     expect(reporterSql).not.toMatch(/FROM incidents\b/);
   });
 

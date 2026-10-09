@@ -48,7 +48,7 @@ describe('WebSocket responder:backup_alert delivery', () => {
         }
         return { rows: [{ supported_incident_types: ['medical'] }] };
       }
-      if (typeof sql === 'string' && sql.includes('accepted_by_user_id FROM incident_reports')) {
+      if (typeof sql === 'string' && sql.includes('accepted_by_user_id FROM incident_bodies')) {
         return { rows: [{ user_id: 1, accepted_by_user_id: 9 }] };
       }
       if (typeof sql === 'string' && sql.includes('FROM backup_responses')) {

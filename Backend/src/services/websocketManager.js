@@ -212,7 +212,7 @@ function init(server) {
     if ((reporterId == null || acceptorUserId == null) && reportId) {
       try {
         const repRes = await pool.query(
-          'SELECT user_id, accepted_by_user_id FROM incident_reports WHERE report_id = $1',
+          'SELECT user_id, accepted_by_user_id FROM incident_bodies WHERE report_id = $1',
           [reportId]
         );
         if (reporterId == null) reporterId = repRes.rows[0]?.user_id ?? null;

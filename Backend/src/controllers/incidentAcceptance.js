@@ -122,7 +122,7 @@ async function ensurePhase3Schema() {
       ALTER TABLE notifications ADD COLUMN IF NOT EXISTS category VARCHAR(50) DEFAULT 'incident';
       CREATE TABLE IF NOT EXISTS responder_status_history (
         id SERIAL PRIMARY KEY,
-        report_id INTEGER NOT NULL REFERENCES incident_reports(report_id) ON DELETE CASCADE,
+        report_id INTEGER NOT NULL REFERENCES incident_keys(report_id) ON DELETE CASCADE,
         updated_by_user_id INTEGER NOT NULL REFERENCES users(user_id),
         old_status VARCHAR(50),
         new_status VARCHAR(50) NOT NULL,
@@ -130,7 +130,7 @@ async function ensurePhase3Schema() {
       );
       CREATE TABLE IF NOT EXISTS backup_requests (
         id SERIAL PRIMARY KEY,
-        report_id INTEGER NOT NULL REFERENCES incident_reports(report_id) ON DELETE CASCADE,
+        report_id INTEGER NOT NULL REFERENCES incident_keys(report_id) ON DELETE CASCADE,
         requested_by_user_id INTEGER NOT NULL REFERENCES users(user_id),
         target VARCHAR(50) NOT NULL CHECK (target IN ('nearby_responders', 'cdrrmo', 'both')),
         notes TEXT,
@@ -148,7 +148,7 @@ async function ensurePhase3Schema() {
       CREATE TABLE IF NOT EXISTS backup_responses (
         id SERIAL PRIMARY KEY,
         backup_request_id INTEGER NOT NULL REFERENCES backup_requests(id) ON DELETE CASCADE,
-        report_id INTEGER NOT NULL REFERENCES incident_reports(report_id) ON DELETE CASCADE,
+        report_id INTEGER NOT NULL REFERENCES incident_keys(report_id) ON DELETE CASCADE,
         user_id INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
         status VARCHAR(20) NOT NULL DEFAULT 'joined'
           CHECK (status IN ('joined', 'declined', 'withdrawn')),
@@ -1399,7 +1399,7 @@ async function getResponderHistory(req, res) {
                  FROM responder_status_history h
                 WHERE h.report_id = ir.report_id
                   AND h.updated_by_user_id = $1) AS status_history
-         FROM incident_reports ir
+         FROM incident_bodies ir
         WHERE ir.accepted_by_user_id = $1
           AND ir.responder_status = 'Resolved'
         ORDER BY ir.accepted_at DESC

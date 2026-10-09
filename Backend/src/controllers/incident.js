@@ -728,6 +728,7 @@ const incidentController = {
           status: validatedStatus,
           incident_type: validatedIncidentType,
           barangay: validatedBarangay,
+          is_archived: null,
         });
       } else {
         incidents = await Incident.findAll({
@@ -1614,18 +1615,20 @@ const incidentController = {
       emitIncidentEvent(req, 'incident:status_updated', updatedIncident);
 
       // Auto-archive when an incident transitions to 'closed'
+      let responseIncident = updatedIncident;
       if (nextStatus === 'closed') {
         const archived = await Incident.archive(validatedId, {
           archived_by_user_id: req.user?.user_id || null,
         });
         if (archived) {
+          responseIncident = archived;
           emitIncidentEvent(req, 'incident:archived', archived);
         }
       }
 
       res.json({
         success: true,
-        incident: updatedIncident,
+        incident: responseIncident,
       });
     } catch (error) {
       console.error('Error updating incident status:', error);

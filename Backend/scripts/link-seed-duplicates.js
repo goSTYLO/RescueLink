@@ -21,7 +21,7 @@ async function main() {
   try {
     const res = await client.query(
       `SELECT report_id, latitude, longitude, created_at, is_duplicate, parent_report_id
-       FROM incident_reports
+       FROM incident_bodies
        WHERE (is_duplicate IS NULL OR is_duplicate = FALSE)
          AND parent_report_id IS NULL
        ORDER BY created_at ASC
@@ -53,7 +53,7 @@ async function main() {
     let linked = 0;
     for (let i = 1; i < sorted.length; i++) {
       const childId = sorted[i].report_id;
-      const existing = await client.query('SELECT parent_report_id FROM incident_reports WHERE report_id = $1', [childId]);
+      const existing = await client.query('SELECT parent_report_id FROM incident_bodies WHERE report_id = $1', [childId]);
       if (existing.rows[0]?.parent_report_id != null) continue;
       await linkAsDuplicate(childId, primaryId, 0.95, 'manual');
       linked++;

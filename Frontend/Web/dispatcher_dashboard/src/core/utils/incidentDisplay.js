@@ -243,6 +243,7 @@ export function mapApiIncidentToDisplay(api) {
     timeReportedTs,
     verified: api?.verified ?? false,
     reporterConfirmedAt: api?.reporter_confirmed_at || null,
+    isArchived: api?.is_archived === true || api?.isArchived === true,
     isDuplicate: Boolean(api?.is_duplicate),
     flaggedForReview: Boolean(api?.flagged_for_review),
     hasPendingEscalation: Boolean(api?.has_pending_escalation),
