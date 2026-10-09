@@ -294,6 +294,23 @@ describe('incident lifecycle model transitions', () => {
     expect(pool.query.mock.calls[3][1][3]).toBe(120.34);
   });
 
+  it('writes incident_types when classification is updated', async () => {
+    pool.query.mockResolvedValueOnce({
+      rows: [{ report_id: 88, incident_type: 'police', incident_types: ['police'], severity_level: 'high' }],
+    });
+
+    const updated = await Incident.updateClassification(88, {
+      incident_type: 'police',
+      severity_level: 'high',
+    });
+
+    expect(updated.incident_type).toBe('police');
+    const [sql, params] = pool.query.mock.calls[0];
+    expect(String(sql)).toMatch(/incident_types\s*=\s*\$4/);
+    expect(String(sql)).toMatch(/secondary_classification\s*=\s*NULL/);
+    expect(params).toEqual(['police', 'high', 88, ['police']]);
+  });
+
   it('rejects a detail edit when a dispatch is already on scene', async () => {
     pool.query
       .mockResolvedValueOnce({

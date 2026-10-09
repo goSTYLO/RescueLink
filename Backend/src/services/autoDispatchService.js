@@ -212,6 +212,7 @@ async function applyDepartmentNotify({
   departmentName,
   assignedByUserId = null,
   reason,
+  eventExtras = {},
 }) {
   const assignmentGroupId = newAssignmentGroupId();
   await Dispatch.createDepartmentOnly({
@@ -246,8 +247,9 @@ async function applyDepartmentNotify({
   });
 
   const updated = await Incident.findById(incident.report_id);
-  emitSafe(req, 'incident:dispatched', updated);
-  emitSafe(req, 'incident:status_updated', updated);
+  const payload = { ...updated, ...eventExtras };
+  emitSafe(req, 'incident:dispatched', payload);
+  emitSafe(req, 'incident:status_updated', payload);
   return { outcome: 'dept_notified', assignment_group_id: assignmentGroupId, incident: updated };
 }
 
@@ -355,33 +357,103 @@ async function maybeAutoDispatch(incident, options = {}) {
   });
 }
 
-async function refreshSuggestionAfterReclassify(incident) {
-  const status = String(incident?.auto_assignment_status || '').toLowerCase();
-  if (status === AUTO_STATUS.AUTO_APPLIED || status === AUTO_STATUS.CONFIRMED || status === AUTO_STATUS.OVERRIDDEN) {
-    const mapped = isSosType(incident.incident_type)
-      ? SOS_DEPARTMENT_CODE
-      : await mapTypeToDepartment(incident.incident_type);
-    const currentTeamDept = await Dispatch.getPrimaryTeamDepartment(incident.report_id);
-    const mismatch = Boolean(mapped && currentTeamDept && mapped !== currentTeamDept);
-    await persistAssignmentState(incident.report_id, {
-      auto_assignment_mismatch: mismatch,
-      auto_assignment_reason: mismatch ? 'reclassify_type_mismatch' : incident.auto_assignment_reason,
-    });
-    return { outcome: 'mismatch_flagged', mismatch };
+function isEscalationDispatch(row) {
+  return String(row?.responder_source || '').toLowerCase() === 'escalation';
+}
+
+async function getAssignedPrimaryDepartment(reportId) {
+  const teamDept = await Dispatch.getPrimaryTeamDepartment(reportId);
+  if (teamDept) return teamDept;
+  const rows = await Dispatch.findAll({ report_id: reportId, limit: 50, offset: 0 });
+  const row = (rows || []).find((item) => item?.department_code && !isEscalationDispatch(item));
+  return row?.department_code ? normalizeDeptCode(row.department_code) : null;
+}
+
+async function releasePrimaryDepartment(reportId, departmentCode) {
+  if (!departmentCode) return;
+  await Dispatch.releaseTeamAssignment(reportId, departmentCode);
+  const remaining = await Dispatch.findAll({
+    report_id: reportId,
+    department_code: departmentCode,
+    limit: 200,
+    offset: 0,
+  });
+  for (const row of remaining || []) {
+    if (isEscalationDispatch(row) || !row?.dispatch_id) continue;
+    await Dispatch.delete(row.dispatch_id);
+  }
+}
+
+async function departmentIdForCode(code) {
+  if (!code) return null;
+  const dept = await Department.findByCode(code);
+  const id = Number(dept?.department_id);
+  return Number.isFinite(id) && id > 0 ? id : null;
+}
+
+async function refreshSuggestionAfterReclassify(incident, options = {}) {
+  if (!incident?.report_id) return { outcome: 'skipped', reason: 'missing_incident' };
+  if (isTerminalStatus(incident.status) || incident.archived_at) {
+    return { outcome: 'skipped', reason: 'terminal' };
   }
 
-  if (status === AUTO_STATUS.DEPT_NOTIFIED) {
-    const mapped = await mapTypeToDepartment(incident.incident_type);
-    const mismatch = Boolean(mapped && incident.suggested_department_code
-      && mapped !== normalizeDeptCode(incident.suggested_department_code));
+  const mapped = isSosType(incident.incident_type)
+    ? SOS_DEPARTMENT_CODE
+    : await mapTypeToDepartment(incident.incident_type);
+  const currentDept = await getAssignedPrimaryDepartment(incident.report_id);
+
+  if (mapped && currentDept === mapped) {
     await persistAssignmentState(incident.report_id, {
-      auto_assignment_mismatch: mismatch,
-      auto_assignment_reason: mismatch ? 'reclassify_dept_mismatch' : incident.auto_assignment_reason,
+      auto_assignment_mismatch: false,
+      suggested_department_code: mapped,
     });
-    return { outcome: 'mismatch_flagged', mismatch };
+    return { outcome: 'unchanged', department_code: mapped };
   }
 
-  return maybeAutoDispatch(incident, { source: 'reclassify' });
+  const fromDepartmentId = currentDept && mapped && currentDept !== mapped
+    ? await departmentIdForCode(currentDept)
+    : null;
+
+  // Don't drop the current assignment unless a destination department exists.
+  if (currentDept && mapped && currentDept !== mapped) {
+    await releasePrimaryDepartment(incident.report_id, currentDept);
+  }
+
+  if (!mapped) {
+    await persistAssignmentState(incident.report_id, {
+      auto_assignment_mismatch: Boolean(currentDept),
+      auto_assignment_reason: 'unmapped_type',
+    });
+    return { outcome: 'unmapped' };
+  }
+
+  const existingMapped = await Dispatch.findAll({
+    report_id: incident.report_id,
+    department_code: mapped,
+    limit: 20,
+    offset: 0,
+  });
+  const hasMappedPrimary = (existingMapped || []).some((row) => !isEscalationDispatch(row));
+  if (hasMappedPrimary) {
+    await persistAssignmentState(incident.report_id, {
+      suggested_department_code: mapped,
+      auto_assignment_reason: 'reclassify_transfer',
+      auto_assignment_mismatch: false,
+    });
+    return { outcome: 'already_at_mapped', department_code: mapped, from_department_id: fromDepartmentId };
+  }
+
+  const departmentName = await departmentNameForCode(mapped);
+  const result = await applyDepartmentNotify({
+    req: options.req,
+    incident,
+    departmentCode: mapped,
+    departmentName,
+    assignedByUserId: options.assignedByUserId || null,
+    reason: 'reclassify_transfer',
+    eventExtras: { from_department_id: fromDepartmentId },
+  });
+  return { ...result, from_department_id: fromDepartmentId };
 }
 
 async function cancelSuggestion(reportId, reason = 'duplicate_linked') {

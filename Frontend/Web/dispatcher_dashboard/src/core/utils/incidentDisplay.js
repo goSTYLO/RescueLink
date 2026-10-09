@@ -18,8 +18,12 @@ export function formatIncidentTypeLabel(value) {
 }
 
 export function incidentTypesFromApi(api) {
+  const primary = String(api?.incident_type || '').trim();
   if (Array.isArray(api?.incident_types) && api.incident_types.length > 0) {
-    return api.incident_types.filter(Boolean);
+    const types = api.incident_types.filter(Boolean);
+    const first = String(types[0] || '').trim().toLowerCase();
+    if (!primary || first === primary.toLowerCase()) return types;
+    return [primary];
   }
   return [api?.incident_type, api?.secondary_classification].filter(Boolean);
 }

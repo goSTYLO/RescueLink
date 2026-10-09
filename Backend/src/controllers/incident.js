@@ -1852,13 +1852,21 @@ const incidentController = {
         was_low_confidence: Boolean(previousClassification?.low_confidence_flag),
       });
 
-      emitIncidentEvent(req, 'incident:reclassified', { ...updatedIncident, report_id: validatedId });
+      let transfer = null;
       try {
-        await refreshSuggestionAfterReclassify({ ...updatedIncident, report_id: validatedId });
+        transfer = await refreshSuggestionAfterReclassify(
+          { ...updatedIncident, report_id: validatedId },
+          { req, assignedByUserId: req.user?.user_id || null },
+        );
       } catch (autoErr) {
         console.error('[autoDispatch] reclassify hook failed:', autoErr.message);
       }
       const refreshed = await Incident.findById(validatedId);
+      emitIncidentEvent(req, 'incident:reclassified', {
+        ...(refreshed || updatedIncident),
+        report_id: validatedId,
+        from_department_id: transfer?.from_department_id ?? null,
+      });
 
       res.json({
         success: true,

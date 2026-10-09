@@ -44,6 +44,7 @@ function buildIncidentEventPayload(incident) {
     accepted_by_user_id: incident.accepted_by_user_id ?? null,
     responder_status: incident.responder_status ?? null,
     assigned_team_name: incident.assigned_team_name || null,
+    from_department_id: incident.from_department_id ?? incident.fromDepartmentId ?? null,
     created_at: incident.created_at ?? null,
     updated_at: incident.updated_at ?? incident.created_at ?? new Date().toISOString(),
   };

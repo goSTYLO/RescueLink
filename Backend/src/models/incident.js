@@ -849,19 +849,23 @@ const Incident = {
   },
 
   async updateClassification(report_id, { incident_type, severity_level }) {
+    const incidentTypes = [incident_type].filter(Boolean);
     try {
       const res = await pool.query(
         `UPDATE incident_reports
          SET incident_type = $1,
              severity_level = $2,
-             primary_classification = $1
+             primary_classification = $1,
+             incident_types = $4,
+             secondary_classification = NULL,
+             secondary_confidence = NULL
          WHERE report_id = $3
          RETURNING *`,
-        [incident_type, severity_level, report_id]
+        [incident_type, severity_level, report_id, incidentTypes]
       );
       return res.rows[0];
     } catch (error) {
-      if (error.code === '42703' || /primary_classification/i.test(error.message)) {
+      if (error.code === '42703' || /primary_classification|incident_types|secondary_classification/i.test(error.message)) {
         const fallback = await pool.query(
           `UPDATE incident_reports
            SET incident_type = $1, severity_level = $2

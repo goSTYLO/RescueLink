@@ -8,6 +8,8 @@ import {
   getAutoAssignmentBadge,
   getSuggestedTeamName,
   mapApiIncidentToDisplay,
+  incidentTypesFromApi,
+  formatIncidentTypesLabel,
 } from '@/core/utils/incidentDisplay';
 import { ROLES } from '@/core/constants';
 
@@ -149,6 +151,26 @@ describe('getBackupDialogCapabilities', () => {
     expect(caps.canAcknowledge).toBe(false);
     expect(caps.canNotifyDepartment).toBe(false);
     expect(caps.canAssignTeam).toBe(false);
+  });
+});
+
+describe('incidentTypesFromApi', () => {
+  it('keeps multi-type labels when they match the primary type', () => {
+    expect(incidentTypesFromApi({
+      incident_type: 'medical',
+      incident_types: ['medical', 'fire'],
+    })).toEqual(['medical', 'fire']);
+  });
+
+  it('uses the overridden primary type when the stored array is stale', () => {
+    expect(incidentTypesFromApi({
+      incident_type: 'police',
+      incident_types: ['fire', 'medical'],
+    })).toEqual(['police']);
+    expect(formatIncidentTypesLabel({
+      incident_type: 'police',
+      incident_types: ['fire', 'medical'],
+    })).toBe('Police');
   });
 });
 

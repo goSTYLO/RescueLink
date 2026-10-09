@@ -8,6 +8,8 @@ jest.mock('../src/models/dispatch', () => ({
   createDepartmentOnly: jest.fn(),
   findAll: jest.fn(),
   getPrimaryTeamDepartment: jest.fn(),
+  releaseTeamAssignment: jest.fn(),
+  delete: jest.fn(),
 }));
 
 jest.mock('../src/models/responder', () => ({
@@ -38,6 +40,7 @@ const Department = require('../src/models/department');
 const {
   maybeAutoDispatch,
   mapTypeToDepartment,
+  refreshSuggestionAfterReclassify,
   SOS_DEPARTMENT_CODE,
 } = require('../src/services/autoDispatchService');
 
@@ -51,6 +54,9 @@ describe('autoDispatchService', () => {
       assignment_summary: { assigned_count: 1 },
     });
     Dispatch.createDepartmentOnly.mockResolvedValue({ dispatch_id: 9 });
+    Dispatch.releaseTeamAssignment.mockResolvedValue([]);
+    Dispatch.delete.mockResolvedValue({});
+    Dispatch.getPrimaryTeamDepartment.mockResolvedValue(null);
     Incident.updateAutoAssignment.mockResolvedValue({});
     Incident.transitionStatus.mockResolvedValue({});
     Incident.findById.mockImplementation(async (id) => ({ report_id: id, status: 'in_progress' }));
@@ -169,6 +175,99 @@ describe('autoDispatchService', () => {
 
     expect(result.outcome).toBe('dept_notified');
     expect(Dispatch.createDepartmentOnly).toHaveBeenCalled();
+  });
+
+  it('transfers a reclassified police incident from CDRRMO to PNP', async () => {
+    Dispatch.getPrimaryTeamDepartment.mockResolvedValue('drrmo');
+    Dispatch.findAll.mockImplementation(async ({ department_code }) => {
+      if (department_code === 'drrmo') {
+        return [{ dispatch_id: 5, department_code: 'drrmo', team_name: null, responder_source: 'account' }];
+      }
+      return [];
+    });
+    Department.findByCode.mockResolvedValue({ code: 'pnp', name: 'PNP' });
+
+    const result = await refreshSuggestionAfterReclassify({
+      report_id: 30,
+      incident_type: 'police',
+      status: 'in_progress',
+    }, { assignedByUserId: 7 });
+
+    expect(result.outcome).toBe('dept_notified');
+    expect(Dispatch.releaseTeamAssignment).toHaveBeenCalledWith(30, 'drrmo');
+    expect(Dispatch.delete).toHaveBeenCalledWith(5);
+    expect(Dispatch.createDepartmentOnly).toHaveBeenCalledWith(expect.objectContaining({
+      report_id: 30,
+      department_code: 'pnp',
+    }));
+    expect(Incident.updateAutoAssignment).toHaveBeenCalledWith(30, expect.objectContaining({
+      auto_assignment_status: 'dept_notified',
+      auto_assignment_reason: 'reclassify_transfer',
+      suggested_department_code: 'pnp',
+    }));
+  });
+
+  it('does not recreate a dispatch when the incident is already at the mapped department', async () => {
+    Dispatch.getPrimaryTeamDepartment.mockResolvedValue('pnp');
+    const result = await refreshSuggestionAfterReclassify({
+      report_id: 31,
+      incident_type: 'police',
+      status: 'in_progress',
+    });
+    expect(result.outcome).toBe('unchanged');
+    expect(Dispatch.releaseTeamAssignment).not.toHaveBeenCalled();
+    expect(Dispatch.createDepartmentOnly).not.toHaveBeenCalled();
+  });
+
+  it('does not release an assignment when reclassifying to an unmapped type', async () => {
+    Dispatch.getPrimaryTeamDepartment.mockResolvedValue('drrmo');
+    const result = await refreshSuggestionAfterReclassify({
+      report_id: 33,
+      incident_type: 'other',
+      status: 'in_progress',
+    });
+    expect(result.outcome).toBe('unmapped');
+    expect(Dispatch.releaseTeamAssignment).not.toHaveBeenCalled();
+    expect(Dispatch.createDepartmentOnly).not.toHaveBeenCalled();
+    expect(Incident.updateAutoAssignment).toHaveBeenCalledWith(33, expect.objectContaining({
+      auto_assignment_reason: 'unmapped_type',
+    }));
+  });
+
+  it('still notifies PNP when the only existing PNP row is an escalation', async () => {
+    Dispatch.getPrimaryTeamDepartment.mockResolvedValue('drrmo');
+    Dispatch.findAll.mockImplementation(async ({ department_code }) => {
+      if (department_code === 'pnp') {
+        return [{ dispatch_id: 8, department_code: 'pnp', responder_source: 'escalation' }];
+      }
+      return [];
+    });
+    Department.findByCode.mockResolvedValue({ department_id: 1, code: 'pnp', name: 'PNP' });
+
+    const result = await refreshSuggestionAfterReclassify({
+      report_id: 34,
+      incident_type: 'police',
+      status: 'in_progress',
+    });
+
+    expect(result.outcome).toBe('dept_notified');
+    expect(Dispatch.createDepartmentOnly).toHaveBeenCalledWith(expect.objectContaining({
+      department_code: 'pnp',
+    }));
+  });
+
+  it('notifies the mapped department when a reclassified incident has no assignment yet', async () => {
+    Department.findByCode.mockResolvedValue({ code: 'pnp', name: 'PNP' });
+    const result = await refreshSuggestionAfterReclassify({
+      report_id: 32,
+      incident_type: 'police',
+      status: 'pending',
+    });
+    expect(result.outcome).toBe('dept_notified');
+    expect(Dispatch.releaseTeamAssignment).not.toHaveBeenCalled();
+    expect(Dispatch.createDepartmentOnly).toHaveBeenCalledWith(expect.objectContaining({
+      department_code: 'pnp',
+    }));
   });
 
   it('skips when a primary team is already assigned', async () => {
