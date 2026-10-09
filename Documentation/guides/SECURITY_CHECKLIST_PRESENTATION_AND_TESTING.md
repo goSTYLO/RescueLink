@@ -140,19 +140,21 @@ Use this document to **present** and **test** each security item for your profes
 
 ### 1.6 Rate limiting
 
-**What:** Auth endpoints are limited to 10 requests per 15 minutes per IP; general API is limited to 200 per 15 minutes per IP. Prevents brute-force and abuse.
+**What:** Failed auth attempts are limited per IP + account; a separate global auth cap applies per IP. Logout and profile routes are not limited. General API is limited per IP (500 prod / 2000 dev by default).
 
 **Where to show:**
 - **File:** `Backend/src/app.js`  
-  Show `authLimiter` (10/15 min), `apiLimiter` (200/15 min), and `app.use('/api/auth', authLimiter, authRoutes)` and `app.use('/api', apiLimiter)`.
+  Show `authLimiterGlobal`, `authLimiter` (`skipSuccessfulRequests`), `isAuthSessionMaintenance`, and `app.use('/api/auth', ...)`.
 - **Package:** `express-rate-limit` in `Backend/package.json`.
+- **Test:** `Backend/tests/authRateLimit.test.js`
 
 **How to test:**
-1. From the same machine, send 11 login requests within 15 minutes (e.g. `POST /api/auth/login` with wrong password).
-2. **Expected:** After the limit, response is **429** with message like “Too many attempts. Please try again later.”
-3. Response headers should include `RateLimit-*` (e.g. `RateLimit-Remaining`).
+1. From the same machine, send repeated **failed** login requests for one account (e.g. `POST /api/auth/dispatcher/login` with wrong password).
+2. **Expected:** After the per-account limit (10 prod / 30 dev), response is **429** with “Too many attempts. Please try again later.”
+3. **Expected:** Successful logins and `POST /api/auth/logout` do not trip the per-account failed-attempt limit.
+4. Response headers include `RateLimit-*` (e.g. `RateLimit-Remaining`).
 
-**Demo line:** *“We use express-rate-limit: auth routes are limited to 10 attempts per 15 minutes per IP, and the rest of the API to 200 requests per 15 minutes to reduce brute-force and abuse.”*
+**Demo line:** *“We rate-limit failed credential attempts per account and IP, with a global auth ceiling—but logout and profile reads are excluded so normal session use doesn’t look like an attack.”*
 
 ---
 

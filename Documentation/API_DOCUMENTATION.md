@@ -125,13 +125,22 @@ Authorization: Bearer <token>
 
 ## Rate Limiting
 
+### Authentication Rate Limits
+
+Credential-related `POST /api/auth/*` routes use two layers (see `Backend/src/app.js`):
+
+- **Failed attempts** per IP + account (email/phone in body): 30 (dev) / 10 (prod) per 15 minutes. Successful login/OTP does not count.
+- **Global auth POST** per IP: 200 (dev) / 50 (prod) per 15 minutes. Logout, profile (`/me`), avatar, and OneSignal subscription are excluded.
+- Override: `AUTH_RATE_LIMIT_ACCOUNT_MAX`, `AUTH_RATE_LIMIT_GLOBAL_MAX`.
+
 ### General API Rate Limits
 
 Rate limiting is enforced per IP address to prevent abuse and ensure fair resource allocation:
 
 - **Development Environment**: 2000 requests per 15-minute window per IP address
 - **Production Environment**: 500 requests per 15-minute window per IP address
-  Response Format And Error Handling
+
+### Response Format And Error Handling
 
 ### Success Responses
 

@@ -60,24 +60,48 @@ function getAuthAccountKey(req) {
   return null;
 }
 
-// Global auth rate limit per IP: 50 requests per 15 minutes (stops one IP hammering many accounts)
+const AUTH_RATE_WINDOW_MS = 15 * 60 * 1000;
+const authRateLimitGlobalMax = process.env.AUTH_RATE_LIMIT_GLOBAL_MAX
+  ? parseInt(process.env.AUTH_RATE_LIMIT_GLOBAL_MAX, 10)
+  : (process.env.NODE_ENV === 'production' ? 50 : 200);
+const authRateLimitAccountMax = process.env.AUTH_RATE_LIMIT_ACCOUNT_MAX
+  ? parseInt(process.env.AUTH_RATE_LIMIT_ACCOUNT_MAX, 10)
+  : (process.env.NODE_ENV === 'production' ? 10 : 30);
+
+// Session/profile routes: no brute-force limit (logout, /me, avatar, push subscription).
+function isAuthSessionMaintenance(req) {
+  const path = req.path || '';
+  if (req.method === 'POST' && path === '/logout') return true;
+  if (req.method === 'POST' && path === '/onesignal-subscription') return true;
+  if (path === '/me' || path.startsWith('/me/')) return true;
+  return false;
+}
+
+function skipAuthCredentialLimiter(req) {
+  if (isAuthSessionMaintenance(req)) return true;
+  if (req.method === 'GET' || req.method === 'HEAD') return true;
+  return false;
+}
+
+// Global auth rate limit per IP (credential traffic only; session maintenance excluded)
 const authLimiterGlobal = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 50,
+  windowMs: AUTH_RATE_WINDOW_MS,
+  max: authRateLimitGlobalMax,
   message: { message: 'Too many attempts. Please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
+  skip: isAuthSessionMaintenance,
 });
 
-// Per-account auth rate limit: 10 requests per 15 minutes per IP+account (login, register, OTP, etc.)
-// Skip for GET /me (profile) - read-only, higher traffic from settings and other screens
+// Per IP+account: failed credential attempts only (successful login/OTP does not consume quota)
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 10,
+  windowMs: AUTH_RATE_WINDOW_MS,
+  max: authRateLimitAccountMax,
   message: { message: 'Too many attempts. Please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req) => req.method === 'GET' && req.path.endsWith('/me'),
+  skipSuccessfulRequests: true,
+  skip: skipAuthCredentialLimiter,
   keyGenerator: (req) => {
     const ipPart = ipKeyGenerator(req.ip || 'unknown');
     const accountKey = getAuthAccountKey(req);
@@ -165,6 +189,7 @@ app.use((err, req, res, next) => {
 
 // Start AI classification retry service
 console.log(`\n🔒 API rate limit: ${apiRateLimitMax} requests per 15 min (set API_RATE_LIMIT_MAX to override)`);
+console.log(`🔒 Auth rate limits: ${authRateLimitGlobalMax} global / ${authRateLimitAccountMax} failed attempts per account per 15 min (AUTH_RATE_LIMIT_* to override)`);
 console.log('\n🤖 Initializing AI services...');
 const retryTask = startRetryService();
 const aiWarmupTask = startAiWarmup();

@@ -45,6 +45,10 @@ Recent backend updates:
   - Default: 2000 requests per 15 min (dev), 500 (production).
   - Override via `API_RATE_LIMIT_MAX` env var.
   - Reduces 429 errors during normal dashboard usage.
+- **Auth rate limits** (failed attempts + global ceiling; logout/profile excluded):
+  - Per-account failed attempts: 30 (dev) / 10 (prod) per 15 min — `AUTH_RATE_LIMIT_ACCOUNT_MAX`.
+  - Global auth POST ceiling: 200 (dev) / 50 (prod) per 15 min — `AUTH_RATE_LIMIT_GLOBAL_MAX`.
+  - Successful logins do not increment the per-account counter.
 - **Notifications enrichment**:
   - `GET /api/notifications` now joins `incident_reports` and returns `incident_type` and `incident_status` per notification.
   - Fallback query when schema lacks these columns.
@@ -243,6 +247,8 @@ Latest reliability fixes applied:
 | `SALT_ROUNDS` | bcrypt salt rounds (default: 10) | No |
 | `PORT` | Server port (default: 3000) | No |
 | `API_RATE_LIMIT_MAX` | Max API requests per 15 min per IP (default: 2000 dev, 500 prod) | No |
+| `AUTH_RATE_LIMIT_ACCOUNT_MAX` | Max **failed** credential attempts per 15 min per IP+account (default: 30 dev, 10 prod) | No |
+| `AUTH_RATE_LIMIT_GLOBAL_MAX` | Max credential-related `/api/auth` POST requests per 15 min per IP (default: 200 dev, 50 prod); logout/profile excluded | No |
 | `NODE_ENV` | `production` or `development` | Yes in production |
 | `FIREBASE_SERVICE_ACCOUNT_PATH` | Path to Firebase service account JSON | For phone auth |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` | SMTP for password reset emails | For dispatcher forgot-password |

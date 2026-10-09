@@ -210,7 +210,7 @@ Mounted routes: `/api/auth`, `/api/incidents`, `/api/dispatches`, `/api/responde
 - Logout with JWT token blacklist
 - Role-based authorization guards (User, Responder, Dispatcher, Admin, Supervisor, Department Admin, Department Head, Personnel)
 - Ownership checks on incident resources
-- Per-IP and per-account auth rate limiting; configurable general API rate limits
+- Auth rate limiting: failed attempts per IP+account, global auth POST ceiling; logout/profile excluded; env `AUTH_RATE_LIMIT_*`
 
 ### Incident Lifecycle, Media & Duplicates
 
@@ -374,6 +374,8 @@ Disabled by default. Enable via `USE_BLOCKCHAIN=true` (Backend) and `VITE_USE_BL
 | `USE_BLOCKCHAIN` | `Backend/.env` | `false` | Enable Ganache blockchain finalization on verify |
 | `VITE_USE_BLOCKCHAIN` | `Frontend/Web/dispatcher_dashboard/.env` | `false` | Show blockchain UI vs audit-trail labels |
 | `API_RATE_LIMIT_MAX` | `Backend/.env` | 2000 (dev) / 500 (prod) | General API rate limit override |
+| `AUTH_RATE_LIMIT_ACCOUNT_MAX` | `Backend/.env` | 30 (dev) / 10 (prod) | Failed credential attempts per IP+account per 15 min |
+| `AUTH_RATE_LIMIT_GLOBAL_MAX` | `Backend/.env` | 200 (dev) / 50 (prod) | Credential-related auth POSTs per IP per 15 min |
 | `AI_HEALTH_PRECHECK_ENABLED` | RescueLink AI `.env` | off | Per-request AI health check (adds latency) |
 | `FILE_DEEP_SCAN_ENGINE` | `Backend/.env` | `stub` | Deep scan engine (stub only — not a production feature) |
 

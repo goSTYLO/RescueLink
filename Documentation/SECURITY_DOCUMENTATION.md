@@ -496,12 +496,11 @@ Every security-relevant operation is logged for forensic analysis and compliance
 
 ### Rate Limiting & DDoS Protection
 
-**Authentication Endpoint Rate Limits:**
+**Authentication Endpoint Rate Limits** (see `Backend/src/app.js`):
 
-- `POST /api/auth/login`: 10 requests per 15 minutes per account
-- Consecutive failures trigger progressive delays (backoff)
-- After 5 failed attempts: Account temporarily locked for 15 minutes
-- Admin notified if account repeatedly attacked
+- **Failed credential attempts:** per IP + account (email or phone in body), default 10 failures / 15 min (production), 30 (non-production). Successful login and OTP verification do not consume this quota (`skipSuccessfulRequests`).
+- **Global auth ceiling:** per IP on credential-related `/api/auth` POST traffic, default 50 / 15 min (production), 200 (non-production). Session maintenance routes are excluded (logout, profile `/me`, avatar, OneSignal subscription).
+- Override via `AUTH_RATE_LIMIT_ACCOUNT_MAX` and `AUTH_RATE_LIMIT_GLOBAL_MAX`.
 
 **General API Rate Limit:**
 
