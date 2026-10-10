@@ -539,7 +539,7 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
     } else {
       if (!_hasValidText) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Text(
               'Please enter at least ${IncidentService.textReportMinLength} characters describing the emergency.',
             ),
@@ -1192,7 +1192,7 @@ class _EmergencyReportScreenState extends State<EmergencyReportScreen> {
 
   Widget _buildTextTabContent(ThemeData theme) {
     final len = _textReportController.text.trim().length;
-    final minLen = IncidentService.textReportMinLength;
+    const minLen = IncidentService.textReportMinLength;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [

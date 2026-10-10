@@ -14,7 +14,7 @@ void main() {
 
   test('applyPhilippinesConstraints sets minZoom and camera constraint', () {
     final options = DagupanMap.applyPhilippinesConstraints(
-      MapOptions(initialCenter: DagupanMap.center, initialZoom: 14),
+      const MapOptions(initialCenter: DagupanMap.center, initialZoom: 14),
     );
     expect(options.minZoom, DagupanMap.philippinesMinZoom);
     expect(options.maxZoom, DagupanMap.philippinesMaxZoom);

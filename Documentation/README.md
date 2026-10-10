@@ -35,6 +35,7 @@ This folder is the consolidated entry point for project documentation.
 - [Security Runbook](backend/SECURITY_RUNBOOK.md)
 - [RBAC Postman Guide](backend/RBAC_POSTMAN_GUIDE.md)
 - [Test Accounts](backend/ACCOUNTS.md)
+- [Database catalog](backend/DATABASE.md) — live Supabase schema, tables, access model, audit indexes
 - [AI Integration Plan](backend/AI_INTEGRATION_PLAN.md)
 
 ## AI

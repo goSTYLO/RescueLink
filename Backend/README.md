@@ -205,7 +205,7 @@ Latest reliability fixes applied:
    ```bash
    npm run setup-db
    ```
-   Or manually run `schema.sql` via your DB client.
+   Or manually run `schema.sql` via your DB client. For **production shape** (Singapore Supabase), see [Documentation/backend/DATABASE.md](../Documentation/backend/DATABASE.md). `schema.sql` bootstraps a dev database; migrations plus that catalog describe the live database.
 
 3. **Run migrations** (for existing databases):
    ```bash

@@ -43,6 +43,7 @@ const MIGRATION_ORDER = [
   'add_archived_incident_reports.sql',
   'add_roles_lookup.sql',
   'fix_sync_user_role.sql',
+  'add_schema_audit_optimizations.sql',
 ];
 
 module.exports = { MIGRATION_ORDER };
