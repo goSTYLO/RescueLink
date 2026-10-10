@@ -20,7 +20,7 @@ const BACKEND_URL = process.env.BACKEND_URL || process.env.API_URL || 'http://lo
 
 // Test accounts from Documentation/backend/ACCOUNTS.md
 const ADMIN_EMAIL = process.env.TEST_ADMIN_EMAIL || 'admin@rescuelink.test';
-const ADMIN_PASSWORD = process.env.TEST_ADMIN_PASSWORD || 'admin123';
+const ADMIN_PASSWORD = process.env.TEST_ADMIN_PASSWORD || 'Admin123!';
 const USER_PHONE = process.env.TEST_USER_PHONE || '+639005000001';
 const USER_PASSWORD = process.env.TEST_USER_PASSWORD || 'user123';
 

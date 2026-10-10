@@ -3,8 +3,8 @@ const { comparePassword } = require('../src/utils/hash');
 const User = require('../src/models/user');
 
 const accounts = [
-  { email: 'admin@rescuelink.test', password: 'admin123' },
-  { email: 'admin2@rescuelink.test', password: 'admin123' },
+  { email: 'admin@rescuelink.test', password: 'Admin123!' },
+  { email: 'admin2@rescuelink.test', password: 'Admin123!' },
   { email: 'dispatcher@rescuelink.test', password: 'dispatcher123' },
   { email: 'dispatcher2@rescuelink.test', password: 'dispatcher123' },
   { email: 'responder@rescuelink.test', password: 'responder123' },

@@ -83,7 +83,7 @@ Full credential + team mapping: `[Documentation/backend/ACCOUNTS.md](../backend/
 | Role                        | Phone (mobile) | Password        | Email (web only)                  |
 | --------------------------- | -------------- | --------------- | --------------------------------- |
 | Dispatcher                  | `09002000001`  | `dispatcher123` | `dispatcher@rescuelink.test`      |
-| Admin                       | `09001000001`  | `admin123`      | `admin@rescuelink.test`           |
+| Admin                       | `09001000001`  | `Admin123!`     | `admin@rescuelink.test`           |
 | CDRRMO dept admin           | `09001000011`  | `deptadmin123`  | `deptadmin_drrmo@rescuelink.test` |
 | CDRRMO dept head            | `09001000021`  | `depthead123`   | `depthead_drrmo@rescuelink.test`  |
 | PNP dept admin              | `09001000010`  | `deptadmin123`  | `deptadmin_pnp@rescuelink.test`   |

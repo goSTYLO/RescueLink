@@ -12,7 +12,7 @@ These accounts are seeded by `node scripts/seed-db.js`:
 
 | Role | Login Method | Credentials |
 |------|---|---|
-| **Admin** | Phone or Email | `admin@rescuelink.test` / `admin123`<br/>`admin2@rescuelink.test` / `admin123` |
+| **Admin** | Phone or Email | `admin@rescuelink.test` / `Admin123!`<br/>`admin2@rescuelink.test` / `Admin123!` |
 | **Dispatcher** | Phone or Email | `dispatcher@rescuelink.test` / `dispatcher123`<br/>`dispatcher2@rescuelink.test` / `dispatcher123` |
 | **Supervisor** | Phone or Email | `supervisor@rescuelink.test` / `supervisor123`<br/>`supervisor2@rescuelink.test` / `supervisor123` |
 | **Responder** | Phone or Email | `responder@rescuelink.test` / `responder123`<br/>`responder2@rescuelink.test` / `responder123` |

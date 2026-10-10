@@ -255,6 +255,12 @@ Latest reliability fixes applied:
 | `FRONTEND_URL` | Base URL for password reset links | For dispatcher web app |
 | `BLOCKCHAIN_SERVICE_URL` | Blockchain verification service URL | For incident verification |
 | `DISPATCHER_MFA_ENABLED` | Enable email OTP for dispatcher login (default: true). Set `false` for dev without SMTP | No |
+| `BOOTSTRAP_ADMIN_ENABLED` | Set `true` to create one admin from env on startup when the DB has zero active admins | No |
+| `BOOTSTRAP_ADMIN_EMAIL` | Email for bootstrap admin (required when bootstrap enabled) | When bootstrap enabled |
+| `BOOTSTRAP_ADMIN_PASSWORD` | Password for bootstrap admin; must pass app password policy (see ACCOUNTS.md) | When bootstrap enabled |
+| `BOOTSTRAP_ADMIN_FIRST_NAME` | Optional display name (default: Ariel) | No |
+| `BOOTSTRAP_ADMIN_LAST_NAME` | Optional display name (default: Admin) | No |
+| `BOOTSTRAP_ADMIN_PHONE` | Optional phone for bootstrap admin (default: 09001000001) | No |
 | `UPLOAD_DIR` | Directory for incident uploads (default: `uploads/incidents`) | No |
 | `MAX_AUDIO_SIZE` | Max audio file size in bytes (default: 25MB) | No |
 | `MAX_PHOTO_SIZE` | Max photo size in bytes (default: 10MB) | No |
@@ -293,7 +299,7 @@ See [API Documentation](../Documentation/backend/API_DOCUMENTATION.md) for full 
 
 ## Seeded Test Accounts
 
-- Admin: `admin@rescuelink.test`, `admin2@rescuelink.test` (password: `admin123`)
+- Admin: `admin@rescuelink.test`, `admin2@rescuelink.test` (password: `Admin123!` — see [Documentation/backend/ACCOUNTS.md](../Documentation/backend/ACCOUNTS.md))
 - Dispatcher: `dispatcher@rescuelink.test`, `dispatcher2@rescuelink.test` (password: `dispatcher123`)
 - Supervisor: `supervisor@rescuelink.test`, `supervisor2@rescuelink.test` (password: `supervisor123`)
 - Responder: `responder@rescuelink.test`, `responder2@rescuelink.test` (password: `responder123`)

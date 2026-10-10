@@ -10,6 +10,8 @@ const PORT = process.env.PORT || 3000;
   try {
     // quick DB sanity check
     await pool.query('SELECT 1');
+    const { ensureBootstrapAdmin } = require('./startup/bootstrapAdmin');
+    await ensureBootstrapAdmin();
     const server = http.createServer(app);
     const wss = initWebSocket(server);
     app.locals.wss = wss;

@@ -2,7 +2,9 @@
 
 This document lists all seeded test credentials for development and testing.
 
-**Password pattern:** staff roles use `[role]123` (e.g. `dispatcher123`); all responders use **`responder123`**.
+**Password pattern:** system admins use **`Admin123!`** (meets app password policy); other staff roles use `[role]123` (e.g. `dispatcher123`); all responders use **`responder123`**.
+
+**Bootstrap admin (production / empty DB):** when the backend has `BOOTSTRAP_ADMIN_ENABLED=true` and matching env vars (see [Backend/README.md](../../Backend/README.md)), a restart after clearing users recreates the **primary** system admin below (`admin@rescuelink.test`) if no active admins exist. This does not run full `seed-db`.
 
 **Mobile login:** the app accepts **phone number + password** only (not email). The UI enforces local format **`09XXXXXXXXX`** (digits only, 11 characters). The API accepts `09…`, `639…`, or `+639…` on input but **stores** `09XXXXXXXXX`. Web staff login uses email via the dispatcher portal.
 
@@ -14,8 +16,8 @@ After re-seeding for auto team dispatch testing, every team has **2 account-back
 
 | Email | Phone (mobile) | Password |
 |-------|----------------|----------|
-| admin@rescuelink.test | 09001000001 | admin123 |
-| admin2@rescuelink.test | 09001000002 | admin123 |
+| admin@rescuelink.test | 09001000001 | Admin123! |
+| admin2@rescuelink.test | 09001000002 | Admin123! |
 
 ## Department Admins (Roster & Team Management)
 

@@ -276,8 +276,8 @@ const TEAM_ROSTER = [
 ];
 
 const STAFF_USERS = [
-  { first_name: 'Ariel', last_name: 'Admin', email: 'admin@rescuelink.test', phone_number: '639001000001', password: 'admin123', role: ROLES.ADMIN, address: 'Arellano St, Dagupan City', department_code: null },
-  { first_name: 'Bianca', last_name: 'Admin', email: 'admin2@rescuelink.test', phone_number: '639001000002', password: 'admin123', role: ROLES.ADMIN, address: 'Perez Blvd, Dagupan City', department_code: null },
+  { first_name: 'Ariel', last_name: 'Admin', email: 'admin@rescuelink.test', phone_number: '639001000001', password: 'Admin123!', role: ROLES.ADMIN, address: 'Arellano St, Dagupan City', department_code: null },
+  { first_name: 'Bianca', last_name: 'Admin', email: 'admin2@rescuelink.test', phone_number: '639001000002', password: 'Admin123!', role: ROLES.ADMIN, address: 'Perez Blvd, Dagupan City', department_code: null },
   { first_name: 'Paolo', last_name: 'DeptAdmin', email: 'deptadmin_pnp@rescuelink.test', phone_number: '639001000010', password: 'deptadmin123', role: ROLES.DEPARTMENT_ADMIN, address: 'PNP Headquarters, Dagupan City', department_code: 'pnp' },
   { first_name: 'Rosa', last_name: 'DeptAdmin', email: 'deptadmin_drrmo@rescuelink.test', phone_number: '639001000011', password: 'deptadmin123', role: ROLES.DEPARTMENT_ADMIN, address: 'CDRRMO Office, Dagupan City', department_code: 'drrmo' },
   { first_name: 'Alice', last_name: 'Dispatcher', email: 'dispatcher@rescuelink.test', phone_number: '639002000001', password: 'dispatcher123', role: ROLES.DISPATCHER, address: 'Bonuan Boquig, Dagupan City', department_code: 'drrmo' },

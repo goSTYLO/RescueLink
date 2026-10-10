@@ -5,7 +5,7 @@
  * Requires a running database with seeded data. Run with: npm run test:ws
  *
  * Test accounts (from Documentation/backend/ACCOUNTS.md):
- * - admin@rescuelink.test / admin123
+ * - admin@rescuelink.test / Admin123!
  * - dispatcher@rescuelink.test / dispatcher123
  * - depthead_drrmo@rescuelink.test / depthead123
  * - depthead_pnp@rescuelink.test / depthead123
@@ -200,7 +200,7 @@ afterAll(async () => {
 
 describe('WebSocket Authentication', () => {
   test('valid JWT token successfully connects', async () => {
-    const token = await loginDispatcher('admin@rescuelink.test', 'admin123');
+    const token = await loginDispatcher('admin@rescuelink.test', 'Admin123!');
     const ws = await connectWebSocket(token);
     expect(ws.readyState).toBe(WebSocket.OPEN);
     ws.close();
@@ -229,7 +229,7 @@ describe('WebSocket Authentication', () => {
 
 describe('WebSocket Role-Based Filtering', () => {
   test('admin receives incident:created event when any incident is created', async () => {
-    const adminToken = await loginDispatcher('admin@rescuelink.test', 'admin123');
+    const adminToken = await loginDispatcher('admin@rescuelink.test', 'Admin123!');
 
     const ws = await connectWebSocket(adminToken);
     const reportId = await createEmergencyIncident(adminToken);
@@ -243,7 +243,7 @@ describe('WebSocket Role-Based Filtering', () => {
 
   test('dispatcher receives incident:created event', async () => {
     const dispatcherToken = await loginDispatcher('dispatcher@rescuelink.test', 'dispatcher123');
-    const adminToken = await loginDispatcher('admin@rescuelink.test', 'admin123');
+    const adminToken = await loginDispatcher('admin@rescuelink.test', 'Admin123!');
 
     const ws = await connectWebSocket(dispatcherToken);
     const reportId = await createEmergencyIncident(adminToken);
@@ -272,7 +272,7 @@ describe('WebSocket Role-Based Filtering', () => {
   });
 
   test('department head receives events for incidents dispatched to their department', async () => {
-    const adminToken = await loginDispatcher('admin@rescuelink.test', 'admin123');
+    const adminToken = await loginDispatcher('admin@rescuelink.test', 'Admin123!');
     const deptHeadToken = await loginDispatcher('depthead_drrmo@rescuelink.test', 'depthead123');
 
     const reportId = await createEmergencyIncident(adminToken);
@@ -294,7 +294,7 @@ describe('WebSocket Role-Based Filtering', () => {
 
 describe('WebSocket Event Types', () => {
   test('incident:created event received when new incident created', async () => {
-    const adminToken = await loginDispatcher('admin@rescuelink.test', 'admin123');
+    const adminToken = await loginDispatcher('admin@rescuelink.test', 'Admin123!');
 
     const ws = await connectWebSocket(adminToken);
     const reportId = await createEmergencyIncident(adminToken);
@@ -308,7 +308,7 @@ describe('WebSocket Event Types', () => {
   });
 
   test('incident:status_updated event received when status changes', async () => {
-    const adminToken = await loginDispatcher('admin@rescuelink.test', 'admin123');
+    const adminToken = await loginDispatcher('admin@rescuelink.test', 'Admin123!');
 
     const reportId = await createEmergencyIncident(adminToken);
 
@@ -324,7 +324,7 @@ describe('WebSocket Event Types', () => {
   });
 
   test('incident:dispatched event received when dispatch created', async () => {
-    const adminToken = await loginDispatcher('admin@rescuelink.test', 'admin123');
+    const adminToken = await loginDispatcher('admin@rescuelink.test', 'Admin123!');
 
     const reportId = await createEmergencyIncident(adminToken);
 
@@ -371,7 +371,7 @@ describe('WebSocket Application Events', () => {
   });
 
   test('admin still receives application:submitted for other users', async () => {
-    const adminToken = await loginDispatcher('admin@rescuelink.test', 'admin123');
+    const adminToken = await loginDispatcher('admin@rescuelink.test', 'Admin123!');
     const reporterToken = await tryLoginReporter('639005000001', 'user123')
       || await tryLoginReporter('09005000001', 'user123');
     if (!reporterToken) return;
@@ -402,7 +402,7 @@ describe('WebSocket Application Events', () => {
 
 describe('WebSocket Connection Resilience', () => {
   test('connection stays open and receives multiple events', async () => {
-    const adminToken = await loginDispatcher('admin@rescuelink.test', 'admin123');
+    const adminToken = await loginDispatcher('admin@rescuelink.test', 'Admin123!');
 
     const ws = await connectWebSocket(adminToken);
     const reportId1 = await createEmergencyIncident(adminToken);
@@ -516,7 +516,7 @@ describe('Volunteer Responder Incident Alerts', () => {
   let adminToken;
 
   beforeAll(async () => {
-    adminToken = await loginDispatcher('admin@rescuelink.test', 'admin123');
+    adminToken = await loginDispatcher('admin@rescuelink.test', 'Admin123!');
   });
 
   afterEach(async () => {
@@ -630,7 +630,7 @@ describe('Volunteer Responder Incident Alerts', () => {
       || await tryLoginReporter('09005000001', 'user123');
     if (!reporterToken) return;
 
-    const adminToken = await loginDispatcher('admin@rescuelink.test', 'admin123');
+    const adminToken = await loginDispatcher('admin@rescuelink.test', 'Admin123!');
     const ws = await connectWebSocket(reporterToken);
     await createEmergencyIncident(adminToken);
     await waitForNoEvent(ws, 'responder:incident_alert', 2500);
